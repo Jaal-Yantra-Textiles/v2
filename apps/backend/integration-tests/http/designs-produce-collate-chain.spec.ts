@@ -34,7 +34,7 @@ setupSharedTestSuite(() => {
   describe("#1597 — chained dispatches collate into one work-order", () => {
     let adminHeaders: { headers: Record<string, string> }
     let partnerId: string
-    let templateId: string | null = null
+    let templateId: string
     const designIds: string[] = []
 
     const { api, getContainer } = getSharedTestEnv()
@@ -67,7 +67,7 @@ setupSharedTestSuite(() => {
         {
           design_ids: [designId],
           partner_id: partnerId,
-          ...(templateId ? { template_ids: [templateId] } : {}),
+          template_ids: [templateId],
           ...body,
         },
         adminHeaders
@@ -110,13 +110,79 @@ setupSharedTestSuite(() => {
       })
       partnerId = partner.id
 
-      // A real template if the environment has one — dispatch then runs for
-      // real and the runs reach `sent_to_partner` through the actual path,
-      // which is what writes the partner↔order link the collation reads.
-      const templates = await api
-        .get("/admin/task-templates?limit=1", adminHeaders)
-        .catch(() => null)
-      templateId = templates?.data?.task_templates?.[0]?.id ?? null
+      /**
+       * 🔴 A template of OUR OWN, always. This used to borrow "a real template
+       * if the environment has one" — and the test database has none, so every
+       * case below dispatched NOTHING and the dispatch path was never run. That
+       * is how produce-with-templates shipped broken (2026-09-27 → 10-07):
+       * dispatch minted each run a work order of its own (#2306 S3) before the
+       * batch was collated, and the collation threw on the second link.
+       */
+      const taskService: any = container.resolve("tasks")
+      const template = await taskService.createTaskTemplates({
+        name: `collate-chain-${unique}`,
+        description: "produce collate chain dispatch template",
+        priority: "medium",
+        estimated_duration: 60,
+        required_fields: {},
+        eventable: false,
+        notifiable: false,
+        message_template: "",
+        metadata: { workflow_type: "production_run" },
+      })
+      templateId = (Array.isArray(template) ? template[0] : template).id
+    })
+
+    it("dispatches every design of ONE produce call onto ONE work order", async () => {
+      const container = getContainer()
+      const query = container.resolve(ContainerRegistrationKeys.QUERY) as any
+      const designP = await newDesign("P")
+      const designQ = await newDesign("Q")
+
+      const res = await api.post(
+        "/admin/designs/produce",
+        {
+          design_ids: [designP, designQ],
+          partner_id: partnerId,
+          template_ids: [templateId],
+          collate: "new",
+        },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      const produced = res.data.design_production
+      expect(produced.not_dispatched ?? []).toEqual([])
+      expect(produced.dispatched).toEqual(expect.arrayContaining([designP, designQ]))
+      expect(produced.work_order_id).toBeTruthy()
+
+      // 🔑 Each run sits on THE collated order — not on a per-run order minted
+      // at dispatch (the bug), and dispatch really happened.
+      const { data: runs } = await query.graph({
+        entity: "production_runs",
+        fields: ["id", "status", "order.id"],
+        filters: { id: produced.run_ids },
+      })
+      expect(runs).toHaveLength(2)
+      for (const run of runs) {
+        expect(run.status).toBe("sent_to_partner")
+        expect(run.order?.id).toBe(produced.work_order_id)
+      }
+
+      // The partner can see the order (one link) and open both designs.
+      const { data: partnerLinks } = await query.graph({
+        entity: partnerOrderLink.entryPoint,
+        fields: ["partner_id", "order_id"],
+        filters: { order_id: produced.work_order_id },
+      })
+      expect(partnerLinks.filter((r: any) => r.partner_id === partnerId)).toHaveLength(1)
+      const { data: designPartnerLinks } = await query.graph({
+        entity: designPartnerLink.entryPoint,
+        fields: ["design_id", "partner_id"],
+        filters: { partner_id: partnerId },
+      })
+      expect(designPartnerLinks.map((r: any) => r.design_id)).toEqual(
+        expect.arrayContaining([designP, designQ])
+      )
     })
 
     it("puts a second, separate dispatch on the SAME work-order as the first", async () => {
@@ -296,7 +362,7 @@ setupSharedTestSuite(() => {
         {
           design_ids: [designN],
           partner_id: other.id,
-          ...(templateId ? { template_ids: [templateId] } : {}),
+          template_ids: [templateId],
         },
         adminHeaders
       )

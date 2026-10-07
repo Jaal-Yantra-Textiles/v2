@@ -1554,7 +1554,10 @@ export const projectDispatchedCustomerOrderRunStep = createStep(
 // "assigned" (§5). Same best-effort contract as the other steps.
 export const mirrorRunPartnerLinkOnUnifiedOrderStep = createStep(
   "mirror-run-partner-link-on-unified-order",
-  async (input: { production_run_id: string }, { container }) => {
+  async (
+    input: { production_run_id: string; defer_work_order?: boolean },
+    { container }
+  ) => {
     const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
     try {
       const productionRunService: ProductionRunService =
@@ -1579,8 +1582,14 @@ export const mirrorRunPartnerLinkOnUnifiedOrderStep = createStep(
        * run is collated by its own path (projectDispatchedCustomerOrderRun,
        * projectDesignOrderToUnifiedOrder); a per-run mirror here would split
        * its batch.
+       *
+       * ⚠️ Nor when the caller collates the run itself after dispatch
+       * (`defer_work_order` — produceDesignsAsWorkOrder). Minting here first
+       * puts the run on an order, and the collation that follows then throws on
+       * the second order↔run link. The collation writes the partner link and
+       * partner_status from the run's dispatched status, so nothing is lost.
        */
-      if (!unifiedOrderId && run?.partner_id && !run?.order_id) {
+      if (!unifiedOrderId && run?.partner_id && !run?.order_id && !input.defer_work_order) {
         await projectRunToUnifiedOrder(container, input.production_run_id)
         unifiedOrderId = await resolveUnifiedOrderIdByLink(
           container,
