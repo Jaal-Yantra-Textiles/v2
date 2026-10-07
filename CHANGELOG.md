@@ -1,3 +1,18 @@
+# [13.174.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.173.0...v13.174.0) (2026-10-07)
+
+
+### Bug Fixes
+
+* **produce:** dispatch with templates no longer mints per-run orders before collation ([#2365](https://github.com/Jaal-Yantra-Textiles/v2/issues/2365)) ([07a5a2f](https://github.com/Jaal-Yantra-Textiles/v2/commit/07a5a2fc190d4a20a4c1da8f5771f2380280a2f7)), closes [#2313](https://github.com/Jaal-Yantra-Textiles/v2/issues/2313) [#2306](https://github.com/Jaal-Yantra-Textiles/v2/issues/2306) [pre-#2313](https://github.com/pre-/issues/2313)
+
+
+### Features
+
+* **partner-android:** moodboards from board rows + Play Store release pipeline ([#2356](https://github.com/Jaal-Yantra-Textiles/v2/issues/2356)) ([cf1d6cb](https://github.com/Jaal-Yantra-Textiles/v2/commit/cf1d6cb9968c9257461dabc82abdabd7ea2bb09a)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017)
+* **partner-ui:** multi-design orders — at-a-glance panel, all-designs actions, payment after completion ([#2363](https://github.com/Jaal-Yantra-Textiles/v2/issues/2363)) ([bd83c15](https://github.com/Jaal-Yantra-Textiles/v2/commit/bd83c15be9dd38e6ce172d9cf2ba31b30be07c41))
+* **partner-android:** multi-design orders, payments, loading states, B&W ([#2357](https://github.com/Jaal-Yantra-Textiles/v2/issues/2357)) ([#2362](https://github.com/Jaal-Yantra-Textiles/v2/issues/2362)) ([f48ce80](https://github.com/Jaal-Yantra-Textiles/v2/commit/f48ce80e855bad21210b60601223085cfec81448))
+* **partner-android:** readable notes, order filters + ongoing cards, B&W theme, keyboard-safe login ([#2357](https://github.com/Jaal-Yantra-Textiles/v2/issues/2357)) ([#2361](https://github.com/Jaal-Yantra-Textiles/v2/issues/2361)) ([bf6b356](https://github.com/Jaal-Yantra-Textiles/v2/commit/bf6b3569fa4f2410f1c49fca4d040a6ab68574c3))
+
 # [13.173.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.172.0...v13.173.0) (2026-10-06)
 
 
