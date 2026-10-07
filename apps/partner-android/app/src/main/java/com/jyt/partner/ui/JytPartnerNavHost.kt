@@ -91,12 +91,17 @@ fun JytPartnerNavHost(auth: AuthViewModel) {
             val startSignedIn = state is AuthViewModel.State.SignedIn
             key(startSignedIn) {
                 val navController = rememberNavController()
-                val pendingRunId by PushManager.pendingRunId.collectAsState()
-                LaunchedEffect(pendingRunId, state) {
-                    val runId = pendingRunId ?: return@LaunchedEffect
+                val pendingTarget by PushManager.pendingTarget.collectAsState()
+                LaunchedEffect(pendingTarget, state) {
+                    val target = pendingTarget ?: return@LaunchedEffect
                     if (state is AuthViewModel.State.SignedIn) {
-                        PushManager.offerPendingRunId(null)
-                        navController.navigate(Routes.run(runId))
+                        PushManager.offerTarget(null)
+                        navController.navigate(
+                            when (target) {
+                                is PushManager.Target.Run -> Routes.run(target.id)
+                                is PushManager.Target.InventoryOrder -> Routes.inventoryOrder(target.id)
+                            }
+                        )
                     }
                 }
 

@@ -1,6 +1,7 @@
 package com.jyt.partner
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -37,6 +38,9 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition {
             auth.state.value is AuthViewModel.State.Restoring
         }
+        // A tapped push (cold start) — the nav host opens it once signed in.
+        // Not on a config change: the extras would re-open the same screen.
+        if (savedInstanceState == null) offerPushTarget(intent)
         setContent {
             JytPartnerTheme {
                 val state by auth.state.collectAsState()
@@ -54,6 +58,17 @@ class MainActivity : ComponentActivity() {
                 JytPartnerNavHost(auth = auth)
             }
         }
+    }
+
+    /** A push tapped while the app is already running (singleTop). */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        offerPushTarget(intent)
+    }
+
+    private fun offerPushTarget(intent: Intent?) {
+        val extras = intent?.extras ?: return
+        PushManager.targetFrom { extras.getString(it) }?.let { PushManager.offerTarget(it) }
     }
 
     override fun onStart() {

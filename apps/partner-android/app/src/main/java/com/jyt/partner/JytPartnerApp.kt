@@ -24,6 +24,7 @@ class JytPartnerApp : Application(), ImageLoaderFactory {
             null
         }
         pushConfigured = firebase != null
+        if (pushConfigured) com.jyt.partner.push.PushManager.createChannel(this)
         if (firebase == null) {
             Log.i(TAG, "Push disabled — no Firebase configuration (google-services.json absent)")
         }

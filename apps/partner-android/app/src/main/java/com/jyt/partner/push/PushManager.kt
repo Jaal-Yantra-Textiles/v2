@@ -1,14 +1,22 @@
 package com.jyt.partner.push
 
 import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.messaging.FirebaseMessaging
 import com.jyt.partner.JytPartnerApp
+import com.jyt.partner.MainActivity
+import com.jyt.partner.R
 import com.jyt.partner.TokenStore
 import com.jyt.partner.api.PartnerApi
 import kotlinx.coroutines.CoroutineScope
@@ -32,16 +40,81 @@ object PushManager {
     private const val TAG = "PushManager"
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** The run id a push wants opened — the nav host observes and opens it. */
-    private val _pendingRunId = MutableStateFlow<String?>(null)
-    val pendingRunId: StateFlow<String?> = _pendingRunId
+    /** Where a tapped push wants to go — the nav host observes and opens it. */
+    sealed interface Target {
+        data class Run(val id: String) : Target
+        data class InventoryOrder(val id: String) : Target
+    }
+
+    private val _pendingTarget = MutableStateFlow<Target?>(null)
+    val pendingTarget: StateFlow<Target?> = _pendingTarget
 
     @Volatile
     private var requestedAuthorization = false
 
-    fun offerPendingRunId(runId: String?) {
-        _pendingRunId.value = runId
+    fun offerTarget(target: Target?) {
+        _pendingTarget.value = target
     }
+
+    /**
+     * The target named by a push's data map. The keys are the ones the
+     * backend stamps (partner-push-on-send, run reminders); a background
+     * push delivers the same keys as the launch intent's extras.
+     */
+    fun targetFrom(get: (String) -> String?): Target? {
+        get("inventory_order_id")?.takeIf { it.isNotBlank() }?.let { return Target.InventoryOrder(it) }
+        get("production_run_id")?.takeIf { it.isNotBlank() }?.let { return Target.Run(it) }
+        return null
+    }
+
+    /** One channel for work arriving: new designs, orders and reminders.
+     *  Also FCM's default channel (manifest), so background pushes land here. */
+    fun createChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < 26) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_WORK, "New work", NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "New designs, inventory orders and reminders"
+            }
+        )
+    }
+
+    /**
+     * A push that arrives while the app is open: Android shows nothing on
+     * its own, so post it ourselves. Tapping opens the app on its target —
+     * it never navigates by itself (that used to yank the partner off
+     * whatever screen they were on).
+     */
+    fun show(context: Context, title: String, body: String?, data: Map<String, String>) {
+        if (!hasNotificationPermission(context)) return
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            data.forEach { (k, v) -> putExtra(k, v) }
+        }
+        val key = data["inventory_order_id"] ?: data["production_run_id"] ?: title
+        val pending = PendingIntent.getActivity(
+            context,
+            key.hashCode(),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_WORK)
+            .setSmallIcon(R.drawable.ic_stat_notify)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pending)
+            .build()
+        try {
+            NotificationManagerCompat.from(context).notify(key.hashCode(), notification)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "notification not shown: ${e.message}")
+        }
+    }
+
+    const val CHANNEL_WORK = "work"
 
     /** Called on sign-in (and session restore): permission, then FCM token. */
     fun enableAfterSignIn(context: Context) {
