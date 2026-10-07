@@ -7,6 +7,16 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Push (FCM): the google-services plugin turns app/google-services.json into
+// the resources FirebaseApp.initializeApp reads. Applied only when the file is
+// there, so a checkout without it still builds and push stays a guarded no-op
+// (JytPartnerApp.pushConfigured). The file is gitignored; the release workflow
+// writes it from the GOOGLE_SERVICES_JSON secret. Firebase project: luna-d094c,
+// the same one the backend sends through (FCM_SERVICE_ACCOUNT_JSON).
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 // Release signing is property-driven (gradle.properties, ~/.gradle/gradle.properties
 // or -P on the command line — never committed):
 //   JYT_PARTNER_STORE_FILE, JYT_PARTNER_STORE_PASSWORD,
@@ -25,8 +35,10 @@ android {
         applicationId = "com.jyt.partner"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.1.3"
+        // CI (partner-android-release.yml) passes -PversionCode / -PversionName:
+        // Play refuses any upload whose versionCode is not higher than the last.
+        versionCode = (project.findProperty("versionCode") as String?)?.toInt() ?: 4
+        versionName = (project.findProperty("versionName") as String?) ?: "0.1.3"
 
         // The backend the app talks to. The Android emulator reaches the
         // host's localhost through 10.0.2.2 — the counterpart of the iOS
@@ -105,9 +117,9 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("io.coil-kt:coil-compose:2.7.0")
-    // FCM — deliberately WITHOUT the google-services plugin: the build must
-    // succeed without google-services.json, and push degrades to a no-op
-    // (guarded init) until one is dropped in.
+    // FCM — the google-services plugin is applied only when
+    // app/google-services.json exists (see the top of this file), so the build
+    // succeeds without it and push degrades to a no-op (guarded init).
     implementation("com.google.firebase:firebase-messaging:24.0.2")
     implementation("androidx.core:core-ktx:1.13.1")
     // System splash (API 31+) with the pre-31 backport, held on screen

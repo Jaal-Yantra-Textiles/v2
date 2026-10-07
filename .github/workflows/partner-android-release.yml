@@ -1,0 +1,214 @@
+name: Partner Android Release
+
+# Builds the partner app (`apps/partner-android`, com.jyt.partner) as a SIGNED
+# Android App Bundle against production and uploads it to Google Play.
+#
+#   push to main (app changed) → Play INTERNAL track, released to internal testers
+#   Run workflow (manual)      → pick the track and the release status
+#
+# `partner-android-check.yml` stays the PR gate (tests + debug build). This job
+# runs the same unit tests again before it signs anything.
+#
+# ## Secrets (Settings → Secrets and variables → Actions)
+#
+#   PARTNER_ANDROID_KEYSTORE_BASE64   base64 of the upload keystore (jyt-partner.jks)
+#   PARTNER_ANDROID_KEYSTORE_PASSWORD keystore password
+#   PARTNER_ANDROID_KEY_ALIAS         key alias
+#   PARTNER_ANDROID_KEY_PASSWORD      key password
+#   PLAY_SERVICE_ACCOUNT_JSON         Play Console service-account JSON with
+#                                     "Release to testing tracks" on com.jyt.partner
+#
+#   GOOGLE_SERVICES_JSON (optional)   Firebase client config (google-services.json)
+#                                     for com.jyt.partner in project luna-d094c —
+#                                     the project the backend sends push through.
+#                                     Without it the release still ships, with
+#                                     push switched off (the app's guarded no-op).
+#
+# Until all five exist the job SKIPS with a notice instead of failing: a job
+# that is red on every merge to main trains everyone to ignore it.
+#
+# ## Versions
+#
+# versionCode = 100 + the workflow run number, so every upload is higher than
+# the last (Play refuses anything else) and higher than the hand-built 4.
+# versionName = 0.2.<run number>.
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'apps/partner-android/**'
+      - '.github/workflows/partner-android-release.yml'
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play track'
+        type: choice
+        options: [ internal, alpha, beta, production ]
+        default: internal
+      status:
+        description: 'Release status ("draft" while the app has never been published on Play)'
+        type: choice
+        options: [ completed, draft ]
+        default: completed
+
+# One upload at a time; a newer run waits rather than racing for a versionCode.
+concurrency:
+  group: partner-android-release
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PACKAGE_NAME: com.jyt.partner
+  BACKEND_URL: https://v3.jaalyantra.com
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/partner-android
+    steps:
+      - name: Check release secrets
+        id: secrets
+        working-directory: .
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PARTNER_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.PARTNER_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PARTNER_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PARTNER_ANDROID_KEY_PASSWORD }}
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          missing=()
+          [ -n "$KEYSTORE_BASE64" ]   || missing+=(PARTNER_ANDROID_KEYSTORE_BASE64)
+          [ -n "$KEYSTORE_PASSWORD" ] || missing+=(PARTNER_ANDROID_KEYSTORE_PASSWORD)
+          [ -n "$KEY_ALIAS" ]         || missing+=(PARTNER_ANDROID_KEY_ALIAS)
+          [ -n "$KEY_PASSWORD" ]      || missing+=(PARTNER_ANDROID_KEY_PASSWORD)
+          [ -n "$PLAY_JSON" ]         || missing+=(PLAY_SERVICE_ACCOUNT_JSON)
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Partner Android release skipped::Missing secrets: ${missing[*]}"
+            {
+              echo "### Partner Android release skipped"
+              echo "Missing repository secrets: \`${missing[*]}\`. See the header of partner-android-release.yml."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ready == 'true'
+
+      - name: Use JDK 17
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        if: steps.secrets.outputs.ready == 'true'
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+          log-accepted-android-sdk-licenses: false
+
+      - name: Set up Gradle
+        if: steps.secrets.outputs.ready == 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit + API integration tests
+        if: steps.secrets.outputs.ready == 'true'
+        run: ./gradlew testDebugUnitTest --console=plain
+
+      # build.gradle.kts signs the release build only when keystore.properties
+      # exists (it is gitignored); write both from secrets for this run only.
+      - name: Write signing config
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PARTNER_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.PARTNER_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.PARTNER_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.PARTNER_ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > keystore.properties
+
+      # Optional: the google-services plugin is applied only when this file
+      # exists (app/build.gradle.kts), so without it push is simply off.
+      - name: Write Firebase config
+        if: steps.secrets.outputs.ready == 'true'
+        id: firebase
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" > app/google-services.json
+            grep -q '"com.jyt.partner"' app/google-services.json \
+              || { echo "::error::GOOGLE_SERVICES_JSON has no client for com.jyt.partner"; exit 1; }
+            echo "push=on" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning title=Push disabled::GOOGLE_SERVICES_JSON is not set — this build ships with push notifications off."
+            echo "push=off" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Version
+        if: steps.secrets.outputs.ready == 'true'
+        id: version
+        run: |
+          echo "code=$((100 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
+          echo "name=0.2.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed release bundle
+        if: steps.secrets.outputs.ready == 'true'
+        run: >
+          ./gradlew bundleRelease --console=plain
+          -PpartnerBackendUrl=${{ env.BACKEND_URL }}
+          -PversionCode=${{ steps.version.outputs.code }}
+          -PversionName=${{ steps.version.outputs.name }}
+
+      # An unsigned bundle would mean keystore.properties was not picked up;
+      # Play would reject it, so fail here with a clearer message.
+      - name: Verify the bundle is signed
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          AAB=app/build/outputs/bundle/release/app-release.aab
+          ls -la "$AAB"
+          jarsigner -verify "$AAB" | grep -q "jar verified" || { echo "::error::$AAB is not signed"; exit 1; }
+
+      - name: Keep the bundle as a run artifact
+        if: steps.secrets.outputs.ready == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: partner-android-${{ steps.version.outputs.name }}
+          path: apps/partner-android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
+
+      - name: Upload to Google Play
+        if: steps.secrets.outputs.ready == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: ${{ env.PACKAGE_NAME }}
+          releaseFiles: apps/partner-android/app/build/outputs/bundle/release/app-release.aab
+          track: ${{ inputs.track || 'internal' }}
+          status: ${{ inputs.status || 'completed' }}
+          releaseName: ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})
+
+      - name: Remove signing material
+        if: always() && steps.secrets.outputs.ready == 'true'
+        run: rm -f release.jks keystore.properties app/google-services.json
+
+      - name: Summary
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          {
+            echo "### Partner Android ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})"
+            echo "Uploaded to Play track \`${{ inputs.track || 'internal' }}\` as \`${{ inputs.status || 'completed' }}\`, backend ${{ env.BACKEND_URL }}, push ${{ steps.firebase.outputs.push }}."
+          } >> "$GITHUB_STEP_SUMMARY"

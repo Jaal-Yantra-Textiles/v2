@@ -1,11 +1,13 @@
 package com.jyt.partner.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -41,11 +43,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.jyt.partner.api.PartnerApi
 import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.DesignDetail
+import com.jyt.partner.models.MoodboardBoardsResponse
 import com.jyt.partner.models.ProductionRun
 import kotlinx.coroutines.launch
 
@@ -63,6 +68,8 @@ fun DesignDetailScreen(
 
     var design by remember { mutableStateOf<DesignDetail?>(null) }
     var runs by remember { mutableStateOf<List<ProductionRun>>(emptyList()) }
+    var boards by remember { mutableStateOf<MoodboardBoardsResponse?>(null) }
+    var openImage by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
@@ -74,6 +81,8 @@ fun DesignDetailScreen(
             runs = runCatching {
                 PartnerApi.get(context).productionRuns(designId = designId).productionRuns
             }.getOrDefault(emptyList())
+            // A failed boards call falls back to the legacy blob on the design.
+            boards = runCatching { PartnerApi.get(context).designMoodboards(designId) }.getOrNull()
         } catch (e: Exception) {
             errorText = e.message
         }
@@ -81,6 +90,27 @@ fun DesignDetailScreen(
     }
 
     LaunchedEffect(Unit) { load() }
+
+    openImage?.let { url ->
+        Dialog(
+            onDismissRequest = { openImage = null },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable { openImage = null },
+            ) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = "Moodboard image",
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -168,23 +198,35 @@ fun DesignDetailScreen(
                     }
                 }
 
-                // Moodboard images — embedded data URLs, no geometry read.
-                current.moodboard?.takeIf { it.imageDataUrls.isNotEmpty() }?.let { board ->
-                    item {
-                        SectionCard("Moodboard") {
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(board.imageDataUrls, key = { it.first }) { (_, data) ->
-                                    AsyncImage(
-                                        model = data,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.size(96.dp).clip(RoundedCornerShape(10.dp)),
-                                    )
+                // Moodboard images from every board this partner can see (#2017),
+                // two per row at the photos' own 2:3 shape; tap one to see it whole.
+                MoodboardBoardsResponse.images(boards, current.moodboard)
+                    .takeIf { it.isNotEmpty() }
+                    ?.let { images ->
+                        item {
+                            SectionCard("Moodboard") {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    images.chunked(2).forEach { pair ->
+                                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            pair.forEach { url ->
+                                                AsyncImage(
+                                                    model = url,
+                                                    contentDescription = "Moodboard image",
+                                                    contentScale = ContentScale.Crop,
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .aspectRatio(2f / 3f)
+                                                        .clip(RoundedCornerShape(10.dp))
+                                                        .clickable { openImage = url },
+                                                )
+                                            }
+                                            if (pair.size == 1) Spacer(Modifier.weight(1f))
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
                 current.colors?.takeIf { it.isNotEmpty() }?.let { colors ->
                     item {

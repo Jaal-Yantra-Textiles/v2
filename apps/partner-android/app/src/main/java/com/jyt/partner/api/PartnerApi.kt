@@ -14,11 +14,12 @@ import com.jyt.partner.models.DesignDetail
 import com.jyt.partner.models.DesignDetailResponse
 import com.jyt.partner.models.IncomingDeliveriesResponse
 import com.jyt.partner.models.InventoryOrderChargesResponse
+import com.jyt.partner.models.MoodboardBoardsResponse
+import com.jyt.partner.models.PartnerDesignListResponse
+import com.jyt.partner.models.PartnerException
 import com.jyt.partner.models.PartnerInventoryOrder
 import com.jyt.partner.models.PartnerInventoryOrderDetailResponse
 import com.jyt.partner.models.PartnerInventoryOrderListResponse
-import com.jyt.partner.models.PartnerDesignListResponse
-import com.jyt.partner.models.PartnerException
 import com.jyt.partner.models.PartnerMe
 import com.jyt.partner.models.PartnerOrder
 import com.jyt.partner.models.PartnerOrderDetailResponse
@@ -300,6 +301,10 @@ class PartnerApi private constructor(
 
     suspend fun design(id: String): DesignDetail =
         get<DesignDetailResponse>("partners/designs/$id").design
+
+    /** The design's moodboards from this partner's view: their own plus everyone else's (#2017). */
+    suspend fun designMoodboards(id: String): MoodboardBoardsResponse =
+        get("partners/designs/$id/moodboards")
 
     suspend fun productionRuns(
         designId: String? = null,
