@@ -50,7 +50,11 @@ export const DesignsAtAGlance = ({
       const action = nextActionFor(item)
       const badge = runPartnerBadge(item.run)
       return (
-        <div key={item.lineId} className="flex items-center gap-x-3 px-6 py-3">
+        <div
+          key={item.lineId}
+          data-glance-run-id={String(item.run?.id)}
+          className="flex items-center gap-x-3 px-6 py-3"
+        >
           <div className="flex min-w-0 flex-1 flex-col">
             <Text size="small" weight="plus" className="truncate">
               {item.name}
@@ -169,7 +173,11 @@ export const BulkActionDrawer = ({
         <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">
           <div className="flex flex-col gap-y-2">
             {bulk.runs.map((r) => (
-              <label key={r.lineId} className="flex cursor-pointer items-center gap-x-3">
+              <label
+                key={r.lineId}
+                data-bulk-run-id={String(r.run?.id)}
+                className="flex cursor-pointer items-center gap-x-3"
+              >
                 <Checkbox
                   checked={chosen.has(r.lineId)}
                   onCheckedChange={(c) =>

@@ -2543,6 +2543,98 @@ async function seedDesignDetailLayout(container: any): Promise<{
   }
 }
 /**
+ * #2357 — a collated design work-order whose BOTH designs are offered and
+ * untouched, for the "Designs at a glance" panel and the "Actions for all
+ * designs" drawer. Its own partner and its own order: the spec ACCEPTS and
+ * STARTS runs, so sharing #2264's read-only collated order would change what
+ * that spec reads.
+ *
+ * 🔑 Produced WITHOUT templates, like #2264's collated fixture: the runs are
+ * born `sent_to_partner` — offered, which is the state the panel acts on.
+ * WITH templates `produceDesignsAsWorkOrder` currently throws "Cannot create
+ * multiple links between 'order' and 'production_runs'": each dispatch mints
+ * a per-run work order (#2306 S3, mirrorRunPartnerLinkOnUnifiedOrderStep)
+ * before the batch is collated, so the collation finds every run already on
+ * an order. Found by this fixture on 2026-10-07; tracked separately.
+ */
+async function seedCollatedActionsFixture(container: any): Promise<{
+  email: string
+  password: string
+  workOrderId: string
+  designs: { name: string; runId: string }[]
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const authModule = container.resolve(Modules.AUTH)
+  const designService: any = container.resolve("design")
+  const stamp = Date.now()
+
+  // A partner with a VERIFIED login (see seedActionFirstRun for why).
+  const created = await partnerModule.createPartners({
+    name: `E2E Collated Actions ${stamp}`,
+    handle: `e2e-collated-actions-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partnerId = (Array.isArray(created) ? created[0] : created).id as string
+  const email = `e2e-collated-actions-${stamp}@jyt.test`
+  await partnerModule.createPartnerAdmins({
+    email,
+    first_name: "E2E",
+    last_name: "Collated Actions",
+    role: "admin",
+    partner_id: partnerId,
+  })
+  const hash = await Scrypt.kdf(SEED_PASSWORD, { logN: 15, r: 8, p: 1 })
+  const identity: any = await authModule.createAuthIdentities({
+    provider_identities: [
+      {
+        provider: "emailpass",
+        entity_id: email,
+        provider_metadata: { password: hash.toString("base64") },
+      },
+    ],
+    app_metadata: { partner_id: partnerId },
+  })
+  const now = new Date()
+  await authModule.createAuthVerifications([
+    {
+      auth_identity_id: (Array.isArray(identity) ? identity[0] : identity).id,
+      entity_id: email,
+      entity_type: "email",
+      code_provider: "emailpass",
+      requested_at: now,
+      verified_at: now,
+    },
+  ])
+
+  const names = [`E2E Bulk Robe ${stamp}`, `E2E Bulk Apron ${stamp}`]
+  const designIds: string[] = []
+  for (const name of names) {
+    const d = await designService.createDesigns({
+      name,
+      description: "e2e #2357 collated actions fixture",
+      design_type: "Original",
+      status: "Approved",
+      priority: "Medium",
+    })
+    designIds.push((Array.isArray(d) ? d[0] : d).id)
+  }
+  const produced: any = await produceDesignsAsWorkOrder(container, designIds, partnerId, {
+    collate: "new",
+  })
+  if (!produced.work_order_id || produced.run_ids?.length !== designIds.length) {
+    throw new Error(`#2357 fixture: expected one work order with both runs — ${JSON.stringify(produced)}`)
+  }
+
+  return {
+    email,
+    password: SEED_PASSWORD,
+    workOrderId: produced.work_order_id,
+    designs: names.map((name, i) => ({ name, runId: produced.run_ids[i] })),
+  }
+}
+
+/**
  * #2018 — a design work-order the partner has been OFFERED and not yet
  * accepted, so the action-first layout can be driven in a real browser.
  *
@@ -3424,6 +3516,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: #2264 work orders (inventory, one-run design, collated)...")
   const workOrders = await seedWorkOrdersFixture(container)
 
+  logger.info("E2E seed: #2357 collated order for the all-designs actions...")
+  const collatedActions = await seedCollatedActionsFixture(container)
+
   logger.info("E2E seed: #1752 partner inventory-order change fixtures (admin approve + partner propose)...")
   const invChange = await seedInventoryOrderChange(container)
 
@@ -3663,6 +3758,11 @@ export default async function e2eSeed({ container }: ExecArgs) {
     woDesignName: workOrders.designName,
     woCollatedWorkOrderId: workOrders.collatedWorkOrderId,
     woCollatedDesignNames: workOrders.collatedDesignNames,
+    // #2357 — collated all-designs actions
+    caEmail: collatedActions.email,
+    caPassword: collatedActions.password,
+    caWorkOrderId: collatedActions.workOrderId,
+    caDesigns: collatedActions.designs,
   }
 
   // Last, and before the seed file is written: a run that took the house store
