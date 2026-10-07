@@ -124,6 +124,33 @@ class KitService extends MedusaService({ KitBroadcast }) {
   }
 
   /**
+   * Every email currently on the tag, lowercased. Cursor-paginated, 500 a page.
+   *
+   * ⚠️ Kit's tag listing lags a removal: right after an untag it can still
+   * list the address while the subscriber's own tags no longer carry it. A
+   * stale row here only costs a redundant untag, never a missed one.
+   */
+  async listTagSubscriberEmails(tagId?: string): Promise<string[]> {
+    const tag = tagId || this.blogTagId
+    if (!tag) {
+      throw new Error("No Kit tag id (pass tagId or set KIT_BLOG_TAG_ID)")
+    }
+    const emails: string[] = []
+    let after: string | null = null
+    do {
+      const res = await this.request(
+        "GET",
+        `/tags/${tag}/subscribers?per_page=500${after ? `&after=${encodeURIComponent(after)}` : ""}`
+      )
+      for (const s of Array.isArray(res?.subscribers) ? res.subscribers : []) {
+        if (s?.email_address) emails.push(String(s.email_address).toLowerCase())
+      }
+      after = res?.pagination?.has_next_page ? res.pagination.end_cursor : null
+    } while (after)
+    return emails
+  }
+
+  /**
    * Remove an address from the tag, resolving the subscriber id first.
    *
    * Returns what happened rather than throwing on a miss: `not_found` when Kit

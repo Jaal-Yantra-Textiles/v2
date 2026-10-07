@@ -59,6 +59,40 @@ export async function untagSuppressedInKit(
 }
 
 /**
+ * PURE: who must come off the tag — every address the ledger suppresses that
+ * is still on it, plus this send's own suppressed audience.
+ *
+ * 🔴 The ledger, not the audience, is the source. `getSubscribersStep` already
+ * drops anyone flagged bounced/unsubscribed, so a suppressed address that an
+ * earlier send tagged never reaches this step's audience — and an untag set
+ * built from the audience alone never contained it. On 2026-10-07 that sent
+ * the Luna broadcast to 534 tagged addresses against 509 synced: 15 test
+ * addresses suppressed that morning were still on the tag and got it.
+ */
+export function selectAddressesToUntag(
+  ledgerRows: Array<{ email?: string | null; reason?: string | null }>,
+  tagEmails: Iterable<string>,
+  alsoUntag: Iterable<string> = []
+): Set<string> {
+  const onTag = new Set<string>()
+  for (const e of tagEmails) {
+    const n = normalizeEmail(e)
+    if (n) onTag.add(n)
+  }
+  const out = new Set<string>()
+  for (const row of ledgerRows || []) {
+    if (!row?.reason || !reasonSuppresses(row.reason as any)) continue
+    const n = normalizeEmail(row.email)
+    if (n && onTag.has(n)) out.add(n)
+  }
+  for (const e of alsoUntag) {
+    const n = normalizeEmail(e)
+    if (n) out.add(n)
+  }
+  return out
+}
+
+/**
  * Sync-time gate + push for the Kit broadcast path.
  *
  * `getSubscribersStep` already drops bounced/unsubscribed/dormant addresses;
@@ -143,7 +177,23 @@ export const syncSubscribersToKitStep = createStep(
     //
     // Best-effort by design: a Kit outage must not stop a send. Each untag is
     // 2 requests (lookup + delete), so it is paced like the sync loop.
-    const { untagged } = await untagSuppressedInKit(kit, suppressed, logger)
+    //
+    // Reconcile the WHOLE tag against the WHOLE ledger, not just this audience
+    // — see selectAddressesToUntag. A failed read falls back to the audience's
+    // own suppressed set, which is what this step did before.
+    let toUntag: Set<string> = suppressed
+    try {
+      const [ledger, tagEmails] = await Promise.all([
+        suppression.listEmailSuppressions({}, { select: ["email", "reason"], take: null }),
+        kit.listTagSubscriberEmails(),
+      ])
+      toUntag = selectAddressesToUntag(ledger as any[], tagEmails, suppressed)
+    } catch (e) {
+      logger.warn(
+        `[syncSubscribersToKit] Tag/ledger reconcile failed, untagging this audience's suppressed only: ${(e as Error).message}`
+      )
+    }
+    const { untagged } = await untagSuppressedInKit(kit, toUntag, logger)
 
     logger.info(
       `[syncSubscribersToKit] Synced ${synced}, failed ${failed} (recipient_count=${synced})`
