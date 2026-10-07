@@ -1,5 +1,5 @@
-import { useCallback, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useNavigate, useSearchParams } from "react-router-dom"
 import {
   Badge,
   Checkbox,
@@ -13,6 +13,7 @@ import {
   toast,
 } from "@medusajs/ui"
 
+import { preselectRunIds } from "../../../lib/collated-actions"
 import { RouteFocusModal } from "../../../components/modals"
 import {
   usePartnerAssignedTasks,
@@ -136,6 +137,23 @@ export const PaymentSubmissionCreate = () => {
     () => payable_runs.filter((r: PayableRun) => !runBlockedReason(r)),
     [payable_runs, runBlockedReason]
   )
+
+  /**
+   * #2357 — arriving from a run completion (`?run_ids=…`), tick those runs.
+   * Once, after the payable list loads, and only the submittable ones: a
+   * blocked run must never reach the selection.
+   */
+  const [searchParams] = useSearchParams()
+  const preselected = useRef(false)
+  useEffect(() => {
+    if (preselected.current || runsLoading) return
+    preselected.current = true
+    const ids = preselectRunIds(
+      searchParams.get("run_ids"),
+      submittableRuns.map((r: PayableRun) => r.run_id)
+    )
+    if (ids.length) setSelectedRunIds(new Set(ids))
+  }, [runsLoading, searchParams, submittableRuns])
 
   const blockedRuns = useMemo(
     () => payable_runs.filter((r: PayableRun) => !!runBlockedReason(r)),

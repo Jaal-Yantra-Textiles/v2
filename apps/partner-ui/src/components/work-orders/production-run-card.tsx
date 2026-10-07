@@ -25,6 +25,7 @@ import { InfoBanner } from "./run-info-banner"
 import { FinishRunForm } from "./finish-run-form"
 import { CompleteRunForm } from "./complete-run-form"
 import { TaskRow } from "./task-row"
+import { useOfferPaymentRequest } from "./use-offer-payment-request"
 
 /**
  * The work surface for a single production run: status, progress stepper,
@@ -91,11 +92,14 @@ export const ProductionRunCard = ({
       onActionSuccess?.()
     },
   })
+  // #2357 — after completing, offer the money step (opens the auto-draft).
+  const offerPayment = useOfferPaymentRequest()
   const complete = useCompletePartnerProductionRun(runId, {
     onSuccess: () => {
       toast.success("Run completed")
       setShowCompleteForm(false)
       onActionSuccess?.()
+      void offerPayment([runId])
     },
   })
 

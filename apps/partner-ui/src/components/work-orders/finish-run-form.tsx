@@ -18,6 +18,8 @@ export const FinishRunForm = ({
   isLoading,
   isSample,
   consumptionCount,
+  title = "Mark as Finished",
+  designNames,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -28,6 +30,10 @@ export const FinishRunForm = ({
   isLoading: boolean
   isSample: boolean
   consumptionCount: number
+  /** #2357 — "Finish 3 designs" for the all-designs action. */
+  title?: string
+  /** The designs being finished, listed when more than one. */
+  designNames?: string[]
 }) => {
   const [acknowledgedPending, setAcknowledgedPending] = useState(false)
   const hasPending = pendingTasks.length > 0
@@ -37,9 +43,11 @@ export const FinishRunForm = ({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <Drawer.Content>
         <Drawer.Header>
-          <Drawer.Title>Mark as Finished</Drawer.Title>
+          <Drawer.Title>{title}</Drawer.Title>
           <Drawer.Description>
-            The design will move to Technical Review for admin to inspect.
+            {designNames && designNames.length > 1
+              ? `${designNames.join(", ")} will move to Technical Review for admin to inspect.`
+              : "The design will move to Technical Review for admin to inspect."}
           </Drawer.Description>
         </Drawer.Header>
         <Drawer.Body className="flex flex-col gap-y-4 overflow-y-auto">

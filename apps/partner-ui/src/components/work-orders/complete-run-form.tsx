@@ -62,6 +62,7 @@ export const CompleteRunForm = ({
   isLoading,
   isSample,
   existingConsumptionCount,
+  title,
 }: {
   run: any
   design: PartnerDesign
@@ -71,6 +72,8 @@ export const CompleteRunForm = ({
   isLoading: boolean
   isSample: boolean
   existingConsumptionCount: number
+  /** #2357 — "Complete 2 of 3 · Robe" when walking several designs. */
+  title?: string
 }) => {
   // Only what THIS run was assigned. Falls back to the design's full bill of
   // materials when the run carries no allocation — which is every run made
@@ -282,7 +285,7 @@ export const CompleteRunForm = ({
     <FocusModal open={open} onOpenChange={onOpenChange}>
       <FocusModal.Content>
         <FocusModal.Header>
-          <FocusModal.Title>Complete Production Run</FocusModal.Title>
+          <FocusModal.Title>{title ?? "Complete Production Run"}</FocusModal.Title>
           <FocusModal.Description>
             {runQuantity} piece{runQuantity !== 1 ? "s" : ""} ordered
             {isSample ? " · Sample run" : ""}
