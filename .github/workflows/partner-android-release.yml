@@ -163,7 +163,8 @@ jobs:
         id: version
         run: |
           echo "code=$((100 + ${{ github.run_number }}))" >> "$GITHUB_OUTPUT"
-          echo "name=0.2.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+          # 0.3.x: the hand-uploaded Play build was already labelled 0.3.
+          echo "name=0.3.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Build signed release bundle
         if: steps.secrets.outputs.ready == 'true'

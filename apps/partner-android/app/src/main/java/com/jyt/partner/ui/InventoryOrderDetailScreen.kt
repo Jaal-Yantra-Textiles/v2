@@ -267,7 +267,7 @@ fun InventoryOrderDetailScreen(
                                         color = if ((charge.direction ?: 0) >= 0) {
                                             androidx.compose.ui.graphics.Color.Unspecified
                                         } else {
-                                            androidx.compose.ui.graphics.Color(0xFF2E7D32)
+                                            MaterialTheme.colorScheme.onSurfaceVariant
                                         },
                                     )
                                 }

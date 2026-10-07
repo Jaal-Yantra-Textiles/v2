@@ -79,6 +79,7 @@ fun OrderDetailScreen(
     orderId: String,
     onOpenRun: (String) -> Unit,
     onOpenDesign: (String) -> Unit,
+    onRequestPayment: (String?) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -102,6 +103,8 @@ fun OrderDetailScreen(
     var completeTotal by remember { mutableStateOf(0) }
     var completeDone by remember { mutableStateOf(0) }
     var completedRunId by remember { mutableStateOf<String?>(null) }
+    // Runs just completed here, for the "request payment?" prompt.
+    var paymentPromptRuns by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmAction by remember { mutableStateOf<Pair<RunAction, List<ProductionRun>>?>(null) }
     var showBulkSheet by remember { mutableStateOf(false) }
     var uploadTargetRunId by remember { mutableStateOf<String?>(null) }
@@ -188,6 +191,7 @@ fun OrderDetailScreen(
                 completeTotal = targets.size
                 completeDone = 0
                 completedRunId = null
+                paymentPromptRuns = emptyList()
             }
         }
     }
@@ -637,6 +641,7 @@ fun OrderDetailScreen(
                 onDismiss = {
                     if (completedRunId == run.id) {
                         completeDone += 1
+                        paymentPromptRuns = paymentPromptRuns + run.id
                         completeQueue = completeQueue.drop(1)
                         if (completeQueue.isEmpty()) scope.launch { reload() }
                     } else {
@@ -651,6 +656,19 @@ fun OrderDetailScreen(
                 },
             )
         }
+    }
+
+    // After the last form closes (done or stopped), offer the money step.
+    if (completeQueue.isEmpty() && paymentPromptRuns.isNotEmpty() && actionError == null) {
+        val done = paymentPromptRuns
+        RequestPaymentPrompt(
+            designs = done.size,
+            onRequest = {
+                paymentPromptRuns = emptyList()
+                onRequestPayment(done.singleOrNull())
+            },
+            onDismiss = { paymentPromptRuns = emptyList() },
+        )
     }
 
     if (actionError != null) {

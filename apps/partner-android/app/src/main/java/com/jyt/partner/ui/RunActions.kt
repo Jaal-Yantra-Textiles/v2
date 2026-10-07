@@ -404,7 +404,7 @@ fun CompleteRunSheet(
                     Text(
                         "Produced + rejected is less than ordered. Explain the shortfall — the completion will be recorded with it.",
                         fontSize = 12.sp,
-                        color = androidx.compose.ui.graphics.Color(0xFFE8850C),
+                        color = MaterialTheme.colorScheme.error,
                     )
                     OutlinedTextField(
                         value = shortfallExplanation,

@@ -334,7 +334,7 @@ private fun ReceiveIncomingSheet(delivery: IncomingDelivery, onDone: (Boolean) -
                     Text(
                         "Something is short — explain why. The shortfall stays outstanding on the order.",
                         fontSize = 12.sp,
-                        color = androidx.compose.ui.graphics.Color(0xFFE8850C),
+                        color = MaterialTheme.colorScheme.error,
                     )
                 }
                 OutlinedTextField(

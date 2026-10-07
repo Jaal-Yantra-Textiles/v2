@@ -177,7 +177,7 @@ private fun IncomingDeliveryRow(delivery: IncomingDelivery, onClick: () -> Unit)
                     text = "Sample order",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = androidx.compose.ui.graphics.Color(0xFF00897B),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

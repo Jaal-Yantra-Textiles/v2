@@ -56,12 +56,14 @@ import java.util.Date
 fun RunDetailScreen(
     runId: String,
     onOpenDesign: (String) -> Unit,
+    onRequestPayment: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var detail by remember { mutableStateOf<ProductionRunDetail?>(null) }
+    var showPaymentPrompt by remember { mutableStateOf(false) }
     var design by remember { mutableStateOf<DesignDetail?>(null) }
     // The design load used to fail silently, leaving the Complete sheet
     // without materials and no hint why.
@@ -336,6 +338,7 @@ fun RunDetailScreen(
             // Throws on failure, so the sheet keeps the input and shows why.
             onSubmit = { body ->
                 PartnerApi.get(context).completeRun(runId, body)
+                showPaymentPrompt = true
                 scope.launch {
                     detail = null
                     design = null
@@ -343,6 +346,17 @@ fun RunDetailScreen(
                 }
             },
             onDismiss = { showComplete = false },
+        )
+    }
+
+    if (showPaymentPrompt) {
+        RequestPaymentPrompt(
+            designs = 1,
+            onRequest = {
+                showPaymentPrompt = false
+                onRequestPayment(runId)
+            },
+            onDismiss = { showPaymentPrompt = false },
         )
     }
 
