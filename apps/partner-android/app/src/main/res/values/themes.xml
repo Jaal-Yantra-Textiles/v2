@@ -5,10 +5,10 @@
         <item name="android:windowLightStatusBar">true</item>
     </style>
 
-    <!-- The launch splash — navy background with the J mark, dismissed by
+    <!-- The launch splash — black background with the J mark, dismissed by
          installSplashScreen() once the session restore resolves. -->
     <style name="Theme.JYTPartner.Splash" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/brand_navy</item>
+        <item name="windowSplashScreenBackground">@color/brand_black</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
         <item name="postSplashScreenTheme">@style/Theme.JYTPartner</item>
     </style>

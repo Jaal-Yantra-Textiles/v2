@@ -74,7 +74,7 @@ fun formatQuantity(value: Double): String {
 
 /** The design work-orders list — the DesignOrdersView counterpart: design
  *  picture + name lead, order #, total, date, work-status badge; search,
- *  status chips, and the ongoing work as big cards on top. The list cannot
+ *  status chips, the ongoing work as big cards on top, pull to refresh. The list cannot
  *  be filtered by work status server-side, so every page is loaded (a
  *  partner has tens of orders, not thousands) and narrowed in memory. */
 @Composable
@@ -86,6 +86,7 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
     var filter by rememberSaveable { mutableStateOf(OrderFilter.ALL) }
     var initialLoading by remember { mutableStateOf(true) }
     var appending by remember { mutableStateOf(false) }
+    var refreshing by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     // Monotonic request sequence — a slower, older response must never
     // overwrite a newer one's results.
@@ -163,7 +164,16 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
                 )
             }
         }
-        Box(modifier = Modifier.fillMaxSize()) {
+        Refreshable(
+            refreshing = refreshing,
+            onRefresh = {
+                scope.launch {
+                    refreshing = true
+                    load()
+                    refreshing = false
+                }
+            },
+        ) {
             when {
                 errorText != null && orders.isEmpty() -> ErrorState(
                     title = "Couldn't load design orders",
@@ -171,9 +181,7 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
                 ) {
                     scope.launch { load() }
                 }
-                orders.isEmpty() && initialLoading -> Box(Modifier.fillMaxSize()) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                }
+                orders.isEmpty() && initialLoading -> ListSkeleton()
                 orders.isEmpty() -> EmptyState(
                     icon = Icons.Filled.Checkroom,
                     title = "No design orders",

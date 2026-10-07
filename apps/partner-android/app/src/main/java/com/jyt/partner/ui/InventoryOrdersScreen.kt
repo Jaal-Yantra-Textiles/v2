@@ -63,6 +63,7 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
     var filterMenuOpen by remember { mutableStateOf(false) }
     var initialLoading by remember { mutableStateOf(true) }
     var appending by remember { mutableStateOf(false) }
+    var refreshing by remember { mutableStateOf(false) }
     var nextPageOffset by remember { mutableStateOf<Int?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }
     // Monotonic request sequence — a slower, older response must never
@@ -171,7 +172,16 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
             }
         }
 
-        Box(modifier = Modifier.fillMaxSize()) {
+        Refreshable(
+            refreshing = refreshing,
+            onRefresh = {
+                scope.launch {
+                    refreshing = true
+                    load(reset = true)
+                    refreshing = false
+                }
+            },
+        ) {
             when {
                 errorText != null && orders.isEmpty() -> ErrorState(
                     title = "Couldn't load inventory orders",
@@ -179,9 +189,7 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
                 ) {
                     scope.launch { load(reset = true) }
                 }
-                orders.isEmpty() && initialLoading -> Box(Modifier.fillMaxSize()) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                }
+                orders.isEmpty() && initialLoading -> ListSkeleton(thumb = false)
                 orders.isEmpty() -> EmptyState(
                     icon = Icons.Filled.Inventory2,
                     title = "No inventory orders",
@@ -263,7 +271,7 @@ private fun InventoryOrderRow(order: PartnerInventoryOrder, onClick: () -> Unit)
                     text = "Sample order",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = androidx.compose.ui.graphics.Color(0xFF00897B),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

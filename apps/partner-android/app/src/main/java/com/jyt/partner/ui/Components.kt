@@ -2,6 +2,7 @@ package com.jyt.partner.ui
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -47,10 +48,12 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 // Shared status badges + thumbnails — the DesignComponents/StatusBadges
-// counterpart, same color vocabulary: progress warm, completed green,
-// refusals red, admin cancels neutral.
+// counterpart, in black and white: see BadgeTone.
 
-private fun badgeColors(base: Color): Color = base
+/** Black-and-white badges still have to tell states apart at a glance, so
+ *  the TONE carries it instead of a hue: filled = waiting on you, outlined =
+ *  under way, grey = done, faint = stopped. */
+enum class BadgeTone { ACTION, ACTIVE, DONE, MUTED }
 
 /** Plain "2.5" / "3" text for editable quantity fields — never
  *  locale-formatted, so it round-trips through toDoubleOrNull cleanly. */
@@ -59,52 +62,73 @@ internal fun plainQuantity(value: Double): String =
 
 @Composable
 fun WorkStatusBadge(status: WorkStatus) {
-    val tint = when (status) {
-        WorkStatus.ASSIGNED -> Color(0xFF4C53A8)
-        WorkStatus.ACCEPTED -> Color(0xFF2F6FED)
-        WorkStatus.IN_PROGRESS, WorkStatus.PARTIAL -> Color(0xFFE8850C)
-        WorkStatus.FINISHED, WorkStatus.COMPLETED -> Color(0xFF2E7D32)
-        WorkStatus.DECLINED -> Color(0xFFC62828)
-        WorkStatus.CANCELLED -> Color(0xFF757575)
+    val tone = when (status) {
+        WorkStatus.ASSIGNED -> BadgeTone.ACTION
+        WorkStatus.ACCEPTED, WorkStatus.IN_PROGRESS, WorkStatus.PARTIAL -> BadgeTone.ACTIVE
+        WorkStatus.FINISHED, WorkStatus.COMPLETED -> BadgeTone.DONE
+        WorkStatus.DECLINED, WorkStatus.CANCELLED -> BadgeTone.MUTED
     }
-    StatusBadge(status.label, tint)
+    StatusBadge(status.label, tone)
 }
 
 @Composable
 fun RunStatusBadge(status: String) {
-    val tint = when (status) {
-        "in_progress" -> Color(0xFFE8850C)
-        "finished" -> Color(0xFF00897B)
-        "completed" -> Color(0xFF2E7D32)
-        "cancelled", "awaiting_reassignment" -> Color(0xFF757575)
-        "pending_review", "approved", "sent_to_partner" -> Color(0xFF4C53A8)
-        else -> Color(0xFF2F6FED)
+    val tone = when (status) {
+        "sent_to_partner" -> BadgeTone.ACTION
+        "completed" -> BadgeTone.DONE
+        "cancelled", "awaiting_reassignment" -> BadgeTone.MUTED
+        else -> BadgeTone.ACTIVE
     }
-    StatusBadge(status.replace('_', ' ').replaceFirstChar { it.uppercase() }, tint)
+    StatusBadge(status.replace('_', ' ').replaceFirstChar { it.uppercase() }, tone)
 }
 
 @Composable
 fun InventoryOrderStatusBadge(status: InventoryOrderStatus) {
-    val tint = when (status) {
-        InventoryOrderStatus.PENDING -> Color(0xFF4C53A8)
-        InventoryOrderStatus.PROCESSING, InventoryOrderStatus.PARTIAL -> Color(0xFFE8850C)
-        InventoryOrderStatus.READY_FOR_DELIVERY -> Color(0xFF00897B)
-        InventoryOrderStatus.SHIPPED -> Color(0xFF2F6FED)
-        InventoryOrderStatus.DELIVERED -> Color(0xFF2E7D32)
-        InventoryOrderStatus.CANCELLED -> Color(0xFF757575)
+    val tone = when (status) {
+        InventoryOrderStatus.PENDING -> BadgeTone.ACTION
+        InventoryOrderStatus.PROCESSING, InventoryOrderStatus.PARTIAL,
+        InventoryOrderStatus.READY_FOR_DELIVERY, InventoryOrderStatus.SHIPPED -> BadgeTone.ACTIVE
+        InventoryOrderStatus.DELIVERED -> BadgeTone.DONE
+        InventoryOrderStatus.CANCELLED -> BadgeTone.MUTED
     }
-    StatusBadge(status.raw, tint)
+    StatusBadge(status.raw, tone)
+}
+
+/** Draft waits on the partner; Pending / Under review are with us. */
+@Composable
+fun PaymentStatusBadge(status: String) {
+    val tone = when (status) {
+        "Draft" -> BadgeTone.ACTION
+        "Approved", "Paid", "Completed" -> BadgeTone.DONE
+        "Rejected", "Failed", "Cancelled" -> BadgeTone.MUTED
+        else -> BadgeTone.ACTIVE
+    }
+    StatusBadge(status.replace('_', ' '), tone)
 }
 
 @Composable
-private fun StatusBadge(label: String, tint: Color) {
+fun StatusBadge(label: String, tone: BadgeTone) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(50)
+    val (bg, fg) = when (tone) {
+        BadgeTone.ACTION -> scheme.onSurface to scheme.surface
+        BadgeTone.ACTIVE -> Color.Transparent to scheme.onSurface
+        BadgeTone.DONE -> scheme.surfaceVariant to scheme.onSurface
+        BadgeTone.MUTED -> Color.Transparent to scheme.onSurfaceVariant
+    }
+    val border = when (tone) {
+        BadgeTone.ACTIVE -> scheme.onSurface
+        BadgeTone.MUTED -> scheme.outlineVariant
+        else -> null
+    }
     Text(
         text = label,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
-        color = tint,
+        color = fg,
         modifier = Modifier
-            .background(badgeColors(tint).copy(alpha = 0.15f), RoundedCornerShape(50))
+            .background(bg, shape)
+            .then(if (border != null) Modifier.border(1.dp, border, shape) else Modifier)
             .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import androidx.navigation.compose.rememberNavController
 import com.jyt.partner.AuthViewModel
 import com.jyt.partner.R
@@ -58,12 +59,19 @@ object Routes {
     const val INVENTORY_ORDER = "inventory/{orderId}"
     const val INCOMING = "incoming"
     const val INCOMING_ORDER = "incoming/{orderId}"
+    const val PAYMENTS = "payments?runId={runId}"
+    const val PAYMENT = "payment/{submissionId}"
+    const val REQUEST_PAYMENT = "payments/request?runId={runId}"
 
     fun order(id: String) = "order/$id"
     fun run(id: String) = "run/$id"
     fun design(id: String) = "design/$id"
     fun inventoryOrder(id: String) = "inventory/$id"
     fun incomingOrder(id: String) = "incoming/$id"
+    fun payments(runId: String? = null) = if (runId == null) "payments" else "payments?runId=$runId"
+    fun payment(id: String) = "payment/$id"
+    fun requestPayment(runId: String? = null) =
+        if (runId == null) "payments/request" else "payments/request?runId=$runId"
 }
 
 @Composable
@@ -109,6 +117,7 @@ fun JytPartnerNavHost(auth: AuthViewModel) {
                             orderId = orderId,
                             onOpenRun = { runId -> navController.navigate(Routes.run(runId)) },
                             onOpenDesign = { designId -> navController.navigate(Routes.design(designId)) },
+                            onRequestPayment = { runId -> navController.navigate(Routes.payments(runId)) },
                             onBack = { navController.popBackStack() },
                         )
                     }
@@ -117,6 +126,7 @@ fun JytPartnerNavHost(auth: AuthViewModel) {
                         RunDetailScreen(
                             runId = runId,
                             onOpenDesign = { designId -> navController.navigate(Routes.design(designId)) },
+                            onRequestPayment = { id -> navController.navigate(Routes.payments(id)) },
                             onBack = { navController.popBackStack() },
                         )
                     }
@@ -143,6 +153,34 @@ fun JytPartnerNavHost(auth: AuthViewModel) {
                             },
                         )
                     }
+                    composable(
+                        Routes.PAYMENTS,
+                        arguments = listOf(navArgument("runId") { nullable = true; defaultValue = null }),
+                    ) { entry ->
+                        PaymentsScreen(
+                            auth = auth,
+                            forRunId = entry.arguments?.getString("runId"),
+                            onOpenSubmission = { id -> navController.navigate(Routes.payment(id)) },
+                            onRequestPayment = { runId -> navController.navigate(Routes.requestPayment(runId)) },
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(Routes.PAYMENT) { entry ->
+                        PaymentSubmissionScreen(
+                            submissionId = entry.arguments?.getString("submissionId").orEmpty(),
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(
+                        Routes.REQUEST_PAYMENT,
+                        arguments = listOf(navArgument("runId") { nullable = true; defaultValue = null }),
+                    ) { entry ->
+                        RequestPaymentScreen(
+                            preselectRunId = entry.arguments?.getString("runId"),
+                            onDone = { navController.popBackStack() },
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                     composable(Routes.INCOMING_ORDER) { entry ->
                         val orderId = entry.arguments?.getString("orderId").orEmpty()
                         IncomingDeliveryDetailScreen(
@@ -157,7 +195,7 @@ fun JytPartnerNavHost(auth: AuthViewModel) {
 }
 
 /** The brand gate shown while (or after) the session restores — the same
- *  navy + saffron mark the system splash uses. With [onRetry] non-null it
+ *  black-and-white mark the system splash uses. With [onRetry] non-null it
  *  doubles as the "couldn't reach the server" state: the stored token is
  *  kept and Retry re-runs the restore instead of forcing a sign-in. */
 @Composable
@@ -198,15 +236,21 @@ private fun RestoringGate(onRetry: (() -> Unit)?) {
                 modifier = Modifier.padding(horizontal = 40.dp),
             )
             Spacer(Modifier.height(18.dp))
-            Button(onClick = onRetry) { Text("Retry") }
+            Button(
+                onClick = onRetry,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                    containerColor = LunaSilver,
+                    contentColor = LunaSky,
+                ),
+            ) { Text("Retry") }
         }
     }
 }
 
-// The Luna brand pair — charcoal night sky, silver moon.
-private val LunaSky = androidx.compose.ui.graphics.Color(0xFF14161E)
-private val LunaSilver = androidx.compose.ui.graphics.Color(0xFFEDEFF4)
-private val LunaMuted = androidx.compose.ui.graphics.Color(0xFF9AA0AF)
+// The Luna gate in black and white, matching the app theme and the splash.
+private val LunaSky = androidx.compose.ui.graphics.Color(0xFF000000)
+private val LunaSilver = androidx.compose.ui.graphics.Color(0xFFFFFFFF)
+private val LunaMuted = androidx.compose.ui.graphics.Color(0xFF9E9E9E)
 
 private enum class Tab(val label: String, val filled: androidx.compose.ui.graphics.vector.ImageVector, val outlined: androidx.compose.ui.graphics.vector.ImageVector) {
     ORDERS("Orders", Icons.Filled.Checkroom, Icons.Outlined.Checkroom),
@@ -248,6 +292,7 @@ private fun MainScaffold(auth: AuthViewModel, navController: androidx.navigation
                 Tab.SETTINGS -> SettingsScreen(
                     auth = auth,
                     onOpenIncoming = { navController.navigate(Routes.INCOMING) },
+                    onOpenPayments = { navController.navigate(Routes.payments()) },
                 )
             }
         }

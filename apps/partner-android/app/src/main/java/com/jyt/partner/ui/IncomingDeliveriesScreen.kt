@@ -57,6 +57,7 @@ fun IncomingDeliveriesScreen(onBack: () -> Unit, onOpenDelivery: (String) -> Uni
     var locationId by remember { mutableStateOf<String?>(null) }
     var includeAll by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
     suspend fun load() {
@@ -89,9 +90,7 @@ fun IncomingDeliveriesScreen(onBack: () -> Unit, onOpenDelivery: (String) -> Uni
                 ErrorState("Couldn't load deliveries", errorText ?: "") { scope.launch { load() } }
             }
         } else if (loading) {
-            Box(Modifier.fillMaxSize()) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
+            ListSkeleton(rows = 4, thumb = false)
         } else if (locationId == null) {
             Box(Modifier.fillMaxSize()) {
                 EmptyState(
@@ -123,9 +122,20 @@ fun IncomingDeliveriesScreen(onBack: () -> Unit, onOpenDelivery: (String) -> Uni
                     )
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(deliveries, key = { it.id }) { delivery ->
-                        IncomingDeliveryRow(delivery) { onOpenDelivery(delivery.id) }
+                Refreshable(
+                    refreshing = refreshing,
+                    onRefresh = {
+                        scope.launch {
+                            refreshing = true
+                            load()
+                            refreshing = false
+                        }
+                    },
+                ) {
+                    LazyColumn(modifier = Modifier.fillMaxSize()) {
+                        items(deliveries, key = { it.id }) { delivery ->
+                            IncomingDeliveryRow(delivery) { onOpenDelivery(delivery.id) }
+                        }
                     }
                 }
             }
@@ -177,7 +187,7 @@ private fun IncomingDeliveryRow(delivery: IncomingDelivery, onClick: () -> Unit)
                     text = "Sample order",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
-                    color = androidx.compose.ui.graphics.Color(0xFF00897B),
+                    color = MaterialTheme.colorScheme.onSurface,
                 )
             }
         }

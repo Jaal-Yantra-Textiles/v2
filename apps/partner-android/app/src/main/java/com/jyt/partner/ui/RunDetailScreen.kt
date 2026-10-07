@@ -56,12 +56,16 @@ import java.util.Date
 fun RunDetailScreen(
     runId: String,
     onOpenDesign: (String) -> Unit,
+    onRequestPayment: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var detail by remember { mutableStateOf<ProductionRunDetail?>(null) }
+    var refreshing by remember { mutableStateOf(false) }
+    var pulling by remember { mutableStateOf(false) }
+    var showPaymentPrompt by remember { mutableStateOf(false) }
     var design by remember { mutableStateOf<DesignDetail?>(null) }
     // The design load used to fail silently, leaving the Complete sheet
     // without materials and no hint why.
@@ -84,14 +88,14 @@ fun RunDetailScreen(
         }
     }
 
-    suspend fun load() {
+    suspend fun load(reloadDesign: Boolean = false) {
         loading = detail == null
         try {
             val fetched = PartnerApi.get(context).productionRun(runId)
             detail = fetched
             errorText = null
             // The linked design carries the complete form's material options.
-            if (design == null) {
+            if (design == null || reloadDesign) {
                 fetched.productionRun.designId?.let { loadDesign(it) }
             }
             // A completed run shows what it pays; the card hides if this fails.
@@ -105,6 +109,18 @@ fun RunDetailScreen(
     }
 
     LaunchedEffect(Unit) { load() }
+
+    // Re-read in place after an action: content and scroll stay, a thin bar
+    // runs along the top.
+    suspend fun reload() {
+        refreshing = true
+        try {
+            load(reloadDesign = true)
+            errorText?.let { if (detail != null) actionError = "Couldn't refresh: $it" }
+        } finally {
+            refreshing = false
+        }
+    }
 
     suspend fun run(action: RunAction, notes: String? = null, completeBody: PartnerApi.CompleteRunBody? = null) {
         if (acting) return
@@ -120,9 +136,7 @@ fun RunDetailScreen(
                 RunAction.FINISH -> api.finishRun(runId, notes)
                 RunAction.COMPLETE -> api.completeRun(runId, requireNotNull(completeBody))
             }
-            detail = null
-            design = null
-            load()
+            reload()
         } catch (e: Exception) {
             actionError = e.message
         } finally {
@@ -164,14 +178,22 @@ fun RunDetailScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                loading -> Box(Modifier.fillMaxSize()) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
+                loading -> DetailSkeleton()
             current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
                 ErrorState("Couldn't load this run", errorText ?: "") { scope.launch { load() } }
             }
-            else -> {
+            else -> Refreshable(
+                refreshing = pulling,
+                onRefresh = {
+                    scope.launch {
+                        pulling = true
+                        reload()
+                        pulling = false
+                    }
+                },
+            ) {
                 val run = current.productionRun
+                RefreshBar(refreshing && !pulling)
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
@@ -336,13 +358,21 @@ fun RunDetailScreen(
             // Throws on failure, so the sheet keeps the input and shows why.
             onSubmit = { body ->
                 PartnerApi.get(context).completeRun(runId, body)
-                scope.launch {
-                    detail = null
-                    design = null
-                    load()
-                }
+                showPaymentPrompt = true
+                scope.launch { reload() }
             },
             onDismiss = { showComplete = false },
+        )
+    }
+
+    if (showPaymentPrompt) {
+        RequestPaymentPrompt(
+            designs = 1,
+            onRequest = {
+                showPaymentPrompt = false
+                onRequestPayment(runId)
+            },
+            onDismiss = { showPaymentPrompt = false },
         )
     }
 

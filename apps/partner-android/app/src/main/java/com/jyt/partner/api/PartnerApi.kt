@@ -5,6 +5,13 @@ import android.util.Log
 import com.jyt.partner.BuildConfig
 import com.jyt.partner.TokenStore
 import com.jyt.partner.models.AttachMediaBody
+import com.jyt.partner.models.CreatePaymentSubmissionBody
+import com.jyt.partner.models.PartnerPaymentsResponse
+import com.jyt.partner.models.PayableRunsResponse
+import com.jyt.partner.models.PaymentSubmission
+import com.jyt.partner.models.PaymentSubmissionListResponse
+import com.jyt.partner.models.PaymentSubmissionResponse
+import com.jyt.partner.models.SubmitPaymentBody
 import com.jyt.partner.models.AttachMediaFile
 import com.jyt.partner.models.CompleteInventoryOrderBody
 import com.jyt.partner.models.CreateShipmentBody
@@ -370,6 +377,39 @@ class PartnerApi private constructor(
         /** Which sizes/colours were made — required when the run is for several (#2271). */
         @SerialName("produced_output") val producedOutput: List<com.jyt.partner.models.OutputLine>? = null,
     )
+
+    // ── Payments ────────────────────────────────────────────────────────
+
+    /** The partner's payment requests, newest first, each with its items. */
+    suspend fun paymentSubmissions(limit: Int = 50): PaymentSubmissionListResponse =
+        get("partners/payment-submissions?limit=$limit")
+
+    suspend fun paymentSubmission(id: String): PaymentSubmission =
+        get<PaymentSubmissionResponse>("partners/payment-submissions/$id").paymentSubmission
+
+    /** Draft → Pending. Only a Draft can be submitted. */
+    suspend fun submitPaymentSubmission(id: String, notes: String?) {
+        post(
+            "partners/payment-submissions/$id/submit",
+            json.encodeToString(SubmitPaymentBody.serializer(), SubmitPaymentBody(notes?.takeIf { it.isNotBlank() })),
+        )
+    }
+
+    /** Completed runs with what each would bill, including blocked ones. */
+    suspend fun payableRuns(): PayableRunsResponse =
+        get("partners/payment-submissions/payable-runs")
+
+    /** Lands as Pending (a partner-created request is submitted at once). */
+    suspend fun createPaymentSubmission(body: CreatePaymentSubmissionBody) {
+        post(
+            "partners/payment-submissions",
+            json.encodeToString(CreatePaymentSubmissionBody.serializer(), body),
+        )
+    }
+
+    /** Payouts made to this partner. The id must be the signed-in partner's. */
+    suspend fun partnerPayments(partnerId: String, limit: Int = 50): PartnerPaymentsResponse =
+        get("partners/$partnerId/payments?limit=$limit")
 
     suspend fun completeRun(id: String, body: CompleteRunBody) {
         post(

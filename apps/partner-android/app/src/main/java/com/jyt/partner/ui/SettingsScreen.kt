@@ -18,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -40,7 +41,7 @@ import com.jyt.partner.AuthViewModel
  *  surfaces. Incoming deliveries (#2286) lives here: goods delivered TO the
  *  partner's warehouse, whoever supplies them. */
 @Composable
-fun SettingsScreen(auth: AuthViewModel, onOpenIncoming: () -> Unit) {
+fun SettingsScreen(auth: AuthViewModel, onOpenIncoming: () -> Unit, onOpenPayments: () -> Unit) {
     val state by auth.state.collectAsState()
     val me = (state as? AuthViewModel.State.SignedIn)?.me
     val context = LocalContext.current
@@ -58,42 +59,24 @@ fun SettingsScreen(auth: AuthViewModel, onOpenIncoming: () -> Unit) {
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
         )
 
+        // ── Money
+        SectionCard("Money") {
+            SettingsLink(
+                icon = Icons.Filled.Payments,
+                title = "Payments",
+                subtitle = "Request payment for completed work, and see what's been paid",
+                onClick = onOpenPayments,
+            )
+        }
+
         // ── Deliveries
         SectionCard("Deliveries") {
-            ClickableRow(onClick = onOpenIncoming) {
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                    modifier = Modifier.size(40.dp),
-                ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            Icons.Filled.Inbox,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(8.dp),
-                        )
-                    }
-                }
-                Spacer(Modifier.size(12.dp))
-                Column {
-                    Text("Incoming deliveries", fontWeight = FontWeight.Medium)
-                    Text(
-                        "Goods sent to your warehouse — confirm what arrived",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowForward,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+            SettingsLink(
+                icon = Icons.Filled.Inbox,
+                title = "Incoming deliveries",
+                subtitle = "Goods sent to your warehouse — confirm what arrived",
+                onClick = onOpenIncoming,
+            )
         }
 
         // ── Account (the old Profile screen's content)
@@ -144,5 +127,47 @@ fun SettingsScreen(auth: AuthViewModel, onOpenIncoming: () -> Unit) {
             Icon(painter = rememberVectorPainter(Icons.AutoMirrored.Filled.Logout), contentDescription = null)
             Text(text = "Sign out", modifier = Modifier.padding(start = 8.dp))
         }
+    }
+}
+
+@Composable
+private fun SettingsLink(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+) {
+    ClickableRow(onClick = onClick) {
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+            modifier = Modifier.size(40.dp),
+        ) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(8.dp),
+                )
+            }
+        }
+        Spacer(Modifier.size(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium)
+            Text(
+                subtitle,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Icon(
+            Icons.AutoMirrored.Filled.ArrowForward,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
