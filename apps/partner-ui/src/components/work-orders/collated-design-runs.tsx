@@ -1,9 +1,24 @@
 import { TriangleDownMini, TriangleRightMini } from "@medusajs/icons"
-import { Button, Container, Heading, StatusBadge, Text, clx, toast, usePrompt } from "@medusajs/ui"
+import { Container, Heading, StatusBadge, Text, clx, toast, usePrompt } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
 import { useParams } from "react-router-dom"
 
 import { useBatchAdvancePartnerRuns } from "../../hooks/api/partner-production-runs"
+import {
+  ACTION_LABEL,
+  type BulkAction,
+  type CollatedRun,
+  bulkActions,
+  describeBulkFailures,
+} from "../../lib/collated-actions"
+import type { RunActionKey } from "../../lib/run-phase"
+import {
+  BulkActionDrawer,
+  BulkActionsBar,
+  CompleteStep,
+  DesignsAtAGlance,
+} from "./collated-bulk-actions"
+import { useOfferPaymentRequest } from "./use-offer-payment-request"
 import {
   CollatedLine,
   DesignLineDetail,
@@ -11,15 +26,6 @@ import {
   runPartnerBadge,
   useDesignLineRun,
 } from "./collated-design-detail"
-
-// The next no-data lifecycle step for a run, or null. Finish/complete need
-// per-design forms, so they're excluded from the batch action.
-const nextBatchAction = (run: any): "accept" | "start" | null => {
-  const s = String(run?.status || "")
-  if (s === "sent_to_partner") return "accept"
-  if (s === "in_progress" && !run?.started_at) return "start"
-  return null
-}
 
 // Invisible per-line probe: reads the (cache-shared) run for a line and reports
 // it up so the orchestrator can offer a batch action without re-fetching.
@@ -284,8 +290,8 @@ export const CollatedDesignRuns = ({
     }
   }, [mode, orderId])
 
-  // #826 — collect each line's run (cache-shared with the cards) so we can offer
-  // "advance all ready" and skip the click-through-ten-designs grind.
+  // #826 — collect each line's run (cache-shared with the cards) so the panel
+  // and the all-designs bar can act without re-fetching.
   const [runsById, setRunsById] = useState<Record<string, any>>({})
   const collectRun = useCallback(
     (lineId: string, run: any) =>
@@ -293,38 +299,81 @@ export const CollatedDesignRuns = ({
     []
   )
   const batch = useBatchAdvancePartnerRuns()
-  const advanceable = Object.values(runsById)
-    .map((run) => ({ run, action: nextBatchAction(run) }))
-    .filter((x): x is { run: any; action: "accept" | "start" } => !!x.action)
-  const acceptCount = advanceable.filter((x) => x.action === "accept").length
-  const startCount = advanceable.filter((x) => x.action === "start").length
+  const offerPayment = useOfferPaymentRequest()
 
-  const handleAdvanceAll = async () => {
-    const confirmed = await prompt({
-      title: "Advance all ready designs?",
-      description: `Accept ${acceptCount} and start ${startCount} design${
-        advanceable.length === 1 ? "" : "s"
-      }. Finishing and completing stay per-design (they need output/cost).`,
-      confirmText: "Advance all",
-      cancelText: "Cancel",
-      variant: "confirmation",
-    })
-    if (!confirmed) return
+  // #2357 — one named entry per design, in order-line order.
+  const items: CollatedRun[] = runLines
+    .filter((line) => runsById[String(line.id)])
+    .map((line) => ({
+      lineId: String(line.id),
+      run: runsById[String(line.id)],
+      name: String(line.title || designLineTitle(line)),
+    }))
+  const quantities = Object.fromEntries(
+    runLines.map((line) => [String(line.id), Number(line.quantity) || 0])
+  )
+  const bulk = bulkActions(items)
+
+  const [drawer, setDrawer] = useState<BulkAction | null>(null)
+  // Complete all: one design's form at a time.
+  const [completeQueue, setCompleteQueue] = useState<CollatedRun[]>([])
+  const [completeTotal, setCompleteTotal] = useState(0)
+  const [completedIds, setCompletedIds] = useState<string[]>([])
+
+  const runBatch = async (
+    action: "accept" | "start" | "finish",
+    runs: CollatedRun[],
+    notes?: string
+  ) => {
     try {
       const res = await batch.mutateAsync({
-        items: advanceable.map((x) => ({ runId: String(x.run.id), action: x.action })),
+        items: runs.map((r) => ({ runId: String(r.run.id), action, notes })),
       })
-      if (res.failed.length) {
-        toast.warning(
-          `Advanced ${res.succeeded.length}; ${res.failed.length} failed — retry or advance those individually.`
+      const failure = describeBulkFailures(runs, res.succeeded, res.failed)
+      if (failure) toast.warning(failure)
+      else
+        toast.success(
+          runs.length === 1
+            ? `${runs[0].name}: ${ACTION_LABEL[action].toLowerCase()} done`
+            : `${ACTION_LABEL[action]} done for ${runs.length} designs`
         )
-      } else {
-        toast.success(`Advanced ${res.succeeded.length} design${res.succeeded.length === 1 ? "" : "s"}`)
-      }
       onActionSuccess?.()
     } catch (e: any) {
-      toast.error(e?.message || "Couldn't advance the designs")
+      toast.error(e?.message || "Couldn't update the designs")
     }
+  }
+
+  const startComplete = (runs: CollatedRun[]) => {
+    setCompletedIds([])
+    setCompleteTotal(runs.length)
+    setCompleteQueue(runs)
+  }
+
+  const finishComplete = (doneIds: string[]) => {
+    setCompleteQueue([])
+    onActionSuccess?.()
+    if (doneIds.length) void offerPayment(doneIds)
+  }
+
+  // One design's button on the panel. Accept/Start confirm first (a click is
+  // easy to mis-hit); Finish/Complete open their forms, which are the check.
+  const actOnOne = async (action: RunActionKey, item: CollatedRun) => {
+    if (action === "accept" || action === "start") {
+      const confirmed = await prompt({
+        title: `${ACTION_LABEL[action]} ${item.name}?`,
+        description:
+          action === "accept"
+            ? `You'll be responsible for making ${Number(item.run?.quantity) || 0} piece(s).`
+            : "Mark it started when you begin, so timelines stay accurate.",
+        confirmText: ACTION_LABEL[action],
+        cancelText: "Cancel",
+        variant: "confirmation",
+      })
+      if (confirmed) await runBatch(action, [item])
+      return
+    }
+    if (action === "finish") setDrawer({ action, runs: [item] })
+    else startComplete([item])
   }
 
   if (!runLines.length) {
@@ -344,18 +393,56 @@ export const CollatedDesignRuns = ({
         {runLines.length > 1 && <ModeToggle mode={mode} onChange={setMode} />}
       </div>
 
-      {/* Batch advance — only the no-data steps (accept / start). */}
-      {advanceable.length > 0 && (
-        <div className="bg-ui-bg-subtle shadow-elevation-card-rest flex flex-wrap items-center justify-between gap-2 rounded-lg px-4 py-3">
-          <Text size="small" className="text-ui-fg-subtle">
-            {acceptCount > 0 && `${acceptCount} to accept`}
-            {acceptCount > 0 && startCount > 0 && " · "}
-            {startCount > 0 && `${startCount} to start`}
-          </Text>
-          <Button size="small" isLoading={batch.isPending} onClick={handleAdvanceAll}>
-            Advance all ready ({advanceable.length})
-          </Button>
-        </div>
+      {/* #2357 — where every design stands, and what it owes. */}
+      {items.length > 1 && (
+        <DesignsAtAGlance
+          items={items}
+          quantities={quantities}
+          busy={batch.isPending || completeQueue.length > 0}
+          onAction={actOnOne}
+        />
+      )}
+      {items.length > 1 && bulk.length > 0 && (
+        <BulkActionsBar
+          bulk={bulk}
+          busy={batch.isPending || completeQueue.length > 0}
+          onPick={setDrawer}
+        />
+      )}
+      <BulkActionDrawer
+        bulk={drawer}
+        busy={batch.isPending}
+        onClose={() => setDrawer(null)}
+        onConfirm={async (runs, notes) => {
+          const action = drawer?.action
+          setDrawer(null)
+          if (!action) return
+          if (action === "complete") startComplete(runs)
+          else await runBatch(action, runs, notes)
+        }}
+      />
+      {completeQueue[0] && (
+        <CompleteStep
+          key={String(completeQueue[0].run.id)}
+          item={completeQueue[0]}
+          position={completedIds.length + 1}
+          total={completeTotal}
+          onDone={() => {
+            const done = [...completedIds, String(completeQueue[0].run.id)]
+            setCompletedIds(done)
+            const rest = completeQueue.slice(1)
+            if (rest.length) setCompleteQueue(rest)
+            else finishComplete(done)
+          }}
+          onStop={() => {
+            if (completeTotal > 1) {
+              toast.info(
+                `Stopped. ${completedIds.length} of ${completeTotal} designs completed; the rest are still open.`
+              )
+            }
+            finishComplete(completedIds)
+          }}
+        />
       )}
 
       {mode === "stacked" ? (

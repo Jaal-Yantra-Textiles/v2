@@ -11,6 +11,7 @@ import qs from "qs"
 import { sdk } from "../../lib/client"
 import { queryClient } from "../../lib/query-client"
 import { queryKeysFactory } from "../../lib/query-key-factory"
+import { extractErrorMessage } from "../../lib/extract-error-message"
 
 const PARTNER_PRODUCTION_RUNS_QUERY_KEY = "partner-production-runs" as const
 
@@ -141,7 +142,7 @@ const createRunMilestoneHook = (action: string) => {
           `/partners/production-runs/${id}/${action}`,
           { method: "POST" }
         ),
-      onSuccess: (data, variables, context) => {
+      onSuccess: (data, variables, onMutateResult, context) => {
         // Invalidate and refetch all production run queries
         queryClient.invalidateQueries({
           queryKey: partnerProductionRunsQueryKeys.lists(),
@@ -158,7 +159,7 @@ const createRunMilestoneHook = (action: string) => {
         // Also refresh tasks and design data so the UI updates everywhere
         queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
         queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
-        onSuccess?.(data, variables, context)
+        onSuccess?.(data, variables, onMutateResult, context)
       },
       ...restOptions,
     })
@@ -180,7 +181,7 @@ export const useFinishPartnerProductionRun = (
         `/partners/production-runs/${id}/finish`,
         { method: "POST", body: body || {} }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({ queryKey: partnerProductionRunsQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: partnerProductionRunsQueryKeys.detail(id) })
       queryClient.refetchQueries({ queryKey: partnerProductionRunsQueryKeys.lists() })
@@ -188,7 +189,7 @@ export const useFinishPartnerProductionRun = (
       queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
       queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
       queryClient.invalidateQueries({ queryKey: ["partner-consumption-logs"] })
-      onSuccess?.(data, variables, context)
+      onSuccess?.(data, variables, onMutateResult, context)
     },
     ...restOptions,
   })
@@ -206,7 +207,7 @@ export const useCompletePartnerProductionRun = (
         `/partners/production-runs/${id}/complete`,
         { method: "POST", body: body || {} }
       ),
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerProductionRunsQueryKeys.lists(),
       })
@@ -222,17 +223,26 @@ export const useCompletePartnerProductionRun = (
       queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
       queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
       queryClient.invalidateQueries({ queryKey: ["partner-consumption-logs"] })
-      onSuccess?.(data, variables, context)
+      onSuccess?.(data, variables, onMutateResult, context)
     },
     ...restOptions,
   })
 }
 
-// #826 — advance MANY runs of a collated order in one action (accept/start),
-// so a partner isn't clicking through ten designs one-by-one. Each item names
-// its own next no-data step; complete/finish stay per-design (they need forms).
-export type BatchAdvanceItem = { runId: string; action: "accept" | "start" }
-export type BatchAdvanceResult = { succeeded: string[]; failed: string[] }
+// #826 — advance MANY runs of a collated order in one action, so a partner
+// isn't clicking through ten designs one-by-one. Accept / start need no data;
+// finish carries the one shared note. Complete stays per-design (it needs each
+// run's own output + cost form), walked one design at a time by the caller.
+export type BatchAdvanceItem = {
+  runId: string
+  action: "accept" | "start" | "finish"
+  notes?: string
+}
+/** `failed` keeps the server's reason, so the partner is told WHICH design and WHY. */
+export type BatchAdvanceResult = {
+  succeeded: string[]
+  failed: { runId: string; message: string }[]
+}
 
 export const useBatchAdvancePartnerRuns = (
   options?: UseMutationOptions<
@@ -248,18 +258,21 @@ export const useBatchAdvancePartnerRuns = (
         items.map((it) =>
           sdk.client.fetch<any>(
             `/partners/production-runs/${it.runId}/${it.action}`,
-            { method: "POST" }
+            it.action === "finish"
+              ? { method: "POST", body: it.notes ? { notes: it.notes } : {} }
+              : { method: "POST" }
           )
         )
       )
       const succeeded: string[] = []
-      const failed: string[] = []
-      results.forEach((r, i) =>
-        (r.status === "fulfilled" ? succeeded : failed).push(items[i].runId)
-      )
+      const failed: { runId: string; message: string }[] = []
+      results.forEach((r, i) => {
+        if (r.status === "fulfilled") succeeded.push(items[i].runId)
+        else failed.push({ runId: items[i].runId, message: extractErrorMessage(r.reason) })
+      })
       return { succeeded, failed }
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, onMutateResult, context) => {
       queryClient.invalidateQueries({
         queryKey: partnerProductionRunsQueryKeys.lists(),
       })
@@ -275,7 +288,8 @@ export const useBatchAdvancePartnerRuns = (
         })
       })
       queryClient.invalidateQueries({ queryKey: ["partner-designs"] })
-      onSuccess?.(data, variables, context)
+      queryClient.invalidateQueries({ queryKey: ["partner-assigned-tasks"] })
+      onSuccess?.(data, variables, onMutateResult, context)
     },
     ...restOptions,
   })
@@ -303,11 +317,11 @@ export const useCreatePartnerProductionRun = (
         `/partners/designs/${designId}/production-runs`,
         { method: "POST", body: payload }
       ),
-    onSuccess: async (data, variables, context) => {
+    onSuccess: async (data, variables, onMutateResult, context) => {
       await queryClient.invalidateQueries({
         queryKey: partnerProductionRunsQueryKeys.lists(),
       })
-      options?.onSuccess?.(data, variables, context)
+      options?.onSuccess?.(data, variables, onMutateResult, context)
     },
     ...options,
   })
