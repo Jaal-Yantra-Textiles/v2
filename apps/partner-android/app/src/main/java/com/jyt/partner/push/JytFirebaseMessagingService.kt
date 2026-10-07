@@ -12,9 +12,8 @@ import kotlinx.coroutines.launch
 
 /**
  * FCM entry point — the APNs delegate's counterpart. Token rotations post
- * to /partners/device-tokens; a message carrying `production_run_id` in
- * its data (what the backend's notification-push provider stamps on run
- * reminders) becomes a deep-link hand-off through PushManager.
+ * to /partners/device-tokens; a message carrying `production_run_id` or
+ * `inventory_order_id` in its data opens that screen when tapped.
  *
  * Never fires while google-services.json is absent — see JytPartnerApp.
  */
@@ -35,12 +34,14 @@ class JytFirebaseMessagingService : FirebaseMessagingService() {
         }
     }
 
+    /** Runs while the app is open (and for data-only pushes): post it so the
+     *  partner sees it; the tap opens the run or order. In the background
+     *  FCM posts the `notification` block itself on the "work" channel. */
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
-        val runId = message.data["production_run_id"]
-        if (runId != null) {
-            PushManager.offerPendingRunId(runId)
-        }
+        val title = message.notification?.title ?: message.data["title"] ?: return
+        val body = message.notification?.body ?: message.data["description"]
+        PushManager.show(applicationContext, title, body, message.data)
     }
 
     companion object {
