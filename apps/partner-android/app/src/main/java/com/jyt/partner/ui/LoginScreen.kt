@@ -10,6 +10,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.composed
+import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
@@ -51,7 +61,11 @@ fun LoginScreen(auth: AuthViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 24.dp),
+            // Scrollable so the window shrinking for the keyboard (adjustResize)
+            // can't push the fields off-screen; each field brings itself into
+            // view on focus.
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
@@ -108,7 +122,7 @@ fun LoginScreen(auth: AuthViewModel) {
                         placeholder = { Text("98765 43210") },
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
                     )
                     OutlinedTextField(
                         value = pin,
@@ -117,7 +131,7 @@ fun LoginScreen(auth: AuthViewModel) {
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
                     )
                 } else {
                     OutlinedTextField(
@@ -126,7 +140,7 @@ fun LoginScreen(auth: AuthViewModel) {
                         label = { Text("Email") },
                         singleLine = true,
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
                     )
                     OutlinedTextField(
                         value = password,
@@ -134,7 +148,7 @@ fun LoginScreen(auth: AuthViewModel) {
                         label = { Text("Password") },
                         singleLine = true,
                         visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().bringIntoViewOnFocus(),
                     )
                 }
                 if (error != null) {
@@ -185,4 +199,22 @@ private fun MethodButton(label: String, selected: Boolean, onClick: () -> Unit) 
     } else {
         TextButton(onClick = onClick) { Text(label) }
     }
+}
+
+/** Scrolls a field above the keyboard when it takes focus. The short wait
+ *  lets the window finish resizing for the keyboard first. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+    this
+        .bringIntoViewRequester(requester)
+        .onFocusEvent { state ->
+            if (state.isFocused) {
+                scope.launch {
+                    delay(300)
+                    requester.bringIntoView()
+                }
+            }
+        }
 }

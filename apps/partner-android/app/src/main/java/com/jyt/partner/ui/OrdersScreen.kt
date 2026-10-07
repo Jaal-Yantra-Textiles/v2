@@ -1,6 +1,14 @@
 package com.jyt.partner.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.FilterChip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import com.jyt.partner.models.OrderFilter
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
@@ -33,7 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -68,37 +74,44 @@ fun formatQuantity(value: Double): String {
 
 /** The design work-orders list — the DesignOrdersView counterpart: design
  *  picture + name lead, order #, total, date, work-status badge; search,
- *  20-at-a-time pagination, pull-to-refresh. */
+ *  status chips, and the ongoing work as big cards on top. The list cannot
+ *  be filtered by work status server-side, so every page is loaded (a
+ *  partner has tens of orders, not thousands) and narrowed in memory. */
 @Composable
 fun OrdersScreen(onOpenOrder: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var orders by remember { mutableStateOf<List<PartnerOrder>>(emptyList()) }
     var search by rememberSaveable { mutableStateOf("") }
+    var filter by rememberSaveable { mutableStateOf(OrderFilter.ALL) }
     var initialLoading by remember { mutableStateOf(true) }
     var appending by remember { mutableStateOf(false) }
-    var nextPageOffset by remember { mutableStateOf<Int?>(null) }
     var errorText by remember { mutableStateOf<String?>(null) }
     // Monotonic request sequence — a slower, older response must never
     // overwrite a newer one's results.
     var requestSeq by remember { mutableStateOf(0) }
 
-    suspend fun load(reset: Boolean) {
+    suspend fun load() {
         val seq = ++requestSeq
-        if (reset) initialLoading = orders.isEmpty() else appending = true
-        val offset = if (reset) 0 else orders.size
+        initialLoading = orders.isEmpty()
+        var loaded = emptyList<PartnerOrder>()
         try {
-            val page = PartnerApi.get(context).orders(
-                kind = "design",
-                limit = 20,
-                offset = offset,
-                query = search.takeIf { it.isNotBlank() },
-            )
-            if (seq != requestSeq) return // superseded by a newer request
-            orders = if (reset) page.orders else orders + page.orders
-            val next = page.offset + page.limit
-            nextPageOffset = if (next < page.count) next else null
-            errorText = null
+            while (true) {
+                val page = PartnerApi.get(context).orders(
+                    kind = "design",
+                    limit = PAGE_SIZE,
+                    offset = loaded.size,
+                    query = search.takeIf { it.isNotBlank() },
+                )
+                if (seq != requestSeq) return // superseded by a newer request
+                loaded = loaded + page.orders
+                // First page shows at once; the rest stream in behind it.
+                orders = loaded
+                initialLoading = false
+                errorText = null
+                if (page.orders.isEmpty() || loaded.size >= page.count || loaded.size >= MAX_ORDERS) break
+                appending = true
+            }
         } catch (e: Exception) {
             if (orders.isEmpty() && seq == requestSeq) {
                 errorText = e.message ?: "Something went wrong."
@@ -114,23 +127,16 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
     // initial search loads immediately; typing settles for 350ms first.
     LaunchedEffect(search) {
         if (search.isNotEmpty()) delay(350)
-        load(reset = true)
+        load()
     }
 
-    val listState = rememberLazyListState()
-    val shouldLoadNext by remember {
-        derivedStateOf {
-            val info = listState.layoutInfo
-            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
-            info.totalItemsCount > 0 && last >= info.totalItemsCount - 4
-        }
-    }
-    // Re-fires when a page lands (nextPageOffset moves) so a list that is
-    // still within the load window keeps paginating without a nudge.
-    LaunchedEffect(shouldLoadNext, nextPageOffset) {
-        if (shouldLoadNext && nextPageOffset != null && !appending) {
-            load(reset = false)
-        }
+    val counts = remember(orders) { OrderFilter.counts(orders) }
+    val ongoing = remember(orders) { orders.filter { OrderFilter.ONGOING.matches(it.workStatus) } }
+    // Under "All" the ongoing work leads as cards, so the list below skips it.
+    val showOngoingCards = filter == OrderFilter.ALL && ongoing.isNotEmpty()
+    val rows = remember(orders, filter) {
+        if (filter == OrderFilter.ALL) orders.filterNot { OrderFilter.ONGOING.matches(it.workStatus) }
+        else orders.filter { filter.matches(it.workStatus) }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -144,13 +150,26 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 8.dp),
         )
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(OrderFilter.entries, key = { it.name }) { f ->
+                val n = counts[f] ?: 0
+                FilterChip(
+                    selected = f == filter,
+                    onClick = { filter = f },
+                    label = { Text(if (orders.isEmpty()) f.label else "${f.label} $n") },
+                )
+            }
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             when {
                 errorText != null && orders.isEmpty() -> ErrorState(
                     title = "Couldn't load design orders",
                     message = errorText ?: "",
                 ) {
-                    scope.launch { load(reset = true) }
+                    scope.launch { load() }
                 }
                 orders.isEmpty() && initialLoading -> Box(Modifier.fillMaxSize()) {
                     CircularProgressIndicator(Modifier.align(Alignment.Center))
@@ -160,11 +179,30 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
                     title = "No design orders",
                     subtitle = "Work you're commissioned for will show up here.",
                 )
+                rows.isEmpty() && !showOngoingCards && !appending -> EmptyState(
+                    icon = Icons.Filled.Checkroom,
+                    title = "No ${filter.label.lowercase()} orders",
+                    subtitle = "Pick another filter to see the rest.",
+                )
                 else -> LazyColumn(
-                    state = listState,
                     modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 12.dp),
                 ) {
-                    items(orders, key = { it.id }) { order ->
+                    if (showOngoingCards) {
+                        item("ongoing-header") { SectionHeader("Ongoing · ${ongoing.size}") }
+                        item("ongoing-cards") {
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                items(ongoing, key = { it.id }) { order ->
+                                    OngoingCard(order = order, onClick = { onOpenOrder(order.id) })
+                                }
+                            }
+                        }
+                        if (rows.isNotEmpty()) item("rest-header") { SectionHeader("Other orders") }
+                    }
+                    items(rows, key = { it.id }) { order ->
                         OrderRow(order = order, onClick = { onOpenOrder(order.id) })
                     }
                     if (appending) {
@@ -183,6 +221,76 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+private const val PAGE_SIZE = 50
+// A runaway guard, far above any partner's real order count.
+private const val MAX_ORDERS = 1000
+
+@Composable
+private fun SectionHeader(text: String) {
+    Text(
+        text = text,
+        fontSize = 13.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp),
+    )
+}
+
+/** A big card for work in hand: the design picture leads. */
+@Composable
+private fun OngoingCard(order: PartnerOrder, onClick: () -> Unit) {
+    val first = order.designs?.firstOrNull()
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.width(220.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            val url = first?.thumbnail?.takeIf { it.isNotBlank() }
+            if (url != null) {
+                AsyncImage(
+                    model = url,
+                    contentDescription = first.name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            } else {
+                Icon(
+                    Icons.Filled.Checkroom,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                text = first?.name ?: "Design order",
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "#${order.displayId}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.weight(1f))
+                order.workStatus?.let { WorkStatusBadge(it) }
             }
         }
     }

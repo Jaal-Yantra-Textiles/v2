@@ -50,6 +50,7 @@ import com.jyt.partner.api.PartnerApi
 import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.DesignDetail
+import com.jyt.partner.models.DesignNotes
 import com.jyt.partner.models.MoodboardBoardsResponse
 import com.jyt.partner.models.ProductionRun
 import kotlinx.coroutines.launch
@@ -163,7 +164,7 @@ fun DesignDetailScreen(
                         current.description?.let {
                             Text(it, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
                         }
-                        current.designerNotes?.let {
+                        DesignNotes.toText(current.designerNotes)?.let {
                             Text(
                                 it,
                                 fontSize = 12.sp,
