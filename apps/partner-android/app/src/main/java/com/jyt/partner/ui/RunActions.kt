@@ -123,6 +123,7 @@ fun FinishRunSheet(
     isSample: Boolean,
     onConfirm: (String?) -> Unit,
     onDismiss: () -> Unit,
+    title: String = "Mark as Finished",
 ) {
     var notes by rememberSaveable { mutableStateOf("") }
     var acknowledged by rememberSaveable { mutableStateOf(false) }
@@ -130,7 +131,7 @@ fun FinishRunSheet(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Mark as Finished") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -205,6 +206,7 @@ fun CompleteRunSheet(
     /** Sends the completion; throws on failure. The sheet closes only on success. */
     onSubmit: suspend (PartnerApi.CompleteRunBody) -> Unit,
     onDismiss: () -> Unit,
+    title: String = "Complete the run",
 ) {
     val ordered = max(orderedQuantity, 0.0)
     // The run's cost currency, else INR (the web falls back the same way).
@@ -273,7 +275,7 @@ fun CompleteRunSheet(
 
     AlertDialog(
         onDismissRequest = { if (!submitting) onDismiss() },
-        title = { Text("Complete the run") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Ordered: ${formatQuantity(ordered)}", fontSize = 13.sp)
