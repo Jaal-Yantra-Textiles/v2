@@ -51,6 +51,8 @@ fun SettingsScreen(auth: AuthViewModel, onOpenIncoming: () -> Unit, onOpenPaymen
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(bottom = 24.dp),
+        // SectionCard carries no outer margin, so stacked cards touched.
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
             text = "Settings",

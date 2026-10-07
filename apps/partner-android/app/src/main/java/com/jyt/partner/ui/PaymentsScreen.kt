@@ -85,6 +85,9 @@ fun PaymentsScreen(
     var errorText by remember { mutableStateOf<String?>(null) }
     // The completion hand-off runs once per visit.
     var lookedForRun by rememberSaveable { mutableStateOf(forRunId == null) }
+    // Long histories (a partner can hold dozens of requests) start trimmed.
+    var allRequests by rememberSaveable { mutableStateOf(false) }
+    var allPaid by rememberSaveable { mutableStateOf(false) }
 
     suspend fun load() {
         try {
@@ -171,7 +174,12 @@ fun PaymentsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     val drafts = submissions.filter { it.isDraft }
-                    val rest = submissions.filterNot { it.isDraft }
+                    // A Paid request IS the payout now: settling marks it Paid
+                    // and writes no payment row (#1636), so it lives under
+                    // "Payments received", not among the open requests.
+                    val paid = submissions.filter { it.isPaid }
+                        .sortedByDescending { it.paidAt ?: it.submittedAt ?: it.createdAt }
+                    val rest = submissions.filterNot { it.isDraft || it.isPaid }
                     if (drafts.isNotEmpty()) {
                         item {
                             SectionCard("Waiting for you to submit") {
@@ -188,21 +196,38 @@ fun PaymentsScreen(
                         SectionCard("Payment requests") {
                             if (rest.isEmpty()) {
                                 Text(
-                                    "No requests yet. Tap “Request payment” once work is completed.",
+                                    if (paid.isEmpty()) "No requests yet. Tap “Request payment” once work is completed."
+                                    else "Nothing waiting. Paid requests are under Payments received.",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
-                            rest.forEach { SubmissionRow(it) { onOpenSubmission(it.id) } }
+                            (if (allRequests) rest else rest.take(TRIM)).forEach {
+                                SubmissionRow(it) { onOpenSubmission(it.id) }
+                            }
+                            ShowAll(rest.size, allRequests) { allRequests = !allRequests }
                         }
                     }
                     item {
                         SectionCard("Payments received") {
-                            if (payouts.isEmpty()) {
+                            if (paid.isEmpty() && payouts.isEmpty()) {
                                 Text(
                                     "No payments recorded yet.",
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            (if (allPaid) paid else paid.take(TRIM)).forEach {
+                                PaidRow(it) { onOpenSubmission(it.id) }
+                            }
+                            ShowAll(paid.size, allPaid) { allPaid = !allPaid }
+                            if (paid.isNotEmpty() && payouts.isNotEmpty()) {
+                                Text(
+                                    "Other payments",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(top = 8.dp),
                                 )
                             }
                             payouts.forEach { p ->
@@ -239,9 +264,43 @@ private fun SubmissionRow(s: PaymentSubmission, onClick: () -> Unit) {
             Text(inr(s.totalAmount, s.currency), fontWeight = FontWeight.SemiBold)
             val items = s.items.orEmpty()
             Text(
+                // Date first: a long design name would otherwise cut it off.
                 listOfNotNull(
-                    items.firstOrNull()?.label?.let { if (items.size > 1) "$it +${items.size - 1}" else it },
                     formatDate(ApiDate.parse(s.submittedAt ?: s.createdAt)),
+                    items.firstOrNull()?.label?.let { if (items.size > 1) "$it +${items.size - 1}" else it },
+                ).joinToString(" · "),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+        Spacer(Modifier.size(8.dp))
+        PaymentStatusBadge(s.status)
+    }
+}
+
+private const val TRIM = 5
+
+/** "Show all (N)" under a trimmed list; nothing when the list already fits. */
+@Composable
+private fun ShowAll(size: Int, expanded: Boolean, onToggle: () -> Unit) {
+    if (size <= TRIM) return
+    TextButton(onClick = onToggle) {
+        Text(if (expanded) "Show fewer" else "Show all ($size)")
+    }
+}
+
+/** A request that has been paid out: the amount, when, and for what. */
+@Composable
+private fun PaidRow(s: PaymentSubmission, onClick: () -> Unit) {
+    ClickableRow(onClick = onClick) {
+        Column(Modifier.weight(1f)) {
+            Text(inr(s.totalAmount, s.currency), fontWeight = FontWeight.SemiBold)
+            val items = s.items.orEmpty()
+            Text(
+                listOfNotNull(
+                    formatDate(ApiDate.parse(s.paidAt ?: s.submittedAt ?: s.createdAt)),
+                    items.firstOrNull()?.label?.let { if (items.size > 1) "$it +${items.size - 1}" else it },
                 ).joinToString(" · "),
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -446,7 +505,12 @@ fun RequestPaymentScreen(preselectRunId: String?, onDone: () -> Unit, onBack: ()
     LaunchedEffect(Unit) { load() }
 
     val claimable = runs.filter { canPick(it, drafts) }
-    val other = runs.filterNot { canPick(it, drafts) }.filter { it.billingStatus != "billed" }
+    // A run in a Draft reads `billed` (the draft claims it), so it must be
+    // kept here explicitly: completion drafts nearly every run, and hiding
+    // them left this screen saying "Nothing to request yet" with the money
+    // sitting in an unsubmitted draft.
+    val other = runs.filterNot { canPick(it, drafts) }
+        .filter { it.billingStatus != "billed" || inDraft(it, drafts) }
     val chosen = runs.filter { it.runId in selected }
     val total = chosen.sumOf { PaymentClaim.lineAmount(it) }
 
@@ -531,10 +595,16 @@ fun RequestPaymentScreen(preselectRunId: String?, onDone: () -> Unit, onBack: ()
                     }
                     if (other.isNotEmpty()) {
                         item {
-                            SectionCard("Not from the app") {
+                            SectionCard(if (claimable.isEmpty()) "Your completed work" else "Not from here") {
                                 other.forEach { run ->
                                     Column(Modifier.padding(vertical = 4.dp)) {
                                         Text(run.designName ?: "Design", fontWeight = FontWeight.Medium)
+                                        // Runs of one design are otherwise indistinguishable.
+                                        Text(
+                                            lineDescription(run),
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
                                         Text(
                                             whyNot(run, drafts),
                                             fontSize = 12.sp,
@@ -592,10 +662,18 @@ fun RequestPaymentScreen(preselectRunId: String?, onDone: () -> Unit, onBack: ()
 
 /** A run already in a Draft is submitted from that draft, never claimed twice. */
 private fun canPick(run: PayableRun, drafts: List<PaymentSubmission>): Boolean =
-    PaymentClaim.canClaim(run) && drafts.none { it.claimsRun(run.runId) }
+    PaymentClaim.canClaim(run) && !inDraft(run, drafts)
+
+private fun inDraft(run: PayableRun, drafts: List<PaymentSubmission>): Boolean =
+    drafts.any { it.claimsRun(run.runId) }
 
 private fun whyNot(run: PayableRun, drafts: List<PaymentSubmission>): String = when {
-    drafts.any { it.claimsRun(run.runId) } -> "Already in a draft request — submit it from Payments."
+    inDraft(run, drafts) -> "Request already prepared — go back to Payments and submit it."
+    // A missing price is the real blocker even when the design also has an
+    // open request; saying "already requested" sends the partner looking for
+    // a request that does not cover this run.
+    run.unitAmount <= 0 && !run.unitIsDerived ->
+        "No agreed price yet. Ask the team to set one, or request it on the partner website."
     PaymentClaim.blockedReason(run) != null -> PaymentClaim.blockedReason(run)!!
     PaymentClaim.needsTypedPrice(run) -> "Part of this was already paid; the rest needs a price. Request it on the partner website."
     else -> "No agreed price yet. Ask the team to set one, or request it on the partner website."

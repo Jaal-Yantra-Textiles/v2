@@ -43,6 +43,7 @@ data class PaymentSubmission(
     val items: List<PaymentSubmissionItem>? = null,
 ) {
     val isDraft: Boolean get() = status == "Draft"
+    val isPaid: Boolean get() = status == "Paid"
     val statusLabel: String get() = status.replace('_', ' ')
 
     fun claimsRun(runId: String): Boolean =
