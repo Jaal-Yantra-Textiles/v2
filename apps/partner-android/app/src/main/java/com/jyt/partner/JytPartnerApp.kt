@@ -2,6 +2,8 @@ package com.jyt.partner
 
 import android.app.Application
 import android.util.Log
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import com.google.firebase.FirebaseApp
 
 /**
@@ -11,7 +13,7 @@ import com.google.firebase.FirebaseApp
  * and push stays a no-op; the moment one is dropped in, the
  * JytFirebaseMessagingService starts receiving tokens and reminders.
  */
-class JytPartnerApp : Application() {
+class JytPartnerApp : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -26,6 +28,12 @@ class JytPartnerApp : Application() {
             Log.i(TAG, "Push disabled — no Firebase configuration (google-services.json absent)")
         }
     }
+
+    /** Every AsyncImage fades in instead of popping onto its grey placeholder. */
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .crossfade(true)
+            .build()
 
     companion object {
         private const val TAG = "JYTPartnerApp"

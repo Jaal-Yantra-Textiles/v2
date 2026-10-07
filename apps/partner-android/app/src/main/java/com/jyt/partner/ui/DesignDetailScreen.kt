@@ -54,6 +54,8 @@ import com.jyt.partner.models.DesignNotes
 import com.jyt.partner.models.MoodboardBoardsResponse
 import com.jyt.partner.models.ProductionRun
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 
 /** A design — the DesignDetailView counterpart: overview, media gallery,
  *  moodboard images, colors, sizes, the matching production runs. */
@@ -72,18 +74,22 @@ fun DesignDetailScreen(
     var boards by remember { mutableStateOf<MoodboardBoardsResponse?>(null) }
     var openImage by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var pulling by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
-    suspend fun load() {
+    suspend fun load() = coroutineScope {
         loading = design == null
         try {
-            design = PartnerApi.get(context).design(designId)
-            errorText = null
-            runs = runCatching {
-                PartnerApi.get(context).productionRuns(designId = designId).productionRuns
-            }.getOrDefault(emptyList())
+            val api = PartnerApi.get(context)
+            val runsCall = async {
+                runCatching { api.productionRuns(designId = designId).productionRuns }.getOrDefault(emptyList())
+            }
             // A failed boards call falls back to the legacy blob on the design.
-            boards = runCatching { PartnerApi.get(context).designMoodboards(designId) }.getOrNull()
+            val boardsCall = async { runCatching { api.designMoodboards(designId) }.getOrNull() }
+            design = api.design(designId)
+            runs = runsCall.await()
+            boards = boardsCall.await()
+            errorText = null
         } catch (e: Exception) {
             errorText = e.message
         }
@@ -125,15 +131,23 @@ fun DesignDetailScreen(
 
         val current = design
         when {
-            loading -> Box(Modifier.fillMaxSize()) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
+            loading -> DetailSkeleton()
             current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
                 ErrorState("Couldn't load this design", errorText ?: "") {
                     scope.launch { load() }
                 }
             }
-            else -> LazyColumn(
+            else -> Refreshable(
+                refreshing = pulling,
+                onRefresh = {
+                    scope.launch {
+                        pulling = true
+                        load()
+                        pulling = false
+                    }
+                },
+            ) {
+            LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -291,6 +305,7 @@ fun DesignDetailScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

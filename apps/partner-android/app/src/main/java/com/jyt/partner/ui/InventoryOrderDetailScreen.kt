@@ -50,6 +50,8 @@ import com.jyt.partner.models.InventoryOrderLine
 import com.jyt.partner.models.InventoryOrderStatus
 import com.jyt.partner.models.PartnerInventoryOrder
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.async
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -70,6 +72,8 @@ fun InventoryOrderDetailScreen(
     var detail by remember { mutableStateOf<PartnerInventoryOrder?>(null) }
     var charges by remember { mutableStateOf<com.jyt.partner.models.InventoryOrderChargesResponse?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
+    var pulling by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
     var actionError by remember { mutableStateOf<String?>(null) }
@@ -79,14 +83,14 @@ fun InventoryOrderDetailScreen(
     var showReceipt by remember { mutableStateOf(false) }
     var showShipment by remember { mutableStateOf(false) }
 
-    suspend fun load() {
+    suspend fun load() = coroutineScope {
         loading = detail == null
         try {
-            detail = PartnerApi.get(context).inventoryOrder(orderId)
+            val api = PartnerApi.get(context)
+            val chargesCall = async { runCatching { api.inventoryOrderCharges(orderId) }.getOrNull() }
+            detail = api.inventoryOrder(orderId)
+            charges = chargesCall.await()
             errorText = null
-            charges = runCatching {
-                PartnerApi.get(context).inventoryOrderCharges(orderId)
-            }.getOrNull()
         } catch (e: Exception) {
             errorText = e.message
         }
@@ -94,6 +98,18 @@ fun InventoryOrderDetailScreen(
     }
 
     LaunchedEffect(Unit) { load() }
+
+    // Re-read in place after an action: content and scroll stay, a thin bar
+    // runs along the top.
+    suspend fun reload() {
+        refreshing = true
+        try {
+            load()
+            errorText?.let { if (detail != null) actionError = "Couldn't refresh: $it" }
+        } finally {
+            refreshing = false
+        }
+    }
 
     val steps: List<OrderStep> = orderSteps(detail?.statusEnum)
 
@@ -109,15 +125,24 @@ fun InventoryOrderDetailScreen(
 
         val current = detail
         when {
-            loading -> Box(Modifier.fillMaxSize()) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
+            loading -> DetailSkeleton()
             current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
                 ErrorState("Couldn't load this order", errorText ?: "") {
                     scope.launch { load() }
                 }
             }
-            else -> LazyColumn(
+            else -> Refreshable(
+                refreshing = pulling,
+                onRefresh = {
+                    scope.launch {
+                        pulling = true
+                        reload()
+                        pulling = false
+                    }
+                },
+            ) {
+            RefreshBar(refreshing && !pulling)
+            LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -296,6 +321,7 @@ fun InventoryOrderDetailScreen(
                     }
                 }
             }
+            }
         }
     }
 
@@ -312,8 +338,7 @@ fun InventoryOrderDetailScreen(
                             acting = true
                             try {
                                 PartnerApi.get(context).startInventoryOrder(orderId)
-                                detail = null
-                                load()
+                                reload()
                             } catch (e: Exception) {
                                 actionError = e.message
                             }
@@ -339,8 +364,7 @@ fun InventoryOrderDetailScreen(
                             acting = true
                             try {
                                 PartnerApi.get(context).markInventoryOrderReadyForDelivery(orderId)
-                                detail = null
-                                load()
+                                reload()
                             } catch (e: Exception) {
                                 actionError = e.message
                             }
@@ -361,10 +385,7 @@ fun InventoryOrderDetailScreen(
             onDismiss = { showReceipt = false },
             onRecorded = {
                 showReceipt = false
-                scope.launch {
-                    detail = null
-                    load()
-                }
+                scope.launch { reload() }
             },
         )
     }

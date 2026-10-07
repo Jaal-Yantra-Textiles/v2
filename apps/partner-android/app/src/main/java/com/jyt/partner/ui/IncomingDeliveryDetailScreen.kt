@@ -65,6 +65,8 @@ fun IncomingDeliveryDetailScreen(
 
     var delivery by remember { mutableStateOf<IncomingDelivery?>(null) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
+    var pulling by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     var actionError by remember { mutableStateOf<String?>(null) }
     var showReceive by rememberSaveable { mutableStateOf(false) }
@@ -82,6 +84,17 @@ fun IncomingDeliveryDetailScreen(
     }
 
     LaunchedEffect(Unit) { load() }
+
+    // Re-read in place after a receipt: content and scroll stay.
+    suspend fun reload() {
+        refreshing = true
+        try {
+            load()
+            errorText?.let { if (delivery != null) actionError = "Couldn't refresh: $it" }
+        } finally {
+            refreshing = false
+        }
+    }
 
     val current = delivery
     androidx.compose.material3.Scaffold(
@@ -107,15 +120,24 @@ fun IncomingDeliveryDetailScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                loading -> Box(Modifier.fillMaxSize()) {
-                    CircularProgressIndicator(Modifier.align(Alignment.Center))
-                }
+                loading -> DetailSkeleton()
                 current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
                     ErrorState("Couldn't load this delivery", errorText ?: "") {
                         scope.launch { load() }
                     }
                 }
-                else -> LazyColumn(
+                else -> Refreshable(
+                    refreshing = pulling,
+                    onRefresh = {
+                        scope.launch {
+                            pulling = true
+                            reload()
+                            pulling = false
+                        }
+                    },
+                ) {
+                RefreshBar(refreshing && !pulling)
+                LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -219,6 +241,7 @@ fun IncomingDeliveryDetailScreen(
                         }
                     }
                 }
+                }
             }
         }
     }
@@ -227,10 +250,7 @@ fun IncomingDeliveryDetailScreen(
         ReceiveIncomingSheet(delivery = current) { success ->
             showReceive = false
             if (success) {
-                scope.launch {
-                    delivery = null
-                    load()
-                }
+                scope.launch { reload() }
             }
         }
     }

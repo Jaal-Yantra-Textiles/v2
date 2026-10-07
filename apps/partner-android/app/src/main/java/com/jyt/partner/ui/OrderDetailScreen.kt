@@ -62,6 +62,9 @@ import com.jyt.partner.models.ProductionRun
 import com.jyt.partner.models.resolveDesignId
 import com.jyt.partner.models.RunTask
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 
 /** A design work-order — the OrderDetailView counterpart. Leads with the
  *  BIG next-step action, opens the run lifecycle sheets, and shows the
@@ -92,6 +95,8 @@ fun OrderDetailScreen(
     // carries no design names).
     var designsById by remember { mutableStateOf<Map<String, DesignDetail>>(emptyMap()) }
     var loading by remember { mutableStateOf(true) }
+    var refreshing by remember { mutableStateOf(false) }
+    var pulling by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
     var acting by remember { mutableStateOf(false) }
@@ -109,22 +114,23 @@ fun OrderDetailScreen(
     var showBulkSheet by remember { mutableStateOf(false) }
     var uploadTargetRunId by remember { mutableStateOf<String?>(null) }
 
-    suspend fun load() {
+    suspend fun load() = coroutineScope {
         loading = detail == null
         try {
             val api = PartnerApi.get(context)
             val fetched = api.order(orderId)
-            // One detail read per run carries BOTH the run and its tasks.
-            val details = fetched.productionRuns.orEmpty().mapNotNull { ref ->
-                runCatching { api.productionRun(ref.id) }.getOrNull()
-            }
+            // One detail read per run carries BOTH the run and its tasks —
+            // all runs at once, then all their designs at once.
+            val details = fetched.productionRuns.orEmpty().map { ref ->
+                async { runCatching { api.productionRun(ref.id) }.getOrNull() }
+            }.awaitAll().filterNotNull()
             val fetchedRuns = details.map { it.productionRun }
             val designIds = (fetchedRuns.mapNotNull { it.designId } +
                 listOfNotNull(fetched.resolveDesignId(fetchedRuns))).distinct()
             // The designs carry the media gallery + the materials for Complete.
-            designsById = designIds.mapNotNull { id ->
-                runCatching { api.design(id) }.getOrNull()?.let { id to it }
-            }.toMap()
+            designsById = designIds.map { id ->
+                async { runCatching { api.design(id) }.getOrNull()?.let { id to it } }
+            }.awaitAll().filterNotNull().toMap()
             runs = fetchedRuns
             runTasks = details.mapNotNull { d -> d.tasks?.let { d.productionRun.id to it } }.toMap()
             detail = fetched
@@ -157,12 +163,17 @@ fun OrderDetailScreen(
         }
     }
 
+    // Re-read in place after an action: the page keeps its content and
+    // scroll, a thin bar runs along the top.
     suspend fun reload() {
-        detail = null
-        runs = emptyList()
-        runTasks = emptyMap()
-        designsById = emptyMap()
-        load()
+        refreshing = true
+        try {
+            load()
+            // The page still shows the old read; say the re-read failed.
+            errorText?.let { if (detail != null) actionError = "Couldn't refresh: $it" }
+        } finally {
+            refreshing = false
+        }
     }
 
     /** Accept / Start / Finish on one or many runs; reports per design. */
@@ -288,16 +299,25 @@ fun OrderDetailScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                loading -> Box(Modifier.fillMaxSize()) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center))
-            }
+                loading -> DetailSkeleton()
             current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
                 ErrorState(
                     title = "Couldn't load this order",
                     message = errorText ?: "Something went wrong.",
                 ) { scope.launch { load() } }
             }
-            else -> LazyColumn(
+            else -> Refreshable(
+                refreshing = pulling,
+                onRefresh = {
+                    scope.launch {
+                        pulling = true
+                        reload()
+                        pulling = false
+                    }
+                },
+            ) {
+            RefreshBar(refreshing && !pulling)
+            LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -503,6 +523,7 @@ fun OrderDetailScreen(
                         }
                     }
                 }
+            }
             }
         }
     }

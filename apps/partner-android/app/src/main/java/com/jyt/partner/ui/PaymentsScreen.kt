@@ -81,6 +81,7 @@ fun PaymentsScreen(
     var submissions by remember { mutableStateOf<List<PaymentSubmission>>(emptyList()) }
     var payouts by remember { mutableStateOf<List<PartnerPayment>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
+    var pulling by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
     // The completion hand-off runs once per visit.
     var lookedForRun by rememberSaveable { mutableStateOf(forRunId == null) }
@@ -138,25 +139,34 @@ fun PaymentsScreen(
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                loading || !lookedForRun -> Column(
+                // Coming from a completion: say what the wait is for.
+                !lookedForRun -> Column(
                     Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     CircularProgressIndicator()
-                    if (!lookedForRun) {
-                        Text(
-                            "Finding this run's payment request…",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 12.dp),
-                        )
-                    }
+                    Text(
+                        "Finding this run's payment request…",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 12.dp),
+                    )
                 }
+                loading -> ListSkeleton(rows = 4, thumb = false)
                 errorText != null && submissions.isEmpty() -> ErrorState(
                     title = "Couldn't load payments",
                     message = errorText ?: "",
                 ) { scope.launch { loading = true; load() } }
-                else -> LazyColumn(
+                else -> Refreshable(
+                    refreshing = pulling,
+                    onRefresh = {
+                        scope.launch {
+                            pulling = true
+                            load()
+                            pulling = false
+                        }
+                    },
+                ) { LazyColumn(
                     contentPadding = PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -216,7 +226,7 @@ fun PaymentsScreen(
                             }
                         }
                     }
-                }
+                } }
             }
         }
     }
@@ -297,7 +307,7 @@ fun PaymentSubmissionScreen(submissionId: String, onBack: () -> Unit) {
                     title = "Couldn't load this request",
                     message = errorText ?: "",
                 ) { scope.launch { load() } }
-                current == null -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                current == null -> DetailSkeleton(sections = 2)
                 else -> LazyColumn(
                     contentPadding = PaddingValues(vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -471,7 +481,7 @@ fun RequestPaymentScreen(preselectRunId: String?, onDone: () -> Unit, onBack: ()
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                loading -> ListSkeleton(rows = 4, thumb = false)
                 errorText != null && runs.isEmpty() -> ErrorState(
                     title = "Couldn't load your completed work",
                     message = errorText ?: "",
