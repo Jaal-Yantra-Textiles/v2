@@ -457,38 +457,46 @@ setupSharedTestSuite(() => {
         expect(finalPartnerOrderResponse.data.inventoryOrder.partner_info.workflow_tasks_count).toBeGreaterThan(0)
         expect(finalPartnerOrderResponse.data.inventoryOrder.admin_notes).toBe("Complete workflow test order")
 
-        // Verify fulfillment entries are written and linked to order via orderlines
+        // #2289 — the Complete is a DISPATCH: no receipt rows, no stock yet.
         const container = getContainer()
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
-        const { data: ordersWithFulfillments } = await query.graph({
-          entity: "inventory_orders",
-          fields: [
-            "id",
-            "orderlines.id",
-            "orderlines.quantity",
-            "orderlines.line_fulfillments.*",
-          ],
-          filters: { id: inventoryOrderId },
-        })
-        console.log("ordersWithFulfillments", JSON.stringify(ordersWithFulfillments, null, 2))
-        expect(ordersWithFulfillments?.length).toBe(1)
-        const orderNode = ordersWithFulfillments[0]
-        const fulfillments = (orderNode.orderlines || []).flatMap((l: any) => l.line_fulfillments || [])
-        const sumDelta = (fulfillments as any[]).reduce((s: number, f: any) => s + (Number(f.quantity_delta) || 0), 0)
-        const sumRequested = (orderNode.orderlines || []).reduce((s: number, l: any) => s + (Number(l.quantity) || 0), 0)
-        expect(sumDelta).toBe(sumRequested)
+        const receiptsAndStock = async () => {
+          const { data: nodes } = await query.graph({
+            entity: "inventory_orders",
+            fields: ["id", "orderlines.id", "orderlines.quantity", "orderlines.line_fulfillments.*"],
+            filters: { id: inventoryOrderId },
+          })
+          const node = nodes[0]
+          const received = (node.orderlines || [])
+            .flatMap((l: any) => l.line_fulfillments || [])
+            .reduce((s: number, f: any) => s + (Number(f.quantity_delta) || 0), 0)
+          const requested = (node.orderlines || []).reduce((s: number, l: any) => s + (Number(l.quantity) || 0), 0)
+          const { data: levels } = await query.graph({
+            entity: "inventory_level",
+            fields: ["id", "location_id", "stocked_quantity"],
+            filters: { inventory_item_id: inventoryItemId },
+          })
+          const stocked = (levels || [])
+            .filter((l: any) => String(l.location_id) === String(stockLocationId))
+            .reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
+          return { received, requested, stocked }
+        }
 
-        // Verify inventory levels have been created for the delivered quantities at the destination location
-        const { data: levelsAfterFull } = await query.graph({
-          entity: "inventory_level",
-          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
-          filters: { inventory_item_id: inventoryItemId },
-        })
-        console.log("levelsAfterFull", JSON.stringify(levelsAfterFull, null, 2))
-        const destLevelsFull = (levelsAfterFull || []).filter((l: any) => String(l.location_id) === String(stockLocationId))
-        expect(destLevelsFull.length).toBeGreaterThan(0)
-        const totalStockedAtDest = destLevelsFull.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
-        expect(totalStockedAtDest).toBe(sumRequested)
+        const afterDispatch = await receiptsAndStock()
+        expect(afterDispatch.received).toBe(0)
+        expect(afterDispatch.stocked).toBe(0)
+        for (const line of finalPartnerOrderResponse.data.inventoryOrder.order_lines) {
+          expect(line.ledger.dispatched).toBe(line.quantity)
+          expect(line.ledger.awaiting_count).toBe(line.quantity)
+          expect(line.ledger.to_dispatch).toBe(0)
+        }
+
+        // The receiver's count posts the stock.
+        const receiveRes = await api.post(`/admin/inventory-orders/${inventoryOrderId}/receive`, {}, adminHeaders)
+        expect(receiveRes.status).toBe(200)
+        const afterReceipt = await receiptsAndStock()
+        expect(afterReceipt.received).toBe(afterReceipt.requested)
+        expect(afterReceipt.stocked).toBe(afterReceipt.requested)
 
         console.log("\n✅ Complete workflow finished successfully!")
       })
@@ -564,62 +572,35 @@ setupSharedTestSuite(() => {
         expect(afterCompletePartnerOrder.data.inventoryOrder.partner_info.partner_status).toBe("in_progress")
         console.log("[LOG][get-after-partial] inv.status=", afterCompletePartnerOrder.data.inventoryOrder.status, "partner_status=", afterCompletePartnerOrder.data.inventoryOrder.partner_info?.partner_status)
 
-        // Verify fulfillment entries for partial delivery are recorded and linked via orderlines
+        // #2289 — a partial Complete is a partial DISPATCH: nothing received,
+        // nothing stocked, and the ledger says what is left to send.
         const container = getContainer()
         const query = container.resolve(ContainerRegistrationKeys.QUERY)
-        const { data: partialOrderWithFulfillments } = await query.graph({
-          entity: "inventory_orders",
-          fields: [
-            "id",
-            "orderlines.id",
-            "orderlines.quantity",
-            "orderlines.line_fulfillments.*",
-          ],
-          filters: { id: inventoryOrderId },
-        })
-
-        expect(partialOrderWithFulfillments?.length).toBe(1)
-        const partialOrder = partialOrderWithFulfillments[0]
-        const fulfillmentsPartial = (partialOrder.orderlines || []).flatMap((l: any) => l.line_fulfillments || [])
         const deliveredQty = partialCompletePayload.lines[0].quantity
-        const totalDelta = (fulfillmentsPartial as any[]).reduce((s: number, f: any) => s + (Number(f.quantity_delta) || 0), 0)
-        expect(totalDelta).toBe(deliveredQty)
-        console.log("[LOG][verify-partial] fulfillmentsPartial=", fulfillmentsPartial.length, "totalDelta=", totalDelta, "deliveredQty=", deliveredQty)
+        const partialLine = afterCompletePartnerOrder.data.inventoryOrder.order_lines.find(
+          (l: any) => l.id === firstLineId
+        )
+        expect(partialLine.ledger.dispatched).toBe(deliveredQty)
+        expect(partialLine.ledger.received).toBe(0)
+        expect(partialLine.ledger.to_dispatch).toBe(partialLine.quantity - deliveredQty)
 
-        // Verify inventory levels reflect the partial delivered quantity at destination location
-        const { data: levelsAfterPartial } = await query.graph({
-          entity: "inventory_level",
-          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
-          filters: { inventory_item_id: inventoryItemId },
-        })
-        const destLevelsPartial = (levelsAfterPartial || []).filter((l: any) => String(l.location_id) === String(stockLocationId))
-        expect(destLevelsPartial.length).toBeGreaterThan(0)
-        const partialStockedAtDest = destLevelsPartial.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
-        expect(partialStockedAtDest).toBe(deliveredQty)
-        console.log("[DBG][partial] levelsAfterPartial=", JSON.stringify(levelsAfterPartial, null, 2))
+        const stockedAtDest = async () => {
+          const { data: levels } = await query.graph({
+            entity: "inventory_level",
+            fields: ["id", "location_id", "stocked_quantity"],
+            filters: { inventory_item_id: inventoryItemId },
+          })
+          return (levels || [])
+            .filter((l: any) => String(l.location_id) === String(stockLocationId))
+            .reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
+        }
+        expect(await stockedAtDest()).toBe(0)
 
         // 6. Finalize the order by delivering the remaining quantities for ALL lines
-        // Get current order lines with their fulfillments to compute remaining per line
-        const { data: finalPrep } = await query.graph({
-          entity: "inventory_orders",
-          fields: [
-            "id",
-            "orderlines.id",
-            "orderlines.quantity",
-            "orderlines.line_fulfillments.*",
-          ],
-          filters: { id: inventoryOrderId },
-        })
-        expect(finalPrep?.length).toBe(1)
-        const nodeForRemaining = finalPrep[0]
-        const ols = (nodeForRemaining.orderlines || []) as any[]
-
-        const remainingLines = ols.map((l: any) => {
-          const deliveredSoFar = (l.line_fulfillments || []).reduce((s: number, f: any) => s + (Number(f.quantity_delta) || 0), 0)
-          const req = Number(l.quantity || 0)
-          const rem = Math.max(0, req - deliveredSoFar)
-          return { order_line_id: l.id, remaining: rem, requested: req }
-        }).filter((x) => x.remaining > 0)
+        const beforeFinal = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, { headers: partnerHeaders })
+        const remainingLines = (beforeFinal.data.inventoryOrder.order_lines as any[])
+          .map((l: any) => ({ order_line_id: l.id, remaining: l.ledger.to_dispatch, requested: Number(l.quantity) }))
+          .filter((x) => x.remaining > 0)
 
         // Ensure there is something to deliver to complete the order
         expect(remainingLines.length).toBeGreaterThan(0)
@@ -651,38 +632,32 @@ setupSharedTestSuite(() => {
         expect(finalPartnerOrder.data.inventoryOrder.partner_info.partner_status).toBe("completed")
         console.log("[LOG][get-after-final] partner_status=", finalPartnerOrder.data.inventoryOrder?.partner_info?.partner_status, "inv.status=", finalPartnerOrder.data.inventoryOrder?.status)
 
-        const { data: finalOrderWithFulfillments } = await query.graph({
-          entity: "inventory_orders",
-          fields: [
-            "id",
-            "orderlines.id",
-            "orderlines.quantity",
-            "orderlines.line_fulfillments.*",
-          ],
-          filters: { id: inventoryOrderId },
-        })
-        expect(finalOrderWithFulfillments?.length).toBe(1)
-        const finalNode = finalOrderWithFulfillments[0]
-        const fulfillmentsAll = (finalNode.orderlines || []).flatMap((l: any) => l.line_fulfillments || [])
-        const finalSumDelta = (fulfillmentsAll as any[]).reduce((s: number, f: any) => s + (Number(f.quantity_delta) || 0), 0)
-        const sumRequestedAll = (finalNode.orderlines || []).reduce((s: number, l: any) => s + (Number(l.quantity) || 0), 0)
-        expect(finalSumDelta).toBe(sumRequestedAll)
-        console.log("[LOG][verify-final] finalSumDelta=", finalSumDelta, "sumRequestedAll=", sumRequestedAll, "fulfillmentsAll=", fulfillmentsAll.length)
+        // Everything is dispatched; nothing is stocked until it is counted.
+        expect(await stockedAtDest()).toBe(0)
+        const sumRequestedAll = (finalPartnerOrder.data.inventoryOrder.order_lines as any[])
+          .reduce((s: number, l: any) => s + (Number(l.quantity) || 0), 0)
 
-        // Verify inventory levels now match the full requested quantity at destination location
-        const { data: levelsAfterFinal } = await query.graph({
-          entity: "inventory_level",
-          fields: ["id", "inventory_item_id", "location_id", "stocked_quantity"],
-          filters: { inventory_item_id: inventoryItemId },
-        })
-        const destLevelsFinal = (levelsAfterFinal || []).filter((l: any) => String(l.location_id) === String(stockLocationId))
-        expect(destLevelsFinal.length).toBeGreaterThan(0)
-        const finalStockedAtDest = destLevelsFinal.reduce((s: number, l: any) => s + (Number(l.stocked_quantity) || 0), 0)
-        expect(finalStockedAtDest).toBe(sumRequestedAll)
-        console.log("[DBG][final] levelsAfterFinal=", JSON.stringify(levelsAfterFinal, null, 2))
+        // The receiver counts ONE unit short on the first line. Before #2289
+        // this count could not be recorded at all ("Nothing outstanding").
+        const lines = finalPartnerOrder.data.inventoryOrder.order_lines as any[]
+        const countLines = lines.map((l: any, i: number) => ({
+          order_line_id: l.id,
+          quantity: i === 0 ? Number(l.quantity) - 1 : Number(l.quantity),
+        }))
+        const countRes = await api.post(
+          `/admin/inventory-orders/${inventoryOrderId}/receive`,
+          { lines: countLines },
+          adminHeaders
+        )
+        expect(countRes.status).toBe(200)
+        expect(await stockedAtDest()).toBe(sumRequestedAll - 1)
+
+        const afterCount = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, { headers: partnerHeaders })
+        const short = (afterCount.data.inventoryOrder.order_lines as any[]).find((l: any) => l.id === lines[0].id)
+        expect(short.ledger.awaiting_count).toBe(1)
       })
 
-      it("should create missing inventory levels at destination location on completion", async () => {
+      it("should create missing inventory levels at the destination when the goods are counted", async () => {
         // Create a fresh inventory item without pre-associated inventory levels
         const newItemRes = await api.post(
           "/admin/inventory-items",
@@ -750,6 +725,10 @@ setupSharedTestSuite(() => {
           { headers: partnerHeaders }
         )
         expect([200, 204]).toContain(completeRes.status)
+
+        // #2289 — the level is created when the goods are COUNTED, not dispatched.
+        const receiveNew = await api.post(`/admin/inventory-orders/${newInventoryOrderId}/receive`, {}, adminHeaders)
+        expect(receiveNew.status).toBe(200)
 
         // Verify an inventory_level now exists at destination location with stocked_quantity == requested
         const container = getContainer()
@@ -857,7 +836,10 @@ setupSharedTestSuite(() => {
             .reduce((sum: number, l: any) => sum + (Number(l.stocked_quantity) || 0), 0)
         }
 
-        // Both submissions posted, so all 16 units are on the shelf.
+        // #2289 — two dispatches post nothing; the count posts all 16.
+        expect(await stockedAtDest()).toBe(0)
+        const counted = await api.post(`/admin/inventory-orders/${orderId}/receive`, {}, adminHeaders)
+        expect(counted.status).toBe(200)
         expect(await stockedAtDest()).toBe(16)
 
         // 🔴 The blob now holds ONLY the second submission. If this were the

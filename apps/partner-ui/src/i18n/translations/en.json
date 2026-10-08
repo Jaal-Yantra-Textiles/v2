@@ -3593,7 +3593,8 @@
           "item": "Item",
           "requested": "Requested",
           "fulfilled": "Fulfilled",
-          "remaining": "Remaining"
+          "remaining": "Remaining",
+          "awaitingCount": "{{qty}} sent, awaiting the receiver's count"
         },
         "activities": {
           "title": "Activities",

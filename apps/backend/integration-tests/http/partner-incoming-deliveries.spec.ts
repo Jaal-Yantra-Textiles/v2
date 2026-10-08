@@ -190,9 +190,9 @@ setupSharedTestSuite(() => {
       expect(await stockAt(item, receiverWh)).toBe(0)
     })
 
-    it("a SUPPLIER completing from the portal posts at the destination, not their own warehouse", async () => {
-      // partner-ui's Complete screen sends `lines` only — no location — so the
-      // workflow's own destination resolution is the one that decides.
+    it("a SUPPLIER's Complete posts NO stock; the receiver's count does, at the destination (#2289)", async () => {
+      // Founder decision 2026-10-08: a supplier's Complete records a dispatch.
+      // Only a receiver's count posts stock, so a lower count can be recorded.
       for (const name of ["partner-order-sent", "partner-order-received", "partner-order-shipped"]) {
         await post(
           "/admin/task-templates",
@@ -223,8 +223,28 @@ setupSharedTestSuite(() => {
       )
       expect(done.status).toBe(200)
 
-      expect(await stockAt(item, destWh)).toBe(10)
+      // The supplier's word moves nothing.
+      expect(await stockAt(item, destWh)).toBe(0)
       expect(await stockAt(item, supplierWh)).toBe(0)
+      const afterDispatch = await api.get(`/partners/inventory-orders/${order.id}`, supplier.headers)
+      expect(afterDispatch.data.inventoryOrder.order_lines[0].ledger).toEqual(
+        expect.objectContaining({ dispatched: 10, received: 0, to_dispatch: 0, awaiting_count: 10 })
+      )
+
+      // 🔴 Before #2289 this was impossible: the Complete had already written
+      // 10 as received, so a count of 9 failed "Nothing outstanding".
+      const counted = await post(
+        `/admin/inventory-orders/${order.id}/receive`,
+        { lines: [{ order_line_id: order.lineIds[0], quantity: 9 }] },
+        adminHeaders
+      )
+      expect(counted.status).toBe(200)
+      expect(await stockAt(item, destWh)).toBe(9)
+      expect(await stockAt(item, supplierWh)).toBe(0)
+      const afterCount = await api.get(`/partners/inventory-orders/${order.id}`, supplier.headers)
+      expect(afterCount.data.inventoryOrder.order_lines[0].ledger).toEqual(
+        expect.objectContaining({ dispatched: 10, received: 9, awaiting_count: 1 })
+      )
     })
 
     it("the SUPPLIER's warehouse is never the destination (the stock_locations[0] bug)", async () => {

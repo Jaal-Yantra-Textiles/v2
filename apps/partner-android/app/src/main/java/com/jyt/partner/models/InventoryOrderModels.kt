@@ -48,6 +48,18 @@ data class LineFulfillment(
     val status: String? = null,
 )
 
+/** #2289 — per line, what the partner dispatched vs what the receiver counted.
+ *  A dispatch posts no stock and is not a receipt row, so the server computes
+ *  this; the app does not sum rows itself. */
+@Serializable
+data class LineLedger(
+    val ordered: Double = 0.0,
+    val dispatched: Double = 0.0,
+    val received: Double = 0.0,
+    @SerialName("to_dispatch") val toDispatch: Double = 0.0,
+    @SerialName("awaiting_count") val awaitingCount: Double = 0.0,
+)
+
 /** One order line — these goods are cloth, yarn and trim, so quantity is a
  *  REAL (metres/kilograms), not a count. */
 @Serializable
@@ -60,6 +72,7 @@ data class InventoryOrderLine(
     val metadata: Map<String, String>? = null,
     @SerialName("inventory_items") val inventoryItems: List<InventoryItemSummary>? = null,
     @SerialName("line_fulfillments") val lineFulfillments: List<LineFulfillment>? = null,
+    val ledger: LineLedger? = null,
 ) {
     val displayName: String
         get() = inventoryItems?.firstOrNull()
@@ -67,10 +80,17 @@ data class InventoryOrderLine(
             ?: inventoryItems?.firstOrNull()?.sku
             ?: "Material"
 
+    /** What the partner has sent. The server's ledger when present; before
+     *  #2289 the app summed `quantity`, a field the API never sends (rows carry
+     *  `quantity_delta`), so it always read 0. */
     val fulfilled: Double
-        get() = lineFulfillments.orEmpty().sumOf { it.quantity ?: 0.0 }
+        get() = ledger?.dispatched ?: lineFulfillments.orEmpty().sumOf { it.quantity ?: 0.0 }
 
-    val outstanding: Double get() = (quantity - fulfilled).coerceAtLeast(0.0)
+    val outstanding: Double
+        get() = ledger?.toDispatch ?: (quantity - fulfilled).coerceAtLeast(0.0)
+
+    /** Sent but not yet counted by the receiver. */
+    val awaitingCount: Double get() = ledger?.awaitingCount ?: 0.0
 }
 
 @Serializable
