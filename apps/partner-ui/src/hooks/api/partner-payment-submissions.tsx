@@ -41,6 +41,8 @@ export type PaymentSubmission = {
   submitted_at: string | null
   reviewed_at: string | null
   reviewed_by: string | null
+  /** Set when the request is settled — a Paid request IS the payout (#1636). */
+  paid_at?: string | null
   rejection_reason: string | null
   notes: string | null
   documents: Array<{ id?: string; url: string; filename?: string; mimeType?: string }> | null

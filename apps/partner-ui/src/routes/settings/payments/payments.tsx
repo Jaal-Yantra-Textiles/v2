@@ -17,6 +17,7 @@ import { SingleColumnPage } from "../../../components/layout/pages"
 import { _DataTable } from "../../../components/table/data-table"
 import { getLocaleAmount } from "../../../lib/money-amount-helpers"
 import { usePartnerPayments } from "../../../hooks/api/partner-payments"
+import { usePartnerPaymentSubmissions } from "../../../hooks/api/partner-payment-submissions"
 import {
   useDeletePartnerPaymentMethod,
   usePartnerPaymentMethods,
@@ -108,6 +109,11 @@ export const SettingsPayments = () => {
   const partnerId = user?.partner_id
 
   const { payments, isPending: isPaymentsLoading } = usePartnerPayments(partnerId)
+  // Since #1636 settling a request marks it Paid and writes no payment row, so
+  // the Paid request IS the payout. Reading payments alone left this list
+  // empty for every payout settled the current way.
+  const { payment_submissions: paidRequests, isPending: isPaidLoading } =
+    usePartnerPaymentSubmissions({ status: "Paid", limit: 100 }, { enabled: !!partnerId })
   const { paymentMethods, isPending: isMethodsLoading } = usePartnerPaymentMethods(partnerId)
 
   const rows = useMemo<PaymentMethodRow[]>(() => {
@@ -125,19 +131,47 @@ export const SettingsPayments = () => {
 
   type PaymentRow = {
     id: string
+    kind: "request" | "payment"
+    label: string
     amount?: number | null
     currency_code?: string | null
     created_at?: string | null
   }
 
+  // Paid requests first (newest paid first), then the older recorded payments.
   const paymentRows = useMemo<PaymentRow[]>(() => {
-    return (payments || []).map((p) => ({
+    const time = (v?: string | null) => (v ? new Date(v).getTime() || 0 : 0)
+    const requests: PaymentRow[] = (paidRequests || [])
+      .map((s) => {
+        const names = Array.from(
+          new Set(
+            (s.items || [])
+              .map((i) => i.design_name || i.task_name)
+              .filter((n): n is string => !!n)
+          )
+        )
+        return {
+          id: String(s.id),
+          kind: "request" as const,
+          label: names.length
+            ? names.join(", ")
+            : t("partner.payments.paidRequest"),
+          amount: s.total_amount != null ? Number(s.total_amount) : null,
+          currency_code: s.currency ?? null,
+          created_at: s.paid_at || s.reviewed_at || s.submitted_at || s.created_at,
+        }
+      })
+      .sort((a, b) => time(b.created_at) - time(a.created_at))
+    const others: PaymentRow[] = (payments || []).map((p) => ({
       id: String(p.id),
+      kind: "payment" as const,
+      label: String(p.id),
       amount: typeof p.amount === "number" ? p.amount : null,
       currency_code: p.currency_code ?? null,
       created_at: p.created_at ?? null,
     }))
-  }, [payments])
+    return [...requests, ...others]
+  }, [paidRequests, payments, t])
 
   const columnHelper = useMemo(() => createDataTableColumnHelper<PaymentMethodRow>(), [])
   const paymentsColumnHelper = useMemo(
@@ -219,7 +253,7 @@ export const SettingsPayments = () => {
       paymentsColumnHelper.accessor("id", {
         header: () => t("partner.payments.columns.paymentId"),
         cell: ({ row }) => {
-          const id = row.original.id
+          const { label, kind } = row.original
           const createdAt = row.original.created_at
           const date = (() => {
             if (!createdAt) {
@@ -234,9 +268,11 @@ export const SettingsPayments = () => {
 
           return (
             <div className="flex flex-col">
-              <Text weight="plus">{id}</Text>
+              <Text weight="plus">{label}</Text>
               <Text size="xsmall" className="text-ui-fg-subtle">
-                {date}
+                {kind === "request"
+                  ? t("partner.payments.paidOn", { date })
+                  : date}
               </Text>
             </div>
           )
@@ -246,7 +282,7 @@ export const SettingsPayments = () => {
         header: () => t("partner.payments.columns.amount"),
         cell: ({ row }) => {
           const amount = row.original.amount
-          const currency = (row.original.currency_code || "USD").toUpperCase()
+          const currency = (row.original.currency_code || "INR").toUpperCase()
           if (typeof amount !== "number") {
             return "—"
           }
@@ -327,9 +363,14 @@ export const SettingsPayments = () => {
             table={paymentsTable}
             pagination
             count={paymentRows.length}
-            isLoading={isPaymentsLoading}
+            isLoading={isPaymentsLoading || (!!partnerId && isPaidLoading)}
             pageSize={20}
             queryObject={{}}
+            navigateTo={(row) =>
+              row.original.kind === "request"
+                ? `/payment-submissions/${row.original.id}`
+                : ""
+            }
             noRecords={{
               message: t("partner.payments.emptyPayments"),
             }}
