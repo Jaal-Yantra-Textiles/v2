@@ -400,6 +400,7 @@ import { AdminGetPaymentProvidersParams } from "@medusajs/medusa/api/admin/payme
 import { listTransformPaymentProvidersQueryConfig } from "@medusajs/medusa/api/admin/payments/query-config";
 import * as storeCollectionQueryConfig from "@medusajs/medusa/api/store/collections/query-config";
 import * as storeCategoryQueryConfig from "@medusajs/medusa/api/store/product-categories/query-config";
+import { setPersonSubscriptionSchema } from "./admin/persons/[id]/subscription/validators";
 import { PartnerBatchVariantInventoryItemsSchema } from "./partners/stores/[id]/products/[productId]/variants/inventory-items/batch/validators";
 import {
   listInboundEmailsQuerySchema,
@@ -4287,6 +4288,12 @@ export default defineMiddlewares({
       matcher: "/admin/persons/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePersonSchema))],
+    },
+    // The newsletter switch on a person (admin-added people were never mailed).
+    {
+      matcher: "/admin/persons/:id/subscription",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(setPersonSubscriptionSchema))],
     },
     // person_property CRUD (module-service backed; swappable Postgres/Hyperbee DAL)
     {
