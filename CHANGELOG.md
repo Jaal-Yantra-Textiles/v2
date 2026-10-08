@@ -1,3 +1,11 @@
+## [13.174.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.174.0...v13.174.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* **partner-ui:** Paid payouts show under Payments received ([#2367](https://github.com/Jaal-Yantra-Textiles/v2/issues/2367)) ([60dd72c](https://github.com/Jaal-Yantra-Textiles/v2/commit/60dd72c451b61b4eda494d2c1a682b9b36708e42)), closes [#1636](https://github.com/Jaal-Yantra-Textiles/v2/issues/1636) [#2366](https://github.com/Jaal-Yantra-Textiles/v2/issues/2366)
+* **kit:** untag every suppressed address on the tag, not just this audience's ([#2368](https://github.com/Jaal-Yantra-Textiles/v2/issues/2368)) ([dd61772](https://github.com/Jaal-Yantra-Textiles/v2/commit/dd617726c6880686f752740622933d4d08f75aa8))
+
 # [13.174.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.173.0...v13.174.0) (2026-10-07)
 
 
