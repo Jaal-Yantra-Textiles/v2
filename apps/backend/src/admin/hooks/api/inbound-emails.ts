@@ -30,6 +30,16 @@ export interface AdminInboundEmail {
   metadata: Record<string, any> | null
   created_at: string
   updated_at: string
+  /** Detail only (#2377): the body as readable text, and the orders it became. */
+  body_text?: string
+  inventory_order_ids?: string[]
+}
+
+export interface InboundEmailFolder {
+  folder: string
+  total: number
+  /** Still needs someone: received or action_pending. */
+  open: number
 }
 
 export interface AdminInboundEmailsResponse {
@@ -99,6 +109,23 @@ export const useInboundEmails = (
         query,
       }),
     queryKey: inboundEmailQueryKeys.list(query),
+    ...options,
+  })
+  return { ...data, ...rest }
+}
+
+export const useInboundEmailFolders = (
+  options?: Omit<
+    UseQueryOptions<{ folders: InboundEmailFolder[] }, FetchError, { folders: InboundEmailFolder[] }, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [INBOUND_EMAILS_QUERY_KEY, "folders"],
+    queryFn: async () =>
+      sdk.client.fetch<{ folders: InboundEmailFolder[] }>(`/admin/inbound-emails/folders`, {
+        method: "GET",
+      }),
     ...options,
   })
   return { ...data, ...rest }
@@ -215,6 +242,77 @@ export const useIgnoreInboundEmail = (
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.lists() })
       queryClient.invalidateQueries({ queryKey: inboundEmailQueryKeys.details() })
+      options?.onSuccess?.(...args)
+    },
+  })
+}
+
+// ─── #2377: which account folders the Inbox reads ───────────────────────────
+
+export interface InboundMailbox {
+  path: string
+  name: string
+  special_use: string | null
+  selectable: boolean
+  reading: boolean
+  /** Set to be read but no longer on the account (renamed or deleted in iCloud). */
+  missing?: boolean
+}
+
+export interface InboundMailboxesResponse {
+  platform: { id: string; name: string }
+  mailboxes: InboundMailbox[]
+}
+
+export const useInboundMailboxes = (
+  options?: Omit<
+    UseQueryOptions<InboundMailboxesResponse, FetchError, InboundMailboxesResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [INBOUND_EMAILS_QUERY_KEY, "mailboxes"],
+    queryFn: async () =>
+      sdk.client.fetch<InboundMailboxesResponse>(`/admin/inbound-emails/mailboxes`, { method: "GET" }),
+    // Live from iCloud: a slow call, and the list rarely changes.
+    staleTime: 60_000,
+    retry: false,
+    ...options,
+  })
+  return { ...data, ...rest }
+}
+
+export const useSetInboundMailboxes = (
+  options?: UseMutationOptions<{ mailboxes: string[] }, FetchError, { mailboxes: string[] }>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { mailboxes: string[] }) =>
+      sdk.client.fetch<{ mailboxes: string[] }>(`/admin/inbound-emails/mailboxes`, {
+        method: "POST",
+        body: payload,
+      }),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: [INBOUND_EMAILS_QUERY_KEY, "mailboxes"] })
+      options?.onSuccess?.(...args)
+    },
+  })
+}
+
+export const useCreateInboundMailbox = (
+  options?: UseMutationOptions<{ path: string; reading: boolean }, FetchError, { name: string; read?: boolean }>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { name: string; read?: boolean }) =>
+      sdk.client.fetch<{ path: string; reading: boolean }>(`/admin/inbound-emails/mailboxes/create`, {
+        method: "POST",
+        body: payload,
+      }),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: [INBOUND_EMAILS_QUERY_KEY, "mailboxes"] })
       options?.onSuccess?.(...args)
     },
   })

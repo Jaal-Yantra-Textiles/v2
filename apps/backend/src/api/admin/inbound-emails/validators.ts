@@ -10,7 +10,8 @@ export const listInboundEmailsQuerySchema = z.object({
     z.number().int().min(0).default(0)
   ),
   q: z.string().optional(),
-  status: z.enum(["received", "action_pending", "processed", "ignored"]).optional(),
+  // "open" = still needs someone: received or action_pending (#2377 Inbox).
+  status: z.enum(["received", "action_pending", "processed", "ignored", "open"]).optional(),
   from_address: z.string().optional(),
   folder: z.string().optional(),
 })
@@ -58,3 +59,24 @@ export const linkInboundEmailInventoryOrderSchema = z.object({
 })
 
 export type LinkInboundEmailInventoryOrderBody = z.infer<typeof linkInboundEmailInventoryOrderSchema>
+
+export const setInboundMailboxesSchema = z.object({
+  platform_id: z.string().optional(),
+  mailboxes: z.array(z.string().min(1)).min(1, "Pick at least one folder to read"),
+})
+
+export type SetInboundMailboxesBody = z.infer<typeof setInboundMailboxesSchema>
+
+export const createInboundMailboxSchema = z.object({
+  platform_id: z.string().optional(),
+  // iCloud folder names; "/" would nest it, which the picker doesn't show yet.
+  name: z
+    .string()
+    .trim()
+    .min(1, "Folder name is required")
+    .max(100)
+    .regex(/^[^/\\*%]+$/, "Use letters, numbers, spaces, - or _"),
+  read: z.boolean().default(true),
+})
+
+export type CreateInboundMailboxBody = z.infer<typeof createInboundMailboxSchema>

@@ -2557,6 +2557,66 @@ async function seedDesignDetailLayout(container: any): Promise<{
  * before the batch is collated, so the collation finds every run already on
  * an order. Found by this fixture on 2026-10-07; tracked separately.
  */
+/**
+ * #2377 Inbox — two emails in two folders unique to this seed run, so the
+ * spec's folder counts are about its own rows on a database that keeps every
+ * earlier run's mail. One is a shop's order confirmation (HTML table, ₹),
+ * the other a plain note the spec ignores. Re-seeded every run; the spec
+ * tolerates a Playwright retry finding the note already ignored.
+ */
+async function seedInboxEmails(container: any): Promise<{
+  ordersFolder: string
+  notesFolder: string
+  orderEmailId: string
+  orderSubject: string
+  noteEmailId: string
+  noteSubject: string
+}> {
+  const inbound: any = container.resolve("inbound_emails")
+  const stamp = Date.now()
+  const ordersFolder = `E2E_ORDERS_${stamp}`
+  const notesFolder = `E2E_NOTES_${stamp}`
+  const orderSubject = `Your Button Bazaar order #BB-${stamp} is confirmed`
+  const noteSubject = `Weekly update ${stamp}`
+
+  const order = await inbound.createInboundEmails({
+    imap_uid: `e2e-order-${stamp}`,
+    message_id: `<e2e-order-${stamp}@buttonbazaar.test>`,
+    from_address: "no-reply@buttonbazaar.test",
+    to_addresses: ["orders@jaalyantra.com"],
+    subject: orderSubject,
+    html_body:
+      "<h1>Button Bazaar</h1><p>Thanks for your order.</p>" +
+      "<table><tr><th>Item</th><th>Qty</th><th>Price</th></tr>" +
+      "<tr><td>Coconut shell button 15mm (pack of 100)</td><td>2</td><td>&#8377;450.00</td></tr></table>" +
+      "<p>Total: &#8377;960.00</p>",
+    text_body: null,
+    folder: ordersFolder,
+    received_at: new Date(),
+    status: "received",
+  })
+  const note = await inbound.createInboundEmails({
+    imap_uid: `e2e-note-${stamp}`,
+    message_id: `<e2e-note-${stamp}@updates.test>`,
+    from_address: "news@updates.test",
+    to_addresses: ["updates@jaalyantra.com"],
+    subject: noteSubject,
+    html_body: "<p>Nothing to do here.</p>",
+    text_body: "Nothing to do here.",
+    folder: notesFolder,
+    received_at: new Date(Date.now() - 60_000),
+    status: "received",
+  })
+  return {
+    ordersFolder,
+    notesFolder,
+    orderEmailId: order.id,
+    orderSubject,
+    noteEmailId: note.id,
+    noteSubject,
+  }
+}
+
 async function seedCollatedActionsFixture(container: any): Promise<{
   email: string
   password: string
@@ -3518,6 +3578,7 @@ export default async function e2eSeed({ container }: ExecArgs) {
 
   logger.info("E2E seed: #2357 collated order for the all-designs actions...")
   const collatedActions = await seedCollatedActionsFixture(container)
+  const inbox = await seedInboxEmails(container)
 
   logger.info("E2E seed: #1752 partner inventory-order change fixtures (admin approve + partner propose)...")
   const invChange = await seedInventoryOrderChange(container)
@@ -3763,6 +3824,14 @@ export default async function e2eSeed({ container }: ExecArgs) {
     caPassword: collatedActions.password,
     caWorkOrderId: collatedActions.workOrderId,
     caDesigns: collatedActions.designs,
+    // #2377 Inbox — consumed by admin-inbox.spec.ts (admin, CI). Re-seeded
+    // every run in fresh folders; the spec ignores the note (single-use).
+    inboxOrdersFolder: inbox.ordersFolder,
+    inboxNotesFolder: inbox.notesFolder,
+    inboxOrderEmailId: inbox.orderEmailId,
+    inboxOrderSubject: inbox.orderSubject,
+    inboxNoteEmailId: inbox.noteEmailId,
+    inboxNoteSubject: inbox.noteSubject,
   }
 
   // Last, and before the seed file is written: a run that took the house store

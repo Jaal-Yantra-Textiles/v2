@@ -406,6 +406,8 @@ import {
   extractInboundEmailSchema,
   executeInboundEmailSchema,
   linkInboundEmailInventoryOrderSchema,
+  setInboundMailboxesSchema,
+  createInboundMailboxSchema,
   syncInboundEmailsSchema,
   testConnectionSchema,
 } from "./admin/inbound-emails/validators";
@@ -4844,6 +4846,21 @@ export default defineMiddlewares({
       matcher: "/admin/inbound-emails/actions",
       method: "GET",
       middlewares: [],
+    },
+    {
+      matcher: "/admin/inbound-emails/folders",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/inbound-emails/mailboxes",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(setInboundMailboxesSchema))],
+    },
+    {
+      matcher: "/admin/inbound-emails/mailboxes/create",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(createInboundMailboxSchema))],
     },
     {
       matcher: "/admin/inbound-emails/setup-resend-webhook",
