@@ -1,3 +1,25 @@
+# [13.175.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.174.1...v13.175.0) (2026-10-08)
+
+
+### Bug Fixes
+
+* **inventory-orders:** a dispatch must not land in partner_delivered_lines ([#2289](https://github.com/Jaal-Yantra-Textiles/v2/issues/2289) S1 hotfix) ([#2370](https://github.com/Jaal-Yantra-Textiles/v2/issues/2370)) ([6419e64](https://github.com/Jaal-Yantra-Textiles/v2/commit/6419e647af28712f0b0804a2290426951da8cde1)), closes [#2369](https://github.com/Jaal-Yantra-Textiles/v2/issues/2369) [#2369](https://github.com/Jaal-Yantra-Textiles/v2/issues/2369)
+* **assistant:** keep the chat stream alive past the load balancer's 60 s idle cut ([#2385](https://github.com/Jaal-Yantra-Textiles/v2/issues/2385)) ([f0582b1](https://github.com/Jaal-Yantra-Textiles/v2/commit/f0582b102f1674d42e7946fa2cacf8998888e0f5))
+
+
+### Features
+
+* **persons:** a Newsletter switch on the person page ([#2381](https://github.com/Jaal-Yantra-Textiles/v2/issues/2381)) ([f03d756](https://github.com/Jaal-Yantra-Textiles/v2/commit/f03d7560ad3fea011919ac36418395beabc0f804))
+* **inventory-orders:** a supplier's Complete records a dispatch; only the receiver's count posts stock ([#2289](https://github.com/Jaal-Yantra-Textiles/v2/issues/2289) S1) ([#2369](https://github.com/Jaal-Yantra-Textiles/v2/issues/2369)) ([209cbf2](https://github.com/Jaal-Yantra-Textiles/v2/commit/209cbf2ed868976f1eea2f8bee2f8c94ac6a7cab))
+* **blog:** a test send can go to a real reader by hand (person_id) ([#2382](https://github.com/Jaal-Yantra-Textiles/v2/issues/2382)) ([29aebff](https://github.com/Jaal-Yantra-Textiles/v2/commit/29aebffe3de08597e42b128dc0d8692f49f2ac61))
+* **inbox:** admin Inbox — folders, list, reading pane, hand an email to the assistant ([#2377](https://github.com/Jaal-Yantra-Textiles/v2/issues/2377) S2) ([#2380](https://github.com/Jaal-Yantra-Textiles/v2/issues/2380)) ([276e8fd](https://github.com/Jaal-Yantra-Textiles/v2/commit/276e8fd665eb5fa5c726ef6cadc8c0fe048b7b26))
+* **production-runs:** pause the daily partner reminders on one run ([#2384](https://github.com/Jaal-Yantra-Textiles/v2/issues/2384)) ([352c38d](https://github.com/Jaal-Yantra-Textiles/v2/commit/352c38d0d6178744741e500b11ccf8288e525cf5))
+* **inbox:** poll every IMAP mailbox every 5 minutes; drop the listener that never ran ([#2377](https://github.com/Jaal-Yantra-Textiles/v2/issues/2377) S1) ([#2378](https://github.com/Jaal-Yantra-Textiles/v2/issues/2378)) ([6cd6d43](https://github.com/Jaal-Yantra-Textiles/v2/commit/6cd6d43e2062b3a872b1fd4b5e97724a37c97aa4))
+* **inventory-orders:** record short deliveries; admin task; supplier sees the short count ([#2289](https://github.com/Jaal-Yantra-Textiles/v2/issues/2289) S3) ([#2372](https://github.com/Jaal-Yantra-Textiles/v2/issues/2372)) ([aedcc30](https://github.com/Jaal-Yantra-Textiles/v2/commit/aedcc3000a2b06aef10dfc3d8bea0ead96835791))
+* **inventory-orders:** remind a receiving partner to count a delivery after 3 days ([#2289](https://github.com/Jaal-Yantra-Textiles/v2/issues/2289) S4) ([#2373](https://github.com/Jaal-Yantra-Textiles/v2/issues/2373)) ([b6842b6](https://github.com/Jaal-Yantra-Textiles/v2/commit/b6842b687a7cd7d24a0197b2144173ee3945715e))
+* **inbox:** the assistant reads an email and records the inventory order it became ([#2377](https://github.com/Jaal-Yantra-Textiles/v2/issues/2377) S3) ([#2379](https://github.com/Jaal-Yantra-Textiles/v2/issues/2379)) ([889b8d4](https://github.com/Jaal-Yantra-Textiles/v2/commit/889b8d40f0f2b125181032948bf82e064fad5464))
+* **partner-android:** zoomable full-screen photos; upload from the camera ([#2376](https://github.com/Jaal-Yantra-Textiles/v2/issues/2376)) ([ba5da8f](https://github.com/Jaal-Yantra-Textiles/v2/commit/ba5da8fa897e67d3c5134f9c0da370152bfb5826))
+
 ## [13.174.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.174.0...v13.174.1) (2026-10-08)
 
 
