@@ -1,18 +1,14 @@
 import { createStep, createWorkflow, StepResponse, WorkflowResponse, when, transform } from "@medusajs/framework/workflows-sdk";
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import type { RemoteQueryFunction } from "@medusajs/types";
-import type { Link } from "@medusajs/modules-sdk";
 import { TASKS_MODULE } from "../../modules/tasks";
 import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates";
 import { updateInventoryOrderWorkflow } from "./update-inventory-order";
 import { setInventoryOrderStepSuccessWorkflow } from "./inventory-order-steps";
 import TaskService from "../../modules/tasks/service";
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders";
-import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import Fullfilled_ordersService from "../../modules/fullfilled_orders/service";
-import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow, sendNotificationsStep } from "@medusajs/medusa/core-flows";
-import type { UpdateInventoryLevelInput } from "@medusajs/framework/types";
-import { resolveInventoryOrderDestination } from "./lib/order-destination";
+import { exceedsOrdered, lineLedger, sumDispatchedByLine } from "./lib/dispatch-ledger";
 
 export type PartnerCompleteOrderLine = {
   order_line_id: string
@@ -24,6 +20,10 @@ export type PartnerCompleteInventoryOrderInput = {
   notes?: string
   deliveryDate?: string
   trackingNumber?: string
+  /**
+   * Ignored since #2289: a supplier no longer chooses where stock lands, because
+   * their Complete posts no stock. Kept so existing callers still validate.
+   */
   stock_location_id?: string
   lines: PartnerCompleteOrderLine[]
   // #780 C1 defense-in-depth — when supplied (the partner route always supplies
@@ -69,112 +69,80 @@ export const resolveExistingLevelsStep = createStep(
   }
 )
 
-const prepareFulfillmentPayloadsStep = createStep(
-  "partner-complete-prepare-fulfillment-payloads",
+/**
+ * #2289 — record the supplier's lines as DISPATCHES. No `line_fulfillment`
+ * (receipt) rows and no stock: only a receiver's count posts stock (admin
+ * receive, or the receiving partner's Incoming deliveries confirm).
+ *
+ * Re-checks against ordered quantities inside the write, so two concurrent
+ * submissions cannot both pass the validation step's guard.
+ */
+const createDispatchEntriesStep = createStep(
+  "partner-complete-create-dispatch-entries",
   async (
-    input: { orderId: string; notes?: string; deliveryDate?: string; trackingNumber?: string; lines: Array<{ order_line_id: string; quantity: number }> },
-  ) => {
-    const safeLines = Array.isArray(input.lines) ? input.lines : []
-    const payloads = safeLines
-      .filter((l) => l && typeof l.quantity === "number" && l.quantity !== 0)
-      .map((l) => ({
-        orderId: input.orderId,
-        orderLineId: l.order_line_id,
-        quantityDelta: l.quantity,
-        eventType: "received" as const,
-        notes: input.notes ?? undefined,
-        metadata: {
-          workflow_type: "partner_completion",
-          delivery_date: input.deliveryDate ?? null,
-          tracking_number: input.trackingNumber ?? null,
-          source: "partner-complete-inventory-order",
-        } as Record<string, any>,
-      }))
-
-    return new StepResponse(payloads)
-  }
-)
-
-// Step: create fulfillment entries and links from prepared payloads (single step encapsulation)
-// Bug 3 fix: re-verifies cumulative quantities before writing to guard against concurrent submissions
-const createFulfillmentEntriesStep = createStep(
-  "partner-complete-create-fulfillment-entries",
-  async (
-    input: { payloads: Array<{ orderId: string; orderLineId: string; quantityDelta: number; eventType: "received" | "sent" | "shipped" | "adjust" | "correction"; notes?: string | undefined; metadata: Record<string, any> }> },
+    input: {
+      orderId: string
+      partnerId?: string
+      notes?: string
+      deliveryDate?: string
+      trackingNumber?: string
+      lines: Array<{ order_line_id: string; quantity: number }>
+    },
     { container, context }
   ) => {
     const service: Fullfilled_ordersService = container.resolve(FULLFILLED_ORDERS_MODULE) as any
-    const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as Link
     const query = container.resolve(ContainerRegistrationKeys.QUERY) as Omit<RemoteQueryFunction, symbol>
 
-    // Re-read current fulfillment state to guard against concurrent submissions
-    const payloads = input.payloads || []
-    if (payloads.length > 0) {
-      const orderId = payloads[0].orderId
-      const { data: orders } = await query.graph({
-        entity: "inventory_orders",
-        fields: ["id", "orderlines.id", "orderlines.quantity", "orderlines.line_fulfillments.quantity_delta"],
-        filters: { id: orderId },
-      })
+    const lines = (input.lines || []).filter(
+      (l) => l && typeof l.quantity === "number" && l.quantity > 0
+    )
+    if (!lines.length) return new StepResponse({ count: 0, ids: [] as string[] }, { ids: [] as string[] })
 
-      if (orders && orders.length > 0) {
-        const order = orders[0]
-        const lineMap = new Map<string, { requested: number; fulfilled: number }>()
-        for (const ol of (order.orderlines ?? []).filter(Boolean)) {
-          const lineId = String((ol as any).id)
-          const requested = Number((ol as any).quantity ?? 0) || 0
-          const fulfilled = ((ol as any).line_fulfillments || []).reduce(
-            (s: number, f: any) => s + (Number(f?.quantity_delta) || 0), 0
-          )
-          lineMap.set(lineId, { requested, fulfilled })
-        }
-
-        for (const p of payloads) {
-          const line = lineMap.get(p.orderLineId)
-          if (line) {
-            const remaining = line.requested - line.fulfilled
-            if (p.quantityDelta > remaining + 0.01) {
-              throw new MedusaError(
-                MedusaError.Types.INVALID_DATA,
-                `Concurrent conflict: line ${p.orderLineId} has ${remaining.toFixed(2)} remaining but attempted to deliver ${p.quantityDelta}`
-              )
-            }
-          }
-        }
+    const { data: orders } = await query.graph({
+      entity: "inventory_orders",
+      fields: ["id", "orderlines.id", "orderlines.quantity", "orderlines.line_fulfillments.quantity_delta"],
+      filters: { id: input.orderId },
+    })
+    const order = orders?.[0] as any
+    const existing = await (service as any).listInventoryDispatches(
+      { inventory_order_id: input.orderId },
+      { take: null }
+    )
+    const dispatched = sumDispatchedByLine(existing)
+    for (const l of lines) {
+      const ol = (order?.orderlines ?? []).find((x: any) => String(x?.id) === l.order_line_id)
+      if (!ol) continue
+      const ledger = lineLedger(ol, dispatched)
+      if (exceedsOrdered(ledger, l.quantity)) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Concurrent conflict: line ${l.order_line_id} has ${ledger.to_dispatch.toFixed(2)} left to send but attempted to send ${l.quantity}`
+        )
       }
     }
 
-    const createdIds: string[] = []
-    for (const p of payloads) {
-      const entry = await service.createLine_fulfillments({
-        quantity_delta: p.quantityDelta,
-        event_type: p.eventType,
-        transaction_id: context.transactionId,
-        notes: p.notes ?? undefined,
-        metadata: p.metadata,
-      })
-      createdIds.push(entry.id)
-
-      await remoteLink.create([
-        {
-          [ORDER_INVENTORY_MODULE]: { inventory_order_line_id: p.orderLineId },
-          [FULLFILLED_ORDERS_MODULE]: { line_fulfillment_id: entry.id },
-        },
-        {
-          [ORDER_INVENTORY_MODULE]: { inventory_orders_id: p.orderId },
-          [FULLFILLED_ORDERS_MODULE]: { line_fulfillment_id: entry.id },
-        },
-      ])
-    }
-
-    return new StepResponse({ count: createdIds.length, ids: createdIds }, { ids: createdIds })
+    const now = new Date()
+    const created = await (service as any).createInventoryDispatches(
+      lines.map((l) => ({
+        inventory_order_id: input.orderId,
+        inventory_order_line_id: l.order_line_id,
+        quantity: l.quantity,
+        partner_id: input.partnerId ?? null,
+        dispatched_at: now,
+        delivery_date: input.deliveryDate ?? null,
+        tracking_number: input.trackingNumber ?? null,
+        notes: input.notes ?? null,
+        transaction_id: context.transactionId ?? null,
+        metadata: { source: "partner-complete-inventory-order" },
+      }))
+    )
+    const ids = (Array.isArray(created) ? created : [created]).map((c: any) => String(c.id))
+    return new StepResponse({ count: ids.length, ids }, { ids })
   },
   async (rb, { container }) => {
     if (!rb?.ids?.length) return
-    const service: Fullfilled_ordersService = container.resolve("fullfilled_orders") as any
-    for (const id of rb.ids as string[]) {
-      try { await service.deleteLine_fulfillments(id) } catch {}
-    }
+    const service: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+    try { await service.deleteInventoryDispatches(rb.ids) } catch {}
   }
 )
 
@@ -253,29 +221,35 @@ const validateAndFetchOrderStep = createStep(
     // Small tolerance for floating point comparisons (e.g. 4.5 vs 5 rounding)
     const OVER_DELIVERY_TOLERANCE = 0.01
 
-    // Determine if fully fulfilled cumulatively: requested <= (existing delivered + this payload)
-    // If any line cumulative is less than requested, keep open
+    // #2289 — "already sent" is what the supplier DISPATCHED, which is no
+    // longer the receipt ledger: a dispatch posts no receipt. lineLedger takes
+    // max(dispatches, receipts), so orders completed before #2289 (receipt
+    // rows, no dispatches) keep their history.
+    const fulfilledService: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+    const priorDispatches = await fulfilledService.listInventoryDispatches(
+      { inventory_order_id: input.orderId },
+      { take: null }
+    )
+    const dispatchedByLine = sumDispatchedByLine(priorDispatches)
+
+    // Fully fulfilled = every line dispatched in full, counting this payload.
     let fullyFulfilled = true
     const shortages: Array<{ order_line_id: string; requested: number; delivered_cumulative: number; shortage: number }> = []
     const overDeliveries: Array<{ order_line_id: string; requested: number; delivered_cumulative: number; excess: number }> = []
     for (const ol of (order.orderlines ?? []).filter(Boolean)) {
       const lineId = (ol as any).id
-      const requested = Number((ol as any).quantity ?? 0) || 0
-      const existingDelivered = ((ol as any).line_fulfillments || []).reduce(
-        (s: number, f: any) => s + (Number(f?.quantity_delta) || 0),
-        0
-      )
+      const ledger = lineLedger(ol as any, dispatchedByLine)
+      const requested = ledger.ordered
       const thisPayloadDelivered = deliveredByLine[lineId] ?? 0
-      const deliveredCumulative = existingDelivered + thisPayloadDelivered
+      const deliveredCumulative = ledger.dispatched + thisPayloadDelivered
 
       // Bug 1 fix: reject over-delivery beyond tolerance
-      const remaining = requested - existingDelivered
-      if (thisPayloadDelivered > remaining + OVER_DELIVERY_TOLERANCE) {
+      if (exceedsOrdered(ledger, thisPayloadDelivered)) {
         overDeliveries.push({
           order_line_id: lineId,
           requested,
           delivered_cumulative: deliveredCumulative,
-          excess: thisPayloadDelivered - remaining,
+          excess: thisPayloadDelivered - ledger.to_dispatch,
         })
       }
 
@@ -327,15 +301,6 @@ const validateAndFetchOrderStep = createStep(
       partner_delivered_lines: input.lines,
       partner_delivery_history: [...existingDeliveryHistory, deliveryEntry],
     }
-
-    // #2286 — the posting below prefers `order.to_stock_location_id`, which no
-    // model field ever filled, so it fell through to `stock_locations[0]` —
-    // on a two-ended order that can be the SUPPLIER's warehouse. The flagged
-    // destination fills it here, where the step can await.
-    ;(order as any).to_stock_location_id =
-      (await resolveInventoryOrderDestination(container, (order as any).id)) ??
-      (order as any).to_stock_location_id ??
-      null
 
     const response = { order, completionMetadata, fullyFulfilled, shortages }
     return new StepResponse(response)
@@ -489,23 +454,14 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
 
     const updated = updateOrderOnCompletionStep(prepared)
 
-    // Prepare fulfillment payloads in a step (filters inside the step)
-    const fulfillmentPayloads = prepareFulfillmentPayloadsStep({
+    // #2289 — the supplier's lines are a DISPATCH. No receipt rows, no stock.
+    createDispatchEntriesStep({
       orderId: input.orderId,
+      partnerId: input.partnerId,
       notes: input.notes,
       deliveryDate: input.deliveryDate,
       trackingNumber: input.trackingNumber,
       lines: input.lines as any,
-    })
-
-    // Only create entries when we have payloads
-    const shouldWriteFulfillmentEntries = transform({ payloads: fulfillmentPayloads as any }, ({ payloads }) => {
-      const arr = (payloads as unknown as any[]) || []
-      return Array.isArray(arr) && arr.length > 0
-    })
-
-    when(shouldWriteFulfillmentEntries, (b) => Boolean(b)).then(() => {
-      createFulfillmentEntriesStep({ payloads: fulfillmentPayloads as unknown as any })
     })
 
     // Conditionally create shortage tasks per line when not fully fulfilled, using task workflow
@@ -553,109 +509,10 @@ export const partnerCompleteInventoryOrderWorkflow = createWorkflow(
       })
     })
 
-    // Prepare inventory levels input from delivered lines
-    const inventoryLevelsInput = transform({ v: validated, input }, ({ v, input }) => {
-      const order = v.order as any
-      const inputs: Array<{ location_id: string; inventory_item_id: string; stocked_quantity: number }> = []
-      const deliveredByLine: Record<string, number> = {}
-      const deliveredLines = (v.completionMetadata?.partner_delivered_lines || []) as Array<{ order_line_id: string; quantity: number }>
-      for (const l of deliveredLines) {
-        if (l?.order_line_id && typeof l.quantity === 'number' && l.quantity > 0) {
-          deliveredByLine[l.order_line_id] = (deliveredByLine[l.order_line_id] || 0) + l.quantity
-        }
-      }
-      const orderDestLocation =
-        input?.stock_location_id ||
-        order.to_stock_location_id ||
-        order.stock_location_id ||
-        order.destination_stock_location_id ||
-        (Array.isArray(order?.stock_locations) && order.stock_locations.length > 0 ? order.stock_locations[0]?.id : undefined)
-      for (const ol of (order.orderlines ?? []).filter(Boolean)) {
-        const lineId = (ol as any).id
-        const qty = deliveredByLine[lineId]
-        if (!qty) continue
-        const iitems = (ol as any).inventory_items || []
-        const firstItem = iitems[0]
-        const itemId = firstItem?.id || (ol as any).inventory_item_id
-        // Prefer the provided destination location (input/order), fall back to the item's default linked location
-        const locations = firstItem?.stock_locations || []
-        const locId = orderDestLocation || locations[0]?.id
-        if (itemId && locId) {
-          inputs.push({ location_id: String(locId), inventory_item_id: String(itemId), stocked_quantity: Number(qty) })
-        }
-      }
-      return inputs
-    })
-
-    // Compute updates deterministically, then gate a single when(hasUpdates).then(...)
-    const levels = inventoryLevelsInput as any
-    const resolved = resolveExistingLevelsStep({ levels }) as any
-    const existing = transform({ resolved }, ({ resolved }) => (resolved?.existing || []))
-
-    // Determine which (item, location) pairs are missing inventory levels and need creation
-    const missing = transform<{ existing: any[]; levels: any[] }, any[]>(
-      { existing, levels },
-      ({ existing, levels }) => {
-        const exArr = (existing as any[]) || []
-        const lvlArr = (levels as any[]) || []
-        return lvlArr.filter((l: any) =>
-          !exArr.some((ex: any) => ex.inventory_item_id === l.inventory_item_id && ex.location_id === l.location_id)
-        )
-      }
-    )
-
-    // Build creation inputs for levels that do not exist yet
-    const createInputs = transform({ missing }, ({ missing }) => {
-      const missArr = (missing as any[]) || []
-      return missArr.map((m: any) => ({
-        inventory_item_id: String(m.inventory_item_id),
-        location_id: String(m.location_id),
-        // Since this workflow posts received stock, we treat it as stocked quantity
-        stocked_quantity: Number(m.stocked_quantity || 0),
-        incoming_quantity: 0,
-      }))
-    })
-
-    const hasCreates = transform({ createInputs }, ({ createInputs }) => Array.isArray(createInputs) && (createInputs as any[]).length > 0)
-
-    // First, create any missing inventory levels so subsequent updates can succeed
-    when(hasCreates, (b) => Boolean(b)).then(() => {
-      createInventoryLevelsWorkflow.runAsStep({
-        input: {
-          inventory_levels: createInputs as unknown as any[],
-        },
-      })
-    })
-
-    const updates = transform<{ existing: any[]; levels: any[] }, UpdateInventoryLevelInput[]>(
-      { existing, levels },
-      ({ existing, levels }) => {
-        const lvlArr = (levels as any[]) || []
-        const exArr = (existing as any[]) || []
-        return exArr.map((ex: any) => {
-          const found = lvlArr.find(
-            (l: any) => l.inventory_item_id === ex.inventory_item_id && l.location_id === ex.location_id
-          )
-          const add = Number(found?.stocked_quantity || 0)
-          return {
-            id: String(ex.id),
-            inventory_item_id: String(ex.inventory_item_id),
-            location_id: String(ex.location_id),
-            stocked_quantity: Number(ex.stocked_quantity || 0) + add,
-          }
-        })
-      }
-    )
-
-    const hasUpdates = transform({ updates }, ({ updates }) => Array.isArray(updates) && (updates as any[]).length > 0)
-
-    when(hasUpdates, (b) => Boolean(b)).then(() => {
-      updateInventoryLevelsWorkflow.runAsStep({
-        input: {
-          updates,
-        },
-      })
-    })
+    // #2289 — NO stock posting here. Until 2026-10-08 this block added the
+    // supplier's claimed quantities to stock at the destination, on their word,
+    // and wrote them as receipts so a lower count could never be recorded.
+    // Stock now lands only on a receiver's count (receive-inventory-order).
 
     completeTaskAndSignalIfFulfilledStep({
       orderId: input.orderId,

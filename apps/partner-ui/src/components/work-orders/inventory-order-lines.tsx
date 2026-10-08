@@ -17,13 +17,27 @@ const fmt = (n: number) => {
   return s.replace(/\.0+$/, "").replace(/(\.[0-9]*?)0+$/, "$1")
 }
 
-const lineFulfilled = (line: Record<string, any>): number =>
+const lineReceived = (line: Record<string, any>): number =>
   Array.isArray(line?.line_fulfillments)
     ? line.line_fulfillments.reduce(
         (sum: number, f: any) => sum + (Number(f?.quantity_delta) || 0),
         0
       )
     : 0
+
+/**
+ * #2289 — what the partner has SENT. A dispatch is no longer a receipt row, so
+ * `line_fulfillments` alone shows goods already sent as still owed. The server
+ * computes `ledger` (max of dispatches and receipts); older responses without
+ * it fall back to receipts, which is what they always showed.
+ */
+const lineFulfilled = (line: Record<string, any>): number =>
+  typeof line?.ledger?.dispatched === "number"
+    ? line.ledger.dispatched
+    : lineReceived(line)
+
+const lineAwaitingCount = (line: Record<string, any>): number =>
+  typeof line?.ledger?.awaiting_count === "number" ? line.ledger.awaiting_count : 0
 
 /**
  * Inventory work-order line items (#342), rendered in the Medusa core order
@@ -159,6 +173,7 @@ export const InventoryOrderLines = ({
         const requested = Number(line?.quantity) || 0
         const fulfilled = lineFulfilled(line)
         const remaining = Math.max(0, requested - fulfilled)
+        const awaitingCount = lineAwaitingCount(line)
         const price = Number(line?.price) || 0
         // #1894 — extra_cost is the per-unit dye/finishing charge. The order
         // total below these rows includes it, so the rows must too.
@@ -204,6 +219,13 @@ export const InventoryOrderLines = ({
                   {fulfilled > 0 && remaining > 0 && (
                     <Text size="xsmall" className="text-ui-fg-muted">
                       {fmt(fulfilled)}/{fmt(requested)}
+                    </Text>
+                  )}
+                  {awaitingCount > 0 && (
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      {t("partner.inventoryOrders.detail.columns.awaitingCount", {
+                        qty: fmt(awaitingCount),
+                      })}
                     </Text>
                   )}
                 </div>

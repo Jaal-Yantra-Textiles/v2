@@ -1954,6 +1954,25 @@
       "updated_at"
     ]
   },
+  "InventoryDispatch (modules/fullfilled_orders/models/inventory_dispatch.ts)": {
+    "file": "modules/fullfilled_orders/models/inventory_dispatch.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "delivery_date",
+      "dispatched_at",
+      "id",
+      "inventory_order_id",
+      "inventory_order_line_id",
+      "metadata",
+      "notes",
+      "partner_id",
+      "quantity",
+      "tracking_number",
+      "transaction_id",
+      "updated_at"
+    ]
+  },
   "InventoryOrderActivity (modules/inventory_orders/models/inventory-order-activity.ts)": {
     "file": "modules/inventory_orders/models/inventory-order-activity.ts",
     "fields": [

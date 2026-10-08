@@ -141,6 +141,8 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../helpers";
 import { workOrderForInventoryOrder, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders";
+import { FULLFILLED_ORDERS_MODULE } from "../../../../modules/fullfilled_orders";
+import { lineLedger, sumDispatchedByLine } from "../../../../workflows/inventory_orders/lib/dispatch-ledger";
 
 export async function GET(
     req: AuthenticatedMedusaRequest,
@@ -259,6 +261,16 @@ export async function GET(
         ? (await workOrderForInventoryOrder(req.scope, order.id))?.id ?? mirrorOrderId
         : mirrorOrderId;
 
+    // #2289 — what the supplier dispatched vs what the receiver counted, per
+    // line. A dispatch is not a receipt, so `line_fulfillments` alone would
+    // show goods already sent as still owed.
+    const fulfilledService: any = req.scope.resolve(FULLFILLED_ORDERS_MODULE)
+    const dispatches = await fulfilledService.listInventoryDispatches(
+        { inventory_order_id: order.id },
+        { take: null }
+    )
+    const dispatchedByLine = sumDispatchedByLine(dispatches)
+
     // Format the response for partner view - now using task-based status
     const partnerOrderView = {
         id: order.id,
@@ -294,7 +306,9 @@ export async function GET(
                 const fulf = line.line_fulfillments;
                 if (!fulf) return [] as any[];
                 return Array.isArray(fulf) ? fulf : [fulf];
-            })()
+            })(),
+            // #2289 — dispatched / received / to_dispatch / awaiting_count.
+            ledger: lineLedger(line, dispatchedByLine),
         })),
         stock_locations: order.stock_locations,
         // Carrier shipments, newest first (#772 follow-up).

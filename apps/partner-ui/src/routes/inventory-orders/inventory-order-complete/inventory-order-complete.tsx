@@ -85,6 +85,13 @@ const InventoryOrderCompleteWithId = ({
     for (const l of orderLines) {
       const id = String(l?.id)
       const requested = Number(l?.quantity) || 0
+      // #2289 — what is left to SEND. Dispatches are not receipt rows, so the
+      // server's ledger is the answer; receipts are the fallback for responses
+      // that predate it.
+      if (typeof l?.ledger?.to_dispatch === "number") {
+        map.set(id, Math.max(0, l.ledger.to_dispatch))
+        continue
+      }
       const fulfilled = Array.isArray(l?.line_fulfillments)
         ? l.line_fulfillments.reduce(
             (sum: number, f: any) => sum + (Number(f?.quantity_delta) || 0),

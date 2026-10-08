@@ -3004,20 +3004,36 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "complete_inventory_order",
     description:
-      "Complete an inventory (purchase) order — final state, goods received. Sensitive — closes out the order. Body follows the route validator.",
+      "Record what you DISPATCHED on an inventory (purchase) order, per line. This posts NO stock: stock lands only when the receiver counts the goods (#2289). Fully dispatched → Shipped; part → Partial. Sensitive.",
     method: "POST",
     path: "/partners/inventory-orders/:orderId/complete",
     pathParams: ["orderId"],
     write: true,
     sensitive: true,
     previewPath: "/partners/inventory-orders/:orderId",
-    bodyParams: ["metadata"],
+    // #2289 — `lines` is required by the route; forwarding only `metadata`
+    // meant this tool could never succeed.
+    bodyParams: ["lines", "notes", "delivery_date", "tracking_number"],
     inputSchema: obj(
       {
         orderId: STR("Inventory order id to complete."),
-        metadata: { type: "object", additionalProperties: true },
+        lines: {
+          type: "array",
+          description: "Per line: the order line id and the quantity dispatched now (> 0).",
+          items: {
+            type: "object",
+            properties: {
+              order_line_id: { type: "string" },
+              quantity: { type: "number" },
+            },
+            required: ["order_line_id", "quantity"],
+          },
+        },
+        notes: STR("Optional dispatch notes."),
+        delivery_date: STR("Expected delivery date (YYYY-MM-DD)."),
+        tracking_number: STR("Carrier tracking number, if any."),
       },
-      ["orderId"]
+      ["orderId", "lines"]
     ),
   },
 
