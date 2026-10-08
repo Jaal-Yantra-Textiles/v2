@@ -566,7 +566,7 @@ setupSharedTestSuite(() => {
       // #778 C2 admin-half — admin marking an order Delivered must POST stock to
       // the destination location (mirroring partner-complete), not just write the
       // status column, and record the delivered lines so a later cancel reverses.
-      it("should post stock to the destination location when an admin marks an order Delivered", async () => {
+      it("posts only the COUNTED quantity when an admin marks an order Delivered, and refuses it with no counts (#2289)", async () => {
         const invRes = await api.post("/admin/inventory-items", {
           title: "Deliverable Inventory",
           description: "for admin-delivered stock posting",
@@ -592,23 +592,42 @@ setupSharedTestSuite(() => {
         expect(orderRes.status).toBe(201);
         const orderId = orderRes.data.inventoryOrder.id;
 
-        // Mark Delivered via the generic admin PUT.
-        const putRes = await api.put(`/admin/inventory-orders/${orderId}`, { status: "Delivered" }, headers);
+        // #2289 S2 — Delivered with no counts is refused: it used to post
+        // "everything outstanding" with nobody having counted anything.
+        const noCount = await api
+          .put(`/admin/inventory-orders/${orderId}`, { status: "Delivered" }, headers)
+          .catch((e: any) => e.response);
+        expect(noCount.status).toBe(400);
+        expect(JSON.stringify(noCount.data)).toMatch(/counted quantities/);
+
+        // The admin detail's per-line ledger (#2289) names the line to count.
+        const lineRes = await api.get(`/admin/inventory-orders/${orderId}`, headers);
+        expect(lineRes.data.inventoryOrder.dispatch_ledger).toEqual([
+          expect.objectContaining({ ordered: 3, dispatched: 0, received: 0 }),
+        ]);
+        const lineId = lineRes.data.inventoryOrder.dispatch_ledger[0].line_id;
+
+        // Mark Delivered via the generic admin PUT, with what was COUNTED: 2 of 3.
+        const putRes = await api.put(
+          `/admin/inventory-orders/${orderId}`,
+          { status: "Delivered", received_lines: [{ order_line_id: lineId, quantity: 2 }] },
+          headers
+        );
         expect(putRes.status).toBe(200);
 
-        // Stock for the item must now be posted at the destination location.
+        // Only the count is posted at the destination location.
         const levelRes = await api.get(`/admin/inventory-items/${itemId}?fields=*location_levels`, headers);
         expect(levelRes.status).toBe(200);
         const levels = levelRes.data.inventory_item.location_levels || [];
         const destLevel = levels.find((l: any) => l.location_id === destLocId);
         expect(destLevel).toBeDefined();
-        expect(destLevel.stocked_quantity).toBe(3);
+        expect(destLevel.stocked_quantity).toBe(2);
 
         // The delivered lines must be recorded for cancel reversal.
         const orderGet = await api.get(`/admin/inventory-orders/${orderId}?fields=id,status,metadata`, headers);
         expect(orderGet.data.inventoryOrder.status).toBe("Delivered");
         const delivered = orderGet.data.inventoryOrder.metadata?.partner_delivered_lines || [];
-        expect(delivered).toEqual([{ order_line_id: expect.any(String), quantity: 3 }]);
+        expect(delivered).toEqual([{ order_line_id: lineId, quantity: 2 }]);
 
         // #1613 — and into the TYPED record too. Writing only the metadata blob
         // made the admin delivery invisible to every reader of
@@ -625,7 +644,7 @@ setupSharedTestSuite(() => {
           .flatMap((l: any) => l.line_fulfillments || [])
           .filter((f: any) => f?.quantity_delta != null);
         expect(receipts).toEqual([
-          expect.objectContaining({ quantity_delta: 3, event_type: "received" }),
+          expect.objectContaining({ quantity_delta: 2, event_type: "received" }),
         ]);
       });
 

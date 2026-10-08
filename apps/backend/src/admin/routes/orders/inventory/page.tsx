@@ -29,6 +29,7 @@ import { SaveViewDialog } from "../../../components/views/save-view-dialog";
 import { useViewConfigurationActions } from "../../../hooks/use-view-configurations";
 import type { ViewConfiguration } from "../../../hooks/api/views";
 import { usePartners } from "../../../hooks/api/partners";
+import { AwaitingCountCard } from "../../../components/inventory-orders/awaiting-count-card";
 import {
   PARTNER_STATUS_LABELS,
   getPartnerWorkStatus,
@@ -476,6 +477,7 @@ const InventoryOrdersPage = () => {
 
   return (
     <div>
+      <AwaitingCountCard />
       <Container className="divide-y p-0">
         <DataTable key={tableUiResetKey} instance={table}>
           <DataTable.Toolbar

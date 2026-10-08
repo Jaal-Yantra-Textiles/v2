@@ -53,6 +53,18 @@ export interface StockLocations {
 export interface AdminInventoryOrder {
   id: string;
   status: string;
+  /**
+   * #2289 — per line: ordered / dispatched by the supplier / received (counted)
+   * / awaiting count. A dispatch posts no stock; only a count does.
+   */
+  dispatch_ledger?: Array<{
+    line_id: string;
+    ordered: number;
+    dispatched: number;
+    received: number;
+    to_dispatch: number;
+    awaiting_count: number;
+  }>;
   quantity: number;
   total_price: number;
   expected_delivery_date: string;
@@ -703,4 +715,32 @@ export const useReceiveInventoryOrder = (
       options?.onSuccess?.(...args);
     },
   });
+};
+
+/** #2289 S2 — one order a supplier dispatched that nobody has counted yet. */
+export type AdminAwaitingCountOrder = {
+  id: string;
+  status: string;
+  partner_id: string | null;
+  partner_name: string | null;
+  destination_location_id: string | null;
+  destination_name: string | null;
+  first_dispatched_at: string | null;
+  last_dispatched_at: string | null;
+  days_since_dispatch: number | null;
+  carrier_delivered: boolean;
+  awaiting_quantity: number;
+  lines: Array<{ line_id: string; title: string | null; dispatched: number; received: number; awaiting_count: number }>;
+};
+
+export const useInventoryOrdersAwaitingCount = () => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...inventoryOrderQueryKeys.lists(), "awaiting-count"],
+    queryFn: async () =>
+      sdk.client.fetch<{ orders: AdminAwaitingCountOrder[]; count: number; awaiting_quantity: number }>(
+        `/admin/inventory-orders/awaiting-count`,
+        { method: "GET" },
+      ),
+  });
+  return { ...data, orders: data?.orders ?? [], ...rest };
 };

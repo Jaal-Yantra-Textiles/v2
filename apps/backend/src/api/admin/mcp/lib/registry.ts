@@ -8026,6 +8026,19 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ],
   },
   {
+    name: "list_inventory_orders_awaiting_count",
+    description:
+      "Inventory orders a supplier DISPATCHED that nobody has COUNTED yet — oldest first, with per-line dispatched / received / awaiting, the destination, the supplier, days since dispatch and whether the carrier says delivered. Read. 🔴 Since #2289 a supplier's Complete posts NO stock: these goods are not on the books until someone counts them with receive_inventory_order (our warehouse) or the receiving partner confirms. Pass destination_location_id to narrow to one warehouse.",
+    method: "GET",
+    path: "/admin/inventory-orders/awaiting-count",
+    queryParams: ["destination_location_id"],
+    inputSchema: obj(
+      { destination_location_id: STR("Optional: only orders delivering to this stock location.") },
+      []
+    ),
+    nextSteps: ["get_inventory_order", "receive_inventory_order"],
+  },
+  {
     name: "get_inventory_order_charges",
     description:
       "Read the non-goods amounts on an inventory order — tax, shipping, a discount or a write-off — plus the folded totals and the payable ceiling a claim may reach. Read. A charge changes what the partner is owed (#1737): this is where 'why is the payable different from total_price?' is answered.",

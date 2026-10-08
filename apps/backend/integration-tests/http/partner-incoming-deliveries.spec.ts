@@ -231,6 +231,14 @@ setupSharedTestSuite(() => {
         expect.objectContaining({ dispatched: 10, received: 0, to_dispatch: 0, awaiting_count: 10 })
       )
 
+      // #2289 S2 — the admin's "awaiting count" list shows it, at its destination.
+      const waiting = await api.get(`/admin/inventory-orders/awaiting-count?destination_location_id=${destWh}`, adminHeaders)
+      expect(waiting.status).toBe(200)
+      const listed = waiting.data.orders.find((o: any) => o.id === order.id)
+      expect(listed).toEqual(
+        expect.objectContaining({ destination_location_id: destWh, awaiting_quantity: 10, partner_id: supplier.id })
+      )
+
       // 🔴 Before #2289 this was impossible: the Complete had already written
       // 10 as received, so a count of 9 failed "Nothing outstanding".
       const counted = await post(
@@ -245,6 +253,9 @@ setupSharedTestSuite(() => {
       expect(afterCount.data.inventoryOrder.order_lines[0].ledger).toEqual(
         expect.objectContaining({ dispatched: 10, received: 9, awaiting_count: 1 })
       )
+      // Still listed, with only the uncounted 1 left.
+      const after = await api.get(`/admin/inventory-orders/awaiting-count`, adminHeaders)
+      expect(after.data.orders.find((o: any) => o.id === order.id)?.awaiting_quantity).toBe(1)
     })
 
     it("the SUPPLIER's warehouse is never the destination (the stock_locations[0] bug)", async () => {

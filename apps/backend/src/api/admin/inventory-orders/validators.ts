@@ -176,7 +176,21 @@ export const ReadSingleInventoryOrderQuerySchema = z.object({
 // Re-declare as plain optional (no default) so omission stays omitted.
 export const updateInventoryOrdersSchema = inventoryOrdersBaseSchema
   .partial()
-  .extend({ is_sample: z.boolean().optional() })
+  .extend({
+    is_sample: z.boolean().optional(),
+    /**
+     * #2289 S2 — required when `status` becomes "Delivered" on a non-sample
+     * order: what was COUNTED per line. Only these quantities post stock.
+     */
+    received_lines: z
+      .array(
+        z.object({
+          order_line_id: z.string().min(1),
+          quantity: z.number().min(0),
+        })
+      )
+      .optional(),
+  })
   .superRefine(refinePaymentTerms);
 
 // Type definitions for inventory orders

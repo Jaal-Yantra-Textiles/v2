@@ -25,6 +25,7 @@ import inventoryOrdersStockLocations from "../../links/inventory-orders-stock-lo
 import {
   evaluateAdminStatusTransition,
   computeAdminDeliveryPosting,
+  requireDeliveryCounts,
 } from "./lib/deliver-helpers";
 import type { DeliveredLine } from "./lib/cancel-helpers";
 import {
@@ -86,6 +87,8 @@ const LINK_ONLY_UPDATE_FIELDS = [
   "from_stock_location_id",
   "to_stock_location_id",
   "stock_location_id",
+  // #2289 S2 — the admin's counts for a Delivered transition. Not a column.
+  "received_lines",
 ] as const;
 
 export function stripLinkOnlyUpdateFields(
@@ -100,7 +103,10 @@ export function stripLinkOnlyUpdateFields(
 // this update must post stock (#778 M1/C2 — admin marking Delivered).
 export const fetchOriginalOrderStep = createStep(
   "fetch-original-inventory-order-step",
-  async (input: { id: string; data?: { status?: string } }, { container }) => {
+  async (
+    input: { id: string; data?: { status?: string; received_lines?: Array<{ order_line_id: string; quantity: number }> } },
+    { container }
+  ) => {
     const inventoryOrderService: InventoryOrderService = container.resolve(ORDER_INVENTORY_MODULE);
     const originalOrder = await inventoryOrderService.retrieveInventoryOrder(input.id, { relations: ["orderlines"] });
     // #778 — validate the requested transition (throws INVALID_DATA on an illegal
@@ -113,7 +119,9 @@ export const fetchOriginalOrderStep = createStep(
       // arrives, so it stays editable past Processing (and never posts stock).
       { isSample: !!(originalOrder as any).is_sample }
     );
-    return new StepResponse({ originalOrder, postStock }, originalOrder); // Save original for compensation
+    // #2289 S2 — Delivered posts only what was counted; no counts, no update.
+    const counted = requireDeliveryCounts(postStock, input.data?.received_lines);
+    return new StepResponse({ originalOrder, postStock, counted }, originalOrder); // Save original for compensation
   },
   // Compensation: no-op (fetch only)
   async () => {}
@@ -771,13 +779,14 @@ export const updateInventoryOrderWorkflow = createWorkflow(
     const deliveryCtx = loadDeliveryContextStep({ id: readyId as unknown as string });
 
     const computed = transform(
-      { deliveryCtx, postStock },
-      ({ deliveryCtx, postStock }) =>
+      { deliveryCtx, postStock, original },
+      ({ deliveryCtx, postStock, original }) =>
         postStock
           ? computeAdminDeliveryPosting(
               (deliveryCtx as any).orderlines,
               (deliveryCtx as any).alreadyDelivered,
-              (deliveryCtx as any).destLocationId
+              (deliveryCtx as any).destLocationId,
+              (original as any).counted
             )
           : { levels: [], deliveredRecords: [] }
     );

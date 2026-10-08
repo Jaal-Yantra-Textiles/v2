@@ -43,6 +43,12 @@ export const InventoryOrderReceiptSection = ({
   const countedLines = lines.filter((l) => l.received > 0);
   const outstandingCount = lines.filter((l) => l.outstanding > 0).length;
 
+  // #2289 — what the supplier dispatched and what is still waiting to be
+  // counted. A dispatch posts no stock; only the count does.
+  const ledger = inventoryOrder.dispatch_ledger ?? [];
+  const totalDispatched = ledger.reduce((s, l) => s + (l.dispatched || 0), 0);
+  const totalAwaiting = ledger.reduce((s, l) => s + (l.awaiting_count || 0), 0);
+
   if (!lines.length) {
     return null;
   }
@@ -70,6 +76,20 @@ export const InventoryOrderReceiptSection = ({
           </Button>
         )}
       </div>
+
+      {totalAwaiting > 0 && (
+        <div className="mx-6 mb-4 flex gap-x-3 rounded-md border border-ui-border-base bg-ui-bg-subtle p-3">
+          <ExclamationCircle className="mt-0.5 shrink-0 text-ui-fg-subtle" />
+          <div>
+            <Text size="small" weight="plus">
+              The supplier sent {Math.round(totalDispatched * 1000) / 1000}. {Math.round(totalAwaiting * 1000) / 1000} is waiting to be counted.
+            </Text>
+            <Text size="small" className="text-ui-fg-subtle">
+              A supplier marking the order complete adds no stock. Count what arrived to put it on the books; anything short stays visible here.
+            </Text>
+          </div>
+        </div>
+      )}
 
       {/* 🔴 The sentence this whole screen exists to say. */}
       {inventoryOrder.status === "Delivered" && nothingCounted && (
