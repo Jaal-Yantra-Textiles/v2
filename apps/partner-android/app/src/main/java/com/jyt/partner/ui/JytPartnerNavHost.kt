@@ -100,6 +100,7 @@ fun JytPartnerNavHost(auth: AuthViewModel) {
                             when (target) {
                                 is PushManager.Target.Run -> Routes.run(target.id)
                                 is PushManager.Target.InventoryOrder -> Routes.inventoryOrder(target.id)
+                                is PushManager.Target.IncomingDelivery -> Routes.incomingOrder(target.id)
                             }
                         )
                     }

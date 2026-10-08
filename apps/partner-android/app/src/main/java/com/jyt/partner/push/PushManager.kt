@@ -44,6 +44,8 @@ object PushManager {
     sealed interface Target {
         data class Run(val id: String) : Target
         data class InventoryOrder(val id: String) : Target
+        /** #2289 — goods sent TO this partner, waiting for their count. */
+        data class IncomingDelivery(val id: String) : Target
     }
 
     private val _pendingTarget = MutableStateFlow<Target?>(null)
@@ -62,6 +64,9 @@ object PushManager {
      * push delivers the same keys as the launch intent's extras.
      */
     fun targetFrom(get: (String) -> String?): Target? {
+        // #2289 — a count reminder opens the RECEIVING screen, not the
+        // supplier's order view; checked first so it wins over the order id.
+        get("incoming_delivery_id")?.takeIf { it.isNotBlank() }?.let { return Target.IncomingDelivery(it) }
         get("inventory_order_id")?.takeIf { it.isNotBlank() }?.let { return Target.InventoryOrder(it) }
         get("production_run_id")?.takeIf { it.isNotBlank() }?.let { return Target.Run(it) }
         return null
@@ -91,7 +96,7 @@ object PushManager {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             data.forEach { (k, v) -> putExtra(k, v) }
         }
-        val key = data["inventory_order_id"] ?: data["production_run_id"] ?: title
+        val key = data["incoming_delivery_id"] ?: data["inventory_order_id"] ?: data["production_run_id"] ?: title
         val pending = PendingIntent.getActivity(
             context,
             key.hashCode(),

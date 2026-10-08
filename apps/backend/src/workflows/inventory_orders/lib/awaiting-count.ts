@@ -34,6 +34,11 @@ export type AwaitingCountOrder = {
   days_since_dispatch: number | null
   /** A carrier shipment on the order reports delivered. */
   carrier_delivered: boolean
+  /**
+   * When the carrier reported delivered: the delivered shipment's last update
+   * (the tracking webhook is its last write). Null with no delivered shipment.
+   */
+  carrier_delivered_at: string | null
   awaiting_quantity: number
   lines: AwaitingCountLine[]
 }
@@ -75,6 +80,7 @@ export async function listOrdersAwaitingCount(
       "partner.id",
       "partner.name",
       "inventory_shipments.status",
+      "inventory_shipments.updated_at",
     ],
     filters: { id: orderIds },
   })
@@ -125,6 +131,12 @@ export async function listOrdersAwaitingCount(
     const first = times.length ? new Date(times[0]).toISOString() : null
     const last = times.length ? new Date(times[times.length - 1]).toISOString() : null
     const destination = destinations.get(String(order.id)) ?? null
+    const delivered = asArray(order.inventory_shipments).filter(
+      (s: any) => String(s?.status ?? "").toLowerCase() === "delivered"
+    )
+    const deliveredTimes = delivered
+      .map((s: any) => new Date(s?.updated_at).getTime())
+      .filter((t) => Number.isFinite(t))
     const partner = asArray(order.partner)[0] as any
 
     out.push({
@@ -139,9 +151,10 @@ export async function listOrdersAwaitingCount(
       days_since_dispatch: last
         ? Math.floor((now.getTime() - new Date(last).getTime()) / 86_400_000)
         : null,
-      carrier_delivered: asArray(order.inventory_shipments).some(
-        (s: any) => String(s?.status ?? "").toLowerCase() === "delivered"
-      ),
+      carrier_delivered: delivered.length > 0,
+      carrier_delivered_at: deliveredTimes.length
+        ? new Date(Math.max(...deliveredTimes)).toISOString()
+        : null,
       awaiting_quantity: Math.round(awaiting * 1000) / 1000,
       lines: lines.filter((l) => l.awaiting_count > AWAITING_TOLERANCE),
     })

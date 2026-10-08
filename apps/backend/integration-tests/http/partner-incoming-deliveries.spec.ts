@@ -285,6 +285,73 @@ setupSharedTestSuite(() => {
       expect(await stockAt(item, destWh)).toBe(9)
     })
 
+    it("reminds the RECEIVING partner to count a delivery left uncounted for 3 days, once (#2289 S4)", async () => {
+      for (const name of ["partner-order-sent", "partner-order-received", "partner-order-shipped"]) {
+        await post(
+          "/admin/task-templates",
+          {
+            name,
+            description: `${name} template`,
+            priority: "medium",
+            estimated_duration: 30,
+            eventable: true,
+            notifiable: true,
+            metadata: { workflow_type: "partner_assignment" },
+          },
+          adminHeaders
+        ).catch(() => null)
+      }
+      const supplier = await makePartner("rem-supplier")
+      const receiver = await makePartner("rem-receiver")
+      const supplierWh = await makeLocation("Rem Supplier WH")
+      const receiverWh = await makeLocation("Rem Receiver WH")
+      await linkWarehouse(receiver.id, receiverWh)
+      const item = await makeItem("Reminder Wool")
+      const order = await makeOrder(supplierWh, receiverWh, [{ item, qty: 5 }])
+
+      await post(`/admin/inventory-orders/${order.id}/send-to-partner`, { partnerId: supplier.id, notes: "#2289 S4" }, adminHeaders)
+      await post(`/partners/inventory-orders/${order.id}/start`, {}, supplier.headers)
+      const sent = await post(
+        `/partners/inventory-orders/${order.id}/complete`,
+        { lines: [{ order_line_id: order.lineIds[0], quantity: 5 }] },
+        supplier.headers
+      )
+      expect(sent.status).toBe(200)
+
+      // Four days ago, with no carrier on the platform.
+      const fulfilled: any = getContainer().resolve("fullfilled_orders")
+      const rows = await fulfilled.listInventoryDispatches({ inventory_order_id: order.id })
+      await fulfilled.updateInventoryDispatches(
+        rows.map((r: any) => ({ id: r.id, dispatched_at: new Date(Date.now() - 4 * 86_400_000) }))
+      )
+
+      const { default: runReminders } = await import("../../src/jobs/send-uncounted-delivery-reminders")
+      const reminders = async (headers: any) => {
+        const res = await api.get("/partners/notifications?limit=50&trigger_type=inventory_order.count_reminder", headers)
+        return (res.data.notifications ?? []).filter((n: any) => JSON.stringify(n).includes(order.id))
+      }
+
+      await runReminders(getContainer())
+      const first = await reminders(receiver.headers)
+      expect(first.length).toBe(1)
+      expect(JSON.stringify(first[0])).toMatch(/Please count a delivery/)
+      // The supplier is not the one who counts.
+      expect(await reminders(supplier.headers)).toEqual([])
+
+      // Within the cooldown it does not ring again.
+      await runReminders(getContainer())
+      expect((await reminders(receiver.headers)).length).toBe(1)
+
+      // Counted, it drops out entirely.
+      await post(
+        `/partners/incoming-deliveries/${order.id}/receive`,
+        { lines: [{ order_line_id: order.lineIds[0], quantity: 5 }] },
+        receiver.headers
+      )
+      const list = await api.get(`/admin/inventory-orders/awaiting-count`, adminHeaders)
+      expect(list.data.orders.map((o: any) => o.id)).not.toContain(order.id)
+    })
+
     it("the SUPPLIER's warehouse is never the destination (the stock_locations[0] bug)", async () => {
       // The admin door, on an order with both ends: goods must land at `to`.
       const supplierWh = await makeLocation("Src")
