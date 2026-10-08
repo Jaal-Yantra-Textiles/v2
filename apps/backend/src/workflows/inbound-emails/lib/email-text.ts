@@ -24,16 +24,30 @@ function decodeEntities(s: string): string {
     .replace(/&[a-z]+;/gi, (e) => ENTITIES[e.toLowerCase()] ?? " ")
 }
 
+/** Apply a removal until nothing changes: one pass over "<scr<script>ipt>"
+ *  leaves a "<script" behind. */
+function removeAll(input: string, pattern: RegExp): string {
+  let out = input
+  let prev: string
+  do {
+    prev = out
+    out = out.replace(pattern, "")
+  } while (out !== prev)
+  return out
+}
+
 export function htmlToText(html: string): string {
-  const text = html
-    .replace(/<(style|script|head|title)[^>]*>[\s\S]*?<\/\1>/gi, "")
-    .replace(/<!--[\s\S]*?-->/g, "")
+  let stripped = removeAll(html, /<(style|script|head|title)[^>]*>[\s\S]*?<\/\1\s*>/gi)
+  stripped = removeAll(stripped, /<!--[\s\S]*?-->/g)
+  const text = stripped
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/(td|th)>/gi, " | ")
     .replace(/<\/(tr|p|div|li|h[1-6]|table|section|header|footer)>/gi, "\n")
     .replace(/<li[^>]*>/gi, "- ")
-    .replace(/<[^>]+>/g, " ")
-  return decodeEntities(text)
+  // Whatever tags remain, until none do; a stray "<" or ">" left over is not
+  // a tag, so it is dropped rather than kept as markup-looking text.
+  const noTags = removeAll(text.replace(/<[^>]+>/g, " "), /<[^>]+>/g).replace(/[<>]/g, " ")
+  return decodeEntities(noTags)
     .split("\n")
     .map((line) =>
       line

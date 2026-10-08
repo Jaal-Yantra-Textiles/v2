@@ -49,3 +49,15 @@ describe("emailBodyText (#2377 S3)", () => {
     expect(r).toEqual({ text: "aaaaaaaaaa", truncated: true })
   })
 })
+
+describe("htmlToText against nested markup (#2377 S3, CodeQL)", () => {
+  it("leaves no script or comment opener behind", () => {
+    const text = htmlToText("<scr<script>x</script>ipt>alert(1)</script><!<!--a-->--><p>ok</p>")
+    expect(text).not.toMatch(/<script|<!--/i)
+    expect(text).toContain("ok")
+  })
+
+  it("an escaped &lt; in the text still reads as <", () => {
+    expect(htmlToText("<p>qty &lt; 10</p>")).toBe("qty < 10")
+  })
+})
