@@ -1,3 +1,19 @@
+jest.mock("ai", () => ({
+  generateText: jest.fn(async () => ({ text: '{"order_number":"JH27228"}' })),
+}))
+jest.mock("../../../../mastra/workflows/extractionEval", () => ({ extractionEvalWorkflow: {} }))
+jest.mock("../../../../mastra/services/ai-platforms", () => ({
+  resolveRoleTextModel: jest.fn(async () => ({
+    model: {},
+    providerType: "openai_compatible",
+    source: "platform",
+    modelId: "platform-model",
+  })),
+  buildGenerateArgs: jest.fn(() => ({ prompt: "x" })),
+  logAiUsage: jest.fn(),
+}))
+
+import { resolveRoleTextModel } from "../../../../mastra/services/ai-platforms"
 import { aiExtractOperation } from "../ai-extract"
 
 describe("aiExtractOperation (platform migration)", () => {
@@ -21,5 +37,17 @@ describe("aiExtractOperation (platform migration)", () => {
       { container: {}, dataChain: {} } as any
     )
     expect(res).toEqual({ success: true, data: { title: "Tee", price: 1200 } })
+  })
+
+  it("never forwards a flow's saved legacy model to the platform (2026-10-08)", async () => {
+    // A flow saved with an OpenRouter id sent it to whatever provider the role
+    // used later → model_not_found. The platform's own model must win.
+    const res = await aiExtractOperation.execute(
+      { role: "ai_search_chat", input: "x", model: "arcee-ai/trinity-large-preview:free" },
+      { container: {}, dataChain: {} } as any
+    )
+    expect(res).toEqual({ success: true, data: { order_number: "JH27228" } })
+    expect(resolveRoleTextModel).toHaveBeenCalledWith({}, "ai_search_chat")
+    expect((resolveRoleTextModel as jest.Mock).mock.calls[0]).toHaveLength(2)
   })
 })
