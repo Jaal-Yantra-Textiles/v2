@@ -86,6 +86,8 @@ import { ListInventoryOrdersStepInput } from "../../../../workflows/inventory_or
 import listSingleInventoryOrderWorkflow from "../../../../workflows/inventory_orders/list-single-inventory-order";
 import { deleteInventoryOrderWorkflow } from "../../../../workflows/inventory_orders/delete-inventory-order";
 import { workOrderForInventoryOrder, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders";
+import { FULLFILLED_ORDERS_MODULE } from "../../../../modules/fullfilled_orders";
+import { lineLedger, sumDispatchedByLine } from "../../../../workflows/inventory_orders/lib/dispatch-ledger";
 
 export const PUT = async (
   req: MedusaRequest<UpdateInventoryOrder>,
@@ -159,6 +161,30 @@ export const GET = async(
       }
     } catch {
       // leave as-is; the UI falls back to plain rendering
+    }
+
+    // #2289 — per line: ordered / dispatched by the supplier / received
+    // (counted) / awaiting count. Since S1 a dispatch posts no stock, so the
+    // admin needs to see what was sent and is still waiting to be counted.
+    try {
+      const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+      const fulfilled: any = req.scope.resolve(FULLFILLED_ORDERS_MODULE)
+      const [{ data }, dispatches] = await Promise.all([
+        query.graph({
+          entity: "inventory_orders",
+          fields: ["id", "orderlines.id", "orderlines.quantity", "orderlines.line_fulfillments.quantity_delta"],
+          filters: { id },
+        }),
+        fulfilled.listInventoryDispatches({ inventory_order_id: id }, { take: null }),
+      ])
+      const dispatched = sumDispatchedByLine(dispatches)
+      if (inventoryOrder) {
+        ;(inventoryOrder as any).dispatch_ledger = ((data?.[0]?.orderlines ?? []) as any[])
+          .filter(Boolean)
+          .map((ol) => lineLedger(ol, dispatched))
+      }
+    } catch {
+      // the receipt section falls back to receipts only
     }
 
     res.status(200).json({ inventoryOrder });

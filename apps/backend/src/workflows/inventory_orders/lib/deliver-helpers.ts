@@ -111,7 +111,15 @@ export const evaluateAdminStatusTransition = (
 export const computeAdminDeliveryPosting = (
   orderlines: OrderLineForDelivery[] | undefined | null,
   alreadyDelivered: DeliveredLine[] | undefined | null,
-  destLocationId: string | null | undefined
+  destLocationId: string | null | undefined,
+  /**
+   * #2289 S2 — what the admin COUNTED, per order line. When given, each line
+   * posts its count (a line left out counts 0), never the remainder: marking
+   * an order Delivered is no longer "everything outstanding arrived". A count
+   * above what is still outstanding is refused. Omitted only by callers that
+   * predate counting (the pure tests of the remainder rule).
+   */
+  counted?: Record<string, number> | null
 ): { levels: DeliveryLevelInput[]; deliveredRecords: DeliveredLine[] } => {
   // #1613 — `already` reads BOTH records of what has been delivered (the typed
   // `line_fulfillments` rows carried on the line, and the metadata blob) and
@@ -125,9 +133,23 @@ export const computeAdminDeliveryPosting = (
     const ordered = Number(ol.quantity) || 0
     const already = deliveredByLine[ol.id] || 0
     const remaining = ordered - already
-    if (remaining <= 0) continue
+    let post = remaining
+    if (counted) {
+      const count = Number(counted[ol.id] ?? 0) || 0
+      if (count < 0) {
+        throw new MedusaError(MedusaError.Types.INVALID_DATA, `Counted quantity for line ${ol.id} cannot be negative`)
+      }
+      if (count > Math.max(0, remaining) + 0.01) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `Line ${ol.id}: counted ${count} but only ${Math.max(0, remaining)} is still outstanding`
+        )
+      }
+      post = count
+    }
+    if (post <= 0) continue
 
-    deliveredRecords.push({ order_line_id: ol.id, quantity: remaining })
+    deliveredRecords.push({ order_line_id: ol.id, quantity: post })
 
     const firstItem = ol.inventory_items?.[0]
     const itemId = firstItem?.id || ol.inventory_item_id
@@ -136,10 +158,37 @@ export const computeAdminDeliveryPosting = (
       levels.push({
         location_id: String(locId),
         inventory_item_id: String(itemId),
-        stocked_quantity: remaining,
+        stocked_quantity: post,
       })
     }
   }
 
   return { levels, deliveredRecords }
+}
+
+/**
+ * #2289 S2 (founder decision 2026-10-08, option b) — an admin marking an order
+ * Delivered must say what was COUNTED. Before, this posted "ordered minus
+ * already received" as if everything arrived, with nobody having counted it.
+ *
+ * Returns the counts keyed by order line, or null when this update posts
+ * nothing. Throws when it would post and no counts were sent.
+ */
+export const requireDeliveryCounts = (
+  postStock: boolean,
+  receivedLines: Array<{ order_line_id: string; quantity: number }> | null | undefined
+): Record<string, number> | null => {
+  if (!postStock) return null
+  if (!Array.isArray(receivedLines)) {
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
+      "Marking an order Delivered needs the counted quantities: send received_lines [{ order_line_id, quantity }] for what actually arrived, or use Receive goods."
+    )
+  }
+  const out: Record<string, number> = {}
+  for (const l of receivedLines) {
+    if (!l?.order_line_id) continue
+    out[String(l.order_line_id)] = (out[String(l.order_line_id)] ?? 0) + (Number(l.quantity) || 0)
+  }
+  return out
 }
