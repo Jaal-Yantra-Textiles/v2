@@ -7,6 +7,27 @@ import { sendNotificationEmailWorkflow } from "../../../email/send-notification-
 export const sendTestEmailStepId = "send-test-email"
 
 /**
+ * Who a test send is addressed to. A preview goes to "Test User"; a send by
+ * hand to a real reader (catching up someone who missed the broadcast) is
+ * greeted by their name and carries their id, so the template's
+ * "Hello {{first_name}}" and unsubscribe link are theirs. Before this every
+ * test send said "Hello Test".
+ */
+export function testSendSubscriber(
+  email: string,
+  recipient?: { id: string; first_name?: string | null; last_name?: string | null }
+) {
+  return recipient
+    ? {
+        id: recipient.id,
+        email,
+        first_name: recipient.first_name || "",
+        last_name: recipient.last_name || "",
+      }
+    : { id: "test-user", email, first_name: "Test", last_name: "User" }
+}
+
+/**
  * This step sends a test email of a blog post to a specified email address.
  * It uses the notification module to send the email and converts TipTap content to HTML.
  *
@@ -27,6 +48,8 @@ interface SendTestEmailInput {
   blogData: any
   subject: string
   customMessage?: string
+  /** A real reader (see TestBlogEmailInput.recipient); absent for a preview. */
+  recipient?: { id: string; first_name?: string | null; last_name?: string | null }
 }
 
 export const sendTestEmailStep = createStep(
@@ -58,19 +81,14 @@ export const sendTestEmailStep = createStep(
       // send so the test renders the redesigned template identically (UTM-tagged
       // links, personal note, two-doors CTAs, unsubscribe URL, etc.).
       const emailData = buildEmailData(
-        {
-          id: "test-user",
-          email: input.email,
-          first_name: "Test",
-          last_name: "User",
-        },
+        testSendSubscriber(input.email, input.recipient),
         input.blogData,
         htmlContent,
         {
           subject: input.subject,
           customMessage: input.customMessage,
         },
-        { isTest: true }
+        { isTest: !input.recipient }
       )
 
       // Send email using the email template workflow
