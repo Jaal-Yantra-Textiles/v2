@@ -11,6 +11,7 @@ import { PersonTypesComponent } from "../../../components/persons/person-types-c
 import { PersonPartnerComponent } from "../../../components/persons/person-partner-component";
 import { PersonAgreementsSection } from "../../../components/persons/person-agreements-section";
 import { PersonPaymentsSection } from "../../../components/persons/person-payments-section";
+import { PersonNewsletterSection } from "../../../components/persons/person-newsletter-section";
 import { AdminPerson } from "../../../hooks/api/personandtype";
 import { personLoader } from "./loader";
 
@@ -57,6 +58,7 @@ const PersonDetailPage = () => {
       <PersonPaymentsSection person={person} />
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
+        <PersonNewsletterSection personId={person.id} email={person.email} />
         <PersonContactSection
           personId={person.id}
           initialContacts={person.contact_details}
