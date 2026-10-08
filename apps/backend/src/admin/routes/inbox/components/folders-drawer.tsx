@@ -66,7 +66,7 @@ export const FoldersDrawer = ({ open, onOpenChange }: { open: boolean; onOpenCha
         <Drawer.Header>
           <Drawer.Title>Folders to read</Drawer.Title>
           <Drawer.Description>
-            {platform ? `${platform.name}: ` : ""}tick the folders whose mail should appear in the Inbox.
+            {platform ? `${platform.name}: tick` : "Tick"} the folders whose mail should appear in the Inbox.
           </Drawer.Description>
         </Drawer.Header>
         <Drawer.Body className="flex flex-col gap-y-6 overflow-y-auto">

@@ -132,7 +132,7 @@ const InboxPage = () => {
 
       <div className="flex min-h-0 flex-1">
         {/* Folders */}
-        <nav className="border-ui-border-base w-56 shrink-0 overflow-y-auto border-r p-2">
+        <nav aria-label="Folders" className="border-ui-border-base w-56 shrink-0 overflow-y-auto border-r p-2">
           <FolderButton
             label="All folders"
             open={openTotal}
@@ -160,7 +160,7 @@ const InboxPage = () => {
         <FoldersDrawer open={foldersOpen} onOpenChange={setFoldersOpen} />
 
         {/* List */}
-        <section className="border-ui-border-base flex w-[380px] shrink-0 flex-col border-r">
+        <section aria-label="Emails" className="border-ui-border-base flex w-[380px] shrink-0 flex-col border-r">
           <div className="border-ui-border-base flex flex-col gap-2 border-b p-3">
             <div className="flex gap-1">
               {STATUS_TABS.map((t) => (
@@ -273,6 +273,7 @@ const FolderButton = ({
   <button
     type="button"
     onClick={onClick}
+    title={label}
     className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-left ${
       active ? "bg-ui-bg-base-pressed" : "hover:bg-ui-bg-base-hover"
     }`}
@@ -336,7 +337,7 @@ const ReadingPane = ({
         )}
 
         <div className="flex flex-wrap gap-2">
-          {!done && (
+          {!done && email.status !== "ignored" && (
             <Button size="small" onClick={() => onAskAssistant(email)}>
               <Sparkles /> Create inventory order with assistant
             </Button>
