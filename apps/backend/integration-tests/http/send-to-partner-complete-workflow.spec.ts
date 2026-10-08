@@ -845,8 +845,12 @@ setupSharedTestSuite(() => {
         // 🔴 The blob now holds ONLY the second submission. If this were the
         // whole record, the order would look 6 units delivered, not 16.
         const orderView = await api.get(`/admin/inventory-orders/${orderId}?fields=id,status,metadata`, adminHeaders)
-        const blob = orderView.data.inventoryOrder.metadata?.partner_delivered_lines || []
+        // #2289 — the supplier's submissions are dispatches, kept under their
+        // own key. `partner_delivered_lines` (what cancel reads as received)
+        // must stay untouched by a dispatch.
+        const blob = orderView.data.inventoryOrder.metadata?.partner_dispatched_lines || []
         expect(blob).toEqual([{ order_line_id: lineId, quantity: 6 }])
+        expect(orderView.data.inventoryOrder.metadata?.partner_delivered_lines).toBeUndefined()
 
         const cancelRes = await api.post(`/admin/inventory-orders/${orderId}/cancel`, { reason: "#1613" }, adminHeaders)
         expect(cancelRes.status).toBe(200)
@@ -854,6 +858,73 @@ setupSharedTestSuite(() => {
         // Everything that was posted comes back off. Reading the blob alone
         // reversed 6 and left 10 units of phantom stock behind.
         expect(await stockedAtDest()).toBe(0)
+      })
+
+      /**
+       * #2289 hotfix — a cancel after a DISPATCH that nobody counted must not
+       * reverse stock that was never posted. Slice 1 still wrote the dispatch
+       * into `partner_delivered_lines`, which cancel reads as received, so this
+       * order would have gone to -16 at the destination.
+       */
+      it("cancelling a dispatched-but-uncounted order takes no stock off the destination (#2289)", async () => {
+        const itemRes = await api.post(
+          "/admin/inventory-items",
+          { title: "Dispatched Never Counted", description: "#2289 cancel" },
+          adminHeaders
+        )
+        const itemId = itemRes.data.inventory_item.id
+        // The destination already holds stock, as it does in real life — with
+        // no level to subtract from, the bug could not show.
+        await createInventoryLevelsWorkflow(getContainer()).run({
+          input: { inventory_levels: [{ inventory_item_id: itemId, location_id: stockLocationId, stocked_quantity: 100 }] },
+        })
+        const orderRes = await api.post(
+          "/admin/inventory-orders",
+          {
+            order_lines: [{ inventory_item_id: itemId, quantity: 16, price: 400 }],
+            quantity: 16,
+            total_price: 6400,
+            status: "Pending",
+            expected_delivery_date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+            order_date: new Date().toISOString(),
+            shipping_address: { address_1: "1 Loom Road", city: "Bhagalpur", postal_code: "812001", country_code: "IN" },
+            stock_location_id: stockLocationId,
+            to_stock_location_id: stockLocationId,
+            from_stock_location_id: fromStockLocationId,
+            is_sample: false,
+          },
+          adminHeaders
+        )
+        const orderId = orderRes.data.inventoryOrder.id
+        await api.post(`/admin/inventory-orders/${orderId}/send-to-partner`, { partnerId, notes: "#2289 cancel" }, adminHeaders)
+        await api.post(`/partners/inventory-orders/${orderId}/start`, {}, { headers: partnerHeaders })
+        const view = await api.get(`/partners/inventory-orders/${orderId}`, { headers: partnerHeaders })
+        const lineId = view.data.inventoryOrder.order_lines[0].id
+        const done = await api.post(
+          `/partners/inventory-orders/${orderId}/complete`,
+          { lines: [{ order_line_id: lineId, quantity: 16 }] },
+          { headers: partnerHeaders }
+        )
+        expect(done.status).toBe(200)
+
+        const query = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+        const stocked = async () => {
+          const { data: levels } = await query.graph({
+            entity: "inventory_level",
+            fields: ["location_id", "stocked_quantity"],
+            filters: { inventory_item_id: itemId },
+          })
+          return (levels || [])
+            .filter((l: any) => String(l.location_id) === String(stockLocationId))
+            .reduce((sum: number, l: any) => sum + (Number(l.stocked_quantity) || 0), 0)
+        }
+        // The dispatch moved nothing.
+        expect(await stocked()).toBe(100)
+
+        const cancelRes = await api.post(`/admin/inventory-orders/${orderId}/cancel`, { reason: "#2289" }, adminHeaders)
+        expect(cancelRes.status).toBe(200)
+        // Nothing was posted, so nothing comes off. Slice 1 took this to 84.
+        expect(await stocked()).toBe(100)
       })
     })
 })
