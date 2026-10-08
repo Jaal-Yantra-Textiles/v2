@@ -45,18 +45,20 @@ describe("keepStreamAlive", () => {
     expect(res.writes).toHaveLength(0)
   })
 
-  it("is a comment line the SSE event parser skips", async () => {
-    const { EventSourceParserStream } = await import("eventsource-parser/stream")
-    const events: string[] = []
-    const stream = new ReadableStream<string>({
+  it("is skipped by the AI SDK's own event-stream parser (what the chat client uses)", async () => {
+    const { parseJsonEventStream, jsonSchema } = await import("ai")
+    const bytes = new TextEncoder().encode(
+      'data: {"type":"start"}\n\n' + ": keep-alive\n\n" + 'data: {"type":"finish"}\n\n'
+    )
+    const source = new ReadableStream<Uint8Array>({
       start(c) {
-        c.enqueue('data: {"type":"start"}\n\n')
-        c.enqueue(": keep-alive\n\n")
-        c.enqueue('data: {"type":"finish"}\n\n')
+        c.enqueue(bytes)
         c.close()
       },
-    }).pipeThrough(new EventSourceParserStream())
-    for await (const e of stream as any) events.push(e.data)
-    expect(events).toEqual(['{"type":"start"}', '{"type":"finish"}'])
+    })
+    const parsed = parseJsonEventStream({ stream: source, schema: jsonSchema<any>({}) })
+    const events: any[] = []
+    for await (const e of parsed as any) events.push(e.success ? e.value : e)
+    expect(events).toEqual([{ type: "start" }, { type: "finish" }])
   })
 })
