@@ -265,10 +265,11 @@ export async function GET(
     // line. A dispatch is not a receipt, so `line_fulfillments` alone would
     // show goods already sent as still owed.
     const fulfilledService: any = req.scope.resolve(FULLFILLED_ORDERS_MODULE)
-    const dispatches = await fulfilledService.listInventoryDispatches(
-        { inventory_order_id: order.id },
-        { take: null }
-    )
+    const [dispatches, shortfalls] = await Promise.all([
+        fulfilledService.listInventoryDispatches({ inventory_order_id: order.id }, { take: null }),
+        // #2289 S3 — shortfalls: counted, and not there. The partner sees them.
+        fulfilledService.listInventoryShortfalls({ inventory_order_id: order.id }, { take: null }),
+    ])
     const dispatchedByLine = sumDispatchedByLine(dispatches)
 
     // Format the response for partner view - now using task-based status
@@ -308,7 +309,7 @@ export async function GET(
                 return Array.isArray(fulf) ? fulf : [fulf];
             })(),
             // #2289 — dispatched / received / to_dispatch / awaiting_count.
-            ledger: lineLedger(line, dispatchedByLine),
+            ledger: lineLedger(line, dispatchedByLine, shortfalls),
         })),
         stock_locations: order.stock_locations,
         // Carrier shipments, newest first (#772 follow-up).

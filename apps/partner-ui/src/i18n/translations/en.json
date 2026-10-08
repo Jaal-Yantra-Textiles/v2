@@ -3594,7 +3594,8 @@
           "requested": "Requested",
           "fulfilled": "Fulfilled",
           "remaining": "Remaining",
-          "awaitingCount": "{{qty}} sent, awaiting the receiver's count"
+          "awaitingCount": "{{qty}} sent, awaiting the receiver's count",
+          "shortCounted": "{{qty}} short when counted"
         },
         "activities": {
           "title": "Activities",

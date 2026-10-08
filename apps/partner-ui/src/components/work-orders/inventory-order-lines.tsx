@@ -39,6 +39,10 @@ const lineFulfilled = (line: Record<string, any>): number =>
 const lineAwaitingCount = (line: Record<string, any>): number =>
   typeof line?.ledger?.awaiting_count === "number" ? line.ledger.awaiting_count : 0
 
+/** #2289 S3 — the receiver counted less than was sent on this line. */
+const lineShort = (line: Record<string, any>): number =>
+  typeof line?.ledger?.short === "number" ? line.ledger.short : 0
+
 /**
  * Inventory work-order line items (#342), rendered in the Medusa core order
  * line-item aesthetic (order-summary-section `Item`): a `grid-cols-2` row —
@@ -174,6 +178,7 @@ export const InventoryOrderLines = ({
         const fulfilled = lineFulfilled(line)
         const remaining = Math.max(0, requested - fulfilled)
         const awaitingCount = lineAwaitingCount(line)
+        const short = lineShort(line)
         const price = Number(line?.price) || 0
         // #1894 — extra_cost is the per-unit dye/finishing charge. The order
         // total below these rows includes it, so the rows must too.
@@ -220,6 +225,13 @@ export const InventoryOrderLines = ({
                     <Text size="xsmall" className="text-ui-fg-muted">
                       {fmt(fulfilled)}/{fmt(requested)}
                     </Text>
+                  )}
+                  {short > 0 && (
+                    <Badge size="2xsmall" color="red">
+                      {t("partner.inventoryOrders.detail.columns.shortCounted", {
+                        qty: fmt(short),
+                      })}
+                    </Badge>
                   )}
                   {awaitingCount > 0 && (
                     <Text size="xsmall" className="text-ui-fg-muted">

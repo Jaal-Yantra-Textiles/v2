@@ -2,6 +2,7 @@ import {
   exceedsOrdered,
   fullyDispatched,
   lineLedger,
+  planShortfalls,
   sumDispatchedByLine,
 } from "../dispatch-ledger"
 
@@ -18,7 +19,7 @@ describe("dispatch ledger", () => {
 
   it("dispatched-but-uncounted goods are awaiting count, not received", () => {
     const l = lineLedger(line(50), sumDispatchedByLine([{ inventory_order_line_id: "line_1", quantity: 50 }]))
-    expect(l).toEqual({ line_id: "line_1", ordered: 50, dispatched: 50, received: 0, to_dispatch: 0, awaiting_count: 50 })
+    expect(l).toEqual({ line_id: "line_1", ordered: 50, dispatched: 50, received: 0, to_dispatch: 0, short: 0, awaiting_count: 50 })
   })
 
   it("a short count leaves the gap awaiting count", () => {
@@ -49,5 +50,58 @@ describe("dispatch ledger", () => {
     expect(exceedsOrdered(l, 1.005)).toBe(false)
     expect(exceedsOrdered(l, 1.02)).toBe(true)
     expect(fullyDispatched(l)).toBe(false)
+  })
+
+  describe("shortfalls (#2289 S3)", () => {
+    const sent50 = sumDispatchedByLine([{ inventory_order_line_id: "line_1", quantity: 50 }])
+
+    it("an open shortfall is short, not awaiting count", () => {
+      const l = lineLedger(line(50, [47]), sent50, [{ inventory_order_line_id: "line_1", quantity: 3, status: "open" }])
+      expect(l.short).toBe(3)
+      expect(l.awaiting_count).toBe(0)
+    })
+
+    it("a shortfall resolved with a note is neither short nor awaiting", () => {
+      const l = lineLedger(line(50, [47]), sent50, [{ inventory_order_line_id: "line_1", quantity: 3, status: "resolved" }])
+      expect(l.short).toBe(0)
+      expect(l.awaiting_count).toBe(0)
+    })
+
+    it("records the gap on a COUNTED line", () => {
+      const plan = planShortfalls([line(50, [47])], sent50, [], new Set(["line_1"]))
+      expect(plan.record).toEqual([{ line_id: "line_1", quantity: 3, dispatched: 50, received: 47 }])
+      expect(plan.resolve).toEqual([])
+    })
+
+    it("does not call an uncounted line short", () => {
+      const plan = planShortfalls([line(50, [])], sent50, [], new Set())
+      expect(plan.record).toEqual([])
+    })
+
+    it("does not record a written-off gap again on the next receipt", () => {
+      const plan = planShortfalls(
+        [line(50, [47])],
+        sent50,
+        [{ inventory_order_line_id: "line_1", quantity: 3, status: "resolved" }],
+        new Set(["line_1"])
+      )
+      expect(plan.record).toEqual([])
+    })
+
+    it("resolves an open shortfall when the missing goods are counted later", () => {
+      const plan = planShortfalls(
+        [line(50, [47, 2])],
+        sent50,
+        [{ inventory_order_line_id: "line_1", quantity: 3, status: "open" }],
+        new Set(["line_1"])
+      )
+      expect(plan.resolve).toEqual([{ line_id: "line_1", quantity: 2 }])
+      expect(plan.record).toEqual([])
+    })
+
+    it("nothing dispatched on the line, nothing short (our own receipts)", () => {
+      const plan = planShortfalls([line(10, [8])], sumDispatchedByLine([]), [], new Set(["line_1"]))
+      expect(plan.record).toEqual([])
+    })
   })
 })

@@ -63,7 +63,19 @@ export interface AdminInventoryOrder {
     dispatched: number;
     received: number;
     to_dispatch: number;
+    short?: number;
     awaiting_count: number;
+  }>;
+  /** #2289 S3 — the receiver counted less than was dispatched. */
+  shortfalls?: Array<{
+    id: string;
+    inventory_order_line_id: string;
+    quantity: number;
+    dispatched_quantity: number;
+    received_quantity: number;
+    status: "open" | "resolved";
+    resolution_note?: string | null;
+    created_at?: string;
   }>;
   quantity: number;
   total_price: number;
@@ -743,4 +755,20 @@ export const useInventoryOrdersAwaitingCount = () => {
       ),
   });
   return { ...data, orders: data?.orders ?? [], ...rest };
+};
+
+/** #2289 S3 — close a short delivery with what was done about it. */
+export const useResolveInventoryOrderShortfall = (orderId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ shortfallId, note }: { shortfallId: string; note: string }) =>
+      sdk.client.fetch<{ shortfall: unknown }>(
+        `/admin/inventory-orders/${orderId}/shortfalls/${shortfallId}/resolve`,
+        { method: "POST", body: { note } },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(orderId) });
+      queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.lists() });
+    },
+  });
 };

@@ -31,6 +31,8 @@ import {
   loadInventoryOrderFinishEvidence,
 } from "./lib/order-finished"
 import { signalPartnerWorkflowFinished } from "./lib/signal-partner-workflow"
+import { planShortfalls, sumDispatchedByLine } from "./lib/dispatch-ledger"
+import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates"
 
 /**
  * ADMIN RECEIPT — record that goods actually turned up, and put them on the
@@ -312,6 +314,154 @@ const signalPartnerWorkflowAfterReceiptStep = createStep(
   }
 )
 
+
+/**
+ * #2289 S3 — the receiver's count against what the supplier dispatched.
+ *
+ * A counted line that is still below its dispatch is SHORT: the receiver
+ * counted what arrived, so the rest is missing. That is recorded (it leaves the
+ * "awaiting count" list and the supplier sees it) and our admin team gets one
+ * task per receipt. Goods recorded short that turn up in a later count resolve
+ * their shortfall automatically.
+ *
+ * Lines the receiver did not count are not short, only not counted yet. A
+ * receipt with no `lines` receives everything outstanding, so it is never short.
+ *
+ * The task is best-effort: a shortfall without a task is still the record; a
+ * failed receipt because a task could not be created would lose the count.
+ */
+const recordShortfallsStep = createStep(
+  "receive-inventory-order-record-shortfalls",
+  async (
+    input: {
+      orderId: string
+      countedLineIds: string[]
+      received_by?: string | null
+      received_by_partner_id?: string | null
+    },
+    { container }
+  ) => {
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const fulfilled: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+
+    const [{ data: orders }, dispatches, shortfalls] = await Promise.all([
+      query.graph({
+        entity: "inventory_orders",
+        fields: [
+          "id",
+          "orderlines.id",
+          "orderlines.quantity",
+          "orderlines.line_fulfillments.quantity_delta",
+          "orderlines.inventory_items.title",
+        ],
+        filters: { id: input.orderId },
+      }),
+      fulfilled.listInventoryDispatches({ inventory_order_id: input.orderId }, { take: null }),
+      fulfilled.listInventoryShortfalls({ inventory_order_id: input.orderId }, { take: null, order: { created_at: "ASC" } }),
+    ])
+    const lines = ((orders?.[0]?.orderlines ?? []) as any[]).filter(Boolean)
+    if (!dispatches.length || !lines.length) {
+      return new StepResponse({ created: [] as string[], resolved: [] as any[] }, { created: [] as string[], resolved: [] as any[] })
+    }
+
+    const plan = planShortfalls(
+      lines,
+      sumDispatchedByLine(dispatches),
+      shortfalls,
+      new Set(input.countedLineIds)
+    )
+    const openShortfalls = (shortfalls as any[]).filter((x) => x.status === "open")
+
+    // Resolve first: goods that turned up after all.
+    const resolvedBefore: any[] = []
+    for (const r of plan.resolve) {
+      let left = r.quantity
+      for (const row of openShortfalls.filter((x: any) => x.inventory_order_line_id === r.line_id)) {
+        if (left <= 0.01) break
+        resolvedBefore.push({ id: row.id, quantity: row.quantity, status: row.status, resolved_at: row.resolved_at, resolution_note: row.resolution_note })
+        const qty = Number(row.quantity) || 0
+        if (qty <= left + 0.01) {
+          await fulfilled.updateInventoryShortfalls({
+            id: row.id,
+            status: "resolved",
+            resolved_at: new Date(),
+            resolution_note: "Arrived later and was counted on a receipt.",
+          })
+          left -= qty
+        } else {
+          await fulfilled.updateInventoryShortfalls({ id: row.id, quantity: Math.round((qty - left) * 1000) / 1000 })
+          left = 0
+        }
+      }
+    }
+
+    if (!plan.record.length) {
+      return new StepResponse({ created: [] as string[], resolved: resolvedBefore }, { created: [] as string[], resolved: resolvedBefore })
+    }
+
+    const created = await fulfilled.createInventoryShortfalls(
+      plan.record.map((r) => ({
+        inventory_order_id: input.orderId,
+        inventory_order_line_id: r.line_id,
+        quantity: r.quantity,
+        dispatched_quantity: r.dispatched,
+        received_quantity: r.received,
+        status: "open",
+        counted_by_partner_id: input.received_by_partner_id ?? null,
+        counted_by: input.received_by ?? null,
+      }))
+    )
+    const createdRows = (Array.isArray(created) ? created : [created]) as any[]
+    const createdIds = createdRows.map((c) => String(c.id))
+
+    try {
+      const titleOf = (lineId: string) => {
+        const ol = lines.find((l: any) => String(l.id) === lineId)
+        const item = Array.isArray(ol?.inventory_items) ? ol.inventory_items[0] : ol?.inventory_items
+        return item?.title ?? lineId
+      }
+      const summary = plan.record
+        .map((r) => `${titleOf(r.line_id)}: dispatched ${r.dispatched}, counted ${r.received}, short ${r.quantity}`)
+        .join("; ")
+      const { result } = await createTasksFromTemplatesWorkflow(container).run({
+        input: {
+          inventoryOrderId: input.orderId,
+          type: "task",
+          title: "Short delivery: received less than the supplier sent",
+          description: `${summary}. Follow up with the supplier: re-send, credit, or write off.`,
+          priority: "high",
+          metadata: {
+            type: "receipt_shortfall",
+            source: "receive-inventory-order",
+            shortfall_ids: createdIds,
+            counted_by_partner_id: input.received_by_partner_id ?? null,
+          },
+        } as any,
+      })
+      const tasks = (result as any)?.[1]
+      const taskId = Array.isArray(tasks) ? tasks[0]?.id : tasks?.id ?? tasks?.tasks?.[0]?.id
+      if (taskId) {
+        await fulfilled.updateInventoryShortfalls(createdIds.map((id) => ({ id, task_id: String(taskId) })))
+      }
+    } catch (e) {
+      logger?.warn?.(`[receive-inventory-order] shortfall task not created for ${input.orderId}: ${(e as Error).message}`)
+    }
+
+    return new StepResponse({ created: createdIds, resolved: resolvedBefore }, { created: createdIds, resolved: resolvedBefore })
+  },
+  async (rb, { container }) => {
+    if (!rb) return
+    const fulfilled: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+    try {
+      if (rb.created?.length) await fulfilled.deleteInventoryShortfalls(rb.created)
+      for (const r of rb.resolved || []) {
+        await fulfilled.updateInventoryShortfalls(r)
+      }
+    } catch {}
+  }
+)
+
 export const receiveInventoryOrderWorkflow = createWorkflow(
   "receive-inventory-order",
   (input: ReceiveInventoryOrderInput) => {
@@ -409,6 +559,17 @@ export const receiveInventoryOrderWorkflow = createWorkflow(
       orderId: input.orderId,
       postings: plan.postings,
       notes: input.notes,
+      received_by: input.received_by,
+      received_by_partner_id: input.received_by_partner_id,
+    })
+
+    // #2289 S3 — a counted line below its dispatch is short.
+    const countedLineIds = transform({ input }, ({ input }) =>
+      Array.isArray(input.lines) ? [...new Set(input.lines.map((l) => String(l.order_line_id)))] : []
+    )
+    recordShortfallsStep({
+      orderId: input.orderId,
+      countedLineIds: countedLineIds as unknown as string[],
       received_by: input.received_by,
       received_by_partner_id: input.received_by_partner_id,
     })
