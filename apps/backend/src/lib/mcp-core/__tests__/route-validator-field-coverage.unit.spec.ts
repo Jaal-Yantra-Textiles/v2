@@ -376,6 +376,7 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     is_sample: "as order_lines",
     payment_terms: "as order_lines",
     advance_percent: "as order_lines",
+    received_lines: "as order_lines; counts belong to Delivered (#2289 S2) — use receive_inventory_order",
   },
   "admin:set_inventory_order_payment_terms": {
     order_lines: "a NARROW tool on the broad order edit (#2315): it sets one thing, and offering the whole edit invites a status or line change riding along",
@@ -392,6 +393,7 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     to_stock_location_id: "as order_lines",
     is_sample: "as order_lines",
     from_stock_location_id: "as order_lines",
+    received_lines: "as order_lines; counts belong to Delivered (#2289 S2) — use receive_inventory_order",
   },
   "admin:create_social_post": {
     post_url: "set by the publisher callback, not by the author",
