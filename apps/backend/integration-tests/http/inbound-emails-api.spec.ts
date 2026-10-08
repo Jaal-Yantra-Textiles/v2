@@ -787,4 +787,108 @@ setupSharedTestSuite(() => {
       expect(res.data.inbound_email.subject).toBe(longSubject)
     })
   })
+  // ─── #2377 S3: the email → inventory order record ─────────────────────────
+
+  describe("email → inventory order (#2377 S3)", () => {
+    const createInventoryOrder = async () => {
+      const item = await api.post(
+        "/admin/inventory-items",
+        { title: `Coconut button ${Date.now()}`, sku: `CB-${Date.now()}` },
+        headers
+      )
+      const loc = await api.post("/admin/stock-locations", { name: `Inbox WH ${Date.now()}` }, headers)
+      const res = await api.post(
+        "/admin/inventory-orders",
+        {
+          order_lines: [{ inventory_item_id: item.data.inventory_item.id, quantity: 200, price: 4.5 }],
+          quantity: 200,
+          total_price: 900,
+          status: "Pending",
+          expected_delivery_date: new Date().toISOString(),
+          order_date: new Date().toISOString(),
+          shipping_address: {},
+          stock_location_id: loc.data.stock_location.id,
+        },
+        headers
+      )
+      expect(res.status).toBe(201)
+      return res.data.inventoryOrder.id as string
+    }
+
+    it("GET ?body=text returns readable text without the HTML, and no orders yet", async () => {
+      // HTML-only, as most shop confirmations are: the rows must survive as lines.
+      const email = await createTestEmail({ text_body: null })
+      const res = await api.get(`/admin/inbound-emails/${email.id}?body=text`, headers)
+      expect(res.status).toBe(200)
+      const e = res.data.inbound_email
+      expect(e.html_body).toBeUndefined()
+      expect(e.text_body).toBeUndefined()
+      expect(e.body_text).toContain("Cotton Fabric | Qty: 10 | $50.00")
+      expect(e.inventory_order_ids).toEqual([])
+    })
+
+    it("GET without ?body=text still returns the HTML for the Inbox reading pane", async () => {
+      const email = await createTestEmail()
+      const res = await api.get(`/admin/inbound-emails/${email.id}`, headers)
+      expect(res.data.inbound_email.html_body).toContain("<table>")
+      expect(res.data.inbound_email.body_text).toBeTruthy()
+    })
+
+    it("links an email to its inventory order, marks it processed, and re-linking is a no-op", async () => {
+      const email = await createTestEmail()
+      const orderId = await createInventoryOrder()
+
+      const first = await api.post(
+        `/admin/inbound-emails/${email.id}/link-inventory-order`,
+        { inventory_order_id: orderId },
+        headers
+      )
+      expect(first.status).toBe(200)
+      expect(first.data).toMatchObject({ status: "processed", inventory_order_ids: [orderId], already_linked: false })
+
+      const again = await api.post(
+        `/admin/inbound-emails/${email.id}/link-inventory-order`,
+        { inventory_order_id: orderId },
+        headers
+      )
+      expect(again.data).toMatchObject({ inventory_order_ids: [orderId], already_linked: true })
+
+      const read = await api.get(`/admin/inbound-emails/${email.id}?body=text`, headers)
+      expect(read.data.inbound_email.status).toBe("processed")
+      expect(read.data.inbound_email.inventory_order_ids).toEqual([orderId])
+      expect(read.data.inbound_email.action_result.inventory_order_id).toBe(orderId)
+    })
+
+    it("refuses Execute on an email that already became an inventory order", async () => {
+      const email = await createTestEmail()
+      const orderId = await createInventoryOrder()
+      await api.post(
+        `/admin/inbound-emails/${email.id}/link-inventory-order`,
+        { inventory_order_id: orderId },
+        headers
+      )
+
+      const res = await api
+        .post(
+          `/admin/inbound-emails/${email.id}/execute`,
+          { action_type: "create_inventory_order", params: { stock_location_id: "sloc_x", item_mappings: [] } },
+          headers
+        )
+        .catch((err) => err.response)
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain(orderId)
+    })
+
+    it("404s linking to an inventory order that does not exist", async () => {
+      const email = await createTestEmail()
+      const res = await api
+        .post(
+          `/admin/inbound-emails/${email.id}/link-inventory-order`,
+          { inventory_order_id: "inv_order_missing" },
+          headers
+        )
+        .catch((err) => err.response)
+      expect(res.status).toBe(404)
+    })
+  })
 })

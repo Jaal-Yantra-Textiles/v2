@@ -405,6 +405,7 @@ import {
   listInboundEmailsQuerySchema,
   extractInboundEmailSchema,
   executeInboundEmailSchema,
+  linkInboundEmailInventoryOrderSchema,
   syncInboundEmailsSchema,
   testConnectionSchema,
 } from "./admin/inbound-emails/validators";
@@ -4858,6 +4859,11 @@ export default defineMiddlewares({
       matcher: "/admin/inbound-emails/:id/execute",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(executeInboundEmailSchema))],
+    },
+    {
+      matcher: "/admin/inbound-emails/:id/link-inventory-order",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(linkInboundEmailInventoryOrderSchema))],
     },
     // Admin Partners routes
     {

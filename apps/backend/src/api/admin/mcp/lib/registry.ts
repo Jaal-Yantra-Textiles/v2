@@ -1591,6 +1591,71 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Replaces `specifications` and `media` outright when either is passed. Omit a key to leave it untouched.",
     nextSteps: ["get_raw_material"],
   },
+  // ── Inbox (#2377 S3): company email, read by the assistant and turned
+  // into records. The first action: a shop's order confirmation becomes
+  // inventory items + an inventory order.
+  {
+    name: "list_inbound_emails",
+    description:
+      "List emails that reached our company mailboxes (iCloud; every @jaalyantra.com address lands there and mail rules sort it into folders such as JYT_INBOUND_ORDERS). Newest first. Read. Filter by `folder`, `status` (received | action_pending | processed | ignored) or a `q` search over subject and sender. Rows carry no body: open one with get_inbound_email.",
+    method: "GET",
+    path: "/admin/inbound-emails",
+    queryParams: ["limit", "offset", "q", "status", "folder"],
+    inputSchema: obj({
+      ...PAGINATION,
+      status: STR("Optional: received | action_pending | processed | ignored."),
+      folder: STR("Optional: the mailbox folder, e.g. 'JYT_INBOUND_ORDERS'."),
+    }),
+    nextSteps: ["get_inbound_email"],
+  },
+  {
+    name: "get_inbound_email",
+    description:
+      "Read one inbound email: sender, subject, date, folder, status, `body_text` (the body as plain text, table rows kept as lines, cells joined with ' | ') and `inventory_order_ids` (the orders it ALREADY became). Read. " +
+      "🔑 TURNING A SUPPLIER'S ORDER CONFIRMATION INTO AN INVENTORY ORDER: " +
+      "(1) Read it here. If `inventory_order_ids` is not empty, STOP: it is done; say which order. " +
+      "(2) Judge from the BODY, not the From address (shops send from no-reply and people forward): the supplier/shop name, their order number, the order date, each line (name, variant such as colour/size, quantity, unit price), pack sizes (a 'pack of 100' bought ×2 is 200 pieces; record the quantity in the unit the item is counted in and the price per that unit), the currency (₹ / Rs / INR is inr), shipping, tax and the total. Show the operator what you read and ask about anything unclear before writing. " +
+      "(3) For each line find an existing inventory item with list_inventory_items (search the name); create only the missing ones with create_inventory_item. " +
+      "(4) create_inventory_order with status 'Pending', the operator's receiving stock_location_id (ask; list_stock_locations), currency_code, per-unit prices, tax_amount, and metadata { source: 'inbound_email', inbound_email_id, supplier_name, supplier_order_number }. It posts NO stock: stock arrives when the parcel is counted with receive_inventory_order. " +
+      "(5) link_inbound_email_inventory_order so the email shows as done.",
+    method: "GET",
+    path: "/admin/inbound-emails/:id",
+    pathParams: ["id"],
+    defaultQuery: { body: "text" },
+    inputSchema: obj({ id: STR("Inbound email id.") }, ["id"]),
+    nextSteps: ["list_inventory_items", "create_inventory_item", "create_inventory_order", "link_inbound_email_inventory_order"],
+  },
+  {
+    name: "link_inbound_email_inventory_order",
+    description:
+      "Record that an inbound email became an inventory order: links the two and marks the email processed (it then shows as done in the Inbox, and get_inbound_email reports the order). Write; sensitive: requires confirm:true. Changes no stock, money or order. Linking the same pair again is a no-op.",
+    method: "POST",
+    path: "/admin/inbound-emails/:id/link-inventory-order",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["inventory_order_id"],
+    inputSchema: obj(
+      {
+        id: STR("Inbound email id."),
+        inventory_order_id: STR("The inventory order it became, e.g. 'inv_order_...'."),
+      },
+      ["id", "inventory_order_id"]
+    ),
+    nextSteps: ["get_inventory_order"],
+  },
+  {
+    name: "ignore_inbound_email",
+    description:
+      "Mark an inbound email as ignored (nothing to do: a newsletter, a duplicate, spam). Write; sensitive: requires confirm:true. It stays readable in the Inbox under Ignored.",
+    method: "POST",
+    path: "/admin/inbound-emails/:id/ignore",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: [],
+    inputSchema: obj({ id: STR("Inbound email id.") }, ["id"]),
+  },
   {
     name: "list_inventory_orders",
     description:

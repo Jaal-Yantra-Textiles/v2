@@ -52,3 +52,9 @@ export const syncInboundEmailsSchema = z.object({
 })
 
 export type SyncInboundEmailsBody = z.infer<typeof syncInboundEmailsSchema>
+
+export const linkInboundEmailInventoryOrderSchema = z.object({
+  inventory_order_id: z.string().min(1, "inventory_order_id is required"),
+})
+
+export type LinkInboundEmailInventoryOrderBody = z.infer<typeof linkInboundEmailInventoryOrderSchema>

@@ -21,7 +21,7 @@ import { ChatBubbleLeftRight, Sparkles, ArrowUpMini, Spinner, Check, Exclamation
 import { Container, Heading, Text, Button, Textarea, IconButton, Badge, Table, toast } from "@medusajs/ui"
 import { useChat } from "@ai-sdk/react"
 import { DefaultChatTransport } from "ai"
-import { Outlet, useNavigate } from "react-router-dom"
+import { Outlet, useNavigate, useSearchParams } from "react-router-dom"
 import { API_BASE_URL } from "../../lib/config"
 import { runAdminMcpTool, type AdminToolResult } from "../../lib/assistant-mcp"
 import { Markdown } from "../../components/markdown"
@@ -549,14 +549,18 @@ function failedToolNames(messages: any[]): string[] {
 const AssistantChat = ({
   conversationId,
   initialMessages,
+  initialInput,
   onCreated,
 }: {
   conversationId: string | null
   initialMessages: StoredMessage[]
+  /** A prompt another page handed over (`/assistant?prompt=`), placed in the
+   *  box for the operator to read and send — never sent on their behalf. */
+  initialInput?: string
   onCreated: (id: string, title: string) => void
 }) => {
   const scrollRef = useRef<HTMLDivElement>(null)
-  const [input, setInput] = useState("")
+  const [input, setInput] = useState(initialInput ?? "")
   /**
    * Thread-wide default for tool-result bodies. `null` = size-aware (big
    * results start closed, small ones stay open). Remembered per browser,
@@ -1137,6 +1141,18 @@ const AssistantChat = ({
 
 const AssistantPage = () => {
   const navigate = useNavigate()
+  // "Ask the assistant" from another page (#2377: an Inbox email) arrives as
+  // ?prompt=. Read once into a fresh thread, then dropped from the URL so a
+  // reload or "New chat" doesn't bring it back.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [handedPrompt] = useState(() => searchParams.get("prompt") ?? "")
+  useEffect(() => {
+    if (searchParams.has("prompt")) {
+      const next = new URLSearchParams(searchParams)
+      next.delete("prompt")
+      setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
   const [activeId, setActiveId] = useState<string | null>(null)
   const [initialMessages, setInitialMessages] = useState<StoredMessage[]>([])
   // Bumping this remounts <AssistantChat>, resetting useChat for a fresh thread
@@ -1250,6 +1266,7 @@ const AssistantPage = () => {
           key={threadKey}
           conversationId={activeId}
           initialMessages={initialMessages}
+          initialInput={threadKey === 0 ? handedPrompt : undefined}
           onCreated={onCreated}
         />
         {/*
