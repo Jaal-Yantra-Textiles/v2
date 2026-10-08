@@ -73,6 +73,7 @@ import {
   resolvePartnerIdentity,
 } from "./identity-context"
 import { normaliseUiMessages } from "../../../../lib/assistant-messages"
+import { keepStreamAlive } from "../../../../lib/ai/stream-keepalive"
 import type { PartnerAssistantChatReq } from "./validators"
 
 const FEATURE = "partners/assistant/chat"
@@ -406,4 +407,7 @@ export const POST = async (
   }
 
   result.pipeUIMessageStreamToResponse(res as any)
+  // A long tool-using turn can go >60 s without a byte; the load balancer
+  // would cut it and the browser show "Couldn't reach the server".
+  keepStreamAlive(res as any)
 }
