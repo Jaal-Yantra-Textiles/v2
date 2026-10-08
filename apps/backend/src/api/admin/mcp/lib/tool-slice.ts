@@ -116,6 +116,9 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/energy-rates", "production"],
   ["/admin/inventory-items", "inventory"],
   ["/admin/inventory-orders", "inventory"],
+  // The Inbox (#2377): a supplier's order email is turned into an inventory
+  // order, so its tools ride the inventory slice.
+  ["/admin/inbound-emails", "inventory"],
   /**
    * Moving material we already own between two locations (#2144). Inventory,
    * not production: nothing is being made, and the ask that reaches these tools
@@ -346,6 +349,8 @@ const DOMAIN_KEYWORDS: Record<Exclude<AdminToolDomain, "core">, string[]> = {
     "material group", "material groups", "swatch", "swatches", "trim", "trims",
     "bolt", "bolts", "roll", "rolls", "composition", "gsm", "yardage",
     "meterage", "delivery note", "packing list", "unit cost", "moq",
+    // The Inbox (#2377): "turn this email into an order".
+    "inbox", "inbound email", "order email", "order confirmation",
   ],
   money: [
     "payment", "payments", "payout", "payouts", "invoice", "invoices",

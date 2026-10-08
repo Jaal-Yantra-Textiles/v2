@@ -2,6 +2,10 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 import { INBOUND_EMAIL_MODULE } from "../../../../../modules/inbound_emails"
 import { getAction } from "../../../../../workflows/inbound-emails/actions"
+import {
+  linkedInventoryOrderIds,
+  linkInboundEmailToInventoryOrder,
+} from "../../../../../workflows/inbound-emails/lib/inbound-email-links"
 import { ExecuteInboundEmailBody } from "../../validators"
 
 // Ensure actions are registered
@@ -28,6 +32,19 @@ export const POST = async (
     )
   }
 
+  // An email that already became an inventory order must not become a second
+  // one because Execute was pressed twice (#2377 S3).
+  if (body.action_type === "create_inventory_order") {
+    const existing = (await linkedInventoryOrderIds(req.scope, [id])).get(id) ?? []
+    const recorded = email.action_result?.inventory_order_id
+    if (existing.length || (email.status === "processed" && recorded)) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `This email already became inventory order ${existing[0] ?? recorded}.`
+      )
+    }
+  }
+
   // Use existing extracted data or extract now
   let extractedData = email.extracted_data
   if (!extractedData || email.action_type !== body.action_type) {
@@ -36,6 +53,9 @@ export const POST = async (
 
   try {
     const actionResult = await action.execute(email, extractedData, body.params, req.scope)
+    if (actionResult?.inventory_order_id) {
+      await linkInboundEmailToInventoryOrder(req.scope, id, actionResult.inventory_order_id)
+    }
 
     await service.updateInboundEmails({
       id,
