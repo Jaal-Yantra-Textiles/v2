@@ -232,6 +232,9 @@ fun InventoryOrderDetailScreen(
                                             append("Ordered ${formatQuantity(line.quantity)}")
                                             if (line.fulfilled > 0) append(" · Sent ${formatQuantity(line.fulfilled)}")
                                             if (line.outstanding > 0) append(" · Outstanding ${formatQuantity(line.outstanding)}")
+                                            // #2289 — sent but not counted yet, and counted short.
+                                            if (line.awaitingCount > 0) append(" · Awaiting count ${formatQuantity(line.awaitingCount)}")
+                                            if (line.short > 0) append(" · Short ${formatQuantity(line.short)}")
                                         },
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -251,6 +251,7 @@ import { personContactRequestSchema } from "./web/persons/[id]/contact/validator
 import { LinkDesignValidator, UnlinkDesignValidator } from "./admin/products/[id]/linkDesign/validators";
 import { sendToPartnerSchema } from "./admin/inventory-orders/[id]/send-to-partner/validators";
 import { receiveInventoryOrderSchema } from "./admin/inventory-orders/[id]/receive/validators";
+import { resolveShortfallSchema } from "./admin/inventory-orders/[id]/shortfalls/[shortfallId]/resolve/validators";
 import { createMaterialTransferSchema, receiveMaterialTransferSchema } from "./admin/inventory-transfers/validators";
 import { EmailTemplateQueryParams, EmailTemplateSchema, UpdateEmailTemplateSchema } from "./admin/email-templates/validators";
 import { CreateAgreementSchema, UpdateAgreementSchema } from "./admin/agreements/validators";
@@ -4753,6 +4754,12 @@ export default defineMiddlewares({
       matcher: "/admin/inventory-orders/:id/receive",
       method: 'POST',
       middlewares: [validateAndTransformBody(wrapSchema(receiveInventoryOrderSchema))],
+    },
+    // #2289 S3 — close a short delivery with what was done about it.
+    {
+      matcher: "/admin/inventory-orders/:id/shortfalls/:shortfallId/resolve",
+      method: 'POST',
+      middlewares: [validateAndTransformBody(wrapSchema(resolveShortfallSchema))],
     },
     {
       matcher: "/admin/inventory-transfers",

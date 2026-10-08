@@ -8039,6 +8039,27 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_inventory_order", "receive_inventory_order"],
   },
   {
+    name: "resolve_inventory_order_shortfall",
+    description:
+      "Close a SHORT delivery on an inventory order (the receiver counted less than the supplier dispatched, #2289) with what was done about it: re-sent, credited, written off. Write. Moves no stock and no money; the note is the record. Shortfall ids are on get_inventory_order (`shortfalls`). Goods that arrive later resolve their shortfall by themselves when counted with receive_inventory_order.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/shortfalls/:shortfallId/resolve",
+    pathParams: ["id", "shortfallId"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["note"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id."),
+        shortfallId: STR("Shortfall id, e.g. 'inv_short_...'."),
+        note: STR("What was done: re-sent / credited / written off, and any reference."),
+      },
+      ["id", "shortfallId", "note"]
+    ),
+    previewPath: "/admin/inventory-orders/:id",
+    nextSteps: ["get_inventory_order"],
+  },
+  {
     name: "get_inventory_order_charges",
     description:
       "Read the non-goods amounts on an inventory order — tax, shipping, a discount or a write-off — plus the folded totals and the payable ceiling a claim may reach. Read. A charge changes what the partner is owed (#1737): this is where 'why is the payable different from total_price?' is answered.",

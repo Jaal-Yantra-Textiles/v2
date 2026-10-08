@@ -250,12 +250,39 @@ setupSharedTestSuite(() => {
       expect(await stockAt(item, destWh)).toBe(9)
       expect(await stockAt(item, supplierWh)).toBe(0)
       const afterCount = await api.get(`/partners/inventory-orders/${order.id}`, supplier.headers)
+      // #2289 S3 — counted 9 of 10 sent: 1 is SHORT, not awaiting, and the
+      // supplier sees it.
       expect(afterCount.data.inventoryOrder.order_lines[0].ledger).toEqual(
-        expect.objectContaining({ dispatched: 10, received: 9, awaiting_count: 1 })
+        expect.objectContaining({ dispatched: 10, received: 9, short: 1, awaiting_count: 0 })
       )
-      // Still listed, with only the uncounted 1 left.
       const after = await api.get(`/admin/inventory-orders/awaiting-count`, adminHeaders)
-      expect(after.data.orders.find((o: any) => o.id === order.id)?.awaiting_quantity).toBe(1)
+      expect(after.data.orders.map((o: any) => o.id)).not.toContain(order.id)
+
+      // The admin sees the shortfall, and our team has a task for it.
+      const adminView = await api.get(`/admin/inventory-orders/${order.id}`, adminHeaders)
+      const shortfalls = adminView.data.inventoryOrder.shortfalls
+      expect(shortfalls).toEqual([
+        expect.objectContaining({ quantity: 1, dispatched_quantity: 10, received_quantity: 9, status: "open" }),
+      ])
+      const tasks = await api.get(`/admin/inventory-orders/${order.id}/tasks`, adminHeaders)
+      const taskRows = tasks.data.tasks ?? tasks.data.inventory_order?.tasks ?? tasks.data.inventoryOrder?.tasks ?? []
+      expect(JSON.stringify(taskRows)).toMatch(/receipt_shortfall/)
+
+      // Resolving with a note closes it; it does not come back as awaiting.
+      const resolved = await post(
+        `/admin/inventory-orders/${order.id}/shortfalls/${shortfalls[0].id}/resolve`,
+        { note: "Credited 1 m on the next payout" },
+        adminHeaders
+      )
+      expect(resolved.status).toBe(200)
+      const final = await api.get(`/partners/inventory-orders/${order.id}`, supplier.headers)
+      expect(final.data.inventoryOrder.order_lines[0].ledger).toEqual(
+        expect.objectContaining({ short: 0, awaiting_count: 0 })
+      )
+      const finalList = await api.get(`/admin/inventory-orders/awaiting-count`, adminHeaders)
+      expect(finalList.data.orders.map((o: any) => o.id)).not.toContain(order.id)
+      // Stock is exactly what was counted.
+      expect(await stockAt(item, destWh)).toBe(9)
     })
 
     it("the SUPPLIER's warehouse is never the destination (the stock_locations[0] bug)", async () => {

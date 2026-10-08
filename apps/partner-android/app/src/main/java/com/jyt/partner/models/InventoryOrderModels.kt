@@ -57,6 +57,8 @@ data class LineLedger(
     val dispatched: Double = 0.0,
     val received: Double = 0.0,
     @SerialName("to_dispatch") val toDispatch: Double = 0.0,
+    /** #2289 S3 — counted by the receiver and not there. */
+    val short: Double = 0.0,
     @SerialName("awaiting_count") val awaitingCount: Double = 0.0,
 )
 
@@ -91,6 +93,9 @@ data class InventoryOrderLine(
 
     /** Sent but not yet counted by the receiver. */
     val awaitingCount: Double get() = ledger?.awaitingCount ?: 0.0
+
+    /** Counted short by the receiver. */
+    val short: Double get() = ledger?.short ?: 0.0
 }
 
 @Serializable

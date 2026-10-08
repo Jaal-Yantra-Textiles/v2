@@ -56,6 +56,11 @@ export async function listOrdersAwaitingCount(
   )
   const orderIds = [...new Set(dispatches.map((d) => String(d.inventory_order_id)).filter(Boolean))]
   if (!orderIds.length) return []
+  // #2289 S3 — counted-short goods are not awaiting a count.
+  const shortfalls: any[] = await fulfilled.listInventoryShortfalls(
+    { inventory_order_id: orderIds },
+    { take: null }
+  )
 
   const { data: orders } = await query.graph({
     entity: "inventory_orders",
@@ -103,11 +108,12 @@ export async function listOrdersAwaitingCount(
     if (!order || order.status === "Cancelled") continue
     const rows = byOrder.get(String(order.id)) ?? []
     const dispatched = sumDispatchedByLine(rows)
+    const orderShortfalls = shortfalls.filter((r) => String(r.inventory_order_id) === String(order.id))
     const lines: AwaitingCountLine[] = asArray(order.orderlines)
       .filter(Boolean)
       .map((ol: any) => {
         const item = asArray(ol.inventory_items)[0] as any
-        return { ...lineLedger(ol, dispatched), title: item?.title ?? item?.sku ?? null }
+        return { ...lineLedger(ol, dispatched, orderShortfalls), title: item?.title ?? item?.sku ?? null }
       })
     const awaiting = lines.reduce((s, l) => s + l.awaiting_count, 0)
     if (awaiting <= AWAITING_TOLERANCE) continue

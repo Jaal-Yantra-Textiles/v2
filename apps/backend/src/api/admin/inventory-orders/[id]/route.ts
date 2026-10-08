@@ -169,19 +169,22 @@ export const GET = async(
     try {
       const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
       const fulfilled: any = req.scope.resolve(FULLFILLED_ORDERS_MODULE)
-      const [{ data }, dispatches] = await Promise.all([
+      const [{ data }, dispatches, shortfalls] = await Promise.all([
         query.graph({
           entity: "inventory_orders",
           fields: ["id", "orderlines.id", "orderlines.quantity", "orderlines.line_fulfillments.quantity_delta"],
           filters: { id },
         }),
         fulfilled.listInventoryDispatches({ inventory_order_id: id }, { take: null }),
+        fulfilled.listInventoryShortfalls({ inventory_order_id: id }, { take: null }),
       ])
       const dispatched = sumDispatchedByLine(dispatches)
+      // #2289 S3 — every shortfall on the order, open and resolved, for the record.
+      ;(inventoryOrder as any).shortfalls = shortfalls
       if (inventoryOrder) {
         ;(inventoryOrder as any).dispatch_ledger = ((data?.[0]?.orderlines ?? []) as any[])
           .filter(Boolean)
-          .map((ol) => lineLedger(ol, dispatched))
+          .map((ol) => lineLedger(ol, dispatched, shortfalls))
       }
     } catch {
       // the receipt section falls back to receipts only

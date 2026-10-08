@@ -654,7 +654,9 @@ setupSharedTestSuite(() => {
 
         const afterCount = await api.get(`/partners/inventory-orders/${inventoryOrderId}`, { headers: partnerHeaders })
         const short = (afterCount.data.inventoryOrder.order_lines as any[]).find((l: any) => l.id === lines[0].id)
-        expect(short.ledger.awaiting_count).toBe(1)
+        // #2289 S3 — the receiver counted it: 1 is SHORT, not awaiting a count.
+        expect(short.ledger.short).toBe(1)
+        expect(short.ledger.awaiting_count).toBe(0)
       })
 
       it("should create missing inventory levels at the destination when the goods are counted", async () => {

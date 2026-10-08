@@ -2099,6 +2099,27 @@
       "weight_grams"
     ]
   },
+  "InventoryShortfall (modules/fullfilled_orders/models/inventory_shortfall.ts)": {
+    "file": "modules/fullfilled_orders/models/inventory_shortfall.ts",
+    "fields": [
+      "counted_by",
+      "counted_by_partner_id",
+      "created_at",
+      "deleted_at",
+      "dispatched_quantity",
+      "id",
+      "inventory_order_id",
+      "inventory_order_line_id",
+      "metadata",
+      "quantity",
+      "received_quantity",
+      "resolution_note",
+      "resolved_at",
+      "status",
+      "task_id",
+      "updated_at"
+    ]
+  },
   "Investor (modules/investor/models/investor.ts)": {
     "file": "modules/investor/models/investor.ts",
     "fields": [

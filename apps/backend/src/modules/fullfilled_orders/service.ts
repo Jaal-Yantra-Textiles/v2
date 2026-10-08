@@ -2,6 +2,7 @@ import Line_fulfillment from "./models/line_fulfillment";
 import InventoryShipment from "./models/inventory_shipment";
 import GoodsTransfer from "./models/goods_transfer";
 import InventoryDispatch from "./models/inventory_dispatch";
+import InventoryShortfall from "./models/inventory_shortfall";
 import { MedusaService } from "@medusajs/framework/utils";
 
 class Fullfilled_ordersService extends MedusaService({
@@ -9,6 +10,7 @@ class Fullfilled_ordersService extends MedusaService({
   InventoryShipment,
   GoodsTransfer,
   InventoryDispatch,
+  InventoryShortfall,
 }) {
   constructor() {
     super(...arguments)

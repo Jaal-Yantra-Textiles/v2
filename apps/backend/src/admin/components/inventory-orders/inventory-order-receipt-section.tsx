@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 import { AdminInventoryOrder } from "../../hooks/api/inventory-orders";
 import { canReceiveFrom, toReceiptLineView } from "./receipt-helpers";
+import { InventoryOrderShortfalls } from "./inventory-order-shortfalls";
 
 /**
  * GOODS RECEIPT — the summary that did not exist (#2144).
@@ -90,6 +91,8 @@ export const InventoryOrderReceiptSection = ({
           </div>
         </div>
       )}
+
+      <InventoryOrderShortfalls inventoryOrder={inventoryOrder} />
 
       {/* 🔴 The sentence this whole screen exists to say. */}
       {inventoryOrder.status === "Delivered" && nothingCounted && (
