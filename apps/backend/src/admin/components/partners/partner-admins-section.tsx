@@ -247,7 +247,10 @@ export const PartnerAdminsSection = ({
             {count === 0 ? (
               <Table.Row>
                 <Table.Cell>
-                  <Text size="small" className="text-ui-fg-subtle">No admins added yet.</Text>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    No admins, so nobody can sign in to the partner portal. Add Admin
+                    invites someone (it emails them a login).
+                  </Text>
                 </Table.Cell>
                 <Table.Cell />
                 <Table.Cell />

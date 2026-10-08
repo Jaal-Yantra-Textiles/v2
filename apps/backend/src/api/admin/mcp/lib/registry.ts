@@ -4108,7 +4108,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "create_partner",
     description:
-      "Create a new partner (seller/manufacturer/individual/designer) with its primary admin user. Sensitive: requires confirm:true. Registers real auth credentials for the admin and emails them a temp password.",
+      "Create a new partner (seller/manufacturer/individual/designer). WITH `admin`: registers real auth credentials for that admin and EMAILS them a temp password. WITHOUT `admin`: creates the partner only, with no login and no email. Use that for a supplier we only buy from; add_partner_admin can invite someone to the portal later. Sensitive: requires confirm:true.",
     method: "POST",
     path: "/admin/partners",
     write: true,
@@ -4133,7 +4133,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         },
         admin: {
           type: "object",
-          description: "Primary admin data: { email, first_name, last_name (required), phone, role }.",
+          description: "Optional primary admin: { email, first_name, last_name (required), phone, role }. Sending it emails that address a temp password. Omit it for a partner nobody signs in to.",
           properties: {
             email: STR("Admin email (required)."),
             first_name: STR("Admin first name (required)."),
@@ -4144,9 +4144,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           required: ["email", "first_name", "last_name"],
         },
       },
-      ["partner", "admin"]
+      ["partner"]
     ),
-    sideEffects: "Creates the partner record, registers an auth identity for the admin, and emails a temp password.",
+    sideEffects: "Creates the partner record. Only when `admin` is sent: registers an auth identity for the admin and emails a temp password.",
     nextSteps: ["get_partner", "add_partner_admin"],
   },
   {

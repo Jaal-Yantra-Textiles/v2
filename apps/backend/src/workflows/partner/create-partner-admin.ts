@@ -94,7 +94,8 @@ export const derivePartnerHandle = (name: string): string => {
 const resolvePartnerIdentityStep = createStep(
     "resolve-partner-handle-and-validate-admin",
     async (
-        input: { name: string; handle?: string; admin_email: string },
+        // admin_email undefined = a partner created with no login (#2386).
+        input: { name: string; handle?: string; admin_email?: string },
         { container }
     ) => {
         const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
@@ -124,6 +125,10 @@ const resolvePartnerIdentityStep = createStep(
             if ((await partnerService.listPartners({ handle })).length) {
                 handle = `${base}-${Date.now().toString(36)}`
             }
+        }
+
+        if (input.admin_email === undefined) {
+            return new StepResponse({ handle })
         }
 
         const email = (input.admin_email ?? "").trim()
@@ -425,6 +430,56 @@ export const createPartnerAdminWithRegistrationWorkflow = createWorkflow(
             partnerWithAdmin,
             registered
         })
+    }
+)
+
+// ---- A partner with no login (#2386) ---------------------------------------
+//
+// A supplier we only BUY from (an online shop such as JHONEA Accessories) is a
+// partner so an inventory order can name it, but nobody there should sign in.
+// The two workflows above always create a partner_admin and an auth identity,
+// and the admin route then emails the temp password. Here there is no admin,
+// no auth identity, and nothing is sent. If the supplier later needs the
+// portal, "Add Admin" on the partner page (POST /admin/partners/:id/admins)
+// creates the login and emails it then.
+
+const createPartnerOnlyStep = createStep(
+    "create-partner-only-step",
+    async (partnerData: CreatePartnerAdminWorkflowInput["partner"], { container }) => {
+        const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
+        const createdPartner = await partnerService.createPartners(partnerData)
+        return new StepResponse(createdPartner, createdPartner.id)
+    },
+    async (partnerId, { container }) => {
+        if (!partnerId) return
+        const partnerService: PartnerService = container.resolve(PARTNER_MODULE)
+        await partnerService.deletePartners(partnerId)
+    }
+)
+
+export const createPartnerWithoutLoginWorkflow = createWorkflow(
+    "create-partner-without-login",
+    (input: { partner: CreatePartnerAdminWorkflowInput["partner"] }) => {
+        const identity = resolvePartnerIdentityStep({
+            name: input.partner.name,
+            handle: input.partner.handle,
+        })
+
+        const partnerData = transform({ input, identity }, ({ input, identity }) => ({
+            ...input.partner,
+            handle: identity.handle,
+        }))
+
+        const createdPartner = createPartnerOnlyStep(partnerData)
+
+        // Announced like every other partner, so regions propagate. #2062
+        emitPartnerCreatedStep(
+            transform({ createdPartner }, ({ createdPartner }) => ({
+                partner_id: (createdPartner as any).id,
+            }))
+        )
+
+        return new WorkflowResponse(createdPartner)
     }
 )
 

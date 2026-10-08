@@ -67,6 +67,41 @@ setupSharedTestSuite(({ api, getContainer }) => {
       expect(res.data.partner_admin.email).toBe(payload.admin.email)
     })
 
+    test("POST /admin/partners without an admin creates a partner nobody can sign in to (#2386)", async () => {
+      // A supplier we only buy from: no partner_admin row, no login, no email.
+      const unique = Date.now()
+      const res = await api.post(
+        "/admin/partners",
+        { partner: { name: `Jhonea Supplier ${unique}`, status: "active" } },
+        adminHeaders
+      )
+
+      expect(res.status).toBe(201)
+      expect(res.data.partner_admin).toBeNull()
+      expect(res.data.partner.handle).toBe(`partner_jhonea-supplier-${unique}`)
+      expect(res.data.partner.status).toBe("active")
+
+      const partnerId = res.data.partner.id
+      const listed = await api.get(`/admin/partners/${partnerId}/admins`, adminHeaders)
+      expect(listed.status).toBe(200)
+      expect(listed.data.admins).toHaveLength(0)
+
+      // The partner page still reads (it fetches admins.*).
+      const detail = await api.get(`/admin/partners/${partnerId}`, adminHeaders)
+      expect(detail.status).toBe(200)
+      expect(detail.data.partner.id).toBe(partnerId)
+
+      // Inviting later is the existing Add Admin route.
+      const invited = await api.post(
+        `/admin/partners/${partnerId}/admins`,
+        { email: `jhonea-invite-${unique}@jyt.test`, first_name: "Later", last_name: "Admin" },
+        adminHeaders
+      )
+      expect(invited.status).toBe(201)
+      const relisted = await api.get(`/admin/partners/${partnerId}/admins`, adminHeaders)
+      expect(relisted.data.admins).toHaveLength(1)
+    })
+
     test("POST /admin/partners without a handle derives partner_<name-slug>", async () => {
       // The MCP tool has always advertised "auto-derived if omitted"; until the
       // prod 500s of 2026-09-07 nothing derived it — the workflow passed
