@@ -1,3 +1,11 @@
+# [13.176.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.175.0...v13.176.0) (2026-10-08)
+
+
+### Features
+
+* **inbound-email:** a supplier's order update is logged on the inventory order ([#2389](https://github.com/Jaal-Yantra-Textiles/v2/issues/2389)) ([99c6769](https://github.com/Jaal-Yantra-Textiles/v2/commit/99c6769b8e3150eecb2305230ef87c5ecb9559f2))
+* **partners:** create a partner with no login — no admin, no email ([#2386](https://github.com/Jaal-Yantra-Textiles/v2/issues/2386)) ([#2387](https://github.com/Jaal-Yantra-Textiles/v2/issues/2387)) ([2ee2c20](https://github.com/Jaal-Yantra-Textiles/v2/commit/2ee2c2086b719af2640f7be41272cabd231eb0dd))
+
 # [13.175.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.174.1...v13.175.0) (2026-10-08)
 
 
