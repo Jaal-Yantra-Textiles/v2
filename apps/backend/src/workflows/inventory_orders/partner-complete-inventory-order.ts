@@ -275,9 +275,16 @@ const validateAndFetchOrderStep = createStep(
       )
     }
 
-    // Bug 2 fix: append to delivery history instead of overwriting
-    const existingDeliveryHistory = Array.isArray(order.metadata?.partner_delivery_history)
-      ? order.metadata.partner_delivery_history
+    // Bug 2 fix: append to history instead of overwriting.
+    //
+    // 🔴 #2289 — DISPATCH keys, never `partner_delivered_lines` /
+    // `partner_delivery_history`. Cancel's stock reversal and the admin Deliver
+    // remainder read `partner_delivered_lines` as goods RECEIVED (max with the
+    // typed rows). A dispatch written there made cancel reverse stock that was
+    // never posted — negative stock. The old keys keep only pre-#2289 data,
+    // which really was posted.
+    const existingDeliveryHistory = Array.isArray(order.metadata?.partner_dispatch_history)
+      ? order.metadata.partner_dispatch_history
       : []
     const deliveryEntry = {
       lines: input.lines,
@@ -298,8 +305,8 @@ const validateAndFetchOrderStep = createStep(
       partner_completion_notes: input.notes,
       partner_delivery_date: input.deliveryDate,
       partner_tracking_number: input.trackingNumber,
-      partner_delivered_lines: input.lines,
-      partner_delivery_history: [...existingDeliveryHistory, deliveryEntry],
+      partner_dispatched_lines: input.lines,
+      partner_dispatch_history: [...existingDeliveryHistory, deliveryEntry],
     }
 
     const response = { order, completionMetadata, fullyFulfilled, shortages }
