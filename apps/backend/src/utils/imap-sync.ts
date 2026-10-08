@@ -118,12 +118,19 @@ export class ImapSyncService {
     }
   }
 
-  async syncRecent(count: number = 50): Promise<ParsedEmail[]> {
+  /** The folders this service reads: IMAP_MAILBOX may list several,
+   *  comma-separated (a platform's own list lives in sync-imap-platforms). */
+  getMailboxes(): string[] {
+    const names = (this.config?.mailbox || "INBOX").split(",").map((m) => m.trim()).filter(Boolean)
+    return names.length ? names : ["INBOX"]
+  }
+
+  async syncRecent(count: number = 50, mailboxName?: string): Promise<ParsedEmail[]> {
     if (!this.client || !this.config) {
       throw new Error("IMAP client not connected")
     }
 
-    const mailbox = this.config.mailbox
+    const mailbox = mailboxName || this.config.mailbox
     const lock = await this.client.getMailboxLock(mailbox)
     const emails: ParsedEmail[] = []
 
