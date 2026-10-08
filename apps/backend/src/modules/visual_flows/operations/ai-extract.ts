@@ -187,11 +187,13 @@ export const aiExtractOperation: OperationDefinition = {
     // Resolve the model from the admin-configured platform for the role, else
     // free models. Folds the system prompt for OpenAI-compatible providers
     // (DashScope rejects the `developer` role @ai-sdk/openai emits — #752).
-    const resolved = await resolveRoleTextModel(
-      context.container as any,
-      role,
-      options.model || undefined
-    )
+    //
+    // The legacy `model` option is NOT passed on. It used to be, as an override
+    // of the platform's model, so a flow saved with an OpenRouter id months ago
+    // sent that id to whatever provider the role now uses. On 2026-10-08 the
+    // "Inbound Mail Order" flow died on `arcee-ai/trinity-large-preview:free`
+    // (model_not_found) for exactly that reason.
+    const resolved = await resolveRoleTextModel(context.container as any, role)
     const started = Date.now()
     try {
       const fields: SchemaField[] = options.schema_fields || []
