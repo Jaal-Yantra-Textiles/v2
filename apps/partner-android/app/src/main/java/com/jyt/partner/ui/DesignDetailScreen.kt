@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,8 +44,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import com.jyt.partner.api.PartnerApi
 import com.jyt.partner.models.ApiDate
@@ -72,7 +71,8 @@ fun DesignDetailScreen(
     var design by remember { mutableStateOf<DesignDetail?>(null) }
     var runs by remember { mutableStateOf<List<ProductionRun>>(emptyList()) }
     var boards by remember { mutableStateOf<MoodboardBoardsResponse?>(null) }
-    var openImage by remember { mutableStateOf<String?>(null) }
+    // Full-screen photos: the list being browsed + where it opened.
+    var viewer by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
     var loading by remember { mutableStateOf(true) }
     var pulling by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
@@ -98,25 +98,8 @@ fun DesignDetailScreen(
 
     LaunchedEffect(Unit) { load() }
 
-    openImage?.let { url ->
-        Dialog(
-            onDismissRequest = { openImage = null },
-            properties = DialogProperties(usePlatformDefaultWidth = false),
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .clickable { openImage = null },
-            ) {
-                AsyncImage(
-                    model = url,
-                    contentDescription = "Moodboard image",
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
+    viewer?.let { (urls, index) ->
+        ImageViewer(urls = urls, startIndex = index, onDismiss = { viewer = null })
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -199,14 +182,12 @@ fun DesignDetailScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                         } else {
+                            val urls = files.map { it.url }
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(files, key = { it.url }) { file ->
-                                    AsyncImage(
-                                        model = file.url,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.size(96.dp).clip(RoundedCornerShape(10.dp)),
-                                    )
+                                itemsIndexed(files, key = { _, f -> f.url }) { i, file ->
+                                    MediaThumb(file.url, size = 96.dp, corner = 10.dp) {
+                                        viewer = urls to i
+                                    }
                                 }
                             }
                         }
@@ -214,16 +195,16 @@ fun DesignDetailScreen(
                 }
 
                 // Moodboard images from every board this partner can see (#2017),
-                // two per row at the photos' own 2:3 shape; tap one to see it whole.
+                // two per row at the photos' own 2:3 shape; tap one to zoom and swipe through.
                 MoodboardBoardsResponse.images(boards, current.moodboard)
                     .takeIf { it.isNotEmpty() }
                     ?.let { images ->
                         item {
                             SectionCard("Moodboard") {
                                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    images.chunked(2).forEach { pair ->
+                                    images.chunked(2).forEachIndexed { row, pair ->
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            pair.forEach { url ->
+                                            pair.forEachIndexed { col, url ->
                                                 AsyncImage(
                                                     model = url,
                                                     contentDescription = "Moodboard image",
@@ -232,7 +213,7 @@ fun DesignDetailScreen(
                                                         .weight(1f)
                                                         .aspectRatio(2f / 3f)
                                                         .clip(RoundedCornerShape(10.dp))
-                                                        .clickable { openImage = url },
+                                                        .clickable { viewer = images to row * 2 + col },
                                                 )
                                             }
                                             if (pair.size == 1) Spacer(Modifier.weight(1f))

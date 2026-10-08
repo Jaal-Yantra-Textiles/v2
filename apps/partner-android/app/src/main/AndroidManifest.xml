@@ -26,6 +26,19 @@
             </intent-filter>
         </activity>
 
+        <!-- Camera uploads: the camera app writes the photo into our cache
+             through this. No CAMERA permission on purpose — ACTION_IMAGE_CAPTURE
+             works without one, and declaring it would force a runtime prompt. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <!-- Background pushes (FCM posts them itself) use our channel and icon. -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"

@@ -1,8 +1,5 @@
 package com.jyt.partner.ui
 
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +13,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -44,6 +42,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +62,7 @@ import com.jyt.partner.models.ProductionRun
 import com.jyt.partner.models.resolveDesignId
 import com.jyt.partner.models.RunTask
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.async
@@ -112,7 +113,7 @@ fun OrderDetailScreen(
     var paymentPromptRuns by remember { mutableStateOf<List<String>>(emptyList()) }
     var confirmAction by remember { mutableStateOf<Pair<RunAction, List<ProductionRun>>?>(null) }
     var showBulkSheet by remember { mutableStateOf(false) }
-    var uploadTargetRunId by remember { mutableStateOf<String?>(null) }
+    var uploadTargetRunId by rememberSaveable { mutableStateOf<String?>(null) }
 
     suspend fun load() = coroutineScope {
         loading = detail == null
@@ -207,52 +208,77 @@ fun OrderDetailScreen(
         }
     }
 
-    // Photo picker — the library path (the camera path stays on iOS parity
-    // TODO until the device test pass).
-    val mediaPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        val targetRun = runs.firstOrNull { it.id == uploadTargetRunId } ?: activeRun
+    // Camera or gallery → one upload. The picked file waits here (saveable:
+    // the camera can outlive this process) until the order has loaded, so a
+    // photo taken just before Android killed the app still finds its run.
+    var pendingUpload by rememberSaveable { mutableStateOf<String?>(null) }
+    var showMediaSource by remember { mutableStateOf(false) }
+    val mediaCapture = rememberMediaCapture(
+        onMedia = { pendingUpload = it.toString() },
+        onError = { actionError = it },
+    )
+
+    suspend fun upload(uri: android.net.Uri) {
+        // Read runs fresh, not activeRun: this runs from a long-lived collector.
+        val targetRun = runs.firstOrNull { it.id == uploadTargetRunId } ?: runs.firstOrNull { it.isOpen() }
         uploadTargetRunId = null
-        if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
-            // Guard BEFORE flipping the spinner — a completed run means
-            // there is no upload target, and a stuck "Uploading…" is worse
-            // than a clear refusal (mirrors the iOS upload() guard).
-            if (targetRun == null) {
-                actionError = "This order has no production run to attach media to."
-                return@launch
-            }
-            uploading = true
-            try {
-                val api = PartnerApi.get(context)
-                val resolver = context.contentResolver
-                val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return@launch
-                val mime = resolver.getType(uri) ?: "image/jpeg"
-                val name = resolver.query(uri, null, null, null, null)?.use { c ->
-                    c.moveToFirst()
-                    c.getString(c.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
-                } ?: "upload.jpg"
-                val files = api.uploadRunMedia(
-                    targetRun.id,
-                    listOf(PartnerApi.MediaPart(name, mime, bytes)),
-                )
-                api.attachRunMedia(targetRun.id, files)
-                // Refresh the design the photo went to.
-                targetRun.designId?.let { id ->
-                    runCatching { api.design(id) }.getOrNull()?.let { designsById = designsById + (id to it) }
-                }
-            } catch (e: Exception) {
-                actionError = e.message
-            } finally {
-                uploading = false
-            }
+        // Guard BEFORE flipping the spinner — a completed run means
+        // there is no upload target, and a stuck "Uploading…" is worse
+        // than a clear refusal (mirrors the iOS upload() guard).
+        if (targetRun == null) {
+            actionError = "This order has no production run to attach media to."
+            return
         }
+        uploading = true
+        try {
+            val api = PartnerApi.get(context)
+            val resolver = context.contentResolver
+            val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return
+            val mime = resolver.getType(uri) ?: "image/jpeg"
+            val name = resolver.query(uri, null, null, null, null)?.use { c ->
+                c.moveToFirst()
+                c.getString(c.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
+            } ?: "upload.jpg"
+            val files = api.uploadRunMedia(
+                targetRun.id,
+                listOf(PartnerApi.MediaPart(name, mime, bytes)),
+            )
+            api.attachRunMedia(targetRun.id, files)
+            // Refresh the design the photo went to.
+            targetRun.designId?.let { id ->
+                runCatching { api.design(id) }.getOrNull()?.let { designsById = designsById + (id to it) }
+            }
+        } catch (e: Exception) {
+            actionError = e.message
+        } finally {
+            uploading = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        // A collector, not LaunchedEffect(pendingUpload): clearing the key
+        // would cancel the very upload it started.
+        snapshotFlow { pendingUpload.takeIf { detail != null } }
+            .filterNotNull()
+            .collect { uri ->
+                pendingUpload = null
+                upload(android.net.Uri.parse(uri))
+            }
     }
 
     fun pickMedia(forRun: ProductionRun?) {
         uploadTargetRunId = forRun?.id
-        mediaPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+        showMediaSource = true
+    }
+
+    if (showMediaSource) {
+        MediaSourceSheet(capture = mediaCapture, onDismiss = { showMediaSource = false })
+    }
+
+    // Full-screen photos: the list being browsed + where it opened.
+    var viewer by remember { mutableStateOf<Pair<List<String>, Int>?>(null) }
+    viewer?.let { (urls, index) ->
+        ImageViewer(urls = urls, startIndex = index, onDismiss = { viewer = null })
     }
 
     val current = detail
@@ -419,6 +445,7 @@ fun OrderDetailScreen(
                                 }
                             },
                             onUpload = { pickMedia(run) },
+                            onOpenMedia = { urls, i -> viewer = urls to i },
                         )
                     }
                 } else {
@@ -485,14 +512,12 @@ fun OrderDetailScreen(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             } else {
+                                val urls = files.map { it.url }
                                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    items(files, key = { it.url }) { file ->
-                                        AsyncImage(
-                                            model = file.url,
-                                            contentDescription = null,
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.size(96.dp).clip(RoundedCornerShape(10.dp)),
-                                        )
+                                    itemsIndexed(files, key = { _, f -> f.url }) { i, file ->
+                                        MediaThumb(file.url, size = 96.dp, corner = 10.dp) {
+                                            viewer = urls to i
+                                        }
                                     }
                                 }
                             }
@@ -718,6 +743,7 @@ private fun DesignRunCard(
     onOpenDesign: () -> Unit,
     onAction: (RunAction) -> Unit,
     onUpload: () -> Unit,
+    onOpenMedia: (List<String>, Int) -> Unit,
 ) {
     val action = nextRunAction(run)
     Card(
@@ -747,14 +773,10 @@ private fun DesignRunCard(
                 RunStatusBadge(run.status ?: "")
             }
             design?.mediaFiles?.takeIf { it.isNotEmpty() }?.let { files ->
+                val urls = files.map { it.url }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(files.take(8), key = { it.url }) { file ->
-                        AsyncImage(
-                            model = file.url,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
-                        )
+                    itemsIndexed(files.take(8), key = { _, f -> f.url }) { i, file ->
+                        MediaThumb(file.url, size = 56.dp, corner = 8.dp) { onOpenMedia(urls, i) }
                     }
                 }
             }
