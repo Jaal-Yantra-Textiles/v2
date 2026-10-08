@@ -15,7 +15,10 @@ export const PostPartnerSchema = z.object({
     last_name: z.string().min(1),
     phone: z.string().optional(),
     role: z.enum(["owner", "admin", "manager"]).optional().default("owner"),
-  }),
+  })
+    // Omitted = a partner nobody signs in to (a supplier we only buy from):
+    // no admin, no auth identity, no email. #2386
+    .optional(),
   auth_identity_id: z.string().optional(),
 })
 

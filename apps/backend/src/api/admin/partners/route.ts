@@ -156,7 +156,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { listPartnersWorkflow } from "../../../workflows/partners/list-partners"
 import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
-import { createPartnerAdminWithRegistrationWorkflow } from "../../../workflows/partner/create-partner-admin"
+import {
+  createPartnerAdminWithRegistrationWorkflow,
+  createPartnerWithoutLoginWorkflow,
+} from "../../../workflows/partner/create-partner-admin"
 import { buildQSearchFilter } from "../../../lib/list-search-filters"
 import { PostPartnerWithAdminSchema } from "./validators"
 
@@ -232,6 +235,14 @@ export const POST = async (
 ) => {
   const { partner: partnerInput, admin: adminInput } = req.validatedBody
 
+  // No admin = no login: nothing is registered and nobody is emailed. #2386
+  if (!adminInput) {
+    const { result: partner } = await createPartnerWithoutLoginWorkflow(req.scope).run({
+      input: { partner: partnerInput },
+    })
+    return res.status(201).json({ partner, partner_admin: null })
+  }
+
   // Use internal workflow that registers auth identity and links it
   const { result, errors } = await createPartnerAdminWithRegistrationWorkflow(req.scope).run({
     input: {
@@ -255,7 +266,11 @@ export const POST = async (
   // Emit partner.created.fromAdmin with the workflow-provided temp password
   const eventService = req.scope.resolve(Modules.EVENT_BUS)
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
-  logger.info(`Emitting partner.created.fromAdmin event ${JSON.stringify(payload)}`)
+  // Ids only: the payload carries the plain temp password. #2386
+  logger.info(
+    `Emitting partner.created.fromAdmin event partner=${payload.partnerWithAdmin.createdPartner.id} ` +
+      `admin=${payload.partnerWithAdmin.partnerAdmin.id}`
+  )
   eventService.emit({
     name: "partner.created.fromAdmin",
     data: {
