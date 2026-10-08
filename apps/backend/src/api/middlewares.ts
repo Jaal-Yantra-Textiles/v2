@@ -4846,6 +4846,11 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      matcher: "/admin/inbound-emails/folders",
+      method: "GET",
+      middlewares: [],
+    },
+    {
       matcher: "/admin/inbound-emails/setup-resend-webhook",
       method: "POST",
       middlewares: [],

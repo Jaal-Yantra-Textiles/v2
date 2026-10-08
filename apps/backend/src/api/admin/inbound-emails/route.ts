@@ -10,7 +10,8 @@ export const GET = async (
   const service = req.scope.resolve(INBOUND_EMAIL_MODULE) as any
 
   const filters: Record<string, any> = {}
-  if (query.status) filters.status = query.status
+  if (query.status === "open") filters.status = ["received", "action_pending"]
+  else if (query.status) filters.status = query.status
   if (query.from_address) filters.from_address = query.from_address
   if (query.folder) filters.folder = query.folder
 

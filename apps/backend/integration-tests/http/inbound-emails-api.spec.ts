@@ -891,4 +891,32 @@ setupSharedTestSuite(() => {
       expect(res.status).toBe(404)
     })
   })
+  // ─── #2377 S2: the Inbox folder rail and "to do" filter ────────────────────
+
+  describe("Inbox folders and open filter (#2377 S2)", () => {
+    it("lists folders with totals and how many still need someone", async () => {
+      await createTestEmail({ folder: "JYT_INBOUND_ORDERS", status: "received" })
+      await createTestEmail({ folder: "JYT_INBOUND_ORDERS", status: "processed" })
+      await createTestEmail({ folder: "CRM", status: "action_pending" })
+      await createTestEmail({ folder: "CRM", status: "ignored" })
+
+      const res = await api.get("/admin/inbound-emails/folders", headers)
+      expect(res.status).toBe(200)
+      expect(res.data.folders).toEqual([
+        { folder: "CRM", total: 2, open: 1 },
+        { folder: "JYT_INBOUND_ORDERS", total: 2, open: 1 },
+      ])
+    })
+
+    it("status=open returns received and action_pending only", async () => {
+      await createTestEmail({ subject: "new one", status: "received" })
+      await createTestEmail({ subject: "half done", status: "action_pending" })
+      await createTestEmail({ subject: "finished", status: "processed" })
+      await createTestEmail({ subject: "noise", status: "ignored" })
+
+      const res = await api.get("/admin/inbound-emails?status=open", headers)
+      expect(res.status).toBe(200)
+      expect(res.data.inbound_emails.map((e: any) => e.subject).sort()).toEqual(["half done", "new one"])
+    })
+  })
 })

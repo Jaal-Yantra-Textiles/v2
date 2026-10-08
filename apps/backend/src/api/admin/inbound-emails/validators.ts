@@ -10,7 +10,8 @@ export const listInboundEmailsQuerySchema = z.object({
     z.number().int().min(0).default(0)
   ),
   q: z.string().optional(),
-  status: z.enum(["received", "action_pending", "processed", "ignored"]).optional(),
+  // "open" = still needs someone: received or action_pending (#2377 Inbox).
+  status: z.enum(["received", "action_pending", "processed", "ignored", "open"]).optional(),
   from_address: z.string().optional(),
   folder: z.string().optional(),
 })

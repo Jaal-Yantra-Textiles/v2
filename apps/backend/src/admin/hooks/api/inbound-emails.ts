@@ -30,6 +30,16 @@ export interface AdminInboundEmail {
   metadata: Record<string, any> | null
   created_at: string
   updated_at: string
+  /** Detail only (#2377): the body as readable text, and the orders it became. */
+  body_text?: string
+  inventory_order_ids?: string[]
+}
+
+export interface InboundEmailFolder {
+  folder: string
+  total: number
+  /** Still needs someone: received or action_pending. */
+  open: number
 }
 
 export interface AdminInboundEmailsResponse {
@@ -99,6 +109,23 @@ export const useInboundEmails = (
         query,
       }),
     queryKey: inboundEmailQueryKeys.list(query),
+    ...options,
+  })
+  return { ...data, ...rest }
+}
+
+export const useInboundEmailFolders = (
+  options?: Omit<
+    UseQueryOptions<{ folders: InboundEmailFolder[] }, FetchError, { folders: InboundEmailFolder[] }, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [INBOUND_EMAILS_QUERY_KEY, "folders"],
+    queryFn: async () =>
+      sdk.client.fetch<{ folders: InboundEmailFolder[] }>(`/admin/inbound-emails/folders`, {
+        method: "GET",
+      }),
     ...options,
   })
   return { ...data, ...rest }
