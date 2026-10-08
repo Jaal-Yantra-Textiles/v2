@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { ArrowPath, Envelope, Folder, MagnifyingGlassMini, Sparkles } from "@medusajs/icons"
+import { ArrowPath, CogSixTooth, Envelope, Folder, MagnifyingGlassMini, Sparkles } from "@medusajs/icons"
 import { Badge, Button, Container, Heading, Input, Text, toast } from "@medusajs/ui"
 import { useQueryClient } from "@tanstack/react-query"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
@@ -13,6 +13,7 @@ import {
   useInboundEmails,
   useSyncInboundEmails,
 } from "../../hooks/api/inbound-emails"
+import { FoldersDrawer } from "./components/folders-drawer"
 
 /**
  * #2377 S2 — the Inbox. Every email that reached our iCloud mailboxes (all
@@ -69,6 +70,7 @@ const InboxPage = () => {
   const selectedId = searchParams.get("id") ?? ""
   const [search, setSearch] = useState("")
   const [q, setQ] = useState("")
+  const [foldersOpen, setFoldersOpen] = useState(false)
 
   // Search as you stop typing, not on every key.
   useEffect(() => {
@@ -146,7 +148,16 @@ const InboxPage = () => {
               onClick={() => setParam("folder", f.folder)}
             />
           ))}
+          <Button
+            size="small"
+            variant="transparent"
+            className="text-ui-fg-subtle mt-2 w-full justify-start"
+            onClick={() => setFoldersOpen(true)}
+          >
+            <CogSixTooth /> Choose folders
+          </Button>
         </nav>
+        <FoldersDrawer open={foldersOpen} onOpenChange={setFoldersOpen} />
 
         {/* List */}
         <section className="border-ui-border-base flex w-[380px] shrink-0 flex-col border-r">

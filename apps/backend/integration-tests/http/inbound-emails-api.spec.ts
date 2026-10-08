@@ -919,4 +919,71 @@ setupSharedTestSuite(() => {
       expect(res.data.inbound_emails.map((e: any) => e.subject).sort()).toEqual(["half done", "new one"])
     })
   })
+  // ─── #2377: choose the folders the Inbox reads ────────────────────────────
+
+  describe("Inbox folder choice (#2377)", () => {
+    const createImapPlatform = async () => {
+      const socials = getContainer().resolve("socials") as any
+      return socials.createSocialPlatforms({
+        name: "Test iCloud",
+        category: "email",
+        auth_type: "basic",
+        status: "active",
+        api_config: {
+          provider: "imap",
+          host: "imap.example.test",
+          port: 993,
+          user: "someone@example.test",
+          password: "s3cret",
+          tls: true,
+          mailbox: "JYT_INBOUND_ORDERS",
+        },
+      })
+    }
+
+    it("saves the chosen folders and keeps the account's other settings", async () => {
+      const platform = await createImapPlatform()
+      const res = await api.post(
+        "/admin/inbound-emails/mailboxes",
+        { mailboxes: ["JYT_INBOUND_ORDERS", "CRM", "CRM", " Partner "] },
+        headers
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.mailboxes).toEqual(["JYT_INBOUND_ORDERS", "CRM", "Partner"])
+
+      const socials = getContainer().resolve("socials") as any
+      const [saved] = await socials.listSocialPlatforms({ id: platform.id })
+      expect(saved.api_config).toMatchObject({
+        provider: "imap",
+        host: "imap.example.test",
+        user: "someone@example.test",
+        password: "s3cret",
+        mailboxes: ["JYT_INBOUND_ORDERS", "CRM", "Partner"],
+      })
+    })
+
+    it("refuses an empty choice", async () => {
+      await createImapPlatform()
+      const res = await api
+        .post("/admin/inbound-emails/mailboxes", { mailboxes: [] }, headers)
+        .catch((err) => err.response)
+      expect(res.status).toBe(400)
+    })
+
+    it("says so when no email account is connected", async () => {
+      const res = await api
+        .post("/admin/inbound-emails/mailboxes", { mailboxes: ["CRM"] }, headers)
+        .catch((err) => err.response)
+      expect(res.status).toBe(400)
+      expect(res.data.message).toMatch(/No IMAP email account/)
+    })
+
+    it("refuses a folder name that would nest or wildcard", async () => {
+      await createImapPlatform()
+      const res = await api
+        .post("/admin/inbound-emails/mailboxes/create", { name: "a/b" }, headers)
+        .catch((err) => err.response)
+      expect(res.status).toBe(400)
+    })
+  })
 })

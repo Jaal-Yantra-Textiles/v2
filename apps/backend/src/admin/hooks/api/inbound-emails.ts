@@ -246,3 +246,74 @@ export const useIgnoreInboundEmail = (
     },
   })
 }
+
+// ─── #2377: which account folders the Inbox reads ───────────────────────────
+
+export interface InboundMailbox {
+  path: string
+  name: string
+  special_use: string | null
+  selectable: boolean
+  reading: boolean
+  /** Set to be read but no longer on the account (renamed or deleted in iCloud). */
+  missing?: boolean
+}
+
+export interface InboundMailboxesResponse {
+  platform: { id: string; name: string }
+  mailboxes: InboundMailbox[]
+}
+
+export const useInboundMailboxes = (
+  options?: Omit<
+    UseQueryOptions<InboundMailboxesResponse, FetchError, InboundMailboxesResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [INBOUND_EMAILS_QUERY_KEY, "mailboxes"],
+    queryFn: async () =>
+      sdk.client.fetch<InboundMailboxesResponse>(`/admin/inbound-emails/mailboxes`, { method: "GET" }),
+    // Live from iCloud: a slow call, and the list rarely changes.
+    staleTime: 60_000,
+    retry: false,
+    ...options,
+  })
+  return { ...data, ...rest }
+}
+
+export const useSetInboundMailboxes = (
+  options?: UseMutationOptions<{ mailboxes: string[] }, FetchError, { mailboxes: string[] }>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { mailboxes: string[] }) =>
+      sdk.client.fetch<{ mailboxes: string[] }>(`/admin/inbound-emails/mailboxes`, {
+        method: "POST",
+        body: payload,
+      }),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: [INBOUND_EMAILS_QUERY_KEY, "mailboxes"] })
+      options?.onSuccess?.(...args)
+    },
+  })
+}
+
+export const useCreateInboundMailbox = (
+  options?: UseMutationOptions<{ path: string; reading: boolean }, FetchError, { name: string; read?: boolean }>
+) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (payload: { name: string; read?: boolean }) =>
+      sdk.client.fetch<{ path: string; reading: boolean }>(`/admin/inbound-emails/mailboxes/create`, {
+        method: "POST",
+        body: payload,
+      }),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: [INBOUND_EMAILS_QUERY_KEY, "mailboxes"] })
+      options?.onSuccess?.(...args)
+    },
+  })
+}

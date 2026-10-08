@@ -13,6 +13,15 @@ export interface ParsedEmail {
   folder: string
 }
 
+export interface ImapMailboxInfo {
+  path: string
+  name: string
+  /** \\Inbox, \\Sent, \\Trash, \\Junk, \\Drafts, \\Archive — null for a folder of ours. */
+  special_use: string | null
+  /** False for a \\Noselect container that holds folders but no mail. */
+  selectable: boolean
+}
+
 export interface ImapSyncConfig {
   host: string
   port: number
@@ -104,6 +113,25 @@ export class ImapSyncService {
 
     await this.client.connect()
     console.log("[IMAP] Connected to", this.config.host)
+  }
+
+  /** Every folder on the account (#2377: the Inbox folder picker). */
+  async listMailboxes(): Promise<ImapMailboxInfo[]> {
+    if (!this.client) throw new Error("IMAP client not connected")
+    const list = await this.client.list()
+    return list.map((m: any) => ({
+      path: m.path,
+      name: m.name,
+      special_use: m.specialUse ?? null,
+      selectable: !(m.flags instanceof Set ? m.flags.has("\\Noselect") : false),
+    }))
+  }
+
+  /** Create a folder on the account; resolves to its path. */
+  async createMailbox(path: string): Promise<string> {
+    if (!this.client) throw new Error("IMAP client not connected")
+    const created = await this.client.mailboxCreate(path)
+    return created?.path ?? path
   }
 
   async disconnect(): Promise<void> {
