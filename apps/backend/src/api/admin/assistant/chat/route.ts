@@ -60,6 +60,7 @@ import {
   buildRunPlanTool,
 } from "../../../../lib/assistant-context"
 import { normaliseUiMessages } from "../../../../lib/assistant-messages"
+import { keepStreamAlive } from "../../../../lib/ai/stream-keepalive"
 import type { AdminAssistantChatReq } from "./validators"
 
 const FEATURE = "admin/assistant/chat"
@@ -496,4 +497,7 @@ export const POST = async (
   }
 
   result.pipeUIMessageStreamToResponse(res as any)
+  // A long tool-using turn can go >60 s without a byte; the load balancer
+  // would cut it and the browser show "Couldn't reach the server".
+  keepStreamAlive(res as any)
 }
