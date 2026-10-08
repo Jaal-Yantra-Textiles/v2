@@ -16,6 +16,7 @@ import { PARTNER_MODULE } from "../../modules/partner"
 import { reassignProductionRunWorkflow } from "./reassign-production-run"
 import { acceptProductionRunWorkflow } from "./accept-production-run"
 import { loadReminderState, persistReminderState } from "./reminder-state"
+import { reminderPauseOf } from "./lib/reminder-pause"
 
 export type { ReminderState } from "./reminder-state"
 export { resolveReminderState } from "./reminder-state"
@@ -281,6 +282,17 @@ const processReminderStep = createStep(
         event: eventName,
         reminder_count: 0,
         reason: "run_not_found",
+      })
+    }
+
+    // An admin paused this run's reminders (reminder-pause.ts): no reminder,
+    // no cap re-send, no reassignment, and the counter is left as it is.
+    if (reminderPauseOf(run)) {
+      return new StepResponse<EmitStepResult>({
+        action: "skipped",
+        event: eventName,
+        reminder_count: run.reminder_count ?? 0,
+        reason: "reminders_paused",
       })
     }
 

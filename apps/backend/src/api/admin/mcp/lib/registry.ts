@@ -8325,6 +8325,31 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
 
   // ---- Production ops: the note on a run's timeline ----------------------
   {
+    name: "pause_production_run_reminders",
+    description:
+      "Pause or resume the daily partner reminders on ONE production run. Write; sensitive: requires confirm:true. " +
+      "A paused run gets no reminder, no re-send at the reminder cap and no reassignment from the reminder flow until resumed; nothing else about the run changes and the partner is not told. " +
+      "Use it when a run was sent but must WAIT (e.g. a stage order was reversed after dispatch) and a reminder would tell the partner to start. " +
+      "The pause holds until resumed (paused:false). It is recorded on the run's timeline; get_production_run shows it in metadata.reminders_paused.",
+    method: "POST",
+    path: "/admin/production-runs/:id/reminders",
+    pathParams: ["id"],
+    previewPath: "/admin/production-runs/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["paused", "reason"],
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        paused: BOOL("true to pause the reminders, false to resume them."),
+        reason: STR("Why (shown on the run's timeline)."),
+      },
+      ["id", "paused"]
+    ),
+    sideEffects: "Sets or clears metadata.reminders_paused and writes one timeline note. Sends nothing.",
+    nextSteps: ["list_production_run_activities"],
+  },
+  {
     name: "add_production_run_activity_note",
     description:
       "Append a free-form note to a production run's activity timeline — designed for logging what a partner actually said in WhatsApp against the run it concerns. Sensitive: requires confirm:true. `summary` is required; pass `message_id` when the note came from a real WhatsApp message (it is stamped channel=whatsapp so the timeline can tell messages-originated notes from admin-typed ones).",
