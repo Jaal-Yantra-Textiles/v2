@@ -120,12 +120,16 @@ import { z } from "@medusajs/framework/zod";
 import { sendTestBlogEmailWorkflow } from "../../../../../../../../workflows/blogs/send-blog-subscribers";
 import { WEBSITE_MODULE } from "../../../../../../../../modules/website";
 import WebsiteService from "../../../../../../../../modules/website/service";
+import { PERSON_MODULE } from "../../../../../../../../modules/person";
 
 // Define the validation schema for the request body
 export const TestBlogEmailSchema = z.object({
   email: z.string().email("Invalid email address"),
   subject: z.string().optional(),
   customMessage: z.string().optional(),
+  // Send to a real reader by hand (they missed the broadcast): greet them by
+  // name and give them their own unsubscribe link. `email` must be theirs.
+  person_id: z.string().optional(),
 });
 
 export type TestBlogEmailRequest = z.infer<typeof TestBlogEmailSchema>;
@@ -142,7 +146,7 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const { id: websiteId, pageId } = req.params;
-  const { email, subject, customMessage } = req.validatedBody || {};
+  const { email, subject, customMessage, person_id } = req.validatedBody || {};
   
   try {
     // Get the website service to verify the page exists
@@ -172,6 +176,27 @@ export const POST = async (
     // Sending to subscribers still requires Published.
 
     // Start the workflow to send a test email
+    let recipient: { id: string; first_name?: string | null; last_name?: string | null } | undefined
+    if (person_id) {
+      const persons = req.scope.resolve(PERSON_MODULE) as any
+      const person = await persons.retrievePerson(person_id).catch(() => null)
+      if (!person) {
+        return res.status(404).json({ message: `Person ${person_id} not found` })
+      }
+      if (String(person.email || "").trim().toLowerCase() !== String(email).trim().toLowerCase()) {
+        return res.status(400).json({
+          message: "That email is not this person's",
+          error: `person ${person_id} has email ${person.email ?? "(none)"}`,
+        })
+      }
+      if (person.metadata?.unsubscribed || person.metadata?.bounced) {
+        return res.status(400).json({
+          message: "This person unsubscribed or bounced; don't send them the newsletter",
+        })
+      }
+      recipient = { id: person.id, first_name: person.first_name, last_name: person.last_name }
+    }
+
     const { result } = await sendTestBlogEmailWorkflow(req.scope)
       .run({
         input: {
@@ -179,6 +204,7 @@ export const POST = async (
           test_email: email, // This is the correct parameter name expected by the workflow
           subject: subject || `New Blog: ${page.title}`,
           customMessage: customMessage || "",
+          recipient,
         },
       });
     

@@ -64,7 +64,8 @@ export const sendTestBlogEmailWorkflow = createWorkflow(
         email: data.input.test_email,
         blogData: data.blogData,
         subject: data.input.subject || `New Blog: ${data.blogData?.title || 'Blog Post'}`,
-        customMessage: data.input.customMessage
+        customMessage: data.input.customMessage,
+        recipient: data.input.recipient,
       }
     })
     

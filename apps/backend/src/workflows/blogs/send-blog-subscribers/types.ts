@@ -32,6 +32,10 @@ export interface TestBlogEmailInput {
   test_email: string
   subject: string
   customMessage?: string
+  /** A real reader to send the post to by hand (a catch-up for someone who
+   *  missed the broadcast): greeted by name, with their own unsubscribe link.
+   *  Without it the send is a preview to "Test User". */
+  recipient?: { id: string; first_name?: string | null; last_name?: string | null }
 }
 
 /**
