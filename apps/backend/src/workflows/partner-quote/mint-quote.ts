@@ -126,6 +126,8 @@ export type MintQuoteInput = {
    * `0` is a real answer and is NOT treated as absent.
    */
   deposit_pct?: number | null
+  /** What makes the balance due. Null/omitted means `dispatch`. */
+  balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
   created_by?: string | null
   /** Injected so the whole mint is deterministic under test. */
   now?: Date
@@ -989,6 +991,7 @@ const persistQuoteStep = createStep(
         input.mint.deposit_pct === null || input.mint.deposit_pct === undefined
           ? null
           : Number(input.mint.deposit_pct),
+      balance_trigger: input.mint.balance_trigger ?? null,
       token_hash: hash,
       status: "active",
       expires_at: new Date(input.expires_at),

@@ -706,6 +706,7 @@ const openPaymentScheduleStep = createStep(
       // in all but name and an operator settles it against an invoice.
       rail: String(input.currency_code).toLowerCase() === "inr" ? "payu" : "stripe",
       quote_deposit_pct: input.quote.deposit_pct ?? null,
+      balance_trigger: input.quote.balance_trigger ?? null,
       metadata:
         input.tax_divergence !== null
           ? { tax_divergence: input.tax_divergence, tax_divergence_allowed: true }

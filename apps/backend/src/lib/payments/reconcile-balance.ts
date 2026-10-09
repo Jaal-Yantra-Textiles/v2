@@ -41,6 +41,23 @@ export type BalanceReconciliation = {
   reason: string
 }
 
+/**
+ * The order's OUTSTANDING balance collection: not `completed` (the deposit's
+ * is), preferring the one whose amount matches the balance to the cent.
+ * Shared by the reconcile sweep and the PayU balance webhook so the two can
+ * never pick different collections.
+ */
+export const pickOutstandingBalanceCollection = (
+  collections: any[],
+  expected: number
+): any | undefined =>
+  collections.find(
+    (c) =>
+      c?.status !== "completed" &&
+      Number.isFinite(Number(c?.amount)) &&
+      Math.round(Number(c.amount) * 100) === Math.round(expected * 100)
+  ) ?? collections.find((c) => c?.status !== "completed")
+
 export async function reconcileBalanceForSchedule(
   container: any,
   scheduleId: string
@@ -113,13 +130,7 @@ export async function reconcileBalanceForSchedule(
    * collections could in principle share a status — and matching on money is
    * what makes "this is the balance" defensible.
    */
-  const candidate =
-    collections.find(
-      (c) =>
-        c?.status !== "completed" &&
-        Number.isFinite(Number(c?.amount)) &&
-        Math.round(Number(c.amount) * 100) === Math.round(expected * 100)
-    ) ?? collections.find((c) => c?.status !== "completed")
+  const candidate = pickOutstandingBalanceCollection(collections, expected)
 
   if (!candidate) {
     return {

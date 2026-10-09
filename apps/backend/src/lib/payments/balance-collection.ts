@@ -306,3 +306,12 @@ export const settleBalance = (
     reason: "Nothing has been captured against the balance yet.",
   }
 }
+
+/**
+ * Does a shipment make this schedule's balance due? Only when its trigger is
+ * `dispatch`. A missing trigger is a row written before the column existed,
+ * and those were all dispatch-triggered.
+ */
+export const raisesBalanceOnDispatch = (schedule: {
+  balance_trigger?: string | null
+}): boolean => (schedule.balance_trigger ?? "dispatch") === "dispatch"

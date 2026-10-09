@@ -18,6 +18,7 @@ import {
 } from "../payment-link/lib"
 import { completeCartFromExternalPayment } from "./complete-from-external"
 import { verifyPayuTransaction, type VerifyResult } from "./verify-payment"
+import { scheduleIdFromLinkRef, settlePayuBalance } from "../../../../lib/payments/payu-balance"
 
 export type ProcessResult = {
   completed: boolean
@@ -46,6 +47,16 @@ export async function processPayuLinkWebhook(
   const query = scope.resolve(ContainerRegistrationKeys.QUERY)
   const cartId = String(payload.udf1 || "")
   const txnid = String(payload.txnid || "")
+
+  // A BALANCE link carries `balance:<schedule id>`, not a cart id: there is no
+  // cart to complete, only an order's outstanding balance to settle.
+  const balanceScheduleId = scheduleIdFromLinkRef(payload.udf1)
+  if (balanceScheduleId) {
+    const settled = await settlePayuBalance(scope, balanceScheduleId, payload, {
+      verifyTransaction: deps.verifyTransaction,
+    })
+    return { completed: settled.settled, order_id: settled.order_id, reason: settled.reason }
+  }
 
   if (!cartId) {
     return { completed: false, order_id: null, reason: "no_cart_id" }

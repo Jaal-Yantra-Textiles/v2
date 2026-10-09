@@ -82,6 +82,14 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:cancel_inventory_order_shipment",
   /**
+   * The balance route reads `confirm` straight off the body and refuses
+   * without it; the sample-approval route validates its own zod in the
+   * handler (production_run_id, decision, notes, confirm). Neither binds a
+   * matcher.
+   */
+  "admin:request_order_balance",
+  "admin:approve_order_sample",
+  /**
    * #1970 PR10 — the three design-order mutations validate INSIDE the handler,
    * so `middlewares.ts` binds nothing for this file to match against. Read, not
    * inferred:
