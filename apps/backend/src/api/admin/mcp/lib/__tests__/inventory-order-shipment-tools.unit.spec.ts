@@ -14,6 +14,7 @@ import { rawMaterialSchema } from "../../../inventory-items/[id]/rawmaterials/va
 import { ADMIN_MCP_TOOLS } from "../registry"
 import { mcpToolTier } from "../../../../../lib/mcp-core/tiers"
 import { toolDomain } from "../tool-slice"
+import { assertInventoryShipmentCancellable } from "../../../../../workflows/inventory_orders/cancel-inventory-order-shipment"
 
 const byName = (name: string) => ADMIN_MCP_TOOLS.find((t) => t.name === name)
 
@@ -57,10 +58,35 @@ describe("inventory-order shipment + colour-group tools", () => {
     expect(d.sensitive).toBe(true)
   })
 
-  it("classifies all three into the inventory slice", () => {
+  it("cancels a shipment by id, behind the dangerous rail", () => {
+    // 2026-10-09: HR Handloom's failed pickup (AWB 4867629825960) had no
+    // cancel anywhere but the Shiprocket dashboard.
+    const d = byName("cancel_inventory_order_shipment")!
+    expect(d.path).toBe("/admin/inventory-orders/:id/shipments/:shipmentId/cancel")
+    expect(d.pathParams).toEqual(["id", "shipmentId"])
+    expect(d.dangerous).toBe(true)
+    expect(mcpToolTier(d)).not.toBe("write")
+    // The route's zod reads exactly these; anything else is stripped silently.
+    expect([...d.bodyParams!].sort()).toEqual(["force", "reason"])
+  })
+
+  it("only cancels a shipment the carrier has not picked up", () => {
+    expect(() => assertInventoryShipmentCancellable("created")).not.toThrow()
+    expect(() => assertInventoryShipmentCancellable("pickup_scheduled")).not.toThrow()
+    expect(() => assertInventoryShipmentCancellable(null)).not.toThrow()
+    for (const s of ["picked_up", "in_transit", "out_for_delivery", "delivered", "rto"]) {
+      expect(() => assertInventoryShipmentCancellable(s)).toThrow(/already in its network/)
+      expect(() => assertInventoryShipmentCancellable(s, true)).not.toThrow()
+    }
+    // Even force does not re-cancel a dead waybill.
+    expect(() => assertInventoryShipmentCancellable("cancelled", true)).toThrow(/already cancelled/)
+  })
+
+  it("classifies all four into the inventory slice", () => {
     for (const name of [
       "list_inventory_order_shipping_rates",
       "create_inventory_order_shipment",
+      "cancel_inventory_order_shipment",
       "link_raw_material_group_colors",
     ]) {
       expect(`${name}:${toolDomain(byName(name)!)}`).toBe(`${name}:inventory`)

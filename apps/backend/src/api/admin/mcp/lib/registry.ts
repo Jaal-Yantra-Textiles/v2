@@ -2172,6 +2172,38 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_inventory_order", "receive_inventory_order"],
   },
   {
+    name: "cancel_inventory_order_shipment",
+    description:
+      "Void one carrier shipment (AWB) on an inventory order when it cannot go out as booked: a supplier pickup that failed, a date the supplier cannot make, a wrong box. Cancels at the CARRIER first, then marks the shipment cancelled and logs it on the order's timeline. The order and its lines are untouched. " +
+      "🔑 Cancel BEFORE rebooking. A rebook on top of a live carrier order is a no-op: the carrier hands back the old booking. Then book again with create_inventory_order_shipment. " +
+      "Get `shipmentId` from get_inventory_order → shipments[].id. A shipment the carrier reports as picked up or later is refused unless force:true. No message goes to the supplier. " +
+      "PLATFORM-DESTRUCTIVE: requires confirm:true AND a human reason, which is stored on the cancellation. Always dry_run first.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/shipments/:shipmentId/cancel",
+    pathParams: ["id", "shipmentId"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    dangerous: true,
+    // The dangerous rail's `reason` doubles as the route's cancellation
+    // reason, same as cancel_order_shipment.
+    bodyParams: ["reason", "force"],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        shipmentId: STR("Shipment id from get_inventory_order → shipments[].id (not the AWB)."),
+        force: {
+          type: "boolean",
+          description:
+            "Cancel even though the carrier reports the parcel picked up. Off by default: voiding a waybill for a parcel already moving strands a box nobody can route.",
+        },
+      },
+      ["id", "shipmentId"]
+    ),
+    sideEffects:
+      "Cancels the waybill at the live carrier (irreversible there; Shiprocket refunds the freight to the wallet in 3-4 working days), sets the shipment to cancelled, archives metadata.shipment into metadata.cancelled_shipments and writes a shipment_cancelled activity.",
+    nextSteps: ["create_inventory_order_shipment", "get_inventory_order"],
+  },
+  {
     name: "link_raw_material_group_colors",
     description:
       "Put existing raw materials into a raw material group as its colours, by setting each one's group_id. Sensitive: requires confirm:true. " +

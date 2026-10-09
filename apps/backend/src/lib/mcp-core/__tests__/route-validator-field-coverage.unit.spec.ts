@@ -77,6 +77,11 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:create_inventory_order_shipment",
   /**
+   * The inventory-shipment cancel validates in the handler with its own zod
+   * (`reason`, `force`), like the booking route above it. No matcher binds it.
+   */
+  "admin:cancel_inventory_order_shipment",
+  /**
    * #1970 PR10 — the three design-order mutations validate INSIDE the handler,
    * so `middlewares.ts` binds nothing for this file to match against. Read, not
    * inferred:
