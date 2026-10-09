@@ -1,6 +1,8 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { createPayuLink } from "../../api/admin/lib/create-payu-link"
+import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
+import { planCartCollection } from "./deposit-collection"
 
 /**
  * A shareable PayU payment link for an existing cart.
@@ -87,10 +89,32 @@ export const createPayuLinkForCart = async (
     )
   }
 
+  /**
+   * 🔴 What is due NOW, not the cart total. A quote cart with a payment
+   * schedule owes its DEPOSIT now (#1451); this link used `cart.total` and so
+   * asked a 10%-deposit buyer for 100%. Same planner as the storefront's
+   * collection, so the link and the checkout cannot disagree.
+   */
+  let amount = total
+  try {
+    const schedules: any = scope.resolve(PAYMENT_SCHEDULE_MODULE)
+    const schedule = await schedules.findByCartId(cartId)
+    const plan = planCartCollection({
+      cartTotal: total,
+      cartCurrency: currency,
+      schedule,
+    })
+    if (plan.basis === "refuse") return notLinked(plan.reason)
+    amount = plan.amount
+  } catch (e: any) {
+    logger?.warn?.(`[payu-cart-link] could not plan the amount for ${cartId}: ${e?.message ?? e}`)
+    return notLinked("Could not work out what is due on this cart, so no payment link was created.")
+  }
+
   const ba = cart.billing_address || {}
   const created = await createPayuLink(
     {
-      amount: total,
+      amount,
       description: opts?.description || `Order ${cartId}`,
       customer: {
         name: [ba.first_name, ba.last_name].filter(Boolean).join(" ") || undefined,

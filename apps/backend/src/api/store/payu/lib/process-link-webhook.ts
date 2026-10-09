@@ -19,6 +19,8 @@ import {
 import { completeCartFromExternalPayment } from "./complete-from-external"
 import { verifyPayuTransaction, type VerifyResult } from "./verify-payment"
 import { scheduleIdFromLinkRef, settlePayuBalance } from "../../../../lib/payments/payu-balance"
+import { planCartCollection } from "../../../../lib/payments/deposit-collection"
+import { PAYMENT_SCHEDULE_MODULE } from "../../../../modules/payment_schedule"
 
 export type ProcessResult = {
   completed: boolean
@@ -71,7 +73,20 @@ export async function processPayuLinkWebhook(
   if (!cart) {
     return { completed: false, order_id: null, reason: "cart_not_found" }
   }
-  const minAmount = cart.total ? Number(cart.total) : undefined
+  /**
+   * The payment must cover what was DUE: the deposit on a quote cart (#1451),
+   * the total otherwise. Checking against `cart.total` refused every paid
+   * deposit link as "not verified".
+   */
+  let minAmount: number | undefined = cart.total ? Number(cart.total) : undefined
+  try {
+    const schedules: any = scope.resolve(PAYMENT_SCHEDULE_MODULE)
+    const schedule = await schedules.findByCartId(cartId)
+    const plan = planCartCollection({ cartTotal: cart.total, schedule })
+    if (plan.basis !== "refuse" && Number.isFinite(plan.amount)) minAmount = plan.amount
+  } catch {
+    /* fall back to the cart total */
+  }
 
   // 1) Primary re-verification: classic verify_payment (needs only key+salt+txnid).
   const verify =

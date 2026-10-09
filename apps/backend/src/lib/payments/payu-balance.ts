@@ -121,7 +121,12 @@ export async function createPayuBalanceLink(
 export async function verifyBalanceLinkViaOneApi(
   invoiceNumber: string,
   minAmount?: number
-): Promise<{ paid: boolean; transaction_id: string | null } | null> {
+): Promise<{
+  paid: boolean
+  transaction_id: string | null
+  /** PayU's own payment id — what its webhook sends as `mihpayid`. */
+  payment_id: string | null
+} | null> {
   const clientId = process.env.PAYU_CLIENT_ID
   const clientSecret = process.env.PAYU_CLIENT_SECRET
   const merchantId = process.env.PAYU_MERCHANT_ID
@@ -146,7 +151,14 @@ export async function verifyBalanceLinkViaOneApi(
   })
   const vj: any = await vr.json().catch(() => ({}))
   const r = isLinkPaid(vj, minAmount !== undefined ? Math.round(minAmount) : undefined)
-  return { paid: r.paid, transaction_id: r.transaction_id }
+  const row = ((vj?.result?.data ?? []) as any[]).find(
+    (t) => String(t?.status || "").toLowerCase() === "success"
+  )
+  return {
+    paid: r.paid,
+    transaction_id: r.transaction_id,
+    payment_id: row?.paymentId != null ? String(row.paymentId) : null,
+  }
 }
 
 export type PayuBalanceResult = {
@@ -163,7 +175,7 @@ export type PayuBalanceDeps = {
   verifyInvoice?: (
     invoiceNumber: string,
     minAmount?: number
-  ) => Promise<{ paid: boolean; transaction_id: string | null } | null>
+  ) => Promise<{ paid: boolean; transaction_id: string | null; payment_id?: string | null } | null>
 }
 
 /**
