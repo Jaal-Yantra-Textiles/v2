@@ -1700,6 +1700,24 @@ export default defineMiddlewares({
         authenticate("partner", ["session", "bearer"]),
       ],
     },
+    // The balance card's read, and the buyer's verdict on a sample. Both
+    // validate ownership in the handler; the sample route its own zod.
+    {
+      matcher: "/partners/orders/:id/balance",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/orders/:id/sample-approval",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
     // 🔴 A partner route 401s until it is named HERE — auth is per-route, and
     // neither tsc nor a green suite says a word about the omission.
     {

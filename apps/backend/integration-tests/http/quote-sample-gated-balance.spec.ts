@@ -223,6 +223,14 @@ setupSharedTestSuite(() => {
           notes: "Indigo too light",
           production_run_id: sampleRunId,
         })
+
+        // What the order page's balance card reads: the trigger, the history
+        // and the order's sample runs, in one request.
+        const card = (await api.get(`/admin/orders/${orderId}/balance`, adminHeaders)).data
+        expect(card.balance_trigger).toBe("sample_approved")
+        expect(card.sample_decisions).toHaveLength(1)
+        expect(card.sample_decisions[0].decision).toBe("rejected")
+        expect(card.sample_runs.map((r: any) => r.id)).toContain(sampleRunId)
       })
 
       it("an approved sample raises the balance, once", async () => {
@@ -276,6 +284,59 @@ setupSharedTestSuite(() => {
           filters: { id: orderId },
         })
         expect(d2[0].payment_collections.filter((c: any) => c.status !== "completed")).toHaveLength(1)
+      })
+
+      it("the partner who owns the order reads the card and decides the sample", async () => {
+        const { api } = getSharedTestEnv()
+        const partner = { headers: seed.headers }
+
+        const card = (await api.get(`/partners/orders/${orderId}/balance`, partner)).data
+        expect(card.has_schedule).toBe(true)
+        expect(card.balance_trigger).toBe("sample_approved")
+        expect(card.sample_runs.map((r: any) => r.id)).toContain(sampleRunId)
+
+        const rejected = await api.post(
+          `/partners/orders/${orderId}/sample-approval`,
+          { production_run_id: sampleRunId, decision: "rejected", notes: "Selvedge uneven" },
+          partner
+        )
+        expect(rejected.data.sample_decision.balance_raised).toBe(false)
+
+        const noConfirm = await api
+          .post(
+            `/partners/orders/${orderId}/sample-approval`,
+            { production_run_id: sampleRunId, decision: "approved" },
+            partner
+          )
+          .catch((e: any) => e.response)
+        expect(noConfirm.status).toBe(400)
+
+        const approved = await api.post(
+          `/partners/orders/${orderId}/sample-approval`,
+          { production_run_id: sampleRunId, decision: "approved", confirm: true },
+          partner
+        )
+        expect(approved.data.sample_decision.balance_raised).toBe(true)
+
+        const after = (await api.get(`/partners/orders/${orderId}/balance`, partner)).data
+        expect(after.balance_status).toBe("due")
+        expect(after.sample_decisions.map((d: any) => d.decision)).toEqual(["rejected", "approved"])
+        expect(after.sample_decisions[0].decided_by).toMatch(/^partner:/)
+      })
+
+      it("an unauthenticated caller cannot read or decide the partner card", async () => {
+        const { api } = getSharedTestEnv()
+        const read = await api
+          .get(`/partners/orders/${orderId}/balance`)
+          .catch((e: any) => e.response)
+        expect(read.status).toBe(401)
+        const decide = await api
+          .post(`/partners/orders/${orderId}/sample-approval`, {
+            production_run_id: sampleRunId,
+            decision: "rejected",
+          })
+          .catch((e: any) => e.response)
+        expect(decide.status).toBe(401)
       })
 
       it("a PayU-confirmed balance settles the order and the schedule", async () => {

@@ -1,9 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
 
-import { PAYMENT_SCHEDULE_MODULE } from "../../../../../modules/payment_schedule"
-import { planBalanceCollection } from "../../../../../lib/payments/balance-collection"
-import { reconcileBalanceForSchedule } from "../../../../../lib/payments/reconcile-balance"
+import {
+  describeOrderBalance,
+  readOrderBalance,
+} from "../../../../../lib/payments/describe-order-balance"
 import { requestOrderBalanceWorkflow } from "../../../../../workflows/payments/request-order-balance"
 
 /**
@@ -20,58 +21,8 @@ import { requestOrderBalanceWorkflow } from "../../../../../workflows/payments/r
  * GET reconciles first: the payment module emits no events, so an admin opening
  * the order is another reliable moment to notice that money already landed.
  */
-const describe = async (req: MedusaRequest, orderId: string) => {
-  const schedules: any = req.scope.resolve(PAYMENT_SCHEDULE_MODULE)
-  const schedule = await schedules.findByOrderId(orderId).catch(() => null)
-
-  if (!schedule) {
-    return {
-      has_schedule: false,
-      order_id: orderId,
-      message:
-        "This order has no payment schedule — it was paid in full, so there is no balance to collect.",
-    }
-  }
-
-  const plan = planBalanceCollection(schedule)
-
-  return {
-    has_schedule: true,
-    order_id: orderId,
-    payment_schedule_id: schedule.id,
-    currency_code: schedule.currency_code ?? null,
-    total_due: Number(schedule.total_due) || null,
-    deposit_amount: Number(schedule.deposit_amount) || null,
-    deposit_status: schedule.deposit_status ?? null,
-    balance_amount: Number(schedule.balance_amount) || null,
-    balance_status: schedule.balance_status ?? null,
-    balance_due_at: schedule.balance_due_at ?? null,
-    /** The link already sent to the buyer, when one has been minted. */
-    balance_link: schedule.balance_link_ref ?? null,
-    rail: schedule.rail ?? null,
-    can_raise: plan.collectable,
-    /** Why it cannot be raised, when it cannot. Always populated on a refusal. */
-    reason: plan.reason,
-    code: plan.collectable ? null : plan.code,
-  }
-}
-
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
-  const orderId = req.params.id
-
-  // Best-effort: an admin opening the order should see money that has landed
-  // since the last look, but a reconcile failure must not blank the widget.
-  try {
-    const schedules: any = req.scope.resolve(PAYMENT_SCHEDULE_MODULE)
-    const schedule = await schedules.findByOrderId(orderId).catch(() => null)
-    if (schedule?.balance_status === "due") {
-      await reconcileBalanceForSchedule(req.scope, schedule.id)
-    }
-  } catch {
-    /* fall through and describe whatever is stored */
-  }
-
-  return res.json(await describe(req, orderId))
+  return res.json(await readOrderBalance(req.scope, req.params.id))
 }
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -100,6 +51,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     raised: Boolean(out.raised),
     pay_url: out.pay_url ?? null,
     payment_collection_id: out.payment_collection_id ?? null,
-    ...(await describe(req, orderId)),
+    ...(await describeOrderBalance(req.scope, orderId)),
   })
 }

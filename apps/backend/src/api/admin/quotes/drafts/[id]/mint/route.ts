@@ -98,6 +98,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     destination_city: draft.destination_city,
     // 🔑 `??`, never `||`: a stored 0% deposit is a real term.
     deposit_pct: draft.deposit_pct ?? null,
+    balance_trigger: draft.balance_trigger ?? null,
     duties_prepaid: draft.duties_prepaid ?? false,
     ...(draft.duties_prepaid
       ? {

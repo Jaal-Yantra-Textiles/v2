@@ -229,6 +229,7 @@ export const QuoteCreateForm = ({
         // the backend resolves to 30%. The partner would then have agreed to
         // nothing up front and be asked for a third.
         deposit_pct: data.deposit_pct ?? null,
+        balance_trigger: data.balance_trigger ?? null,
         // #1439 S12 — freight named by hand, and where it came from. Sent
         // together: an amount with no basis is a number nobody can account
         // for once the forwarder's invoice arrives.

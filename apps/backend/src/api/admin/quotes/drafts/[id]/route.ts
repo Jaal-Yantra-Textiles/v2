@@ -174,6 +174,7 @@ export const PATCH = async (req: MedusaRequest, res: MedusaResponse) => {
     "buyer_tax_id_type",
     "partner_note",
     "deposit_pct",
+    "balance_trigger",
     "duties_prepaid",
     "duty_rate_percent",
     "import_tax_rate_percent",

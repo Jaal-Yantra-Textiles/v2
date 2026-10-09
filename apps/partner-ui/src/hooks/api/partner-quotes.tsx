@@ -107,6 +107,7 @@ export type PartnerQuote = {
    * partner named no terms, which is NOT the same as 0.
    */
   deposit_pct?: number | null
+  balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
   accepted_cart_id?: string | null
   accepted_at?: string | null
   /** Present only on the detail read, and only once accepted. */
@@ -186,6 +187,7 @@ export type MintPartnerQuotePayload = {
    * the backend falls through to its default; `0` means take nothing up front.
    */
   deposit_pct?: number | null
+  balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
   /**
    * Freight named by hand, in the quote currency, and where it came from
    * (#1439 S12). Used when no carrier will rate the lane, or when the stored

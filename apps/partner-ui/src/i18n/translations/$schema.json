@@ -4160,6 +4160,118 @@
           ],
           "additionalProperties": false
         },
+        "balance": {
+          "type": "object",
+          "properties": {
+            "requested": {
+              "type": "string"
+            },
+            "nothingToRequest": {
+              "type": "string"
+            },
+            "requestFailed": {
+              "type": "string"
+            },
+            "sampleRejected": {
+              "type": "string"
+            },
+            "sampleRejectedHint": {
+              "type": "string"
+            },
+            "sampleApprovedRaised": {
+              "type": "string"
+            },
+            "sampleApproved": {
+              "type": "string"
+            },
+            "decisionFailed": {
+              "type": "string"
+            },
+            "triggerSample": {
+              "type": "string"
+            },
+            "triggerManual": {
+              "type": "string"
+            },
+            "triggerDispatch": {
+              "type": "string"
+            },
+            "paid": {
+              "type": "string"
+            },
+            "due": {
+              "type": "string"
+            },
+            "notDue": {
+              "type": "string"
+            },
+            "approveTitle": {
+              "type": "string"
+            },
+            "approveDescription": {
+              "type": "string"
+            },
+            "approveConfirm": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            },
+            "depositPaid": {
+              "type": "string"
+            },
+            "deposit": {
+              "type": "string"
+            },
+            "balance": {
+              "type": "string"
+            },
+            "total": {
+              "type": "string"
+            },
+            "dueWhen": {
+              "type": "string"
+            },
+            "sample": {
+              "type": "string"
+            },
+            "approved": {
+              "type": "string"
+            },
+            "rejected": {
+              "type": "string"
+            },
+            "noDecision": {
+              "type": "string"
+            },
+            "noSampleRun": {
+              "type": "string"
+            },
+            "whichSample": {
+              "type": "string"
+            },
+            "notesPlaceholder": {
+              "type": "string"
+            },
+            "reject": {
+              "type": "string"
+            },
+            "approve": {
+              "type": "string"
+            },
+            "link": {
+              "type": "string"
+            },
+            "reissue": {
+              "type": "string"
+            },
+            "request": {
+              "type": "string"
+            }
+          },
+          "required": ["requested", "nothingToRequest", "requestFailed", "sampleRejected", "sampleRejectedHint", "sampleApprovedRaised", "sampleApproved", "decisionFailed", "triggerSample", "triggerManual", "triggerDispatch", "paid", "due", "notDue", "approveTitle", "approveDescription", "approveConfirm", "title", "depositPaid", "deposit", "balance", "total", "dueWhen", "sample", "approved", "rejected", "noDecision", "noSampleRun", "whichSample", "notesPlaceholder", "reject", "approve", "link", "reissue", "request"],
+          "additionalProperties": false
+        },
         "balanceSettlement": {
           "type": "object",
           "properties": {
@@ -5910,6 +6022,7 @@
       "required": [
         "giftCardsStoreCreditLines",
         "creditLines",
+        "balance",
         "balanceSettlement",
         "domain",
         "claim",
