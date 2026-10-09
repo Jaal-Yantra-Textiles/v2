@@ -8240,7 +8240,16 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     // The route itself refuses without confirm:true, so the rail's confirm is
     // forwarded rather than consumed.
     bodyParams: ["confirm"],
-    inputSchema: obj({ id: STR("Order id, e.g. 'order_...'.") }, ["id"]),
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        confirm: {
+          type: "boolean",
+          description: "Must be true: this asks a real buyer for money. Forwarded to the route, which refuses without it.",
+        },
+      },
+      ["id"]
+    ),
     sideEffects:
       "Creates a payment collection for the balance on the order, marks the schedule's balance due and mints a live pay link the buyer can pay.",
     nextSteps: ["get_order_balance"],
@@ -8268,6 +8277,10 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           description: "The buyer's verdict on the sample.",
         },
         notes: STR("What the buyer said about the sample."),
+        confirm: {
+          type: "boolean",
+          description: "Must be true: this asks a real buyer for money. Forwarded to the route, which refuses without it.",
+        },
       },
       ["id", "production_run_id", "decision"]
     ),
