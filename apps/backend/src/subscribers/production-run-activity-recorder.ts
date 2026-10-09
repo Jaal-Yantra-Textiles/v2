@@ -73,8 +73,11 @@ const ESCALATION_SUMMARY_BY_EVENT: Record<string, string> = {
   "production_run.reminder_escalated": "Reminder cap reached — escalated to admin",
   // #1228 — the cap spent a retry instead of parking the run, and the manual
   // assignment that pulls a parked run back out.
+  // Nothing is sent on this path: emit-production-run-reminder only resets
+  // the count, and the next scheduled run sends reminder 1 again. It used to
+  // say "re-sent", which read as a message that never went out (2026-10-09).
   "production_run.reminder_retried_same_partner":
-    "Reminder cap reached — re-sent to the same partner",
+    "Reminder cap reached — reminders restart for the same partner (nothing sent now)",
   "production_run.partner_assigned": "Partner assigned by admin",
 }
 
