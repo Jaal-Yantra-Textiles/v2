@@ -3840,6 +3840,42 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/hooks/socials.ts"
   },
+  "…": {
+    "fields": [
+      {
+        "name": "inbound_email_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.inbound_email_id }}"
+      },
+      {
+        "name": "extracted",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.extracted }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inbound-emails/log-inbound-order-update.ts"
+  },
+  "log-inbound-order-update": {
+    "fields": [
+      {
+        "name": "inbound_email_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.inbound_email_id }}"
+      },
+      {
+        "name": "extracted",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.extracted }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/inbound-emails/log-inbound-order-update.ts"
+  },
   "sync-inbound-emails": {
     "fields": [
       {
@@ -5697,6 +5733,24 @@
     "sourceFile": "src/workflows/partner/create-partner-admin.ts"
   },
   "create-partner-admin-with-registration": {
+    "fields": [
+      {
+        "name": "authIdentityId",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.authIdentityId }}"
+      },
+      {
+        "name": "tempPassword",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.tempPassword }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partner/create-partner-admin.ts"
+  },
+  "create-partner-without-login": {
     "fields": [
       {
         "name": "authIdentityId",

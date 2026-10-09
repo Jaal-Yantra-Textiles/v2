@@ -171,8 +171,11 @@ const logInboundOrderUpdateStep = createStep(
   }
 )
 
+// The id is written as a literal (it equals LOG_INBOUND_ORDER_UPDATE_WORKFLOW):
+// build-workflow-schemas only finds `createWorkflow("…")`, and without an entry
+// in workflow-schemas.json the visual-flow editor cannot list this workflow.
 export const logInboundOrderUpdateWorkflow = createWorkflow(
-  LOG_INBOUND_ORDER_UPDATE_WORKFLOW,
+  "log-inbound-order-update",
   (input: LogInboundOrderUpdateInput) => {
     const result = logInboundOrderUpdateStep(input)
     return new WorkflowResponse(result)
