@@ -29,6 +29,8 @@ class PaymentScheduleService extends MedusaService({ PaymentSchedule }) {
     rail?: "payu" | "stripe" | "manual"
     quote_deposit_pct?: number | null
     partner_deposit_pct?: number | null
+    /** Null/omitted means `dispatch`, the behaviour before the column. */
+    balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
     metadata?: Record<string, any> | null
   }) {
     if (!input.cart_id) {
@@ -55,6 +57,7 @@ class PaymentScheduleService extends MedusaService({ PaymentSchedule }) {
         balance_amount: split.balance_amount,
         balance_status: "not_due",
         rail: input.rail ?? "manual",
+        balance_trigger: input.balance_trigger ?? "dispatch",
         metadata: input.metadata ?? null,
       },
     ] as any)

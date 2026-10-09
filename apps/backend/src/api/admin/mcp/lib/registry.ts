@@ -8226,6 +8226,69 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_order"],
   },
   {
+    name: "request_order_balance",
+    description:
+      "Raise the outstanding balance on a deposit order and mint the buyer's pay link: a PayU link for an INR deal, otherwise the Stripe balance page. Sensitive: requires confirm:true. " +
+      "Read get_order_balance first: the amount must agree with the order's outstanding total, and the deposit must be paid. Idempotent: a balance already raised returns the SAME link rather than a second one. " +
+      "On a deal whose balance is released by the sample (balance_trigger sample_approved), use approve_order_sample instead, so the approval is on the record.",
+    method: "POST",
+    path: "/admin/orders/:id/balance",
+    pathParams: ["id"],
+    previewPath: "/admin/orders/:id/balance",
+    write: true,
+    sensitive: true,
+    // The route itself refuses without confirm:true, so the rail's confirm is
+    // forwarded rather than consumed.
+    bodyParams: ["confirm"],
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        confirm: {
+          type: "boolean",
+          description: "Must be true: this asks a real buyer for money. Forwarded to the route, which refuses without it.",
+        },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Creates a payment collection for the balance on the order, marks the schedule's balance due and mints a live pay link the buyer can pay.",
+    nextSteps: ["get_order_balance"],
+  },
+  {
+    name: "approve_order_sample",
+    description:
+      "Record the buyer's verdict on the first SAMPLE of a made-to-order deal. On a deal minted with balance_trigger 'sample_approved', decision 'approved' raises the balance and returns the buyer's pay link; 'rejected' is recorded and asks for nothing. Sensitive: requires confirm:true. " +
+      "`production_run_id` must be a run_type 'sample' run created with this order's id (create_production_run with run_type 'sample' and order_id). Refused on a deal released on dispatch or by hand. " +
+      "Pass `notes` with what the buyer said, especially on a rejection.",
+    method: "POST",
+    path: "/admin/orders/:id/sample-approval",
+    pathParams: ["id"],
+    previewPath: "/admin/orders/:id/balance",
+    write: true,
+    sensitive: true,
+    bodyParams: ["production_run_id", "decision", "notes", "confirm"],
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        production_run_id: STR("The SAMPLE production run the buyer judged."),
+        decision: {
+          type: "string",
+          enum: ["approved", "rejected"],
+          description: "The buyer's verdict on the sample.",
+        },
+        notes: STR("What the buyer said about the sample."),
+        confirm: {
+          type: "boolean",
+          description: "Must be true: this asks a real buyer for money. Forwarded to the route, which refuses without it.",
+        },
+      },
+      ["id", "production_run_id", "decision"]
+    ),
+    sideEffects:
+      "Appends the decision to the order's payment schedule. An approval raises the balance and mints a live pay link for the buyer.",
+    nextSteps: ["get_order_balance", "send_production_run_to_production"],
+  },
+  {
     name: "get_production_run_payments",
     description:
       "Read whether a production run has already been billed and by which payout — the run's billing status, the live claim, what remains billable, and every line naming this run. Read. 🔴 The run does not know it has been billed; this is the one place to learn that before creating a payout for it. Call it BEFORE create_payment_submission so a completed run already paid for is not claimed twice.",

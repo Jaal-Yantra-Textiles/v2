@@ -1,5 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { PAYMENT_SCHEDULE_MODULE } from "../../../../modules/payment_schedule"
+import { planCartCollection } from "../../../../lib/payments/deposit-collection"
 import {
   buildPaymentLinkBody,
   oneapiHosts,
@@ -67,7 +69,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       logger.warn(`[PayU Link] cart ${b.cart_id} currency is ${cart.currency_code}, not INR`)
     }
     if (input.amount === undefined || input.amount === null) {
-      input.amount = cart.total
+      // 🔴 What is due NOW: the deposit on a quote cart (#1451), else the
+      // total. `cart.total` asked a deposit buyer for 100%.
+      const schedules: any = req.scope.resolve(PAYMENT_SCHEDULE_MODULE)
+      const schedule = await schedules.findByCartId(b.cart_id).catch(() => null)
+      const plan = planCartCollection({ cartTotal: cart.total, schedule })
+      if (plan.basis === "refuse") {
+        return res.status(409).json({ message: plan.reason })
+      }
+      input.amount = plan.amount
     }
     if (!input.customer) {
       const ba = cart.billing_address || {}

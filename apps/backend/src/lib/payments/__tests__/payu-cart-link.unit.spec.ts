@@ -5,11 +5,13 @@ jest.mock("../../../api/admin/lib/create-payu-link", () => ({
 
 import { createPayuLinkForCart } from "../payu-cart-link"
 
-const scopeWith = (cart: any) => ({
+const scopeWith = (cart: any, schedule: any = null) => ({
   resolve: (key: string) =>
     key === "logger"
       ? { warn: jest.fn(), error: jest.fn() }
-      : { graph: jest.fn(async () => ({ data: cart ? [cart] : [] })) },
+      : key === "payment_schedule"
+        ? { findByCartId: jest.fn(async () => schedule) }
+        : { graph: jest.fn(async () => ({ data: cart ? [cart] : [] })) },
 })
 
 const inrCart = (over: any = {}) => ({
@@ -39,6 +41,37 @@ describe("createPayuLinkForCart", () => {
     const [input] = createPayuLink.mock.calls[0]
     expect(input.amount).toBe(11000)
     expect(input.reference).toBe("cart_01")
+  })
+
+  it("🔴 asks for the DEPOSIT on a quote cart, not the total", async () => {
+    // A 10% deal on an ₹11,000 cart: the link must be for ₹1,100.
+    const out = await createPayuLinkForCart(
+      scopeWith(inrCart(), {
+        id: "psch_1",
+        total_due: 11000,
+        deposit_amount: 1100,
+        deposit_status: "pending",
+        currency_code: "inr",
+      }),
+      "cart_01"
+    )
+    expect(out.payment_link).toBe("https://v.payu.in/abc")
+    expect(createPayuLink.mock.calls[0][0].amount).toBe(1100)
+  })
+
+  it("refuses a link on a cart whose deposit is already paid", async () => {
+    const out = await createPayuLinkForCart(
+      scopeWith(inrCart(), {
+        id: "psch_1",
+        total_due: 11000,
+        deposit_amount: 1100,
+        deposit_status: "paid",
+        currency_code: "inr",
+      }),
+      "cart_01"
+    )
+    expect(out.payment_link).toBeNull()
+    expect(createPayuLink).not.toHaveBeenCalled()
   })
 
   /**

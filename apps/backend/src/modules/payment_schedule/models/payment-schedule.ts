@@ -113,6 +113,27 @@ const PaymentSchedule = model.define("payment_schedule", {
   balance_link_ref: model.text().nullable(),
   /** When the balance was raised, i.e. when the event fired. */
   balance_due_at: model.dateTime().nullable(),
+  /**
+   * WHICH event makes the balance due.
+   *
+   * `dispatch` — the goods move (the default, and the only trigger before
+   * this column). `sample_approved` — the buyer approves a first sample: a
+   * made-to-order cloth is woven once as a sample, and the buyer releases the
+   * balance on seeing it, before the run is made. `manual` — only an explicit
+   * admin or partner request raises it.
+   *
+   * 🔴 It matters most for what it SUPPRESSES. Under `sample_approved` the
+   * sample itself may be shipped as a fulfilment of the order, and the
+   * dispatch subscriber would otherwise ask for 90% of the money for goods the
+   * buyer has not yet agreed to.
+   */
+  balance_trigger: model
+    .enum(["dispatch", "sample_approved", "manual"])
+    .default("dispatch"),
+  /** When the buyer's approval of the sample was recorded. */
+  sample_approved_at: model.dateTime().nullable(),
+  /** The sample production run the approval was for. */
+  sample_run_id: model.text().nullable(),
 
   /**
    * Which rail took, or will take, the money.

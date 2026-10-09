@@ -214,6 +214,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       // default applied here would freeze 30 onto the quote as though the
       // partner had chosen it.
       deposit_pct: body.deposit_pct ?? null,
+      // What makes the balance due. Null means `dispatch`.
+      balance_trigger: body.balance_trigger ?? null,
       // Stamped with the ADMIN's actor id, not the partner's — otherwise an
       // admin-minted quote is indistinguishable from one the partner made
       // themselves, and "who quoted this price" is exactly the question asked

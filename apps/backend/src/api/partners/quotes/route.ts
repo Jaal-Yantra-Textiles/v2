@@ -170,6 +170,8 @@ export const POST = async (
       // default applied here would freeze 30 onto the quote as though the
       // partner had chosen it.
       deposit_pct: body.deposit_pct ?? null,
+      // What makes the balance due. Null means `dispatch`.
+      balance_trigger: body.balance_trigger ?? null,
       created_by: req.auth_context?.actor_id ?? null,
     },
   })

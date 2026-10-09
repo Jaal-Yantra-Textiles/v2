@@ -16,6 +16,7 @@ import {
   planBalanceCollection,
   type BalancePlan,
 } from "../../lib/payments/balance-collection"
+import { createPayuBalanceLink } from "../../lib/payments/payu-balance"
 
 /**
  * Raise the balance on an order and mint the link that collects it.
@@ -152,11 +153,21 @@ const ensureBalanceCollectionStep = createStep(
 const ensureBalanceSessionStep = createStep(
   "ensure-balance-payment-session",
   async (
-    input: { payment_collection_id: string | null; plan: BalancePlan },
+    input: {
+      payment_collection_id: string | null
+      plan: BalancePlan
+      schedule: { rail?: string | null } | null
+    },
     { container }
   ) => {
     if (!input.payment_collection_id || !input.plan.collectable) {
       return new StepResponse({ ok: false })
+    }
+    // A PayU deal is paid over a PayU link, not a Stripe session. If that link
+    // cannot be minted the Stripe page is the fallback, and it creates its own
+    // session on demand.
+    if (input.schedule?.rail === "payu") {
+      return new StepResponse({ ok: true })
     }
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -194,13 +205,35 @@ const ensureBalanceSessionStep = createStep(
 const markDueStep = createStep(
   "mark-balance-due",
   async (
-    input: { plan: BalancePlan },
+    input: {
+      plan: BalancePlan
+      schedule: {
+        rail?: string | null
+        balance_status?: string | null
+        balance_link_ref?: string | null
+      } | null
+    },
     { container }
   ): Promise<StepResponse<{ raised: boolean; pay_url: string | null }>> => {
     // Typed explicitly: without it the first return pins `pay_url` to `null`
     // and the string return below stops assigning.
     if (!input.plan.collectable) {
       return new StepResponse({ raised: false, pay_url: null })
+    }
+
+    /**
+     * 🔴 A balance already raised keeps the link it was raised with. A PayU
+     * link is a live demand for money: minting a second one on a repeat press
+     * leaves the buyer holding two, either of which they could pay.
+     */
+    if (
+      input.schedule?.balance_status === "due" &&
+      input.schedule?.balance_link_ref
+    ) {
+      return new StepResponse({
+        raised: true,
+        pay_url: String(input.schedule.balance_link_ref),
+      })
     }
 
     /**
@@ -213,9 +246,30 @@ const markDueStep = createStep(
       process.env.MEDUSA_BACKEND_URL ||
       process.env.BACKEND_URL ||
       "https://v3.jaalyantra.com"
-    const payUrl = buildBalancePayUrl(backendUrl, input.plan.schedule_id)
+    const stripeUrl = buildBalancePayUrl(backendUrl, input.plan.schedule_id)
+
+    // An INR deal took its deposit over PayU; its balance goes the same way.
+    // Null (PayU unconfigured or refusing) falls back to the Stripe page.
+    const payu =
+      input.schedule?.rail === "payu"
+        ? await createPayuBalanceLink(container, {
+            schedule_id: input.plan.schedule_id,
+            order_id: input.plan.order_id,
+            amount: input.plan.amount,
+          })
+        : null
+    const payUrl = payu?.url ?? stripeUrl
 
     const schedules: any = container.resolve(PAYMENT_SCHEDULE_MODULE)
+    if (payu?.invoice_number) {
+      // Kept so the webhook can verify the link by invoice when PayU's classic
+      // verify does not know the txnid.
+      const current: any = await schedules.retrievePaymentSchedule(input.plan.schedule_id)
+      await schedules.updatePaymentSchedules({
+        id: input.plan.schedule_id,
+        metadata: { ...(current.metadata ?? {}), payu_balance_invoice: payu.invoice_number },
+      })
+    }
     // Idempotent in the service: an already-`due` schedule keeps its original
     // `balance_due_at` rather than having the clock reset by a second press.
     await schedules.markBalanceDue(input.plan.schedule_id, payUrl)
@@ -236,9 +290,10 @@ export const requestOrderBalanceWorkflow = createWorkflow(
     ensureBalanceSessionStep({
       payment_collection_id: collection.payment_collection_id,
       plan: loaded.plan,
+      schedule: loaded.schedule,
     })
 
-    const marked = markDueStep({ plan: loaded.plan })
+    const marked = markDueStep({ plan: loaded.plan, schedule: loaded.schedule })
 
     return new WorkflowResponse({
       plan: loaded.plan,

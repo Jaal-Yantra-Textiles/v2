@@ -301,6 +301,12 @@ export const PartnerMintQuoteShape = z.object({
    * terms while the wizard shows the number the partner typed.
    */
   deposit_pct: z.number().min(0).max(100).nullish(),
+  /**
+   * What makes the balance due: `dispatch` (the goods move — the default),
+   * `sample_approved` (the buyer approves a first sample) or `manual`. Listed
+   * here for the same `.strict()` reason as `deposit_pct`.
+   */
+  balance_trigger: z.enum(["dispatch", "sample_approved", "manual"]).nullish(),
 })
 
 /**
@@ -368,6 +374,7 @@ export const QuoteReadinessShape = PartnerMintQuoteShape.omit({
   // A dry run prices a basket; how it will be PAID for changes none of those
   // numbers. Omitted for the same reason the buyer's identity is.
   deposit_pct: true,
+  balance_trigger: true,
   // 🔑 `freight_override_amount` is deliberately KEPT — it decides whether the
   // lane has to be rateable, so a preflight without it would refuse exactly the
   // cross-border quotes an override exists to unblock. Only the basis is

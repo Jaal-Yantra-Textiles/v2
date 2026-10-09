@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { PAYMENT_SCHEDULE_MODULE } from "../modules/payment_schedule"
 import { requestOrderBalanceWorkflow } from "../workflows/payments/request-order-balance"
+import { raisesBalanceOnDispatch } from "../lib/payments/balance-collection"
 
 /**
  * Raise the balance when the goods actually move (#1451 follow-on).
@@ -78,6 +79,15 @@ export default async function raiseBalanceOnDispatch({
     // correct here; this fires on every shipment on the platform.
     if (!schedule) return
     if (schedule.balance_status !== "not_due") return
+    // 🔴 Only a dispatch-triggered deal is due on dispatch. Under
+    // `sample_approved` the first parcel may BE the sample, and asking for the
+    // balance then is asking for 90% before the buyer has agreed to anything.
+    if (!raisesBalanceOnDispatch(schedule)) {
+      logger?.info?.(
+        `[balance] dispatch of order=${orderId} does not raise the balance: its trigger is ${schedule.balance_trigger}`
+      )
+      return
+    }
 
     const { result } = await requestOrderBalanceWorkflow(container).run({
       input: { order_id: orderId, requested_by: "dispatch" },

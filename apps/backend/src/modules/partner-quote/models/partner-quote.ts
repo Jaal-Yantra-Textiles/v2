@@ -248,6 +248,15 @@ const PartnerQuote = model.define("partner_quote", {
    */
   deposit_pct: model.number().nullable(),
   /**
+   * What makes the BALANCE due, frozen at mint and copied onto the payment
+   * schedule at acceptance: `dispatch` (goods move), `sample_approved` (the
+   * buyer approves a first sample) or `manual`. Null means `dispatch`, the
+   * behaviour every quote had before this field existed.
+   */
+  balance_trigger: model
+    .enum(["dispatch", "sample_approved", "manual"])
+    .nullable(),
+  /**
    * Set when the buyer accepts. It is the accepted cart, and it is also the
    * idempotency key: a second accept on the same quote returns THIS cart
    * instead of minting a second one against the same price list.

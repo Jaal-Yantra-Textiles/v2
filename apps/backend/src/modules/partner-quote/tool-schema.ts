@@ -52,6 +52,7 @@ export const QUOTE_MINT_BODY_PARAMS = [
   "carrier",
   "ttl_days",
   "deposit_pct",
+  "balance_trigger",
   "duties_prepaid",
   "duty_total",
   "duty_basis",
@@ -186,6 +187,12 @@ export const quoteMintSchemaProps = () => ({
     description:
       "Deposit share of the deal, 0-100. Omit to fall through to the partner's default and then the platform's 30%. `0` is a real answer meaning invoice the lot later; 100 means paid up front.",
   },
+  balance_trigger: {
+    type: "string",
+    enum: ["dispatch", "sample_approved", "manual"],
+    description:
+      "What makes the BALANCE due after the deposit. `dispatch` (default): when the goods ship. `sample_approved`: when the buyer approves a first sample (approve_order_sample) — use for made-to-order cloth where the buyer releases the balance on seeing the sample; shipping the sample does NOT ask for the balance. `manual`: only request_order_balance raises it.",
+  },
   duties_prepaid: {
     type: "boolean",
     description:
@@ -257,6 +264,7 @@ export const QUOTE_READINESS_OMITTED_PARAMS = [
   "partner_note",
   "ttl_days",
   "deposit_pct",
+  "balance_trigger",
   "freight_basis",
 ] as const
 
