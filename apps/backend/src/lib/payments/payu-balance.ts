@@ -4,6 +4,11 @@ import { markPaymentCollectionAsPaid } from "@medusajs/core-flows"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { createPayuLink } from "../../api/admin/lib/create-payu-link"
 import {
+  isLinkPaid,
+  oneapiHosts,
+  oneapiLinkTxnsUrl,
+} from "../../api/store/payu/payment-link/lib"
+import {
   verifyPayuTransaction,
   type VerifyResult,
 } from "../../api/store/payu/lib/verify-payment"
@@ -38,6 +43,10 @@ export const scheduleIdFromLinkRef = (udf1: unknown): string | null => {
  * configured or refuses: the caller then falls back to the Stripe balance
  * page, which still collects the money, rather than leaving the buyer with no
  * way to pay at all.
+ *
+ * The link's invoice number is returned too: it is what PayU's OneAPI looks
+ * the link's transactions up by, which is the fallback verification when the
+ * classic `verify_payment` does not recognise the webhook's txnid.
  */
 export async function createPayuBalanceLink(
   container: any,
@@ -46,7 +55,7 @@ export async function createPayuBalanceLink(
     order_id: string
     amount: number
   }
-): Promise<string | null> {
+): Promise<{ url: string; invoice_number: string | null } | null> {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -101,7 +110,43 @@ export async function createPayuBalanceLink(
     )
     return null
   }
-  return created.payment_link
+  return { url: created.payment_link, invoice_number: created.invoice_number }
+}
+
+/**
+ * Has the PayU link with this invoice number been paid at least `minAmount`?
+ * The OneAPI side of verification — the same fallback the cart rail uses.
+ * Returns null when OneAPI is not configured.
+ */
+export async function verifyBalanceLinkViaOneApi(
+  invoiceNumber: string,
+  minAmount?: number
+): Promise<{ paid: boolean; transaction_id: string | null } | null> {
+  const clientId = process.env.PAYU_CLIENT_ID
+  const clientSecret = process.env.PAYU_CLIENT_SECRET
+  const merchantId = process.env.PAYU_MERCHANT_ID
+  if (!clientId || !clientSecret || !merchantId || !invoiceNumber) return null
+
+  const mode = process.env.PAYU_ONEAPI_MODE
+  const tr = await fetch(oneapiHosts(mode).token, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "client_credentials",
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: "read_payment_links",
+    }).toString(),
+  })
+  const tj: any = await tr.json().catch(() => ({}))
+  if (!tj.access_token) return null
+
+  const vr = await fetch(oneapiLinkTxnsUrl(mode, invoiceNumber), {
+    headers: { Authorization: `Bearer ${tj.access_token}`, merchantId: String(merchantId) },
+  })
+  const vj: any = await vr.json().catch(() => ({}))
+  const r = isLinkPaid(vj, minAmount !== undefined ? Math.round(minAmount) : undefined)
+  return { paid: r.paid, transaction_id: r.transaction_id }
 }
 
 export type PayuBalanceResult = {
@@ -114,6 +159,11 @@ export type PayuBalanceResult = {
 export type PayuBalanceDeps = {
   /** Re-verify a transaction with PayU. Injected in tests. */
   verifyTransaction?: (txnid: string, minAmount?: number) => Promise<VerifyResult | null>
+  /** Look the link's transactions up by invoice number. Injected in tests. */
+  verifyInvoice?: (
+    invoiceNumber: string,
+    minAmount?: number
+  ) => Promise<{ paid: boolean; transaction_id: string | null } | null>
 }
 
 /**
@@ -182,6 +232,20 @@ export async function settlePayuBalance(
     }
   } catch (e: any) {
     logger?.warn?.(`[balance] PayU verify error for txn ${txnid}: ${e?.message ?? e}`)
+  }
+
+  // Fallback, as on the cart rail: the link's own transactions, by invoice.
+  const invoice = schedule.metadata?.payu_balance_invoice
+  if (!paid && invoice) {
+    try {
+      const byInvoice = await (deps.verifyInvoice ?? verifyBalanceLinkViaOneApi)(
+        String(invoice),
+        Number.isFinite(expected) ? expected : undefined
+      )
+      paid = !!byInvoice?.paid
+    } catch (e: any) {
+      logger?.warn?.(`[balance] PayU OneAPI check error for invoice ${invoice}: ${e?.message ?? e}`)
+    }
   }
   if (!paid) {
     return { settled: false, schedule_id: scheduleId, order_id: orderId, reason: "not_verified" }

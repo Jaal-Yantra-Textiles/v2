@@ -177,6 +177,18 @@ describe("settlePayuBalance", () => {
     expect(markBalancePaid).toHaveBeenCalledWith("psch_1", "t1")
   })
 
+  it("falls back to the link's transactions by invoice when verify_payment does not know the txnid", async () => {
+    schedule.metadata = { payu_balance_invoice: "inv123" }
+    const byInvoice = jest.fn(async () => ({ paid: true, transaction_id: "403993715" }))
+    const out = await settlePayuBalance(scope(), "psch_1", { txnid: "403993715" }, {
+      verifyTransaction: async () => null,
+      verifyInvoice: byInvoice,
+    })
+    expect(out.settled).toBe(true)
+    expect(byInvoice).toHaveBeenCalledWith("inv123", 2700)
+    expect(markBalancePaid).toHaveBeenCalled()
+  })
+
   it("is idempotent on a balance already paid", async () => {
     schedule.balance_status = "paid"
     const out = await settlePayuBalance(scope(), "psch_1", { txnid: "t1" })

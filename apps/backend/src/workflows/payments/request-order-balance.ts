@@ -250,7 +250,7 @@ const markDueStep = createStep(
 
     // An INR deal took its deposit over PayU; its balance goes the same way.
     // Null (PayU unconfigured or refusing) falls back to the Stripe page.
-    const payuUrl =
+    const payu =
       input.schedule?.rail === "payu"
         ? await createPayuBalanceLink(container, {
             schedule_id: input.plan.schedule_id,
@@ -258,9 +258,18 @@ const markDueStep = createStep(
             amount: input.plan.amount,
           })
         : null
-    const payUrl = payuUrl ?? stripeUrl
+    const payUrl = payu?.url ?? stripeUrl
 
     const schedules: any = container.resolve(PAYMENT_SCHEDULE_MODULE)
+    if (payu?.invoice_number) {
+      // Kept so the webhook can verify the link by invoice when PayU's classic
+      // verify does not know the txnid.
+      const current: any = await schedules.retrievePaymentSchedule(input.plan.schedule_id)
+      await schedules.updatePaymentSchedules({
+        id: input.plan.schedule_id,
+        metadata: { ...(current.metadata ?? {}), payu_balance_invoice: payu.invoice_number },
+      })
+    }
     // Idempotent in the service: an already-`due` schedule keeps its original
     // `balance_due_at` rather than having the clock reset by a second press.
     await schedules.markBalanceDue(input.plan.schedule_id, payUrl)

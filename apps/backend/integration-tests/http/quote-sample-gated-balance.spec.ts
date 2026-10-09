@@ -7,7 +7,11 @@ import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { PAYMENT_SCHEDULE_MODULE } from "../../src/modules/payment_schedule"
 import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 import raiseBalanceOnDispatch from "../../src/subscribers/order-dispatched-raise-balance"
-import { settlePayuBalance } from "../../src/lib/payments/payu-balance"
+import { writeFileSync } from "fs"
+import {
+  settlePayuBalance,
+  verifyBalanceLinkViaOneApi,
+} from "../../src/lib/payments/payu-balance"
 
 jest.setTimeout(300 * 1000)
 
@@ -309,6 +313,85 @@ setupSharedTestSuite(() => {
         expect(Number(data[0].summary?.pending_difference)).toBeCloseTo(0, 2)
         expect(data[0].payment_collections.every((c: any) => c.status === "completed")).toBe(true)
       })
+    })
+
+    /**
+     * 🔑 LIVE against PayU's TEST environment. Skipped unless PAYU_LIVE_E2E=1,
+     * so CI never calls PayU. Run it with the PAYU_* test credentials inline:
+     * it mints a REAL balance link, waits (up to 15 min) for someone to pay it
+     * with a PayU test instrument, then delivers the link webhook to this
+     * server, which re-verifies with PayU itself — nothing is injected.
+     * The link is printed, and written to PAYU_E2E_OUT when that is set.
+     */
+    const liveIt = process.env.PAYU_LIVE_E2E === "1" ? it : it.skip
+    describe("live PayU test environment", () => {
+      liveIt(
+        "an approved sample mints a real PayU balance link; paying it settles the order",
+        async () => {
+          const { api } = getSharedTestEnv()
+          const { orderId } = await placedDepositOrder({
+            deposit_pct: 10,
+            balance_trigger: "sample_approved",
+            lines: [{ variant_id: seed.variantA.id, quantity: 1 }],
+          })
+          const run = await createRun(orderId, "sample")
+
+          const res = await api.post(
+            `/admin/orders/${orderId}/sample-approval`,
+            { production_run_id: run.id, decision: "approved", confirm: true },
+            adminHeaders
+          )
+          const payUrl: string = res.data.sample_decision.pay_url
+          // A PayU link, not the Stripe fallback.
+          expect(payUrl).not.toContain("/stripe/pay/balance")
+          expect(payUrl).toMatch(/payu/i)
+
+          const s = await schedules().findByOrderId(orderId)
+          const invoice = s.metadata?.payu_balance_invoice
+          expect(invoice).toBeTruthy()
+          const balance = Number(s.balance_amount)
+          const banner = `PAYU_BALANCE_LINK ${payUrl} invoice=${invoice} amount=${balance} schedule=${s.id}`
+          console.log(banner)
+          if (process.env.PAYU_E2E_OUT) writeFileSync(process.env.PAYU_E2E_OUT, banner + "\n")
+
+          // Wait for the link to be paid, asking PayU itself.
+          let paid: { paid: boolean; transaction_id: string | null } | null = null
+          for (let i = 0; i < 90; i++) {
+            paid = await verifyBalanceLinkViaOneApi(String(invoice), balance)
+            if (paid?.paid) break
+            await new Promise((r) => setTimeout(r, 10_000))
+          }
+          expect(paid?.paid).toBe(true)
+          if (process.env.PAYU_E2E_OUT) {
+            writeFileSync(process.env.PAYU_E2E_OUT, banner + `\nPAID txn=${paid?.transaction_id}\n`)
+          }
+
+          // Deliver the link webhook to THIS server. It verifies with PayU.
+          // Form-encoded, as PayU posts it.
+          const hook = await api.post(
+            "/webhooks/payu/link",
+            new URLSearchParams({
+              status: "success",
+              udf1: `balance:${s.id}`,
+              txnid: paid?.transaction_id ?? "",
+              amount: String(balance),
+            }).toString(),
+            { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+          )
+          expect(hook.data.completed).toBe(true)
+
+          const after = await schedules().findByOrderId(orderId)
+          expect(after.balance_status).toBe("paid")
+          const query: any = container().resolve(ContainerRegistrationKeys.QUERY)
+          const { data } = await query.graph({
+            entity: "order",
+            fields: ["id", "summary"],
+            filters: { id: orderId },
+          })
+          expect(Number(data[0].summary?.pending_difference)).toBeCloseTo(0, 2)
+        },
+        16 * 60 * 1000
+      )
     })
 
     describe("a deal released on dispatch (unchanged)", () => {
