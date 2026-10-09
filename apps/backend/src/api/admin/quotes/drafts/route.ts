@@ -70,6 +70,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     // 🔑 `??`, never `||` — a 0% deposit is a real term and `||` would store it
     // as "unset", which resolves to the 30% platform default.
     deposit_pct: body.deposit_pct ?? null,
+    balance_trigger: body.balance_trigger ?? null,
     created_by: (req as any).auth_context?.actor_id ?? null,
   })
 

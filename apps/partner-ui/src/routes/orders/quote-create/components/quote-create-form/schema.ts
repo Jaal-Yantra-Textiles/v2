@@ -108,6 +108,8 @@ export const QuoteBuyerShape = z.object({
    * empty, which is why nothing here coerces falsy to undefined.
    */
   deposit_pct: z.number().min(0).max(100).optional(),
+  /** What makes the balance due. Omitted means `dispatch`. */
+  balance_trigger: z.enum(["dispatch", "sample_approved", "manual"]).optional(),
 
   /**
    * Freight named by hand, in the QUOTE currency (#1439 S12).
@@ -208,6 +210,7 @@ export const QuoteBuyerFields = [
   "currency_code",
   "ttl_days",
   "deposit_pct",
+  "balance_trigger",
   "freight_override_amount",
   "freight_basis",
   "duties_prepaid",

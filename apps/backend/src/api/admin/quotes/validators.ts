@@ -79,6 +79,7 @@ export const AdminCreateQuoteDraftReq = z.object({
    * backend resolves to the 30% platform default.
    */
   deposit_pct: z.number().min(0).max(100).nullish(),
+  balance_trigger: z.enum(["dispatch", "sample_approved", "manual"]).nullish(),
 })
 
 export type AdminCreateQuoteDraftReqType = z.infer<

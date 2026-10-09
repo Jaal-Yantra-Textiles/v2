@@ -112,6 +112,7 @@ export type AdminQuote = Record<string, any> & {
    * detail read only, and only once accepted.
    */
   deposit_pct?: number | null
+  balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
   accepted_cart_id?: string | null
   accepted_at?: string | null
   payment_schedule?: AdminPaymentSchedule | null
@@ -171,6 +172,7 @@ export type AdminMintQuotePayload = {
    * the backend applies its default; `0` means take nothing up front.
    */
   deposit_pct?: number | null
+  balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
   /** Freight named by hand, in the quote currency, and where it came from. */
   freight_override_amount?: number | null
   freight_basis?: string | null

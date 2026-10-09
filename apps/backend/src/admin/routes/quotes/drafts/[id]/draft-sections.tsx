@@ -101,6 +101,7 @@ const BUYER_FIELDS = [
   "buyer_tax_id_type",
   "partner_note",
   "deposit_pct",
+  "balance_trigger",
   "duties_prepaid",
   "duty_rate_percent",
   "import_tax_rate_percent",
@@ -197,6 +198,7 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
       partner_note: (draft as any).partner_note ?? "",
       // 🔑 `??`, never `||`: a stored 0% deposit is a real commercial term.
       deposit_pct: (draft as any).deposit_pct ?? null,
+      balance_trigger: (draft as any).balance_trigger ?? "dispatch",
       duties_prepaid: (draft as any).duties_prepaid ?? false,
       product_ids: productIds,
       quantities,
@@ -565,6 +567,15 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
                 (draft as any).deposit_pct != null
                   ? `${(draft as any).deposit_pct}%`
                   : "Platform default"
+              }
+            />
+            <Row
+              label="Balance due"
+              value={
+                {
+                  sample_approved: "On sample approval",
+                  manual: "When we ask for it",
+                }[(draft as any).balance_trigger as string] ?? "When the goods ship"
               }
             />
           </Container>

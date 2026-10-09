@@ -479,6 +479,39 @@ export const BuyerStep = ({ form, only = "all" }: Props) => {
 
       <Form.Field
         control={form.control}
+        name="balance_trigger"
+        render={({ field: { onChange, value, ref, ...rest } }) => (
+          <Form.Item>
+            <Form.Label optional>Balance due</Form.Label>
+            <Form.Control>
+              <Select
+                {...rest}
+                value={value ?? "dispatch"}
+                onValueChange={(v) => onChange(v)}
+              >
+                <Select.Trigger ref={ref}>
+                  <Select.Value />
+                </Select.Trigger>
+                <Select.Content>
+                  <Select.Item value="dispatch">When the goods ship</Select.Item>
+                  <Select.Item value="sample_approved">
+                    When the buyer approves a sample
+                  </Select.Item>
+                  <Select.Item value="manual">Only when we ask for it</Select.Item>
+                </Select.Content>
+              </Select>
+            </Form.Control>
+            <Form.Hint>
+              For made-to-order cloth, choose the sample: shipping the sample
+              then asks for nothing, and approving it on the order asks for the
+              balance.
+            </Form.Hint>
+          </Form.Item>
+        )}
+      />
+
+      <Form.Field
+        control={form.control}
         name="partner_note"
         render={({ field }) => (
           <Form.Item>

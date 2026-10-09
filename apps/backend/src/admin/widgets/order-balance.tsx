@@ -1,7 +1,18 @@
 import { defineWidgetConfig } from "@medusajs/admin-sdk"
 import { DetailWidgetProps } from "@medusajs/framework/types"
-import { Button, Container, Heading, StatusBadge, Text, toast } from "@medusajs/ui"
+import {
+  Button,
+  Container,
+  Heading,
+  Select,
+  StatusBadge,
+  Text,
+  Textarea,
+  toast,
+  usePrompt,
+} from "@medusajs/ui"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useState } from "react"
 
 import { sdk } from "../lib/config"
 
@@ -33,6 +44,35 @@ type BalanceState = {
   can_raise?: boolean
   reason?: string | null
   code?: string | null
+  deposit_pct?: number | null
+  balance_trigger?: "dispatch" | "sample_approved" | "manual"
+  sample_approved_at?: string | null
+  sample_run_id?: string | null
+  sample_decisions?: Array<{
+    production_run_id: string
+    decision: "approved" | "rejected"
+    notes?: string | null
+    decided_by?: string | null
+    decided_at: string
+  }>
+  sample_runs?: Array<{ id: string; status?: string | null; created_at?: string | null }>
+}
+
+const TRIGGER_LABEL: Record<string, string> = {
+  dispatch: "When the goods ship",
+  sample_approved: "When the buyer approves a sample",
+  manual: "Only when we ask for it",
+}
+
+const shortId = (id: string) => `…${id.slice(-6)}`
+
+const when = (iso?: string | null) => {
+  if (!iso) return ""
+  try {
+    return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+  } catch {
+    return iso
+  }
 }
 
 const money = (amount?: number | null, currency?: string | null) => {
@@ -98,9 +138,60 @@ const OrderBalanceWidget = ({ data }: DetailWidgetProps<AdminOrder>) => {
     },
   })
 
+  const prompt = usePrompt()
+  const [runId, setRunId] = useState<string>("")
+  const [notes, setNotes] = useState("")
+
+  const decide = useMutation({
+    mutationFn: async ({ decision, run }: { decision: "approved" | "rejected"; run: string }) =>
+      (await sdk.client.fetch(`/admin/orders/${orderId}/sample-approval`, {
+        method: "POST",
+        body: {
+          production_run_id: run,
+          decision,
+          ...(notes.trim() ? { notes: notes.trim() } : {}),
+          ...(decision === "approved" ? { confirm: true } : {}),
+        },
+      })) as { sample_decision: { balance_raised: boolean; pay_url: string | null; reason: string | null } },
+    onSuccess: (res, { decision }) => {
+      queryClient.invalidateQueries({ queryKey: ["order-balance", orderId] })
+      setNotes("")
+      const d = res.sample_decision
+      if (decision === "rejected") {
+        toast.success("Sample rejected", { description: "Recorded. Nothing was asked of the buyer." })
+      } else {
+        toast.success(d.balance_raised ? "Sample approved — balance requested" : "Sample approved", {
+          description: d.balance_raised ? "The buyer's payment link is below." : d.reason ?? undefined,
+        })
+      }
+    },
+    onError: (e: any) => {
+      toast.error("Could not record the sample decision", { description: e?.message ?? String(e) })
+    },
+  })
+
   // No schedule → an ordinary order. Render nothing at all.
   if (isLoading || !balance?.has_schedule) {
     return null
+  }
+
+  const trigger = balance.balance_trigger ?? "dispatch"
+  const sampleGated = trigger === "sample_approved"
+  const decisions = balance.sample_decisions ?? []
+  const sampleRuns = balance.sample_runs ?? []
+  const selectedRun = runId || sampleRuns[sampleRuns.length - 1]?.id || ""
+
+  const approve = async () => {
+    const ok = await prompt({
+      title: "Approve the sample?",
+      description: `This asks the buyer for the balance of ${money(
+        balance.balance_amount,
+        balance.currency_code
+      )} and gives them a payment link. Do it only once the buyer has approved the sample.`,
+      confirmText: "Approve and request the balance",
+      cancelText: "Cancel",
+    })
+    if (ok) decide.mutate({ decision: "approved", run: selectedRun })
   }
 
   const badge = badgeFor(balance.balance_status)
@@ -136,7 +227,100 @@ const OrderBalanceWidget = ({ data }: DetailWidgetProps<AdminOrder>) => {
           </Text>
           <Text size="small">{money(balance.total_due, balance.currency_code)}</Text>
         </div>
+        <div className="flex items-center justify-between">
+          <Text size="small" className="text-ui-fg-subtle">
+            Balance due
+          </Text>
+          <Text size="small">{TRIGGER_LABEL[trigger] ?? trigger}</Text>
+        </div>
       </div>
+
+      {sampleGated && (
+        <div className="flex flex-col gap-y-3 px-6 py-4">
+          <Text size="small" leading="compact" weight="plus">
+            Sample
+          </Text>
+
+          {decisions.length > 0 ? (
+            <div className="flex flex-col gap-y-2">
+              {decisions.map((d, i) => (
+                <div key={`${d.production_run_id}-${i}`} className="flex flex-col gap-y-0.5">
+                  <div className="flex items-center justify-between">
+                    <StatusBadge color={d.decision === "approved" ? "green" : "red"}>
+                      {d.decision === "approved" ? "Approved" : "Rejected"}
+                    </StatusBadge>
+                    <Text size="xsmall" className="text-ui-fg-muted">
+                      {when(d.decided_at)} · run {shortId(d.production_run_id)}
+                    </Text>
+                  </div>
+                  {d.notes && (
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      {d.notes}
+                    </Text>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <Text size="small" className="text-ui-fg-subtle">
+              No sample decided yet.
+            </Text>
+          )}
+
+          {!isPaid && balance.balance_status !== "due" && (
+            sampleRuns.length === 0 ? (
+              <Text size="xsmall" className="text-ui-fg-muted">
+                Create a sample production run for this order (type Sample,
+                with this order's id), then record the buyer's verdict here.
+              </Text>
+            ) : (
+              <div className="flex flex-col gap-y-2">
+                <Select value={selectedRun} onValueChange={setRunId}>
+                  <Select.Trigger>
+                    <Select.Value placeholder="Which sample?" />
+                  </Select.Trigger>
+                  <Select.Content>
+                    {sampleRuns.map((r) => (
+                      <Select.Item key={r.id} value={r.id}>
+                        {`Sample ${shortId(r.id)}${r.created_at ? ` · ${when(r.created_at)}` : ""}${
+                          r.status ? ` · ${r.status}` : ""
+                        }`}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select>
+                <Textarea
+                  rows={2}
+                  placeholder="What the buyer said (e.g. indigo too light)"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                />
+                <div className="flex gap-x-2">
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    className="flex-1"
+                    disabled={!selectedRun || decide.isPending}
+                    onClick={() => decide.mutate({ decision: "rejected", run: selectedRun })}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="primary"
+                    className="flex-1"
+                    disabled={!selectedRun || decide.isPending}
+                    isLoading={decide.isPending}
+                    onClick={approve}
+                  >
+                    Approve
+                  </Button>
+                </div>
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       <div className="flex flex-col gap-y-3 px-6 py-4">
         {/* The reason is the backend's, verbatim. It is the only place an
@@ -177,8 +361,11 @@ const OrderBalanceWidget = ({ data }: DetailWidgetProps<AdminOrder>) => {
 
         {balance.balance_status === "not_due" && balance.can_raise && (
           <Text size="xsmall" className="text-ui-fg-muted">
-            Dispatching this order raises the balance automatically. Use this
-            only when the goods are ready and no shipment has been recorded yet.
+            {trigger === "dispatch"
+              ? "Dispatching this order raises the balance automatically. Use this only when the goods are ready and no shipment has been recorded yet."
+              : trigger === "sample_approved"
+                ? "Approving the sample raises the balance. Use this only to ask for it without a sample decision."
+                : "Nothing raises this balance automatically. Use this when it is time to ask for it."}
           </Text>
         )}
       </div>

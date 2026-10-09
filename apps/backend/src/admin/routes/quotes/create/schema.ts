@@ -114,6 +114,12 @@ export const QuoteBuyerShape = z.object({
   deposit_pct: z.number().min(0).max(100).optional(),
 
   /**
+   * What makes the balance due. Omitted means `dispatch`, the behaviour
+   * before this field existed.
+   */
+  balance_trigger: z.enum(["dispatch", "sample_approved", "manual"]).optional(),
+
+  /**
    * Freight named by hand, in the QUOTE currency (#1439 S12).
    *
    * 🔴 Positive, never 0 — a zero here is free international shipping typed by
@@ -222,6 +228,7 @@ export const QuoteBuyerFields = [
   "destination_city",
   "ttl_days",
   "deposit_pct",
+  "balance_trigger",
   "carrier",
   "freight_override_amount",
   "freight_basis",

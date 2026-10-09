@@ -40,6 +40,7 @@ import { ActiveOrderExchangeSection } from "./components/active-order-exchange-s
 import { ActiveOrderReturnSection } from "./components/active-order-return-section"
 import { OrderActiveEditSection } from "./components/order-active-edit-section"
 import { OrderActivitySection } from "./components/order-activity-section"
+import { OrderBalanceSection } from "./components/order-balance-section"
 import { OrderCustomerSection } from "./components/order-customer-section"
 import { OrderFulfillmentSection } from "./components/order-fulfillment-section"
 import { OrderGeneralSection } from "./components/order-general-section"
@@ -320,6 +321,7 @@ export const OrderDetail = () => {
       </TwoColumnPage.Main>
       <TwoColumnPage.Sidebar>
         {!isWorkOrder && <OrderCustomerSection order={order} />}
+        {!isWorkOrder && <OrderBalanceSection orderId={order.id} />}
         {kind === "design" ? (
           <WorkOrderActivitySection order={order} productionRun={production_run} />
         ) : (
