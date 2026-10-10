@@ -3656,6 +3656,32 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id"]
     ),
   },
+  {
+    name: "set_sales_channel_products",
+    description:
+      "Add and/or remove products from a sales channel — i.e. which storefronts can sell them. `add`/`remove` are arrays of product ids. Unlike a collection, a product can be in MANY sales channels, so adding one leaves its other channels alone. Use it to sell one product on a second partner store. 🔑 A product with managed inventory is only purchasable on a channel whose stock location holds it: check the channel's locations (list_stock_locations) before expecting checkout to work. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/sales-channels/:id/products",
+    pathParams: ["id"],
+    previewPath: "/admin/sales-channels/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["add", "remove"],
+    inputSchema: obj(
+      {
+        id: STR("Sales channel id, e.g. 'sc_...' (a partner store's default channel from get_storefront_key / list_stores)."),
+        add: { type: "array", description: "Product ids to add to this channel.", items: { type: "string" } },
+        remove: {
+          type: "array",
+          description: "Product ids to remove from this channel. The product stays in its other channels.",
+          items: { type: "string" },
+        },
+      },
+      ["id"]
+    ),
+    sideEffects: "Links or unlinks the products from the sales channel; a published product appears on (or disappears from) that channel's storefront.",
+    nextSteps: ["list_products", "get_product"],
+  },
   // ===== Customs / HS codes ===============================================
   // Shiprocket rejects EVERY international shipment whose lines lack an HSN,
   // and the manual fix is one variant at a time. These two make it a bulk job.
