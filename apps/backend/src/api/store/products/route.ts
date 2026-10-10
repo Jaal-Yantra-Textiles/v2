@@ -9,6 +9,8 @@ import { wrapVariantsWithInventoryQuantityForSalesChannel } from "@medusajs/medu
 import { wrapProductsWithTaxPrices } from "@medusajs/medusa/api/store/products/helpers"
 import { attachMakerNames } from "../../../lib/attach-maker-names"
 
+const STORE_PRODUCT_LIST_CACHE_TTL_SECONDS = 60
+
 // Workaround for an upstream Medusa bug present in 2.14.x and 2.15.x: the
 // /store/products route gates the index-engine path with
 // `filterableFields.category_id` / `tag_id`, but the validator
@@ -81,7 +83,11 @@ async function getProductsWithIndexEngine(
       context,
     },
     {
-      cache: { enable: true },
+      // A short TTL, not Medusa's 1-hour default: auto-invalidation tags a
+      // cache entry by the products IN it, so an EMPTY list has no tags and
+      // nothing ever clears it. A partner store browsed before its first
+      // publish kept serving "no products" for an hour (Shramdaan, #2061).
+      cache: { enable: true, ttl: STORE_PRODUCT_LIST_CACHE_TTL_SECONDS },
       locale: (req as any).locale,
     }
   )
@@ -133,7 +139,11 @@ async function getProducts(req: MedusaRequest, res: MedusaResponse) {
       context,
     },
     {
-      cache: { enable: true },
+      // A short TTL, not Medusa's 1-hour default: auto-invalidation tags a
+      // cache entry by the products IN it, so an EMPTY list has no tags and
+      // nothing ever clears it. A partner store browsed before its first
+      // publish kept serving "no products" for an hour (Shramdaan, #2061).
+      cache: { enable: true, ttl: STORE_PRODUCT_LIST_CACHE_TTL_SECONDS },
       locale: (req as any).locale,
     } as any
   )
