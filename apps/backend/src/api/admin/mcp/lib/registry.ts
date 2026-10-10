@@ -3110,6 +3110,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "subtitle",
       "handle",
       "thumbnail",
+      "images",
       "categories",
       "collection_id",
       "type_id",
@@ -3127,6 +3128,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         subtitle: STR("New subtitle."),
         handle: STR("New URL handle."),
         thumbnail: STR("New thumbnail image URL."),
+        images: {
+          type: "array",
+          description:
+            "🔴 The product's WHOLE image gallery, in order: the list REPLACES what is stored, so resend every image you mean to keep. Pass as [{ url }]. Omit to leave images alone. To serve a HEIC browsers cannot show, pass its Cloudflare JPEG URL: https://automatic.jaalyantra.com/cdn-cgi/image/format=jpeg,width=1600/<path>.",
+          items: { type: "object", properties: { url: STR("Image URL.") }, required: ["url"] },
+        },
         categories: {
           type: "array",
           description:
