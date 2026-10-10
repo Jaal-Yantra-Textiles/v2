@@ -4935,6 +4935,12 @@ export default defineMiddlewares({
       method: "PUT",
       middlewares: [],
     },
+    // Admin twin of the partner theme editor (#2061) — same schema.
+    {
+      matcher: "/admin/partners/:id/storefront/website/theme",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(wrapSchema(websiteThemeSchema))],
+    },
     {
       matcher: "/admin/partners",
       method: "POST",

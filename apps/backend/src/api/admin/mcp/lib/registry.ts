@@ -4200,6 +4200,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "workspace_type",
       "tax_id",
       "tax_id_type",
+      "country_code",
+      "currency_code",
       "metadata",
     ],
     inputSchema: obj(
@@ -4216,6 +4218,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         ),
         tax_id_type: STR(
           "What kind of number tax_id is: 'GSTIN' | 'VAT' | 'PAN'. Send it alongside tax_id — a bare number cannot be validated or printed correctly without knowing what it is."
+        ),
+        country_code: STR(
+          "The partner's home country, ISO-3166 alpha-2 upper case, e.g. 'IN', 'DE'."
+        ),
+        currency_code: STR(
+          "The partner's currency, ISO-4217 lower case, e.g. 'inr', 'eur'."
         ),
         metadata: { type: "object", description: "Metadata to merge." },
       },
@@ -8416,6 +8424,71 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
     nextSteps: ["get_partner", "list_partner_products", "list_stores", "verify_partner_storefront_domain"],
+  },
+  {
+    name: "get_partner_storefront_website",
+    description:
+      "Read a partner storefront's website record and THEME — the one place its logo, store name, tagline, hero, colours and home sections live. Read. Use before update_partner_storefront_theme to see what is there; `preview_url` opens the storefront with the cache bypassed.",
+    method: "GET",
+    path: "/admin/partners/:id/storefront/website",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Partner id.") }, ["id"]),
+    nextSteps: ["update_partner_storefront_theme"],
+  },
+  {
+    name: "update_partner_storefront_theme",
+    description:
+      "Set a partner storefront's logo, store name, hero and home-page sections — what the partner's own theme editor writes. 🔑 The storefront nav reads branding.logo_url here, NOT the partner's `logo` (update_partner). Each top-level key you send is merged ONE level deep: `hero: {title}` keeps the other hero fields, but an array (sections_order, items, features) replaces the stored one wholesale. Flushes the storefront cache; `revalidation.ok` says whether the change is visible yet. Sensitive: requires confirm:true.",
+    method: "PUT",
+    path: "/admin/partners/:id/storefront/website/theme",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id/storefront/website",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "branding",
+      "colors",
+      "typography",
+      "buttons",
+      "animations",
+      "hero",
+      "navigation",
+      "footer",
+      "home_sections",
+      "product_page",
+      "cart",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        branding: {
+          type: "object",
+          description: "{ logo_url, store_name, favicon_url, tagline }. logo_url is what the storefront header shows.",
+        },
+        colors: { type: "object", description: "Theme colours, each '#RRGGBB'." },
+        typography: { type: "object", description: "Font settings." },
+        buttons: { type: "object", description: "Button styling." },
+        animations: { type: "object", description: "Section animations." },
+        hero: {
+          type: "object",
+          description:
+            "{ title, subtitle, description, badge_text, background_image_url, overlay_opacity, cta_text, cta_link, secondary_cta_text, secondary_cta_link, layout, min_height, features: [{ title, description, icon }] }.",
+        },
+        navigation: { type: "object", description: "Header links: { links: [{ label, href }] }." },
+        footer: { type: "object", description: "Footer text, links and social_links ([{ platform, url }])." },
+        home_sections: {
+          type: "object",
+          description:
+            "{ sections_order: [...], trust_banner: { items: [{ text, icon }] }, text_with_image: { title, description, image_url, cta_text, cta_link, layout }, testimonials: { items: [{ quote, author, role }] }, banner, newsletter }. sections_order values: hero | trust_banner | collections | text_with_image | categories | testimonials | banner | newsletter; the default is [hero, collections, categories]. The /about page falls back to text_with_image.",
+        },
+        product_page: { type: "object", description: "Product page display options." },
+        cart: { type: "object", description: "Cart display options." },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Writes the partner website's theme column (merged into what is stored) and asks the storefront to flush its cache.",
+    nextSteps: ["get_partner_storefront_website"],
   },
   {
     name: "verify_partner_storefront_domain",
