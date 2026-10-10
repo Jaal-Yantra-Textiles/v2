@@ -33,6 +33,22 @@ const tool = (name: string) => {
   return found
 }
 
+describe("update_partner carries the partner's country and currency", () => {
+  const t = () => tool("update_partner")
+
+  it("🔴 routes country_code and currency_code as BODY params", () => {
+    // Same defect as tax_id: the columns were writable through the PUT, but
+    // the allowlist dropped them and the tool reported success (Shramdaan,
+    // 2026-10-09).
+    expect(t().bodyParams).toEqual(
+      expect.arrayContaining(["country_code", "currency_code"])
+    )
+    expect(Object.keys(t().inputSchema.properties)).toEqual(
+      expect.arrayContaining(["country_code", "currency_code"])
+    )
+  })
+})
+
 describe("update_partner carries the partner's own tax identity", () => {
   const t = () => tool("update_partner")
 
