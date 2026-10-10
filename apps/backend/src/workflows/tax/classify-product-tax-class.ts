@@ -44,6 +44,33 @@ export const JYT_MANAGED_TAX_CLASS_VALUES = new Set<string>([
   TAX_CLASS_OVER_2500_VALUE,
 ])
 
+/**
+ * HS chapters 50–60 are fabrics (silk, wool, cotton, other vegetable fibres,
+ * man-made filaments/staples, wadding, carpets, special woven, knitted).
+ * Indian GST on woven fabric is 5% at any price — the ₹2,500 split applies to
+ * apparel and made-ups (chapters 61–63). Without this, a fabric product whose
+ * 12 m pack costs over ₹2,500 took the 18% class for EVERY variant, its
+ * per-metre price included (HR Handloom / Tangaliya House, 2026-10-10).
+ */
+export const isFabricHsCode = (hsCode: string | null | undefined): boolean => {
+  const digits = String(hsCode ?? "").replace(/\D/g, "")
+  if (digits.length < 2) return false
+  const chapter = Number(digits.slice(0, 2))
+  return chapter >= 50 && chapter <= 60
+}
+
+/**
+ * The 18% class applies ABOVE ₹2,500 — "5% ≤ ₹2,500/piece, 18% above"
+ * (seed-in-textile-tax-class.ts). It used to fire at exactly ₹2,500.
+ */
+export const shouldAssignOver2500 = (
+  maxInr: number | null,
+  hsCode: string | null | undefined
+): boolean => {
+  if (isFabricHsCode(hsCode)) return false
+  return maxInr !== null && maxInr > IN_TEXTILE_THRESHOLD_INR
+}
+
 export type ClassifyProductInput = {
   product_id: string
   /**
@@ -139,7 +166,7 @@ const classifyProductStep = createStep(
     const { data: products } = await query.graph({
       entity: "product",
       filters: { id: input.product_id },
-      fields: ["id", "type_id", "type.value"],
+      fields: ["id", "type_id", "type.value", "hs_code"],
     })
     const product = (products ?? [])[0] as any
     if (!product) {
@@ -171,7 +198,7 @@ const classifyProductStep = createStep(
     }
 
     const maxInr = await getMaxInrPrice(container, input.product_id)
-    const shouldAssign = maxInr !== null && maxInr >= IN_TEXTILE_THRESHOLD_INR
+    const shouldAssign = shouldAssignOver2500(maxInr, product.hs_code)
     const desiredTypeId = shouldAssign ? overId : null
 
     if (desiredTypeId === prevTypeId) {
@@ -194,8 +221,8 @@ const classifyProductStep = createStep(
         decision: desiredTypeId ? "assigned" : "cleared",
         reason:
           (desiredTypeId
-            ? `WOULD assign — max INR price ${maxInr} ≥ ${IN_TEXTILE_THRESHOLD_INR}`
-            : `WOULD clear — max INR price ${maxInr ?? "none"} < ${IN_TEXTILE_THRESHOLD_INR}`),
+            ? `WOULD assign — max INR price ${maxInr} > ${IN_TEXTILE_THRESHOLD_INR}`
+            : `WOULD clear — max INR price ${maxInr ?? "none"} ≤ ${IN_TEXTILE_THRESHOLD_INR} or fabric HS ${product.hs_code ?? "none"}`),
         max_inr_price: maxInr,
         new_type_id: desiredTypeId,
         prev_type_id: prevTypeId,
@@ -210,8 +237,8 @@ const classifyProductStep = createStep(
       product_id: input.product_id,
       decision: desiredTypeId ? "assigned" : "cleared",
       reason: desiredTypeId
-        ? `Max INR price ${maxInr} ≥ ${IN_TEXTILE_THRESHOLD_INR} threshold`
-        : `Max INR price ${maxInr ?? "none"} < ${IN_TEXTILE_THRESHOLD_INR} threshold`,
+        ? `Max INR price ${maxInr} > ${IN_TEXTILE_THRESHOLD_INR} threshold`
+        : `Max INR price ${maxInr ?? "none"} ≤ ${IN_TEXTILE_THRESHOLD_INR} threshold, or fabric HS code ${product.hs_code ?? "none"}`,
       max_inr_price: maxInr,
       new_type_id: desiredTypeId,
       prev_type_id: prevTypeId,

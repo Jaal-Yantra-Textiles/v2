@@ -2411,6 +2411,30 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["list_stock_locations", "set_inventory_order_ship_from"],
   },
   {
+    name: "set_stock_location_sales_channels",
+    description:
+      "Link or unlink sales channels to a stock location — i.e. which storefronts can sell (and fulfil) stock held there. `add`/`remove` are arrays of sales channel ids; other links are left alone. "
+      + "🔑 Use it when a product tracked at OUR warehouse is also sold on a partner's store: Medusa only checks stock at locations linked to the cart's sales channel, so without the link checkout refuses the item. "
+      + "⚠️ The link also exposes that location's shipping options on the linked store. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/stock-locations/:id/sales-channels",
+    pathParams: ["id"],
+    previewPath: "/admin/stock-locations/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: ["add", "remove"],
+    inputSchema: obj(
+      {
+        id: STR("Stock location id, e.g. 'sloc_...'."),
+        add: { type: "array", description: "Sales channel ids to link.", items: { type: "string" } },
+        remove: { type: "array", description: "Sales channel ids to unlink.", items: { type: "string" } },
+      },
+      ["id"]
+    ),
+    sideEffects: "Links/unlinks sales channels to the location; the location's stock and shipping options become available to (or leave) those storefronts.",
+    nextSteps: ["get_stock_location", "set_sales_channel_products"],
+  },
+  {
     name: "update_stock_location",
     description:
       "Rename a stock location, or change its address. Sensitive: requires confirm:true. "

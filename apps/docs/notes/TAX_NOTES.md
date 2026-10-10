@@ -44,6 +44,10 @@ GST:
 
 - Apparel and clothing accessories **≤ ₹2,500 per piece**: **5% GST**
 - Apparel and clothing accessories **> ₹2,500 per piece**: **18% GST**
+- Woven/knitted **fabric** (HS chapters 50–60): **5% GST at any price**. The classifier
+  skips any product whose `hs_code` is in those chapters, so a 12 m fabric pack over
+  ₹2,500 no longer drags its per-metre variant into 18% (2026-10-10). Exactly ₹2,500
+  is 5% (the classifier used `>=` until then).
 
 Material (handloom, cotton, silk, synthetic) doesn't change the rate
 — only the sale-price-per-piece does. The reform replaced the older

@@ -27,3 +27,12 @@ describe("set_sales_channel_products", () => {
     expect(t().sensitive).toBe(true)
   })
 })
+
+describe("set_stock_location_sales_channels", () => {
+  it("🔴 forwards add/remove to Medusa's stock-location sales-channels route", () => {
+    const t = (ADMIN_MCP_TOOLS as any[]).find((x) => x.name === "set_stock_location_sales_channels")
+    expect(t.path).toBe("/admin/stock-locations/:id/sales-channels")
+    expect(t.bodyParams).toEqual(expect.arrayContaining(["add", "remove"]))
+    expect(t.sensitive).toBe(true)
+  })
+})
