@@ -1,7 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
-import { verifyPartnerStorefrontDomain } from "../../../../../../../workflows/stores/verify-storefront-domain"
+import { verifyPartnerStorefrontDomain } from "../../../../../../workflows/stores/verify-storefront-domain"
 
 /**
  * @route POST /admin/partners/:id/storefront/verify-domain
