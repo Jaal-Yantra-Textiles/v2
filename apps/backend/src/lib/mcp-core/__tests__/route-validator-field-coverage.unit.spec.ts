@@ -257,6 +257,7 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:create_product_collection",
   "admin:update_product_collection",
   "admin:set_collection_products",
+  "admin:set_sales_channel_products",
   "admin:update_product_variant",
   "admin:create_product_for_partner",
   "admin:update_customer",
