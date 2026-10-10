@@ -52,6 +52,10 @@ export type VercelDomainConfig = {
   recommendedIPv4?: Array<{ rank: number; value: string[] }>
 }
 
+/** DNS content as compared for identity: trimmed, surrounding quotes stripped. */
+export const normalizeDnsContent = (v: unknown): string =>
+  String(v ?? "").trim().replace(/^"(.*)"$/s, "$1").trim()
+
 export type CloudflareDnsRecord = {
   id: string
   type: string
@@ -744,55 +748,70 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
   }
 
   /**
-   * Create all DNS verification records that Vercel requires for domain verification.
-   * Typically a TXT record like `_vercel.example.com` with a verification value.
+   * Create the DNS records Vercel requires to verify a domain — typically a
+   * TXT on `_vercel.<zone>` carrying `vc-domain-verify=<host>,<nonce>`.
+   *
+   * 🔴 Two things this got wrong until 2026-10-10 (shramdaan.cicilabel.com
+   * stayed unverified, HTTPS dead):
+   *
+   * 1. It never received the app container, so `cloudflareCreds()` fell back
+   *    to the CLOUDFLARE_API_TOKEN env var — a token that can no longer see
+   *    the zone — while the CNAME step beside it, which DOES pass the
+   *    container, used the platform row's credentials and worked. Pass the
+   *    container.
+   * 2. Every `*.cicilabel.com` storefront shares ONE record name,
+   *    `_vercel.cicilabel.com`. An existing TXT with a different value was
+   *    UPDATED in place — i.e. another partner's verification overwritten.
+   *    A TXT is now always ADDED beside its siblings, never edited.
+   *
+   * Values are compared with surrounding quotes stripped: Cloudflare may
+   * return TXT content quoted.
    */
   async createVercelVerificationRecords(
-    verification: Array<{ type: string; domain: string; value: string }> | undefined
+    verification: Array<{ type: string; domain: string; value: string }> | undefined,
+    appContainer?: MedusaContainer
   ): Promise<Array<{ domain: string; action: string; id?: string; error?: string }>> {
     if (!verification?.length) {
       this.log("info", "No verification records needed")
       return []
     }
 
-    if (!(await this.isCloudflareConfigured())) {
+    if (!(await this.isCloudflareConfigured(appContainer))) {
       this.log("warn", "Cannot create verification records — Cloudflare not configured")
       return verification.map((v) => ({ domain: v.domain, action: "skipped" }))
     }
 
+    const creds = await this.cloudflareCreds(appContainer)
     const results: Array<{ domain: string; action: string; id?: string; error?: string }> = []
 
     for (const v of verification) {
-      this.log("info", `Creating verification record: ${v.type} ${v.domain} = ${v.value}`)
+      this.log("info", `Ensuring verification record: ${v.type} ${v.domain}`)
       try {
-        // Check if record already exists
-        const existing = await this.listDnsRecords({ name: v.domain, type: v.type })
-        if (existing.length > 0) {
-          // Check if value matches
-          const match = existing.find((r) => r.content === v.value)
-          if (match) {
-            this.log("info", `Verification record already exists: ${v.domain}`)
-            results.push({ domain: v.domain, action: "exists", id: match.id })
-            continue
-          }
-          // Update existing record
-          const updated = await this.updateDnsRecord(existing[0].id, {
-            name: v.domain,
-            content: v.value,
-            type: v.type,
-          })
-          this.log("info", `Verification record updated: ${v.domain}`)
+        const existing = await this.listDnsRecords({ name: v.domain, type: v.type }, creds)
+        const match = existing.find(
+          (r) => normalizeDnsContent(r.content) === normalizeDnsContent(v.value)
+        )
+        if (match) {
+          results.push({ domain: v.domain, action: "exists", id: match.id })
+          continue
+        }
+
+        if (existing.length > 0 && String(v.type).toUpperCase() !== "TXT") {
+          // A non-TXT verification record has one value per name: replacing
+          // it is correct. TXT siblings belong to other domains — never this.
+          const updated = await this.updateDnsRecord(
+            existing[0].id,
+            { name: v.domain, content: v.value, type: v.type },
+            creds
+          )
           results.push({ domain: v.domain, action: "updated", id: updated.id })
           continue
         }
 
-        // Create new record
-        const created = await this.createDnsRecord({
-          name: v.domain,
-          content: v.value,
-          type: v.type,
-          proxied: false,
-        })
+        const created = await this.createDnsRecord(
+          { name: v.domain, content: v.value, type: v.type, proxied: false },
+          creds
+        )
         this.log("info", `Verification record created: ${v.domain}`, { id: created.id })
         results.push({ domain: v.domain, action: "created", id: created.id })
       } catch (e: any) {
@@ -802,6 +821,58 @@ class DeploymentService extends MedusaService({ DeploymentAccount }) {
     }
 
     return results
+  }
+
+  /** One domain as a Vercel project sees it, with its verification challenge. */
+  async getProjectDomain(projectId: string, domain: string): Promise<VercelDomain> {
+    const res = await fetch(
+      `${VERCEL_API_BASE}/v9/projects/${projectId}/domains/${domain}${this.vercelTeamQuery()}`,
+      { method: "GET", headers: this.vercelHeaders() }
+    )
+    if (!res.ok) {
+      const body = await res.text()
+      throw new Error(`Vercel getProjectDomain failed (${res.status}): ${body}`)
+    }
+    return res.json()
+  }
+
+  /**
+   * Bring a Vercel storefront domain to verified: read its challenge, publish
+   * the TXT in our zone, ask Vercel to verify. Idempotent — a verified domain
+   * returns immediately, and a TXT already present is left alone. Verification
+   * can lag DNS propagation, so `verified: false` with `txt: created` means
+   * "call again in a minute", not failure.
+   */
+  async ensureVercelDomainVerified(
+    projectId: string,
+    domain: string,
+    appContainer?: MedusaContainer
+  ): Promise<{
+    domain: string
+    verified: boolean
+    txt: Array<{ domain: string; action: string; id?: string; error?: string }>
+    error?: string
+  }> {
+    let current: VercelDomain
+    try {
+      current = await this.getProjectDomain(projectId, domain)
+    } catch (e: any) {
+      return { domain, verified: false, txt: [], error: e.message }
+    }
+    if (current.verified) {
+      return { domain, verified: true, txt: [] }
+    }
+    const txt = await this.createVercelVerificationRecords(
+      current.verification ?? undefined,
+      appContainer
+    )
+    try {
+      const after = await this.verifyDomain(projectId, domain)
+      return { domain, verified: Boolean(after?.verified), txt }
+    } catch (e: any) {
+      // Vercel answers 400 while the TXT has not propagated yet.
+      return { domain, verified: false, txt, error: e.message }
+    }
   }
 
   /**

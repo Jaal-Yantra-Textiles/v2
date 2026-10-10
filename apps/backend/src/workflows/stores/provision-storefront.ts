@@ -403,8 +403,11 @@ const createVerificationRecordsStep = createStep(
   ) => {
     const deployment: DeploymentService = container.resolve(DEPLOYMENT_MODULE)
     try {
+      // The container carries the platform row's Cloudflare credentials — the
+      // same ones the CNAME step uses. Without it the env token was used.
       const results = await deployment.createVercelVerificationRecords(
-        input.verification || undefined
+        input.verification || undefined,
+        container
       )
       return new StepResponse(results)
     } catch (e: any) {

@@ -8415,7 +8415,23 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/partners/:id/storefront",
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Partner id, e.g. 'partner_...'.") }, ["id"]),
-    nextSteps: ["get_partner", "list_partner_products", "list_stores"],
+    nextSteps: ["get_partner", "list_partner_products", "list_stores", "verify_partner_storefront_domain"],
+  },
+  {
+    name: "verify_partner_storefront_domain",
+    description:
+      "Bring a partner's provisioned storefront subdomain (e.g. shramdaan.cicilabel.com) to VERIFIED on Vercel, so it gets a certificate and serves. Publishes Vercel's `_vercel` TXT challenge in our Cloudflare zone — ADDED beside the other stores' records, never replacing one — then asks Vercel to verify. Sensitive: requires confirm:true. " +
+      "Idempotent: a verified domain returns at once. `verified: false` with a TXT `created` or `exists` usually means DNS is still propagating — call again in a few minutes; an hourly job also retries. For a partner's CUSTOM domain use the storefront domain tools instead.",
+    method: "POST",
+    path: "/admin/partners/:id/storefront/verify-domain",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id/storefront",
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Partner id.") }, ["id"]),
+    sideEffects:
+      "May create one TXT record on _vercel.<root domain> in our Cloudflare zone, and asks Vercel to verify the domain.",
+    nextSteps: ["get_partner_storefront"],
   },
 
   // ---- Production ops: the note on a run's timeline ----------------------
