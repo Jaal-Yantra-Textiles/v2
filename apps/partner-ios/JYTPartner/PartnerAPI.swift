@@ -3,11 +3,20 @@ import Foundation
 /// The partner API client — the Swift counterpart of the partner-ui hooks
 /// (`apps/partner-ui/src/hooks/api/*`). All requests run against the
 /// `/partners/*` surface with the JWT from the Keychain.
+///
+/// Every authenticated request goes through `authorizedData(_:)`, the one
+/// place that adds the bearer. A 401 there triggers one token refresh
+/// (shared by every request that hit the 401 at the same time) and one
+/// retry; if the token still can't be used, `.partnerSessionExpired` is
+/// posted and AuthStore signs the partner out.
 actor PartnerAPI {
   static let shared = PartnerAPI()
 
   private let decoder: JSONDecoder
   private let session: URLSession
+  /// The refresh in flight, if any — concurrent 401s await this one task
+  /// instead of each spending the old token on its own refresh.
+  private var refreshTask: Task<String, Error>?
 
   private init() {
     let d = JSONDecoder()
@@ -69,7 +78,12 @@ actor PartnerAPI {
     request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
     let (data, response) = try await session.data(for: request)
-    try Self.check(response, data: data)
+    do {
+      try Self.check(response, data: data)
+    } catch let error as PartnerError where error.isUnauthorized {
+      // Only here does a 401 mean the credentials were wrong.
+      throw PartnerError.invalidCredentials
+    }
 
     let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     if parsed?["verification_required"] as? Bool == true {
@@ -81,6 +95,7 @@ actor PartnerAPI {
       throw PartnerError.invalidResponse
     }
     Keychain.saveToken(token)
+    SessionClock.markRefreshed()
     return LoginOutcome(verificationRequired: false, email: email)
   }
 
@@ -102,10 +117,48 @@ actor PartnerAPI {
       throw PartnerError.invalidResponse
     }
     Keychain.saveToken(token)
+    SessionClock.markRefreshed()
   }
 
   nonisolated func logout() {
     Keychain.clearToken()
+    SessionClock.clear()
+  }
+
+  // MARK: - Token refresh
+
+  /// POST /partners/auth/refresh — swaps the stored JWT (which may already
+  /// be expired, up to 30 days) for a fresh one and saves it. Concurrent
+  /// callers share one request. Throws `PartnerError.http(401)` when the
+  /// token can't be refreshed; network/5xx errors propagate as they are.
+  @discardableResult
+  func refreshToken() async throws -> String {
+    if let refreshTask {
+      return try await refreshTask.value
+    }
+    guard let current = Keychain.loadToken() else {
+      throw PartnerError.http(status: 401, message: "")
+    }
+    let task = Task { try await self.performRefresh(token: current) }
+    refreshTask = task
+    defer { refreshTask = nil }
+    return try await task.value
+  }
+
+  private func performRefresh(token: String) async throws -> String {
+    var request = URLRequest(url: Self.makeURL("partners/auth/refresh"))
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    let (data, response) = try await session.data(for: request)
+    try Self.check(response, data: data)
+    let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    guard let fresh = parsed?["token"] as? String, !fresh.isEmpty else {
+      throw PartnerError.invalidResponse
+    }
+    Keychain.saveToken(fresh)
+    SessionClock.markRefreshed()
+    return fresh
   }
 
   func me() async throws -> PartnerMe {
@@ -161,6 +214,20 @@ actor PartnerAPI {
     try await get(path: "partners/production-runs/\(id)")
   }
 
+  /// The run's cost rollup (partner rate/total, materials, cost per piece).
+  func runCostSummary(id: String) async throws -> RunCostSummary {
+    let wrapper: RunCostSummaryResponse =
+      try await get(path: "partners/production-runs/\(id)/cost-summary")
+    return wrapper.cost_summary
+  }
+
+  /// How many consumption logs the run has (only the count is fetched).
+  func runConsumptionLogCount(id: String) async throws -> Int {
+    let response: ConsumptionLogCountResponse =
+      try await get(path: "partners/production-runs/\(id)/consumption-logs?limit=1")
+    return response.count
+  }
+
   // MARK: - Inventory orders
   // The raw-material purchase orders the partner is commissioned for —
   // the mobile counterpart of the partner-ui inventory-orders hooks
@@ -198,9 +265,57 @@ actor PartnerAPI {
     try await post(path: "partners/inventory-orders/\(id)/start")
   }
 
-  /// Processing/Partial → Ready for Delivery — goods packed (#790).
+  /// Partial → Ready for Delivery — goods packed (#790). The backend allows
+  /// it ONLY from Partial: a delivery must be recorded first, and a full
+  /// delivery already moves the order to Shipped.
   func markInventoryOrderReadyForDelivery(id: String) async throws {
     try await post(path: "partners/inventory-orders/\(id)/ready-for-delivery")
+  }
+
+  /// Courier options for the order's shipment, cheapest first is the
+  /// caller's job. `weightGrams`/dimensions refine the quote.
+  func inventoryOrderShippingRates(
+    id: String,
+    carrier: String,
+    weightGrams: Int?,
+    dimensions: InventoryShipmentDimensions?
+  ) async throws -> InventoryShippingRatesResponse {
+    var path = "partners/inventory-orders/\(id)/shiprocket-rates?carrier=\(carrier)"
+    if let weightGrams { path += "&weight_grams=\(weightGrams)" }
+    if let length = dimensions?.length { path += "&length=\(CompletionSplit.format(length))" }
+    if let breadth = dimensions?.breadth { path += "&breadth=\(CompletionSplit.format(breadth))" }
+    if let height = dimensions?.height { path += "&height=\(CompletionSplit.format(height))" }
+    return try await get(path: path)
+  }
+
+  /// Book a carrier shipment (AWB + label, optional pickup) for the order.
+  func createInventoryOrderShipment(
+    id: String,
+    body: CreateInventoryShipmentBody
+  ) async throws -> CreatedInventoryShipment {
+    let response: CreateInventoryShipmentResponse = try await post(
+      path: "partners/inventory-orders/\(id)/shipment",
+      json: try JSONEncoder().encode(body)
+    )
+    return response.shipment
+  }
+
+  // MARK: - Incoming deliveries (#2286)
+  // Goods delivered TO this partner's warehouse, whoever supplies them —
+  // the receiving side of inventory orders (no prices).
+
+  /// Default: only orders with something outstanding; `all` adds the
+  /// fully received ones. There is no single-delivery route.
+  func incomingDeliveries(all: Bool = false) async throws -> IncomingDeliveriesResponse {
+    try await get(path: all ? "partners/incoming-deliveries?all=true" : "partners/incoming-deliveries")
+  }
+
+  /// The receiving partner states what arrived, per line (0 allowed).
+  func receiveIncomingDelivery(orderId: String, body: ReceiveIncomingBody) async throws {
+    try await post(
+      path: "partners/incoming-deliveries/\(orderId)/receive",
+      json: try JSONEncoder().encode(body)
+    )
   }
 
   /// The goods receipt: what was actually delivered, per line, with the
@@ -243,12 +358,8 @@ actor PartnerAPI {
     var request = URLRequest(url: Self.makeURL("partners/device-tokens"))
     request.httpMethod = "DELETE"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    if let stored = Keychain.loadToken() {
-      request.setValue("Bearer \(stored)", forHTTPHeaderField: "Authorization")
-    }
     request.httpBody = try JSONEncoder().encode(Body(token: token))
-    let (data, response) = try await session.data(for: request)
-    try Self.check(response, data: data)
+    _ = try await authorizedData(request)
   }
 
   // MARK: - Run lifecycle actions
@@ -273,9 +384,8 @@ actor PartnerAPI {
     )
   }
 
-  /// `complete` output + cost — the CompleteRunForm essentials. The web form
-  /// also logs consumptions; those stay on the consumption surfaces, and the
-  /// backend accepts a completion without them.
+  /// `complete` — output, cost, and the materials consumed (logged with the
+  /// completion, as the web CompleteRunForm does).
   struct ConsumptionEntry: Codable {
     var inventory_item_id: String?
     var quantity: Double
@@ -286,8 +396,8 @@ actor PartnerAPI {
   }
 
   struct CompleteRunBody: Codable {
-    var produced_quantity: Int?
-    var rejected_quantity: Int?
+    var produced_quantity: Double?
+    var rejected_quantity: Double?
     var rejection_reason: String?
     var rejection_notes: String?
     var partner_cost_estimate: Double?
@@ -328,13 +438,9 @@ actor PartnerAPI {
       "multipart/form-data; boundary=\(boundary)",
       forHTTPHeaderField: "Content-Type"
     )
-    if let token = Keychain.loadToken() {
-      request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    }
     request.httpBody = Self.multipartBody(boundary: boundary, parts: parts)
 
-    let (data, response) = try await session.data(for: request)
-    try Self.check(response, data: data)
+    let data = try await authorizedData(request)
     do {
       let decoded = try decoder.decode(UploadFilesResponse.self, from: data)
       return decoded.files
@@ -372,17 +478,90 @@ actor PartnerAPI {
   }
 
   private func post(path: String, json: Data? = nil) async throws {
+    _ = try await postData(path: path, json: json)
+  }
+
+  /// POST and hand back the raw body, for routes whose reply the caller reads.
+  private func postData(path: String, json: Data? = nil) async throws -> Data {
     var request = URLRequest(url: Self.makeURL(path))
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    if let token = Keychain.loadToken() {
-      request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    }
     if let json {
       request.httpBody = json
     }
-    let (data, response) = try await session.data(for: request)
-    try Self.check(response, data: data)
+    return try await authorizedData(request)
+  }
+
+  private func post<T: Decodable>(path: String, json: Data? = nil) async throws -> T {
+    let data = try await postData(path: path, json: json)
+    return try decode(data)
+  }
+
+  // MARK: - Authenticated transport
+
+  /// The ONE place a bearer is added. On a 401: refresh once (shared with
+  /// any concurrent 401s), retry once. If the token still isn't accepted,
+  /// post `.partnerSessionExpired` and throw `.sessionExpired`. A refresh
+  /// that fails on the network or a 5xx is thrown as is — the partner stays
+  /// signed in and can retry.
+  private func authorizedData(_ request: URLRequest) async throws -> Data {
+    let token = Keychain.loadToken()
+    let (data, response) = try await session.data(for: Self.authorize(request, token: token))
+    guard Self.statusCode(response) == 401, let token else {
+      try Self.check(response, data: data)
+      return data
+    }
+
+    let fresh: String
+    if let stored = Keychain.loadToken(), stored != token {
+      // Another request refreshed while this one was in flight.
+      fresh = stored
+    } else {
+      do {
+        fresh = try await refreshToken()
+      } catch let error as PartnerError where Self.refreshWasRefused(error) {
+        Self.signalSessionExpired()
+        throw PartnerError.sessionExpired
+      }
+    }
+
+    let (retryData, retryResponse) = try await session.data(
+      for: Self.authorize(request, token: fresh))
+    if Self.statusCode(retryResponse) == 401 {
+      Self.signalSessionExpired()
+      throw PartnerError.sessionExpired
+    }
+    try Self.check(retryResponse, data: retryData)
+    return retryData
+  }
+
+  /// A refresh failure that means "this token is finished": any 4xx (401,
+  /// or a 404 while the route isn't deployed — the original call was already
+  /// refused). 5xx, network and parse failures are NOT a refusal.
+  private static func refreshWasRefused(_ error: PartnerError) -> Bool {
+    switch error {
+    case .sessionExpired, .invalidCredentials: return true
+    case .http(let status, _): return (400..<500).contains(status)
+    default: return false
+    }
+  }
+
+  private static func authorize(_ request: URLRequest, token: String?) -> URLRequest {
+    var request = request
+    if let token {
+      request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    }
+    return request
+  }
+
+  private static func statusCode(_ response: URLResponse) -> Int? {
+    (response as? HTTPURLResponse)?.statusCode
+  }
+
+  private static func signalSessionExpired() {
+    Task { @MainActor in
+      NotificationCenter.default.post(name: .partnerSessionExpired, object: nil)
+    }
   }
 
   // MARK: - Plumbing
@@ -412,11 +591,11 @@ actor PartnerAPI {
   private func get<T: Decodable>(path: String) async throws -> T {
     var request = URLRequest(url: Self.makeURL(path))
     request.httpMethod = "GET"
-    if let token = Keychain.loadToken() {
-      request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-    }
-    let (data, response) = try await session.data(for: request)
-    try Self.check(response, data: data)
+    let data = try await authorizedData(request)
+    return try decode(data)
+  }
+
+  private func decode<T: Decodable>(_ data: Data) throws -> T {
     do {
       return try decoder.decode(T.self, from: data)
     } catch let error as DecodingError {
@@ -449,15 +628,30 @@ actor PartnerAPI {
       throw PartnerError.invalidResponse
     }
     guard !(200...299).contains(http.statusCode) else { return }
-    var message = ""
-    if let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-       let msg = parsed["message"] as? String {
-      message = msg
-    } else if let s = String(data: data, encoding: .utf8), s.count < 300 {
-      message = s
-    }
-    throw PartnerError.http(status: http.statusCode, message: message)
+    throw PartnerError.http(status: http.statusCode, message: errorMessage(from: data))
   }
+
+  /// The error text a route sent: `message`, else `error`, else empty (the
+  /// caller then shows a generic line). Never the raw body — an HTML error
+  /// page or a stack trace is not something to put in front of a partner.
+  static func errorMessage(from data: Data) -> String {
+    guard let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      return ""
+    }
+    for key in ["message", "error"] {
+      if let text = parsed[key] as? String,
+         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return text
+      }
+    }
+    return ""
+  }
+}
+
+extension Notification.Name {
+  /// Posted when the token was refused and could not be refreshed.
+  /// AuthStore signs out and the login screen says why.
+  static let partnerSessionExpired = Notification.Name("partnerSessionExpired")
 }
 
 private extension ISO8601DateFormatter {

@@ -30,6 +30,18 @@ struct ProfileView: View {
           }
         }
 
+        // Goods delivered TO your warehouse (#2286) — same place as the
+        // Android app (Settings).
+        Section {
+          NavigationLink {
+            IncomingDeliveriesView()
+          } label: {
+            Label("Incoming deliveries", systemImage: "tray.and.arrow.down")
+          }
+        } footer: {
+          Text("Goods sent to your warehouse — confirm what arrived.")
+        }
+
         Section {
           Button(role: .destructive) {
             // Sign-out also unregisters the device so a signed-out phone

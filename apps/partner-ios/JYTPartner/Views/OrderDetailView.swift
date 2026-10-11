@@ -26,6 +26,8 @@ struct OrderDetailView: View {
   @State private var showCompleteSheet = false
   @State private var actionError: String?
   @State private var acting = false
+  /// Materials logged on the active run, read when Finish opens; nil = unknown.
+  @State private var consumptionCount: Int?
 
   // Media upload
   @State private var showMediaDialog = false
@@ -167,7 +169,7 @@ struct OrderDetailView: View {
     FinishRunSheet(
       pendingTasks: pendingTasks,
       isSample: isSample,
-      consumptionCount: -1
+      consumptionCount: consumptionCount
     ) { notes in
       Task { await run(.finish, notes: notes) }
     }
@@ -179,7 +181,10 @@ struct OrderDetailView: View {
       materials: design?.inventory_items ?? [],
       run: activeRun
     ) { body in
-      Task { await run(.complete, completeBody: body) }
+      // Throws back into the sheet, which stays open on failure.
+      guard let runID = activeRun?.id else { return }
+      try await PartnerAPI.shared.completeRun(id: runID, body: body)
+      NotificationCenter.default.post(name: .runDidMutate, object: nil)
     }
   }
 
@@ -425,7 +430,7 @@ struct OrderDetailView: View {
         RunStatusBadge(status: run.status ?? "—")
       }
       HStack(spacing: 16) {
-        if let qty = run.quantity {
+        if let qty = run.quantityText {
           Text("Qty \(qty)").font(.caption).foregroundStyle(.secondary)
         }
         if let date = run.completed_at {
@@ -501,7 +506,13 @@ struct OrderDetailView: View {
     case .accept, .start:
       confirmAction = action
     case .finish:
-      showFinishSheet = true
+      Task {
+        // The real count, so the sheet's "no materials" nudge is true.
+        if let runID = activeRun?.id {
+          consumptionCount = try? await PartnerAPI.shared.runConsumptionLogCount(id: runID)
+        }
+        showFinishSheet = true
+      }
     case .complete:
       showCompleteSheet = true
     }
@@ -510,8 +521,7 @@ struct OrderDetailView: View {
   @MainActor
   private func run(
     _ action: RunAction,
-    notes: String? = nil,
-    completeBody: PartnerAPI.CompleteRunBody? = nil
+    notes: String? = nil
   ) async {
     guard let run = activeRun else { return }
     guard !acting else { return }
@@ -526,8 +536,8 @@ struct OrderDetailView: View {
       case .finish:
         try await PartnerAPI.shared.finishRun(id: run.id, notes: notes)
       case .complete:
-        try await PartnerAPI.shared.completeRun(
-          id: run.id, body: completeBody ?? PartnerAPI.CompleteRunBody())
+        // Sent from the Complete sheet itself, which owns its errors.
+        return
       }
       confirmAction = nil
       NotificationCenter.default.post(name: .runDidMutate, object: nil)
