@@ -32,7 +32,16 @@ const makeContainer = (opts: {
   logs: Log[]
   levels?: Array<Record<string, any>>
   runs?: Array<Record<string, any>>
+  /** design↔inventory link rows (Preferred location). */
+  designLinks?: Array<Record<string, any>>
+  /** location_ownership rows; omit for the brand-store fallback. */
+  ownership?: Array<Record<string, any>>
 }) => {
+  const listLogs = jest.fn(async (filters: Record<string, any>) => {
+    const ids: string[] | undefined = filters?.id
+    const rows = ids ? opts.logs.filter((l) => ids.includes(l.id)) : opts.logs
+    return [rows, rows.length]
+  })
   const updateConsumptionLogs = jest.fn().mockResolvedValue(undefined)
   const linkCreate = jest.fn().mockResolvedValue(undefined)
   const linkDismiss = jest.fn().mockResolvedValue(undefined)
@@ -51,6 +60,9 @@ const makeContainer = (opts: {
       if (entity === "inventory_level") {
         return { data: levels }
       }
+      if (entity === "design_inventory_item" && opts.designLinks) {
+        return { data: opts.designLinks }
+      }
       // design↔inventory link mirror — absent here, so the job skips it.
       return { data: [] }
     }),
@@ -62,6 +74,11 @@ const makeContainer = (opts: {
       if (key === "link" || key === "remoteLink") {
         return { create: linkCreate, dismiss: linkDismiss }
       }
+      if (key === "location_ownership") {
+        return {
+          listLocationOwnerships: jest.fn().mockResolvedValue(opts.ownership ?? []),
+        }
+      }
       if (key === "production_runs") {
         return {
           listAndCountProductionRuns: jest
@@ -71,15 +88,13 @@ const makeContainer = (opts: {
       }
       // consumption_log
       return {
-        listAndCountConsumptionLogs: jest
-          .fn()
-          .mockResolvedValue([opts.logs, opts.logs.length]),
+        listAndCountConsumptionLogs: listLogs,
         updateConsumptionLogs,
       }
     },
   } as any
 
-  return { container, updateConsumptionLogs, query }
+  return { container, updateConsumptionLogs, query, listLogs }
 }
 
 const committedLog = (over: Log = {}): Log => ({
@@ -198,5 +213,96 @@ describe("apply-committed-consumption-to-inventory — level update shape", () =
     expect(runInventoryLevels).not.toHaveBeenCalled()
     expect(updateConsumptionLogs).not.toHaveBeenCalled()
     expect(result.summary).toMatch(/Skipped/)
+  })
+})
+
+/**
+ * #2406 — where a log draws from. On prod 2026-10-12, 158 committed logs moved
+ * no stock: an admin log naming Dharamshala was overruled by a design's
+ * Preferred location pointing at the partner's own warehouse, and partner logs
+ * stamped with their own warehouse were refused even though that warehouse
+ * held none of the cloth.
+ */
+describe("apply-committed-consumption-to-inventory — location rule (#2406)", () => {
+  const OURS = "sloc_dharamshala"
+  const PARTNER = "sloc_sharlho"
+  const ownership = [
+    { stock_location_id: OURS, is_core: true },
+    { stock_location_id: PARTNER, is_core: false },
+  ]
+  const ourLevel = { id: "ilev_ours", inventory_item_id: ITEM, location_id: OURS, stocked_quantity: 20 }
+
+  it("honours a log naming OUR warehouse over a Preferred location that holds none of the cloth", async () => {
+    const { container } = makeContainer({
+      logs: [committedLog({ quantity: 15, location_id: OURS })],
+      levels: [ourLevel],
+      ownership,
+      designLinks: [{ design_id: "design_1", inventory_item_id: ITEM, location_id: PARTNER }],
+    })
+
+    const result = await applyCommittedConsumptionJob.run(container, {
+      dry_run: false,
+      params: {},
+    } as any)
+
+    expect(result.applied).toBe(true)
+    const [{ input }] = runInventoryLevels.mock.calls[0]
+    expect(input.updates).toEqual([
+      { id: "ilev_ours", inventory_item_id: ITEM, location_id: OURS, stocked_quantity: 5 },
+    ])
+  })
+
+  it("deducts from our stock when a partner's log is stamped with their own warehouse that holds none of it", async () => {
+    const { container } = makeContainer({
+      logs: [committedLog({ quantity: 1.5, location_id: PARTNER })],
+      levels: [ourLevel],
+      ownership,
+    })
+
+    const result = await applyCommittedConsumptionJob.run(container, {
+      dry_run: false,
+      params: {},
+    } as any)
+
+    expect(result.applied).toBe(true)
+    const [{ input }] = runInventoryLevels.mock.calls[0]
+    expect(input.updates[0]).toMatchObject({ location_id: OURS, stocked_quantity: 18.5 })
+  })
+
+  it("leaves a partner's own cloth alone (it has a level at their warehouse, none at ours)", async () => {
+    const { container, updateConsumptionLogs } = makeContainer({
+      logs: [committedLog({ quantity: 2, location_id: PARTNER })],
+      levels: [{ id: "ilev_theirs", inventory_item_id: ITEM, location_id: PARTNER, stocked_quantity: 9 }],
+      ownership,
+    })
+
+    const result = await applyCommittedConsumptionJob.run(container, {
+      dry_run: false,
+      params: {},
+    } as any)
+
+    expect(result.applied).toBe(false)
+    expect(runInventoryLevels).not.toHaveBeenCalled()
+    expect(updateConsumptionLogs).not.toHaveBeenCalled()
+  })
+
+  it("log_ids scopes the run to exactly those logs", async () => {
+    const { container, listLogs } = makeContainer({
+      logs: [
+        committedLog({ id: "log_a", quantity: 1, location_id: OURS }),
+        committedLog({ id: "log_b", quantity: 4, location_id: OURS }),
+      ],
+      levels: [ourLevel],
+      ownership,
+    })
+
+    await applyCommittedConsumptionJob.run(container, {
+      dry_run: false,
+      params: { log_ids: ["log_a"] },
+    } as any)
+
+    expect(listLogs.mock.calls[0][0]).toMatchObject({ id: ["log_a"] })
+    const [{ input }] = runInventoryLevels.mock.calls[0]
+    expect(input.updates[0].stocked_quantity).toBe(19)
   })
 })

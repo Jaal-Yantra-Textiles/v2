@@ -57,6 +57,8 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
 const paramsSchema = z.object({
   design_id: z.string().min(1).optional(),
   design_ids: z.array(z.string().min(1)).optional(),
+  /** Only these logs — how the commit subscriber applies exactly what it committed (#2406). */
+  log_ids: z.array(z.string().min(1)).optional(),
   /** Override the resolved brand location (escape hatch for a second warehouse). */
   location_id: z.string().min(1).optional(),
   limit: z.number().int().positive().optional(),
@@ -87,6 +89,13 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
       type: "string",
       required: false,
       description: "Only these designs' logs (array of design ids)",
+    },
+    {
+      name: "log_ids",
+      type: "string",
+      required: false,
+      description:
+        "Only these consumption logs (array of log ids). Committing a log applies it automatically through this filter (#2406).",
     },
     {
       name: "location_id",
@@ -124,7 +133,7 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
         parsed.error.issues.map((i) => i.message).join("; ")
       )
     }
-    const { design_id, design_ids, location_id, limit, max_shortfall } =
+    const { design_id, design_ids, log_ids, location_id, limit, max_shortfall } =
       parsed.data
     const assumeBasis = parsed.data.assume_basis
 
@@ -166,6 +175,9 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     const filters: Record<string, any> = { is_committed: true }
     if (designFilter) {
       filters.design_id = designFilter
+    }
+    if (log_ids?.length) {
+      filters.id = log_ids
     }
     const [rawLogs] = await consumptionService.listAndCountConsumptionLogs(
       filters,
@@ -458,8 +470,12 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
  *    otherwise place consigned material nowhere at all — the log would then
  *    fall back to the brand default and skip, which is the exact bug this
  *    slice exists to fix.
+ * 1b. The LOG's own location, when it is one of ours and the item is stocked
+ *    there (#2406) — whoever logged it named the warehouse the cloth left.
  * 2. The design↔inventory link's `location_id` — "Preferred location" in the
- *    admin drawer. An explicit operator statement, so it wins over inference.
+ *    admin drawer. An explicit operator statement, so it wins over inference —
+ *    but only where the item has a level at all; a preference pointing at a
+ *    warehouse that never held the material would only ever skip (#2406).
  * 3. Failing both, WHERE THE MATERIAL ACTUALLY IS: the item's own stock levels
  *    (`resolveLocationsFromLevels`). This is the one that does the work —
  *    every design carrying an unsettled material log on prod has the link's
@@ -498,6 +514,28 @@ async function resolveLocationByLog(
     return undefined
   }
   const byMaterial = resolveLocationsFromLevels(allLevels, coreLocationIds)
+  const levelKeys = new Set(
+    allLevels.map((lv) => levelKey(lv.inventory_item_id, lv.location_id))
+  )
+  /**
+   * #2406 — the log's OWN location, when it is one of ours and the material is
+   * actually stocked there. An admin logging "15 m off Dharamshala" has said
+   * exactly where the cloth came from; a design's Preferred location must not
+   * overrule that (it pointed Sharlho's Ivory coats at their own warehouse,
+   * which holds none of our tweed, and the deduction silently skipped).
+   */
+  const ownCoreLocationFor = (l: ConsumptionApplyLog): string | undefined =>
+    l.location_id &&
+    l.inventory_item_id &&
+    coreLocationIds.has(l.location_id) &&
+    levelKeys.has(levelKey(l.inventory_item_id, l.location_id))
+      ? l.location_id
+      : undefined
+  /** A Preferred location only counts where the material has a level at all. */
+  const stockedAt = (l: ConsumptionApplyLog, loc: string | undefined) =>
+    loc && l.inventory_item_id && levelKeys.has(levelKey(l.inventory_item_id, loc))
+      ? loc
+      : undefined
 
   const pairs = logs.filter((l) => l.design_id && l.inventory_item_id)
   if (!pairs.length) {
@@ -507,6 +545,7 @@ async function resolveLocationByLog(
         .map((l) => [
           l.id,
           issuedLocationFor(l) ??
+            ownCoreLocationFor(l) ??
             (l.inventory_item_id ? byMaterial[l.inventory_item_id] : undefined),
         ])
         .filter(([, loc]) => Boolean(loc)) as Array<[string, string]>
@@ -537,7 +576,8 @@ async function resolveLocationByLog(
   for (const l of logs) {
     const loc =
       issuedLocationFor(l) ??
-      byPair.get(`${l.design_id}::${l.inventory_item_id}`) ??
+      ownCoreLocationFor(l) ??
+      stockedAt(l, byPair.get(`${l.design_id}::${l.inventory_item_id}`)) ??
       (l.inventory_item_id ? byMaterial[l.inventory_item_id] : undefined)
     if (loc) {
       out[l.id] = loc
