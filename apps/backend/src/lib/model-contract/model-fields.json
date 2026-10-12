@@ -3540,6 +3540,7 @@
       "produced_output",
       "produced_quantity",
       "product_id",
+      "profit_share_percent",
       "quantity",
       "reassign_retry_count",
       "rejected_quantity",
@@ -3563,6 +3564,47 @@
       "sub_partner_id",
       "updated_at",
       "variant_id"
+    ]
+  },
+  "ProductionRunSale (modules/production_runs/models/production-run-sale.ts)": {
+    "file": "modules/production_runs/models/production-run-sale.ts",
+    "fields": [
+      "actor_id",
+      "created_at",
+      "currency_code",
+      "deleted_at",
+      "id",
+      "metadata",
+      "note",
+      "partner_id",
+      "production_run_id",
+      "quantity",
+      "raw_unit_price",
+      "reported_by",
+      "sold_at",
+      "unit_price",
+      "updated_at"
+    ]
+  },
+  "ProductionRunSettlement (modules/production_runs/models/production-run-settlement.ts)": {
+    "file": "modules/production_runs/models/production-run-settlement.ts",
+    "fields": [
+      "actor_id",
+      "amount",
+      "created_at",
+      "currency_code",
+      "deleted_at",
+      "id",
+      "metadata",
+      "method",
+      "note",
+      "paid_at",
+      "partner_id",
+      "production_run_id",
+      "raw_amount",
+      "receipt_url",
+      "reference",
+      "updated_at"
     ]
   },
   "ProductSpec (modules/product-spec/models/product-spec.ts)": {

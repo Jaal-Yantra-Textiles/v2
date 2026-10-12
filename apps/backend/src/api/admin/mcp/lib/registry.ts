@@ -5430,6 +5430,96 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["id"],
     inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
   },
+  // #2322 — profit share on partner runs made with OUR material.
+  {
+    name: "get_production_run_profit_share",
+    description:
+      "A run's profit-share position (#2322): the share of GROSS sales the partner pays us, every sale they made (qty × unit price), every payment they made us (bank transfer or cash), and what is still owed — computed, never stored, with its working. Use for runs where the PARTNER made pieces on OUR material and sells them (the reverse of a payout). 🔑 `owed: null` means no arrangement on this run; `owed: 0` with status `no_sales` means an arrangement with nothing sold yet.",
+    method: "GET",
+    path: "/admin/production-runs/:id/profit-share",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Production run id (prod_run_...).") }, ["id"]),
+    nextSteps: ["set_production_run_profit_share", "record_production_run_sale", "record_profit_share_payment"],
+  },
+  {
+    name: "set_production_run_profit_share",
+    description:
+      "Set the share (0-100) of GROSS sale price a partner pays us on a run they made with our material (#2322), e.g. 50. Pass percent: null to remove the arrangement. Sensitive: requires confirm:true. Only the percent changes; recorded sales and payments are kept, and what is owed is recomputed from them.",
+    method: "POST",
+    path: "/admin/production-runs/:id/profit-share",
+    pathParams: ["id"],
+    bodyParams: ["percent"],
+    previewPath: "/admin/production-runs/:id/profit-share",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        percent: {
+          type: ["number", "null"],
+          description: "Share of gross sales owed to us, 0-100. null removes the arrangement.",
+        },
+      },
+      ["id", "percent"]
+    ),
+    sideEffects: "Writes `profit_share_percent` on the run. Changes the computed amount owed.",
+    nextSteps: ["get_production_run_profit_share", "record_production_run_sale"],
+  },
+  {
+    name: "record_production_run_sale",
+    description:
+      "Record pieces a partner SOLD from a profit-share run (#2322): quantity and the GROSS price of ONE piece. Sensitive: requires confirm:true. Refused when the run has no profit-share percent, or when it would report more pieces sold than the run made. Partial reports are ordinary (4 of 10 this month). A mistaken row is removed with DELETE /admin/production-runs/:id/profit-share/sales/:saleId.",
+    method: "POST",
+    path: "/admin/production-runs/:id/profit-share/sales",
+    pathParams: ["id"],
+    bodyParams: ["quantity", "unit_price", "currency_code", "sold_at", "note"],
+    previewPath: "/admin/production-runs/:id/profit-share",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        quantity: { type: "number", description: "Pieces sold in this line. > 0." },
+        unit_price: {
+          type: "number",
+          description: "GROSS sale price of ONE piece, in major units (e.g. 5700 for ₹5,700) — before any of the partner's costs or fees.",
+        },
+        currency_code: STR("Lowercase 3-letter code. Defaults to the run's cost currency, else 'inr'."),
+        sold_at: STR("ISO date-time of the sale. Defaults to now."),
+        note: STR("Optional note, e.g. who bought or an invoice reference."),
+      },
+      ["id", "quantity", "unit_price"]
+    ),
+    sideEffects: "Creates a production_run_sale row; the amount owed rises by qty × unit_price × percent.",
+    nextSteps: ["get_production_run_profit_share", "record_profit_share_payment"],
+  },
+  {
+    name: "record_profit_share_payment",
+    description:
+      "Record money a partner PAID US against a profit-share run (#2322) — by bank transfer or cash. Recorded, not collected: no link is sent. Sensitive: requires confirm:true. Partial payments are ordinary; the balance stays open. A mistaken row is removed with DELETE /admin/production-runs/:id/profit-share/settlements/:settlementId.",
+    method: "POST",
+    path: "/admin/production-runs/:id/profit-share/settlements",
+    pathParams: ["id"],
+    bodyParams: ["amount", "method", "currency_code", "paid_at", "reference", "receipt_url", "note"],
+    previewPath: "/admin/production-runs/:id/profit-share",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      {
+        id: STR("Production run id."),
+        amount: { type: "number", description: "Amount received, major units." },
+        method: { type: "string", enum: ["bank_transfer", "cash"], description: "How it was paid." },
+        currency_code: STR("Lowercase 3-letter code. Defaults to the run's cost currency, else 'inr'."),
+        paid_at: STR("ISO date-time received. Defaults to now."),
+        reference: STR("UTR for a bank transfer; the person who received it for cash."),
+        receipt_url: STR("Optional receipt / photo URL."),
+        note: STR("Optional note."),
+      },
+      ["id", "amount", "method"]
+    ),
+    sideEffects: "Creates a production_run_settlement row; the balance owed falls by the amount.",
+    nextSteps: ["get_production_run_profit_share"],
+  },
   // #2271 — replay completion against prod data with no side effects.
   {
     name: "preview_production_run_completion",
