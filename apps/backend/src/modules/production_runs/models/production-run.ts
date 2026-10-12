@@ -202,6 +202,14 @@ const ProductionRun = model.define("production_runs", {
    */
   cost_currency: model.text().nullable(),
 
+  /**
+   * #2322 — the partner made these pieces on OUR material and pays us this
+   * share (0-100) of the GROSS sale price of every piece sold. Null = no such
+   * arrangement (the normal case: we pay the partner). Owed = Σ(sold qty ×
+   * unit price) × percent / 100, computed from `production_run_sale` rows.
+   */
+  profit_share_percent: model.float().nullable(),
+
   // Dispatch state
   dispatch_state: model
     .enum(["idle", "awaiting_templates", "completed"])

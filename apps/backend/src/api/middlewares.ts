@@ -194,6 +194,7 @@ import { createBlocksSchema, ReadBlocksQuerySchema, updateBlockSchema } from "./
 import { AdminPostDesignInventoryReq, AdminDeleteDesignInventoryReq, AdminPatchDesignInventoryLinkReq } from "./admin/designs/[id]/inventory/validators";
 import { AdminPostConsumptionLogReq, AdminPostCommitConsumptionReq, AdminPatchConsumptionLogReq } from "./admin/designs/[id]/consumption-logs/validators";
 import { AdminPostRunConsumptionLogReq, AdminPostRunCommitConsumptionReq } from "./admin/production-runs/[id]/consumption-logs/validators";
+import { SetProfitShareSchema, RecordSaleSchema, RecordSettlementSchema } from "../workflows/production-runs/lib/profit-share-store";
 import { AdminAttachSubmissionDocumentsReq } from "./admin/payment-submissions/[id]/documents/validators";
 import { AdminPostDesignInquiryReq, AdminPostDesignInquiryPreviewReq, AdminPostCloseDesignInquiryReq } from "./admin/designs/[id]/inquiries/validators";
 import { AdminCreateEnergyRateReq, AdminUpdateEnergyRateReq } from "./admin/energy-rates/validators";
@@ -3682,6 +3683,23 @@ export default defineMiddlewares({
       ],
     },
     {
+      matcher: "/partners/production-runs/:id/profit-share",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/production-runs/:id/profit-share/sales",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+        validateAndTransformBody(wrapSchema(RecordSaleSchema)),
+      ],
+    },
+    {
       matcher: "/partners/production-runs/:id/consumption-logs",
       method: "POST",
       middlewares: [
@@ -5385,6 +5403,22 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(AdminPostRunConsumptionLogReq))],
     },
 
+    // #2322 — profit share on partner runs made with our material.
+    {
+      matcher: "/admin/production-runs/:id/profit-share",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SetProfitShareSchema))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/profit-share/sales",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(RecordSaleSchema))],
+    },
+    {
+      matcher: "/admin/production-runs/:id/profit-share/settlements",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(RecordSettlementSchema))],
+    },
     {
       matcher: "/admin/production-runs/:id/consumption-logs/commit",
       method: "POST",

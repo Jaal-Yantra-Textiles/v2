@@ -35,6 +35,7 @@ import { TwoColumnPageSkeleton } from "../../../components/table/skeleton"
 import { ProductionRunChildrenSection } from "../../../components/production-runs/production-run-children-section"
 import { ProductionRunActivityTimeline } from "../../../components/production-runs/production-run-activity-timeline"
 import { GoodsTransferSection } from "../../../components/production-runs/goods-transfer-section"
+import { ProfitShareSection } from "../../../components/production-runs/profit-share-section"
 import { EntityGraph } from "../../../components/graph/entity-graph"
 import { productionRunLoader } from "./loader"
 import {
@@ -800,6 +801,13 @@ const ProductionRunDetailPage = () => {
         {!isParent && (
           <Container className="divide-y p-0">
             <GoodsTransferSection runId={id} />
+          </Container>
+        )}
+
+        {/* #2322 — partner made these on our material and pays us a share. */}
+        {!isParent && run?.partner_id && (
+          <Container className="divide-y p-0">
+            <ProfitShareSection runId={id} />
           </Container>
         )}
 
