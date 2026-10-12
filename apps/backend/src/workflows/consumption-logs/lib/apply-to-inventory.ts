@@ -304,6 +304,11 @@ export function planConsumptionApplication(
     }
     // Where this log draws from: whatever the caller resolved for it, else the
     // brand default. Empty means nothing could place it at all.
+    //
+    // 🔑 `running` holds a key for EVERY level the caller read, at every
+    // location (brand + `levelsAtLocation`) — the mismatch check below relies
+    // on that to tell "the material is at the stamped location" from "the
+    // stamp is just where the partner works".
     const locationId =
       input.locationByLog?.[log.id] || input.brandLocationId
     if (!locationId) {
@@ -313,11 +318,21 @@ export function planConsumptionApplication(
       continue
     }
 
-    // A log carrying its own location is taken at its word, and a log recorded
-    // somewhere other than where this design draws from is NOT ours to deduct.
-    // This is the check that protects partner-held material: without it, a log
-    // stamped with a partner's warehouse would silently deduct from ours.
-    if (log.location_id && log.location_id !== locationId) {
+    // A log recorded somewhere other than where this material is drawn from is
+    // NOT ours to deduct — but only when the material is actually THERE. This
+    // is the check that protects partner-held material: a partner's own cloth
+    // has a level at their warehouse, and a log stamped there must not come off
+    // ours.
+    //
+    // #2406: a stamp at a location that holds no level for this item says where
+    // the partner WORKS, not where the cloth came from — the partner app stamps
+    // its own warehouse on every log. Refusing those is how our muslin cut into
+    // Sharlho's Ivory coats and Alin's tweed jackets never left Dharamshala.
+    if (
+      log.location_id &&
+      log.location_id !== locationId &&
+      levelKey(log.inventory_item_id, log.location_id) in running
+    ) {
       skip(
         `logged at ${log.location_id}, which is not where this design draws stock from (${locationId})`
       )

@@ -58,10 +58,29 @@ describe("planConsumptionApplication", () => {
     expect((d as any).reason).toMatch(/partner-held/)
   })
 
-  it("skips a log explicitly located somewhere other than the brand location", () => {
-    const [d] = plan([log({ location_id: "sloc_weaver" })])
+  it("skips a log stamped at a location that holds this material (partner's own cloth)", () => {
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [log({ location_id: "sloc_weaver" })],
+      brandLevels: { iitem_denim: 17.6 },
+      levelsAtLocation: { "iitem_denim@sloc_weaver": 4 },
+    })
     expect(d.action).toBe("skip")
     expect((d as any).reason).toMatch(/not where this design draws stock from/)
+  })
+
+  // #2406 — the partner app stamps its own warehouse on every log. With no
+  // level for the item there, the stamp is where they WORK, not where the
+  // cloth came from: Alin's tweed jackets and Sharlho's Ivory coats were cut
+  // from our Dharamshala muslin and never came off it.
+  it("deducts from where the material is when the stamped location holds none of it", () => {
+    const [d] = plan([log({ location_id: "sloc_weaver" })])
+    expect(d).toMatchObject({
+      action: "apply",
+      location_id: BRAND,
+      before: 17.6,
+      after: 15.45,
+    })
   })
 
   it("applies a log explicitly located AT the brand location", () => {
@@ -294,9 +313,25 @@ describe("per-design Preferred location", () => {
     expect(d.action).toBe("apply")
   })
 
-  it("still refuses a log stamped with a partner's warehouse", () => {
-    // The whole safety property: a partner-located log must never deduct from
-    // our stock just because the design now points somewhere real.
+  it("still refuses a log stamped with a partner's warehouse that holds this material", () => {
+    // The safety property: a partner's OWN cloth (a level at their warehouse)
+    // must never deduct from our stock just because the design now points
+    // somewhere real.
+    const [d] = planConsumptionApplication({
+      brandLocationId: BRAND,
+      logs: [{ ...log("l1"), location_id: "sloc_partner" }],
+      brandLevels: { item_a: 100 },
+      locationByLog: { l1: OTHER },
+      levelsAtLocation: {
+        [`item_a@${OTHER}`]: 10,
+        "item_a@sloc_partner": 3,
+      },
+    })
+
+    expect(d.action).toBe("skip")
+  })
+
+  it("#2406: a partner stamp where they hold none of the material is where they work, not the source", () => {
     const [d] = planConsumptionApplication({
       brandLocationId: BRAND,
       logs: [{ ...log("l1"), location_id: "sloc_partner" }],
@@ -305,7 +340,7 @@ describe("per-design Preferred location", () => {
       levelsAtLocation: { [`item_a@${OTHER}`]: 10 },
     })
 
-    expect(d.action).toBe("skip")
+    expect(d).toMatchObject({ action: "apply", location_id: OTHER })
   })
 
   it("refuses a log resolved to a location we do not own", () => {

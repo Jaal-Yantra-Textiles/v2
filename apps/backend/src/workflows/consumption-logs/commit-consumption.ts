@@ -7,6 +7,7 @@ import {
   transform,
 } from "@medusajs/framework/workflows-sdk"
 import { MedusaError } from "@medusajs/utils"
+import { emitEventStep } from "@medusajs/medusa/core-flows"
 import { CONSUMPTION_LOG_MODULE } from "../../modules/consumption_log"
 import ConsumptionLogService from "../../modules/consumption_log/service"
 import { RAW_MATERIAL_MODULE } from "../../modules/raw_material"
@@ -21,6 +22,15 @@ import { resolveCommitScope } from "./lib/consumption-anchor"
  * never committed and never applied — recorded, but inert. A source of
  * consumption without a commit path is a dead end by construction.
  */
+/**
+ * #2406 — fired once a commit lands. `consumption-committed-apply-to-inventory`
+ * listens and takes exactly these logs off OUR stock; committing itself stays
+ * cost-only (see `propagateCostsStep`), so this is the one place the deduction
+ * is triggered from — the admin run/design routes and a partner completing a
+ * run all commit through this workflow.
+ */
+export const CONSUMPTION_COMMITTED_EVENT = "consumption_log.committed"
+
 export type CommitConsumptionInput = {
   design_id?: string
   production_run_id?: string
@@ -202,6 +212,11 @@ export const commitConsumptionWorkflow = createWorkflow(
     const committed = markLogsCommittedStep({ log_ids: logIds })
 
     const costUpdates = propagateCostsStep({ logs })
+
+    emitEventStep({
+      eventName: CONSUMPTION_COMMITTED_EVENT,
+      data: transform({ logIds }, ({ logIds }) => ({ log_ids: logIds })),
+    })
 
     return new WorkflowResponse({
       committed_count: transform({ logIds }, ({ logIds }) => logIds.length),
