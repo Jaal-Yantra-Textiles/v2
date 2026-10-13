@@ -27,6 +27,7 @@ import { ShiprocketClient } from "./shiprocket/client"
 import { BlueDartProviderAdapter } from "./bluedart/adapter"
 import { DhlUnifiedTrackingClient } from "./dhl-unified-tracking"
 import { DtdcProviderAdapter } from "@jytextiles/medusa-plugin-dtdc-shipping/providers/dtdc/adapter"
+import { dtdcDescription } from "./dtdc-description"
 import { ShipglobalClient } from "./shipglobal/client"
 import { StarfleetClient, StarfleetConsignorKyc } from "./starfleet/client"
 
@@ -269,7 +270,7 @@ export async function resolveShippingProvider(
         "DTDC credentials not configured (no shipping platform record or DTDC_CUSTOMER_CODE + DTDC_API_KEY)"
       )
     }
-    return new DtdcProviderAdapter({
+    const dtdc = new DtdcProviderAdapter({
       customer_code: customerCode!,
       api_key: apiKey!,
       sandbox:
@@ -287,6 +288,12 @@ export async function resolveShippingProvider(
         (cfg.default_service_type as any) ||
         process.env.DTDC_DEFAULT_SERVICE_TYPE,
     } as any) as unknown as ShippingProviderClient
+    // The plugin joins every item name into the description, and DTDC refuses
+    // one of 250+ characters — so cap it here, for every DTDC caller.
+    const createShipment = dtdc.createShipment.bind(dtdc)
+    dtdc.createShipment = (input) =>
+      createShipment({ ...input, product_description: dtdcDescription(input) })
+    return dtdc
   }
 
   if (id === "shipglobal") {
