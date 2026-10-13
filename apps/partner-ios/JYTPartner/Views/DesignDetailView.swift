@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 /// The design manager, mobile counterpart of the partner-ui design-detail
-/// screen: overview + brief, media, moodboard images, colors, sizes, and
-/// the matching production runs (with their completion state).
+/// screen: overview + brief, media, moodboard images (every board the
+/// partner can see, #2017), colors, sizes, materials, and the matching
+/// production runs (with their completion state).
 struct DesignDetailView: View {
   let designID: String
   /// Row from the list — shown instantly while the full record loads.
@@ -11,6 +12,9 @@ struct DesignDetailView: View {
 
   @State private var design: DesignDetail?
   @State private var runs: [ProductionRun] = []
+  /// The design's boards (#2017). nil when the call failed — the legacy
+  /// `design.moodboard` blob is the fallback then.
+  @State private var boards: MoodboardBoardsResponse?
   @State private var loading = true
   @State private var errorText: String?
   @State private var viewerImage: MediaImage?
@@ -38,6 +42,7 @@ struct DesignDetailView: View {
           moodboardSection(design)
           colorsSection(design)
           sizesSection(design)
+          materialsSection(design)
           productionRunsSection
         }
         .navigationTitle(design.name ?? "Design")
@@ -60,6 +65,9 @@ struct DesignDetailView: View {
   private func load() async {
     loading = design == nil
     errorText = nil
+    // The boards load alongside the design; a failed boards call falls back
+    // to the legacy blob on the design (as on Android).
+    async let boardsCall = try? PartnerAPI.shared.designMoodboards(id: designID)
     do {
       design = try await PartnerAPI.shared.design(id: designID)
       loading = false
@@ -71,8 +79,10 @@ struct DesignDetailView: View {
         self.errorText = (error as? LocalizedError)?.errorDescription
           ?? "Couldn't load this design."
       }
+      _ = await boardsCall
       return
     }
+    boards = await boardsCall
     // The matching production runs — the single source of truth for the
     // partner status + completion shown above.
     if let runsPage = try? await PartnerAPI.shared.productionRuns(designId: designID) {
@@ -174,7 +184,7 @@ struct DesignDetailView: View {
   }
 
   private func moodboardSection(_ design: DesignDetail) -> some View {
-    let images = design.moodboard?.imageDataURLs ?? []
+    let images = MoodboardBoardsResponse.images(boards, legacy: design.moodboard)
     return Section("Moodboard") {
       if images.isEmpty {
         Text("No moodboard images yet.")
@@ -182,19 +192,27 @@ struct DesignDetailView: View {
       } else {
         ScrollView(.horizontal, showsIndicators: false) {
           HStack(spacing: 8) {
-            ForEach(images, id: \.id) { item in
+            ForEach(Array(images.enumerated()), id: \.offset) { _, source in
               Button {
-                viewerImage = .data(item.data)
+                viewerImage = Self.isDataURL(source) ? .data(source) : .url(source)
               } label: {
-                if let ui = Self.uiImage(fromDataURL: item.data) {
-                  Image(uiImage: ui)
-                    .resizable()
-                    .scaledToFill()
+                if Self.isDataURL(source) {
+                  if let ui = Self.uiImage(fromDataURL: source) {
+                    Image(uiImage: ui)
+                      .resizable()
+                      .scaledToFill()
+                  } else {
+                    moodboardPlaceholder
+                  }
                 } else {
-                  ZStack {
-                    Color(.tertiarySystemFill)
-                    Image(systemName: "photo.on.rectangle")
-                      .foregroundStyle(.tertiary)
+                  // A board image can be a hosted file rather than embedded.
+                  AsyncImage(url: URL(string: source)) { phase in
+                    switch phase {
+                    case .success(let image):
+                      image.resizable().scaledToFill()
+                    default:
+                      moodboardPlaceholder
+                    }
                   }
                 }
               }
@@ -207,6 +225,14 @@ struct DesignDetailView: View {
         }
         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16))
       }
+    }
+  }
+
+  private var moodboardPlaceholder: some View {
+    ZStack {
+      Color(.tertiarySystemFill)
+      Image(systemName: "photo.on.rectangle")
+        .foregroundStyle(.tertiary)
     }
   }
 
@@ -259,6 +285,31 @@ struct DesignDetailView: View {
     }
   }
 
+  /// The design's bill of materials — the inventory items linked to it,
+  /// already on the design read. Hidden when none are linked.
+  private func materialsSection(_ design: DesignDetail) -> some View {
+    let items = design.inventory_items ?? []
+    return Group {
+      if !items.isEmpty {
+        Section("Materials") {
+          ForEach(items) { item in
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.displayName).font(.body)
+              let detail = [item.sku, item.unit_of_measure]
+                .compactMap { $0 }
+                .filter { !$0.isEmpty }
+              if item.title != nil, !detail.isEmpty {
+                Text(detail.joined(separator: "  ·  "))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
   private var productionRunsSection: some View {
     Section("Production runs") {
       if runs.isEmpty {
@@ -277,6 +328,10 @@ struct DesignDetailView: View {
   }
 
   // MARK: - Helpers
+
+  static func isDataURL(_ source: String) -> Bool {
+    source.hasPrefix("data:")
+  }
 
   static func uiImage(fromDataURL dataURL: String) -> UIImage? {
     guard let comma = dataURL.firstIndex(of: ",") else { return nil }

@@ -16,6 +16,10 @@ struct PartnerDesignRow: Codable, Identifiable, Hashable {
   var name: String?
   var status: String?
   var thumbnail_url: String?
+  /// The list spreads the design row, so its media come along — the
+  /// fallback picture when no thumbnail_url is set. Lenient: one malformed
+  /// entry on one design must not fail the whole list.
+  var media_files: LenientArray<MediaFile>?
   var created_at: Date?
   var updated_at: Date?
   var partner_info: PartnerInfo?
@@ -23,6 +27,13 @@ struct PartnerDesignRow: Codable, Identifiable, Hashable {
   var partner_engagement: String?
   var has_partner_run: Bool?
   var partner_run_count: Int?
+
+  /// thumbnail_url, else the flagged media thumbnail, else the first media file.
+  var displayThumbnail: String? {
+    if let url = thumbnail_url, !url.isEmpty { return url }
+    let files = media_files?.items ?? []
+    return (files.first { $0.isThumbnail == true } ?? files.first)?.url
+  }
 }
 
 struct PartnerDesignListResponse: Codable {
@@ -74,6 +85,89 @@ struct MoodboardScene: Codable, Hashable {
             let data = files[key]?.dataURL else { return nil }
       return (key, data)
     }
+  }
+}
+
+/// One board from `GET /partners/designs/:id/moodboards` (#2017). Boards are
+/// rows now; the old single `design.moodboard` blob is only a fallback the
+/// server folds in (`is_legacy`). Mirrors the Android `MoodboardBoard`.
+/// Decodes leniently: an odd scene becomes nil instead of failing the read.
+struct MoodboardBoard: Codable, Identifiable, Hashable {
+  let id: String
+  var owner_type: String?
+  var title: String?
+  var scene: MoodboardScene?
+  var is_own: Bool = false
+  var is_legacy: Bool = false
+
+  private enum Keys: String, CodingKey { case id, owner_type, title, scene, is_own, is_legacy }
+
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: Keys.self)
+    id = try c.decode(String.self, forKey: .id)
+    owner_type = try? c.decodeIfPresent(String.self, forKey: .owner_type)
+    title = try? c.decodeIfPresent(String.self, forKey: .title)
+    scene = (try? c.decodeIfPresent(MoodboardScene.self, forKey: .scene)) ?? nil
+    is_own = ((try? c.decodeIfPresent(Bool.self, forKey: .is_own)) ?? nil) ?? false
+    is_legacy = ((try? c.decodeIfPresent(Bool.self, forKey: .is_legacy)) ?? nil) ?? false
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: Keys.self)
+    try c.encode(id, forKey: .id)
+    try c.encodeIfPresent(owner_type, forKey: .owner_type)
+    try c.encodeIfPresent(title, forKey: .title)
+    try c.encodeIfPresent(scene, forKey: .scene)
+    try c.encode(is_own, forKey: .is_own)
+    try c.encode(is_legacy, forKey: .is_legacy)
+  }
+}
+
+/// `own` is this partner's board; `others` are everyone else's (the admin's
+/// core board among them), read-only.
+struct MoodboardBoardsResponse: Codable, Hashable {
+  var own: MoodboardBoard?
+  var others: [MoodboardBoard] = []
+
+  private enum Keys: String, CodingKey { case own, others }
+
+  init(own: MoodboardBoard? = nil, others: [MoodboardBoard] = []) {
+    self.own = own
+    self.others = others
+  }
+
+  init(from decoder: Decoder) throws {
+    let c = try decoder.container(keyedBy: Keys.self)
+    own = (try? c.decodeIfPresent(MoodboardBoard.self, forKey: .own)) ?? nil
+    others = ((try? c.decodeIfPresent([MoodboardBoard].self, forKey: .others)) ?? nil) ?? []
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var c = encoder.container(keyedBy: Keys.self)
+    try c.encodeIfPresent(own, forKey: .own)
+    try c.encode(others, forKey: .others)
+  }
+
+  /// Every image across the boards, own first, each picture once. Falls back
+  /// to the design's legacy blob when the boards call failed or holds no
+  /// images, so a design that was never migrated still shows its board.
+  /// Same rule as Android's `MoodboardBoardsResponse.images`.
+  static func images(_ boards: MoodboardBoardsResponse?, legacy: MoodboardScene?) -> [String] {
+    var fromBoards: [String] = []
+    if let boards {
+      let all = (boards.own.map { [$0] } ?? []) + boards.others
+      for board in all {
+        for item in board.scene?.imageDataURLs ?? [] where !fromBoards.contains(item.data) {
+          fromBoards.append(item.data)
+        }
+      }
+    }
+    if !fromBoards.isEmpty { return fromBoards }
+    var fromLegacy: [String] = []
+    for item in legacy?.imageDataURLs ?? [] where !fromLegacy.contains(item.data) {
+      fromLegacy.append(item.data)
+    }
+    return fromLegacy
   }
 }
 
@@ -196,6 +290,34 @@ struct ProductionRunDetail: Codable {
 }
 
 // MARK: - Lenient JSON scalars
+
+/// An array that skips elements it cannot decode, and reads a non-array
+/// value as empty, instead of failing its parent.
+struct LenientArray<Element: Codable & Hashable>: Codable, Hashable {
+  var items: [Element] = []
+
+  init(from decoder: Decoder) throws {
+    guard var c = try? decoder.unkeyedContainer() else { return }
+    while !c.isAtEnd {
+      if let item = try? c.decode(Element.self) {
+        items.append(item)
+      } else {
+        _ = try? c.decode(Skip.self)
+      }
+    }
+  }
+
+  func encode(to encoder: Encoder) throws {
+    var c = encoder.unkeyedContainer()
+    try c.encode(contentsOf: items)
+  }
+
+  /// Consumes any one value — a string or number as well as an object — so
+  /// the loop always advances.
+  private struct Skip: Decodable {
+    init(from decoder: Decoder) throws {}
+  }
+}
 
 /// bigNumber columns and other numbers that may arrive as Double, Int, or
 /// numeric String — Medusa's query.graph is inconsistent here.
