@@ -7,8 +7,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
@@ -16,6 +20,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -23,6 +30,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -273,245 +282,327 @@ fun CompleteRunSheet(
         (!shortfall || shortfallExplanation.isNotBlank()) &&
         splitOk
 
-    AlertDialog(
+    fun submitRun() {
+        var combinedNotes = notes.trim()
+        if (shortfall) {
+            val explanation = "Shortfall explanation: ${shortfallExplanation.trim()}"
+            combinedNotes = if (combinedNotes.isEmpty()) explanation
+            else "$combinedNotes\n$explanation"
+        }
+        val body =
+            PartnerApi.CompleteRunBody(
+                producedQuantity = produced,
+                rejectedQuantity = if (rejected > 0) rejected else null,
+                rejectionReason = rejectionReason?.raw,
+                rejectionNotes = rejectionNotes.takeIf { it.isNotBlank() },
+                partnerCostEstimate = cost,
+                costType = costType?.raw,
+                allowShortfall = if (shortfall) true else null,
+                notes = combinedNotes.takeIf { it.isNotBlank() },
+                consumptions = consumptions,
+                producedOutput = (split as? SplitPlan.Needed)?.lines,
+            )
+        submitting = true
+        submitError = null
+        scope.launch {
+            val failure = try {
+                onSubmit(body)
+                null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                e.message ?: "Couldn't complete the run. Please try again."
+            }
+            submitting = false
+            if (failure == null) onDismiss() else submitError = failure
+        }
+    }
+
+    // A full-height bottom sheet, not an AlertDialog: once materials are
+    // ticked the form is taller than a phone screen, and the dialog neither
+    // scrolled nor moved above the keyboard, so the quantity and price boxes
+    // were cut off or covered.
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
         onDismissRequest = { if (!submitting) onDismiss() },
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Ordered: ${formatQuantity(ordered)}", fontSize = 13.sp)
-                OutlinedTextField(
-                    value = producedQty,
-                    onValueChange = { producedQty = it.filter { c -> c.isDigit() } },
-                    label = { Text("Good pieces produced") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = rejectedQty,
-                    onValueChange = { rejectedQty = it.filter { c -> c.isDigit() } },
-                    label = { Text("Rejected") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                if (rejected > 0) {
-                    ExposedDropdownMenuBox(
-                        expanded = reasonMenuOpen,
-                        onExpandedChange = { reasonMenuOpen = it },
-                    ) {
-                        OutlinedTextField(
-                            value = rejectionReason?.label ?: "",
-                            onValueChange = {},
-                            readOnly = true,
-                            label = { Text("Rejection reason") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(reasonMenuOpen) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        )
-                        ExposedDropdownMenu(expanded = reasonMenuOpen, onDismissRequest = { reasonMenuOpen = false }) {
-                            RejectionReason.entries.forEach { reason ->
-                                DropdownMenuItem(
-                                    text = { Text(reason.label) },
-                                    onClick = {
-                                        rejectionReason = reason
-                                        reasonMenuOpen = false
-                                    },
-                                )
-                            }
-                        }
-                    }
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .imePadding()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
+            Text("Ordered: ${formatQuantity(ordered)}", fontSize = 13.sp)
+            OutlinedTextField(
+                value = producedQty,
+                onValueChange = { producedQty = it.filter { c -> c.isDigit() } },
+                label = { Text("Good pieces produced") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = rejectedQty,
+                onValueChange = { rejectedQty = it.filter { c -> c.isDigit() } },
+                label = { Text("Rejected") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (rejected > 0) {
+                ExposedDropdownMenuBox(
+                    expanded = reasonMenuOpen,
+                    onExpandedChange = { reasonMenuOpen = it },
+                ) {
                     OutlinedTextField(
-                        value = rejectionNotes,
-                        onValueChange = { rejectionNotes = it },
-                        label = { Text("Rejection notes") },
-                        modifier = Modifier.fillMaxWidth(),
+                        value = rejectionReason?.label ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Rejection reason") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(reasonMenuOpen) },
+                        modifier = Modifier.menuAnchor().fillMaxWidth(),
                     )
-                }
-                if (split is SplitPlan.Needed) {
-                    Text("Which sizes and colours", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "This run is for several sizes or colours. Say how many good pieces of each were made, so stock gets the right ones.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    CompletionSplit.combos(axes).forEach { combo ->
-                        OutlinedTextField(
-                            value = splitMap[combo.key] ?: "",
-                            onValueChange = { text ->
-                                splitMap = splitMap + (combo.key to text.filter { c -> c.isDigit() })
-                            },
-                            label = { Text(combo.label.ifEmpty { "Pieces" }) },
-                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    Text(
-                        "Adds up to ${CompletionSplit.formatQty(split.total)} of $produced good pieces",
-                        fontSize = 12.sp,
-                        color = if (split.ok) MaterialTheme.colorScheme.onSurfaceVariant
-                        else MaterialTheme.colorScheme.error,
-                    )
-                }
-                if (materials.isNotEmpty()) {
-                    Text("Materials used", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        "The design's bill of materials. Log what this run actually consumed — it drives the cost rollup.",
-                        fontSize = 11.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    materials.forEach { item ->
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = usedMap[item.id] == true,
-                                    onCheckedChange = { checked ->
-                                        usedMap = usedMap + (item.id to checked)
-                                    },
-                                )
-                                Text(item.displayName)
-                            }
-                            if (usedMap[item.id] == true) {
-                                OutlinedTextField(
-                                    value = qtyMap[item.id] ?: "",
-                                    onValueChange = { text ->
-                                        qtyMap = qtyMap + (item.id to text)
-                                    },
-                                    label = { Text("Quantity used (${item.unitOfMeasure ?: "units"})") },
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = 32.dp),
-                                )
-                                OutlinedTextField(
-                                    value = costMap[item.id] ?: "",
-                                    onValueChange = { text ->
-                                        costMap = costMap + (item.id to text)
-                                    },
-                                    label = { Text("Unit cost (optional)") },
-                                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                                    singleLine = true,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(start = 32.dp),
-                                )
-                            }
+                    ExposedDropdownMenu(expanded = reasonMenuOpen, onDismissRequest = { reasonMenuOpen = false }) {
+                        RejectionReason.entries.forEach { reason ->
+                            DropdownMenuItem(
+                                text = { Text(reason.label) },
+                                onClick = {
+                                    rejectionReason = reason
+                                    reasonMenuOpen = false
+                                },
+                            )
                         }
                     }
                 }
-                if (shortfall) {
-                    Text(
-                        "Produced + rejected is less than ordered. Explain the shortfall — the completion will be recorded with it.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.error,
-                    )
-                    OutlinedTextField(
-                        value = shortfallExplanation,
-                        onValueChange = { shortfallExplanation = it },
-                        label = { Text("Why the shortfall?") },
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                Text("Your cost", fontWeight = FontWeight.SemiBold)
                 OutlinedTextField(
-                    value = costText,
-                    onValueChange = { costText = it.filter { c -> c.isDigit() || c == '.' } },
-                    label = { Text("Amount ($currency)") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
+                    value = rejectionNotes,
+                    onValueChange = { rejectionNotes = it },
+                    label = { Text("Rejection notes") },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                // An explicit, visible choice — the per-piece rate was once
-                // billed as a total because the type hid behind a menu.
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    CostType.entries.forEachIndexed { index, type ->
-                        SegmentedButton(
-                            selected = costType == type,
-                            onClick = { costType = type },
-                            shape = SegmentedButtonDefaults.itemShape(index, CostType.entries.size),
-                        ) { Text(type.label) }
-                    }
-                }
-                val type = costType
-                if (cost != null && type != null) {
-                    val preview = costPreview(cost, type, ordered)
-                    val units = formatQuantity(preview.units)
-                    Text(
-                        when (type) {
-                            CostType.PER_UNIT ->
-                                "${formatCurrency(cost, currency)} × $units ordered = " +
-                                    "${formatCurrency(preview.total, currency)} total"
-                            CostType.TOTAL ->
-                                "${formatCurrency(preview.total, currency)} total · " +
-                                    "${formatCurrency(preview.perPiece, currency)} per piece of $units"
+            }
+            if (split is SplitPlan.Needed) {
+                Text("Which sizes and colours", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "This run is for several sizes or colours. Say how many good pieces of each were made, so stock gets the right ones.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                CompletionSplit.combos(axes).forEach { combo ->
+                    OutlinedTextField(
+                        value = splitMap[combo.key] ?: "",
+                        onValueChange = { text ->
+                            splitMap = splitMap + (combo.key to text.filter { c -> c.isDigit() })
                         },
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                } else if (cost != null) {
-                    Text(
-                        "Is that per piece, or for all ${formatQuantity(if (ordered > 0) ordered else 1.0)}? " +
-                            "The two are paid very differently.",
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.error,
+                        label = { Text(combo.label.ifEmpty { "Pieces" }) },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = { Text("Notes (optional)") },
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    "Adds up to ${CompletionSplit.formatQty(split.total)} of $produced good pieces",
+                    fontSize = 12.sp,
+                    color = if (split.ok) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.error,
                 )
-                submitError?.let {
-                    Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+            }
+            if (materials.isNotEmpty()) {
+                Text("Materials used", fontWeight = FontWeight.SemiBold)
+                Text(
+                    "The design's bill of materials. Log what this run actually consumed — it drives the cost rollup.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                materials.forEach { item ->
+                    MaterialUsedRow(
+                        item = item,
+                        used = usedMap[item.id] == true,
+                        onUsedChange = { checked -> usedMap = usedMap + (item.id to checked) },
+                        qty = qtyMap[item.id] ?: "",
+                        onQtyChange = { text -> qtyMap = qtyMap + (item.id to decimalOnly(text)) },
+                        unitCost = costMap[item.id] ?: "",
+                        onUnitCostChange = { text -> costMap = costMap + (item.id to decimalOnly(text)) },
+                        currency = currency,
+                    )
                 }
             }
-        },
-        confirmButton = {
-            if (submitting) {
-                CircularProgressIndicator(Modifier.size(20.dp))
-            } else TextButton(
-                onClick = {
-                    var combinedNotes = notes.trim()
-                    if (shortfall) {
-                        val explanation = "Shortfall explanation: ${shortfallExplanation.trim()}"
-                        combinedNotes = if (combinedNotes.isEmpty()) explanation
-                        else "$combinedNotes\n$explanation"
-                    }
-                    val body =
-                        PartnerApi.CompleteRunBody(
-                            producedQuantity = produced,
-                            rejectedQuantity = if (rejected > 0) rejected else null,
-                            rejectionReason = rejectionReason?.raw,
-                            rejectionNotes = rejectionNotes.takeIf { it.isNotBlank() },
-                            partnerCostEstimate = cost,
-                            costType = costType?.raw,
-                            allowShortfall = if (shortfall) true else null,
-                            notes = combinedNotes.takeIf { it.isNotBlank() },
-                            consumptions = consumptions,
-                            producedOutput = (split as? SplitPlan.Needed)?.lines,
-                        )
-                    submitting = true
-                    submitError = null
-                    scope.launch {
-                        val failure = try {
-                            onSubmit(body)
-                            null
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            e.message ?: "Couldn't complete the run. Please try again."
-                        }
-                        submitting = false
-                        if (failure == null) onDismiss() else submitError = failure
-                    }
-                },
-                enabled = canSubmit,
-            ) { Text("Submit") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !submitting) { Text("Cancel") }
-        },
-    )
+            if (shortfall) {
+                Text(
+                    "Produced + rejected is less than ordered. Explain the shortfall — the completion will be recorded with it.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error,
+                )
+                OutlinedTextField(
+                    value = shortfallExplanation,
+                    onValueChange = { shortfallExplanation = it },
+                    label = { Text("Why the shortfall?") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Text("Your cost", fontWeight = FontWeight.SemiBold)
+            OutlinedTextField(
+                value = costText,
+                onValueChange = { costText = it.filter { c -> c.isDigit() || c == '.' } },
+                label = { Text("Amount ($currency)") },
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            // An explicit, visible choice — the per-piece rate was once
+            // billed as a total because the type hid behind a menu.
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                CostType.entries.forEachIndexed { index, type ->
+                    SegmentedButton(
+                        selected = costType == type,
+                        onClick = { costType = type },
+                        shape = SegmentedButtonDefaults.itemShape(index, CostType.entries.size),
+                    ) { Text(type.label) }
+                }
+            }
+            val type = costType
+            if (cost != null && type != null) {
+                val preview = costPreview(cost, type, ordered)
+                val units = formatQuantity(preview.units)
+                Text(
+                    when (type) {
+                        CostType.PER_UNIT ->
+                            "${formatCurrency(cost, currency)} × $units ordered = " +
+                                "${formatCurrency(preview.total, currency)} total"
+                        CostType.TOTAL ->
+                            "${formatCurrency(preview.total, currency)} total · " +
+                                "${formatCurrency(preview.perPiece, currency)} per piece of $units"
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else if (cost != null) {
+                Text(
+                    "Is that per piece, or for all ${formatQuantity(if (ordered > 0) ordered else 1.0)}? " +
+                        "The two are paid very differently.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
+            OutlinedTextField(
+                value = notes,
+                onValueChange = { notes = it },
+                label = { Text("Notes (optional)") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            submitError?.let {
+                Text(it, fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    enabled = !submitting,
+                    modifier = Modifier.weight(1f),
+                ) { Text("Cancel") }
+                Button(
+                    onClick = { submitRun() },
+                    enabled = canSubmit,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    if (submitting) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                    else Text("Submit")
+                }
+            }
+        }
+    }
+}
+
+/** Digits and one decimal point — a quantity or a price, never a stray letter. */
+internal fun decimalOnly(text: String): String {
+    val kept = text.filter { it.isDigit() || it == '.' }
+    val dot = kept.indexOf('.')
+    return if (dot < 0) kept else kept.substring(0, dot + 1) + kept.substring(dot + 1).replace(".", "")
+}
+
+/** quantity × price, or null until both are real numbers. */
+internal fun materialLineTotal(qty: String, unitCost: String): Double? {
+    val q = qty.trim().toDoubleOrNull()?.takeIf { it > 0 } ?: return null
+    val c = unitCost.trim().toDoubleOrNull()?.takeIf { it > 0 } ?: return null
+    return round(q * c * 100) / 100
+}
+
+/**
+ * One material on the completion form. Quantity and price sit side by side
+ * at full width (they used to stack, indented 32dp, inside a narrow dialog),
+ * with the line total underneath so the partner can check what they typed.
+ */
+@Composable
+private fun MaterialUsedRow(
+    item: DesignInventoryItem,
+    used: Boolean,
+    onUsedChange: (Boolean) -> Unit,
+    qty: String,
+    onQtyChange: (String) -> Unit,
+    unitCost: String,
+    onUnitCostChange: (String) -> Unit,
+    currency: String,
+) {
+    val unit = item.unitOfMeasure?.takeIf { it.isNotBlank() } ?: "units"
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = used, onCheckedChange = onUsedChange)
+                Text(item.displayName, modifier = Modifier.weight(1f))
+            }
+            if (used) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = qty,
+                        onValueChange = onQtyChange,
+                        label = { Text("Qty ($unit)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal,
+                            imeAction = ImeAction.Next,
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    OutlinedTextField(
+                        value = unitCost,
+                        onValueChange = onUnitCostChange,
+                        label = { Text("Price/$unit") },
+                        prefix = { Text(currencySymbol(currency)) },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = KeyboardType.Decimal,
+                            imeAction = ImeAction.Next,
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                val total = materialLineTotal(qty, unitCost)
+                Text(
+                    if (total != null) "Total ${formatCurrency(total, currency)}"
+                    else "Price is optional",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+private fun currencySymbol(currency: String): String = when (currency.uppercase()) {
+    "INR" -> "₹"
+    "EUR" -> "€"
+    "USD" -> "$"
+    "GBP" -> "£"
+    else -> "$currency "
 }
