@@ -3592,7 +3592,59 @@
       "bomSummary_one": "{{count}} material on this design",
       "bomSummary_other": "{{count}} materials on this design",
       "bomConsumed_one": "{{count}} with consumption recorded",
-      "bomConsumed_other": "{{count}} with consumption recorded"
+      "bomConsumed_other": "{{count}} with consumption recorded",
+      "profitShare": {
+        "button": "Profit share",
+        "title": "Profit share",
+        "description": "This run was made with JYT's material. You share {{percent}}% of what you sell it for.",
+        "loadError": "Couldn't load the profit share.",
+        "percent": "Share",
+        "sold": "Sold",
+        "soldOfRun": "{{sold}} of {{total}}",
+        "grossSales": "Gross sales",
+        "owed": "Owed to JYT",
+        "paid": "Paid",
+        "balance": "Balance",
+        "status": "Status",
+        "statuses": {
+          "none": "No deal",
+          "no_sales": "No sales yet",
+          "open": "Balance due",
+          "settled": "Settled",
+          "overpaid": "Overpaid"
+        },
+        "currencyMismatch": "These sales and payments are in different currencies, so the totals can't be added up. Please contact JYT to sort it out.",
+        "sales": "Sales",
+        "noSales": "No sales reported yet.",
+        "payments": "Payments",
+        "noPayments": "No payments recorded yet.",
+        "date": "Date",
+        "quantity": "Qty",
+        "unitPrice": "Unit price",
+        "lineTotal": "Total",
+        "note": "Note",
+        "reportedBy": "Reported by",
+        "reporter": {
+          "admin": "JYT",
+          "partner": "You"
+        },
+        "amount": "Amount",
+        "reference": "Reference",
+        "report": {
+          "heading": "Report a sale",
+          "quantity": "Pieces sold",
+          "unitPrice": "Price per piece",
+          "soldOn": "Date sold",
+          "note": "Note (optional)",
+          "submit": "Report sale",
+          "success": "Sale reported",
+          "errors": {
+            "quantity": "Enter how many pieces you sold (more than 0).",
+            "unitPrice": "Enter the price per piece (more than 0).",
+            "soldOn": "Pick the date of the sale."
+          }
+        }
+      }
     },
     "inventoryOrders": {
       "heading": "Inventory Orders",

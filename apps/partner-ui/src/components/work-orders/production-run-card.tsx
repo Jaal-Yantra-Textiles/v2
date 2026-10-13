@@ -26,6 +26,7 @@ import { FinishRunForm } from "./finish-run-form"
 import { CompleteRunForm } from "./complete-run-form"
 import { TaskRow } from "./task-row"
 import { useOfferPaymentRequest } from "./use-offer-payment-request"
+import { RunProfitShareButton } from "./run-profit-share"
 
 /**
  * The work surface for a single production run: status, progress stepper,
@@ -262,6 +263,12 @@ export const ProductionRunCard = ({
             </div>
           )}
         </div>
+
+        {/* #2401 — renders nothing unless the run has a profit-share deal. */}
+        <RunProfitShareButton
+          runId={runId}
+          profitSharePercent={run.profit_share_percent}
+        />
       </div>
 
       {/* #2018 — the action first. Above the reassignment notice, the stepper

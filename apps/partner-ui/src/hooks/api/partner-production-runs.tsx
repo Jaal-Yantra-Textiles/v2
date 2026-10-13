@@ -368,3 +368,139 @@ export const usePartnerRunCostSummary = (
   })
   return { cost_summary: data?.cost_summary, ...rest }
 }
+
+// #2401 — the profit share on a partner run made with our material (#2322).
+// `percent: null` (and `summary.owed: null`) means there is no deal on this
+// run: the screen hides everything rather than showing ₹0 owed.
+export type PartnerProfitShareStatus =
+  | "none"
+  | "no_sales"
+  | "open"
+  | "settled"
+  | "overpaid"
+
+export type PartnerProfitShareSale = {
+  id: string
+  production_run_id: string
+  partner_id: string | null
+  quantity: number | string
+  /** May arrive as a string / bigNumber — coerce with `Number`. */
+  unit_price: number | string
+  currency_code: string
+  sold_at: string
+  note: string | null
+  reported_by: "admin" | "partner"
+  actor_id: string | null
+}
+
+export type PartnerProfitShareSettlement = {
+  id: string
+  amount: number | string
+  currency_code: string
+  paid_at: string
+  reference: string | null
+  receipt_url: string | null
+  note: string | null
+}
+
+export type PartnerProfitShareSummary = {
+  percent: number | null
+  currency_code: string
+  run_quantity: number | null
+  sold_quantity: number
+  unsold_quantity: number | null
+  gross_sales: number
+  owed: number | null
+  paid: number
+  balance: number | null
+  status: PartnerProfitShareStatus
+  /** Mixed currencies across rows — the server refuses to sum them. */
+  currency_mismatch: boolean
+  working: string[]
+}
+
+export type PartnerProfitShare = {
+  production_run_id: string
+  partner_id: string | null
+  percent: number | null
+  sales: PartnerProfitShareSale[]
+  settlements: PartnerProfitShareSettlement[]
+  summary: PartnerProfitShareSummary
+}
+
+export type PartnerProfitShareResponse = { profit_share: PartnerProfitShare }
+
+export type ReportPartnerSalePayload = {
+  quantity: number
+  unit_price: number
+  currency_code?: string
+  /** ISO datetime WITH an offset — the server rejects a bare date. */
+  sold_at?: string
+  note?: string
+}
+
+export type ReportPartnerSaleResponse = {
+  sale: PartnerProfitShareSale
+  profit_share: PartnerProfitShare
+}
+
+export const partnerRunProfitShareQueryKey = (runId: string) =>
+  ["partner-run-profit-share", runId] as const
+
+export const usePartnerRunProfitShare = (
+  runId: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerProfitShareResponse,
+      FetchError,
+      PartnerProfitShareResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: partnerRunProfitShareQueryKey(runId),
+    queryFn: async () =>
+      sdk.client.fetch<PartnerProfitShareResponse>(
+        `/partners/production-runs/${runId}/profit-share`,
+        { method: "GET" }
+      ),
+    enabled: !!runId,
+    ...options,
+  })
+  return { profit_share: data?.profit_share, ...rest }
+}
+
+export const useReportPartnerSale = (
+  runId: string,
+  options?: UseMutationOptions<
+    ReportPartnerSaleResponse,
+    FetchError,
+    ReportPartnerSalePayload
+  >
+) => {
+  const { onSuccess, ...restOptions } = options || {}
+  return useMutation({
+    mutationFn: async (payload: ReportPartnerSalePayload) =>
+      sdk.client.fetch<ReportPartnerSaleResponse>(
+        `/partners/production-runs/${runId}/profit-share/sales`,
+        { method: "POST", body: payload }
+      ),
+    onSuccess: (data, variables, onMutateResult, context) => {
+      // The POST returns the fresh profit share — show it at once, then let
+      // the refetch confirm it.
+      if (data?.profit_share) {
+        queryClient.setQueryData<PartnerProfitShareResponse>(
+          partnerRunProfitShareQueryKey(runId),
+          { profit_share: data.profit_share }
+        )
+      }
+      queryClient.invalidateQueries({
+        queryKey: partnerRunProfitShareQueryKey(runId),
+      })
+      onSuccess?.(data, variables, onMutateResult, context)
+    },
+    ...restOptions,
+  })
+}
