@@ -2,6 +2,7 @@ package com.jyt.partner.api
 
 import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.PartnerException
+import com.jyt.partner.models.displayThumbnail
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -239,6 +240,52 @@ class PartnerApiIntegrationTest {
         assertEquals(42, order.displayId)
         assertEquals("Tea towels", order.designs!!.single().name)
         assertEquals(com.jyt.partner.models.WorkStatus.IN_PROGRESS, order.workStatus)
+    }
+
+    @Test
+    fun `designs list sends the search as q and decodes rows`() = runBlocking {
+        enqueueJson(
+            """
+            {
+              "designs": [
+                {
+                  "id": "d1", "name": "Kani stole", "status": "In_Development",
+                  "thumbnail_url": null, "created_at": "2026-09-20T04:11:09.000Z",
+                  "media_files": [{"url": "a.jpg"}, {"url": "b.jpg", "isThumbnail": true}],
+                  "partner_info": {"partner_status": "assigned", "workflow_tasks_count": 0},
+                  "partner_engagement": "assigned", "is_owner": false, "tasks": []
+                }
+              ],
+              "count": 41, "limit": 20, "offset": 20,
+              "facets": {"all": 41, "incoming": 3, "in_progress": 1, "completed": 0, "yours": 0}
+            }
+            """.trimIndent()
+        )
+
+        val page = api.designs(limit = 20, offset = 20, query = "kani stole")
+
+        val path = take().path!!
+        assertTrue(path.startsWith("/partners/designs?"))
+        assertTrue(path.contains("limit=20"))
+        assertTrue(path.contains("offset=20"))
+        assertTrue(path.contains("q=kani+stole"))
+
+        assertEquals(41, page.count)
+        val design = page.designs.single()
+        assertEquals("Kani stole", design.name)
+        assertEquals("assigned", design.partnerInfo?.partnerStatus)
+        // No thumbnail_url, so the row shows the media file flagged as the thumbnail.
+        assertEquals("b.jpg", design.displayThumbnail)
+    }
+
+    @Test
+    fun `designs list without a search sends no q`() = runBlocking {
+        enqueueJson("""{"designs": [], "count": 0, "limit": 20, "offset": 0}""")
+
+        val page = api.designs()
+
+        assertFalse(take().path!!.contains("q="))
+        assertTrue(page.designs.isEmpty())
     }
 
     @Test
