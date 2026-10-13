@@ -282,6 +282,72 @@ export function planOptionLinks(
   return { add, update }
 }
 
+export type NewVariantInput = {
+  product_id: string
+  title: string
+  sku: string
+  manage_inventory: true
+  options: Record<string, string>
+  prices: Array<{ amount: number; currency_code: string }>
+  metadata: { is_custom_design: true; design_id: string }
+  /** The planned line this variant is for. */
+  line: PlannedLine
+}
+
+/**
+ * PURE: the variants a plan would create, with their skus — or a refusal when
+ * a sku is already taken.
+ *
+ * 🔴 prod 2026-10-13: an unsized line needed a `Made to order` variant beside
+ * the design's `Size: Silk Jacket` one. `Made to order` adds no sku suffix, so
+ * the new sku was the TEMPLATE's own sku, Medusa refused it, and the partner's
+ * completion failed half-done. A sku that collides is refused here, before
+ * anything is written, so the goods stay unstocked with a reason instead.
+ */
+export function planNewVariants(input: {
+  design_id: string
+  plan: Extract<OutputVariantPlan, { ok: true }>
+  product: PlanProduct
+}): { ok: true; variants: NewVariantInput[] } | { ok: false; reason: string } {
+  const { plan, product } = input
+  const template = (product.variants ?? []).find((v) => v.id === plan.template_variant_id)
+  const prices = (template?.prices ?? [])
+    .filter((p) => p?.currency_code && p?.amount != null)
+    .map((p) => ({ amount: Number(p.amount), currency_code: String(p.currency_code) }))
+  const baseSku = String(template?.sku ?? `CUSTOM-${input.design_id}`)
+  const baseTitle = String(template?.title ?? "")
+  const suffixOf = (l: PlannedLine) =>
+    Object.values(l.axis_values).filter((v) => v !== MADE_TO_ORDER)
+
+  const taken = new Set(
+    (product.variants ?? []).map((v) => v.sku).filter((s): s is string => !!s)
+  )
+  const variants: NewVariantInput[] = []
+  for (const l of plan.lines.filter((l) => !l.variant_id)) {
+    const sku = [baseSku, ...suffixOf(l).map((s) => s.toUpperCase().replace(/\s+/g, "-"))].join("-")
+    if (taken.has(sku)) {
+      return {
+        ok: false,
+        reason:
+          `the variant for ${JSON.stringify(l.axis_values)} would take sku ${sku}, ` +
+          `which a variant on product ${plan.product_id} already has`,
+      }
+    }
+    taken.add(sku)
+    variants.push({
+      product_id: plan.product_id,
+      title: [baseTitle, ...suffixOf(l)].filter(Boolean).join(" / "),
+      sku,
+      manage_inventory: true,
+      options: { ...plan.base_options, ...l.axis_values },
+      prices,
+      metadata: { is_custom_design: true, design_id: input.design_id },
+      line: l,
+    })
+  }
+  return { ok: true, variants }
+}
+
 export type StockLine = PlannedLine & { variant_id: string; inventory_item_id: string }
 
 /**
@@ -301,6 +367,10 @@ export async function applyOutputVariantPlan(
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
 
+  // Decided before anything is written: a refused sku leaves the product as it was.
+  const planned = planNewVariants({ design_id: input.design_id, plan, product })
+  if (!planned.ok) throw new Error(planned.reason)
+
   if (plan.add_options.length || plan.add_values.length) {
     const shared: SharedOption[] = plan.add_options.length
       ? await productService.listProductOptions(
@@ -318,33 +388,16 @@ export async function applyOutputVariantPlan(
     await productService.updateProductVariants(b.variant_id, { options: b.options })
   }
 
-  const template = (product.variants ?? []).find((v) => v.id === plan.template_variant_id)
-  const prices = (template?.prices ?? [])
-    .filter((p) => p?.currency_code && p?.amount != null)
-    .map((p) => ({ amount: Number(p.amount), currency_code: String(p.currency_code) }))
-  const baseSku = String(template?.sku ?? `CUSTOM-${input.design_id}`)
-  const baseTitle = String(template?.title ?? "")
-
-  const toCreate = plan.lines.filter((l) => !l.variant_id)
+  const toCreate = planned.variants
   const created = new Map<string, string>()
   if (toCreate.length) {
-    const suffixOf = (l: PlannedLine) =>
-      Object.values(l.axis_values).filter((v) => v !== "Made to order")
     const { result } = await createProductVariantsWorkflow(container).run({
       input: {
-        product_variants: toCreate.map((l) => ({
-          product_id: plan.product_id,
-          title: [baseTitle, ...suffixOf(l)].filter(Boolean).join(" / "),
-          sku: [baseSku, ...suffixOf(l).map((s) => s.toUpperCase().replace(/\s+/g, "-"))].join("-"),
-          manage_inventory: true,
-          options: { ...plan.base_options, ...l.axis_values },
-          prices,
-          metadata: { is_custom_design: true, design_id: input.design_id },
-        })) as any,
+        product_variants: toCreate.map(({ line: _line, ...variant }) => variant) as any,
       },
     })
     for (const [i, v] of (result ?? []).entries()) {
-      const line = toCreate[i]
+      const line = toCreate[i]?.line
       if (!v?.id || !line) continue
       created.set(JSON.stringify(line.axis_values), v.id)
       await remoteLink.create({
@@ -492,8 +545,15 @@ export function needsLinePath(input: {
 /**
  * The design's product: the one its variants sit on. Several → null, never
  * row 0 of them (#2059's lottery).
+ *
+ * 🔴 No variant of the design linked is NOT "no product". A design can be
+ * linked to a published product at the product level (`product_design`) with
+ * none of that product's variants linked to it. Reading only the variant link
+ * called that "no product" and minted one — which, for a design that already
+ * has a product, added a variant to THAT product and then collided on its sku
+ * (prod 2026-10-13). The product-level link is the fallback.
  */
-async function resolveDesignProductId(container: any, designId: string): Promise<{
+export async function resolveDesignProductId(container: any, designId: string): Promise<{
   product_id: string | null
   ambiguous: boolean
 }> {
@@ -504,7 +564,19 @@ async function resolveDesignProductId(container: any, designId: string): Promise
     fields: ["product_variant_id"],
   })
   const variantIds = (links ?? []).map((l: any) => l?.product_variant_id).filter(Boolean)
-  if (!variantIds.length) return { product_id: null, ambiguous: false }
+  if (!variantIds.length) {
+    const { data: productLinks } = await query.graph({
+      entity: "product_design",
+      filters: { design_id: designId },
+      fields: ["product_id"],
+    })
+    const linked = Array.from(
+      new Set((productLinks ?? []).map((l: any) => l?.product_id).filter(Boolean))
+    ) as string[]
+    return linked.length === 1
+      ? { product_id: linked[0], ambiguous: false }
+      : { product_id: null, ambiguous: linked.length > 1 }
+  }
   const { data: variants } = await query.graph({
     entity: "product_variant",
     filters: { id: variantIds },
@@ -728,10 +800,24 @@ export async function resolveRunStockTarget(
     plan = replanned
   }
 
-  const stockLines = await applyOutputVariantPlan(container, {
-    design_id: designId,
-    plan: plan!,
-    product: product!,
-  })
+  /**
+   * A failure here leaves the goods unstocked with a reason — bankable later by
+   * the bank-unstocked-run job — instead of failing the partner's completion
+   * after the run, its tasks and the design were already written (prod
+   * 2026-10-13: a duplicate sku surfaced as a 400 to the partner).
+   */
+  let stockLines: StockLine[]
+  try {
+    stockLines = await applyOutputVariantPlan(container, {
+      design_id: designId,
+      plan: plan!,
+      product: product!,
+    })
+  } catch (e: any) {
+    return {
+      mode: "skip",
+      reason: `could not create the output variants for design ${designId}: ${e?.message ?? e}`,
+    }
+  }
   return { mode: "lines", product_id: productId, lines: stockLines, minted_product: minted }
 }

@@ -524,6 +524,7 @@ class PartnerApiIntegrationTest {
                         PartnerApi.ConsumptionEntry(
                             inventoryItemId = "iitem-1",
                             quantity = 2.5,
+                            quantityBasis = "total",
                             unitCost = 180.0,
                             unitOfMeasure = "Meter",
                             consumptionType = "production",
@@ -533,6 +534,8 @@ class PartnerApiIntegrationTest {
             )
 
             val body = take().body.readUtf8()
+            // Without the basis the server never takes the material off stock (prod 2026-10-13).
+            assertTrue(body.contains("\"quantity_basis\":\"total\""))
             assertTrue(body.contains("\"produced_quantity\":9"))
             assertTrue(body.contains("\"rejected_quantity\":1"))
             assertTrue(body.contains("\"rejection_reason\":\"fabric_flaw\""))

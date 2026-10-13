@@ -31,6 +31,12 @@ const CompleteBodySchema = z.object({
       z.object({
         inventory_item_id: z.string().optional(),
         quantity: z.number().positive(),
+        /**
+         * What `quantity` measures: what this run used in all ("total") or one
+         * piece's worth ("per_piece"). Without it the log never comes off
+         * stock — the apply job refuses to guess a basis.
+         */
+        quantity_basis: z.enum(["total", "per_piece"]).optional(),
         unit_cost: z.number().positive().optional(),
         unit_of_measure: z
           .enum(["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "kWh", "Liter", "Cubic_Meter", "Hour", "Other"])

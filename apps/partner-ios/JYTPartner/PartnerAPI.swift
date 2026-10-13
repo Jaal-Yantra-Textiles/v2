@@ -308,6 +308,9 @@ actor PartnerAPI {
   struct ConsumptionEntry: Codable {
     var inventory_item_id: String?
     var quantity: Double
+    /// What `quantity` measures: "total" (all this run used) or "per_piece".
+    /// Without it the server never takes the material off stock.
+    var quantity_basis: String? = nil
     var unit_cost: Double?
     var unit_of_measure: String?
     var consumption_type: String?

@@ -375,6 +375,11 @@ class PartnerApi private constructor(
     data class ConsumptionEntry(
         @SerialName("inventory_item_id") val inventoryItemId: String? = null,
         val quantity: Double,
+        /**
+         * What [quantity] measures: "total" (all this run used) or "per_piece".
+         * Without it the server never takes the material off stock.
+         */
+        @SerialName("quantity_basis") val quantityBasis: String? = null,
         @SerialName("unit_cost") val unitCost: Double? = null,
         @SerialName("unit_of_measure") val unitOfMeasure: String? = null,
         @SerialName("consumption_type") val consumptionType: String? = null,

@@ -270,6 +270,8 @@ fun CompleteRunSheet(
             PartnerApi.ConsumptionEntry(
                 inventoryItemId = item.id,
                 quantity = qty,
+                // The form asks what THIS RUN consumed, so the number is a total.
+                quantityBasis = "total",
                 unitCost = costOf(item.id),
                 unitOfMeasure = item.unitOfMeasure,
                 consumptionType = "production",
