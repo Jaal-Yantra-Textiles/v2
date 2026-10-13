@@ -55,6 +55,7 @@ describe("consumption-committed-apply-to-inventory", () => {
         production_run_id: "run_1",
         kind: "consumption_applied",
         summary: "Material stock: Applied 1 of 1",
+        occurred_at: expect.any(Date),
       })
     )
   })
