@@ -1,3 +1,33 @@
+# [13.177.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.176.0...v13.177.0) (2026-10-13)
+
+
+### Bug Fixes
+
+* **tax:** 5% at exactly ₹2,500 and for fabric; add set_stock_location_sales_channels ([#2399](https://github.com/Jaal-Yantra-Textiles/v2/issues/2399)) ([bee88ff](https://github.com/Jaal-Yantra-Textiles/v2/commit/bee88ff815535e597fd26c6d793ed5018fc820af))
+* **partners:** admin sets a storefront's theme; update_partner forwards country/currency ([#2396](https://github.com/Jaal-Yantra-Textiles/v2/issues/2396)) ([35e7112](https://github.com/Jaal-Yantra-Textiles/v2/commit/35e711235921713835704b3c8ac5ad2df8b540bf)), closes [#2061](https://github.com/Jaal-Yantra-Textiles/v2/issues/2061) [#2061](https://github.com/Jaal-Yantra-Textiles/v2/issues/2061)
+* **consumption:** committed material comes off our stock automatically ([#2406](https://github.com/Jaal-Yantra-Textiles/v2/issues/2406)) ([#2407](https://github.com/Jaal-Yantra-Textiles/v2/issues/2407)) ([25ab173](https://github.com/Jaal-Yantra-Textiles/v2/commit/25ab173629663666b29f64f7af61ace45fd821f7))
+* **partner-android:** complete-run form scrolls and keeps the keyboard off the material boxes ([#2416](https://github.com/Jaal-Yantra-Textiles/v2/issues/2416)) ([d275020](https://github.com/Jaal-Yantra-Textiles/v2/commit/d275020556f4a0cc54fc97ed5375ce858798b8f4))
+* **storefront:** publish the Vercel TXT with platform Cloudflare creds, never overwrite a sibling; verify-domain + hourly job ([#2395](https://github.com/Jaal-Yantra-Textiles/v2/issues/2395)) ([46a1f36](https://github.com/Jaal-Yantra-Textiles/v2/commit/46a1f36339f2ab491f1dab96e1eca1ecfe6998e2))
+* **production-runs:** run completion no longer duplicates variants or consumption logs, and moves stock ([#2401](https://github.com/Jaal-Yantra-Textiles/v2/issues/2401) follow-up) ([#2417](https://github.com/Jaal-Yantra-Textiles/v2/issues/2417)) ([57955ef](https://github.com/Jaal-Yantra-Textiles/v2/commit/57955ef1c4097e9f3d5c137d2287ec1a6af113e7)), closes [#1857](https://github.com/Jaal-Yantra-Textiles/v2/issues/1857)
+* **consumption:** the "material stock" run note was never written ([#2406](https://github.com/Jaal-Yantra-Textiles/v2/issues/2406)) ([#2408](https://github.com/Jaal-Yantra-Textiles/v2/issues/2408)) ([7630967](https://github.com/Jaal-Yantra-Textiles/v2/commit/7630967dc23d3e4ac39da26840333332fe3208df))
+* **production-runs:** the reminder-cap retry no longer says "re-sent" ([#2390](https://github.com/Jaal-Yantra-Textiles/v2/issues/2390)) ([b0b9930](https://github.com/Jaal-Yantra-Textiles/v2/commit/b0b9930de8efed3a0a88e4ca5d94fc6428427a07))
+
+
+### Features
+
+* **production-runs:** an offline sale moves stock ([#2401](https://github.com/Jaal-Yantra-Textiles/v2/issues/2401)) ([#2412](https://github.com/Jaal-Yantra-Textiles/v2/issues/2412)) ([b8b5c5f](https://github.com/Jaal-Yantra-Textiles/v2/commit/b8b5c5f86a363c4bccbea87e0f2140e0186ddd9b))
+* **quotes:** balance released on sample approval; INR balance over PayU ([#2393](https://github.com/Jaal-Yantra-Textiles/v2/issues/2393)) ([867dc48](https://github.com/Jaal-Yantra-Textiles/v2/commit/867dc486e917b0aeb5f1e88910b15e269cc5c7a6)), closes [#1451](https://github.com/Jaal-Yantra-Textiles/v2/issues/1451)
+* **inventory-orders:** cancel a supplier shipment's AWB from admin and MCP ([#2392](https://github.com/Jaal-Yantra-Textiles/v2/issues/2392)) ([9367400](https://github.com/Jaal-Yantra-Textiles/v2/commit/9367400c55b40b7da34831065a08af1fa8727c3f))
+* **partner-android:** Designs tab ([#2402](https://github.com/Jaal-Yantra-Textiles/v2/issues/2402)) ([#2414](https://github.com/Jaal-Yantra-Textiles/v2/issues/2414)) ([ef4c91c](https://github.com/Jaal-Yantra-Textiles/v2/commit/ef4c91cab248b7c090d23d199ce192a21480f6dc))
+* **partner-ios:** Designs tab + multi-board moodboards ([#2402](https://github.com/Jaal-Yantra-Textiles/v2/issues/2402)) ([#2413](https://github.com/Jaal-Yantra-Textiles/v2/issues/2413)) ([264c15f](https://github.com/Jaal-Yantra-Textiles/v2/commit/264c15fc6a51471a042015a8331c2ecabeb52acb)), closes [#2017](https://github.com/Jaal-Yantra-Textiles/v2/issues/2017) [#2409](https://github.com/Jaal-Yantra-Textiles/v2/issues/2409)
+* **production-runs:** profit share on partner runs made with our material ([#2322](https://github.com/Jaal-Yantra-Textiles/v2/issues/2322)) ([#2400](https://github.com/Jaal-Yantra-Textiles/v2/issues/2400)) ([4eb1efe](https://github.com/Jaal-Yantra-Textiles/v2/commit/4eb1efe66e2688fc61530a3d3d3a89a1ca1c5960))
+* **ios:** profit share sheet on the run ([#2401](https://github.com/Jaal-Yantra-Textiles/v2/issues/2401)) ([#2409](https://github.com/Jaal-Yantra-Textiles/v2/issues/2409)) ([1114549](https://github.com/Jaal-Yantra-Textiles/v2/commit/1114549ca7e7478dd276a0dbd8b5734f03d58094)), closes [#2322](https://github.com/Jaal-Yantra-Textiles/v2/issues/2322)
+* **android:** profit share sheet on the run ([#2401](https://github.com/Jaal-Yantra-Textiles/v2/issues/2401)) ([#2410](https://github.com/Jaal-Yantra-Textiles/v2/issues/2410)) ([1182928](https://github.com/Jaal-Yantra-Textiles/v2/commit/1182928e54379602412d6605514f1b04e284e65a))
+* **partner-ui:** profit share sheet on the run ([#2401](https://github.com/Jaal-Yantra-Textiles/v2/issues/2401)) ([#2411](https://github.com/Jaal-Yantra-Textiles/v2/issues/2411)) ([6544daa](https://github.com/Jaal-Yantra-Textiles/v2/commit/6544daac3009d13b730b958a6898b9d51ae1991b))
+* **quotes:** sample approval and "balance due" in the admin and partner UIs ([#2394](https://github.com/Jaal-Yantra-Textiles/v2/issues/2394)) ([c6104a3](https://github.com/Jaal-Yantra-Textiles/v2/commit/c6104a3a345ba8327f85460f0cd50150bd59aa76))
+* **mcp:** set_sales_channel_products — sell one product on a second store ([#2397](https://github.com/Jaal-Yantra-Textiles/v2/issues/2397)) ([ed956e8](https://github.com/Jaal-Yantra-Textiles/v2/commit/ed956e81d6c12b9a1cfd71a008200841fadbbdb2))
+* **mcp:** update_product can replace a product's images ([#2398](https://github.com/Jaal-Yantra-Textiles/v2/issues/2398)) ([96510af](https://github.com/Jaal-Yantra-Textiles/v2/commit/96510af71a28fd4722b46470e09824a44de0fe76))
+
 # [13.176.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.175.0...v13.176.0) (2026-10-08)
 
 
