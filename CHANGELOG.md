@@ -1,3 +1,10 @@
+## [13.177.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.177.0...v13.177.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **inventory-orders:** send the ship-from address on inventory shipments ([#2419](https://github.com/Jaal-Yantra-Textiles/v2/issues/2419)) ([12c1d67](https://github.com/Jaal-Yantra-Textiles/v2/commit/12c1d6796ea3e492acb2fd2aa2412d7ae6e2e9d5))
+
 # [13.177.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.176.0...v13.177.0) (2026-10-13)
 
 
