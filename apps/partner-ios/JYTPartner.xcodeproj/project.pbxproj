@@ -29,6 +29,8 @@
 		5A1000000000000000000045 /* PushManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000026 /* PushManager.swift */; };
 		5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000027 /* InventoryOrdersView.swift */; };
 		5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000028 /* InventoryOrderDetailView.swift */; };
+		5A1000000000000000000048 /* ProfitShareModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002A /* ProfitShareModels.swift */; };
+		5A1000000000000000000049 /* ProfitShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002B /* ProfitShareSheet.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -57,6 +59,8 @@
 		5A1000000000000000000027 /* InventoryOrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrdersView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000028 /* InventoryOrderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrderDetailView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000029 /* JYTPartner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JYTPartner.entitlements; sourceTree = "<group>"; };
+		5A100000000000000000002A /* ProfitShareModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitShareModels.swift; sourceTree = "<group>"; };
+		5A100000000000000000002B /* ProfitShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitShareSheet.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +99,7 @@
 				5A1000000000000000000012 /* Models.swift */,
 				5A100000000000000000001E /* DesignModels.swift */,
 				5A1000000000000000000025 /* InventoryOrderModels.swift */,
+				5A100000000000000000002A /* ProfitShareModels.swift */,
 				5A1000000000000000000026 /* PushManager.swift */,
 				5A1000000000000000000013 /* Keychain.swift */,
 				5A1000000000000000000011 /* Config.swift */,
@@ -121,6 +126,7 @@
 				5A1000000000000000000024 /* MediaPickerView.swift */,
 				5A1000000000000000000027 /* InventoryOrdersView.swift */,
 				5A1000000000000000000028 /* InventoryOrderDetailView.swift */,
+				5A100000000000000000002B /* ProfitShareSheet.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -218,6 +224,8 @@
 				5A1000000000000000000045 /* PushManager.swift in Sources */,
 				5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */,
 				5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */,
+				5A1000000000000000000048 /* ProfitShareModels.swift in Sources */,
+				5A1000000000000000000049 /* ProfitShareSheet.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -287,14 +295,14 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = JYTPartner/JYTPartner.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = JYTPartner/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jyt.partner;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -308,14 +316,14 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = JYTPartner/JYTPartner.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = NO;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = JYTPartner/Info.plist;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jyt.partner;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

@@ -161,6 +161,29 @@ actor PartnerAPI {
     try await get(path: "partners/production-runs/\(id)")
   }
 
+  // MARK: - Profit share (#2401)
+  // A run made with our material can carry a deal: the partner owes us a
+  // percent of what they sell its pieces for (#2322). Routes:
+  // apps/backend/src/api/partners/production-runs/[id]/profit-share.
+
+  func profitShare(runId: String) async throws -> ProfitShare {
+    let wrapper: ProfitShareResponse =
+      try await get(path: "partners/production-runs/\(runId)/profit-share")
+    return wrapper.profit_share
+  }
+
+  /// Report pieces sold. Returns the refreshed profit share so the sheet
+  /// redraws from the server's own sums.
+  func recordProfitShareSale(
+    runId: String,
+    body: RecordProfitShareSaleBody
+  ) async throws -> RecordProfitShareSaleResponse {
+    try await postDecoding(
+      path: "partners/production-runs/\(runId)/profit-share/sales",
+      json: try JSONEncoder().encode(body)
+    )
+  }
+
   // MARK: - Inventory orders
   // The raw-material purchase orders the partner is commissioned for —
   // the mobile counterpart of the partner-ui inventory-orders hooks
@@ -383,6 +406,30 @@ actor PartnerAPI {
     }
     let (data, response) = try await session.data(for: request)
     try Self.check(response, data: data)
+  }
+
+  /// `post` that keeps and decodes the response body — `post` above
+  /// discards it, which suits the milestone calls but not a mutation whose
+  /// result the screen redraws from.
+  private func postDecoding<T: Decodable>(path: String, json: Data? = nil) async throws -> T {
+    var request = URLRequest(url: Self.makeURL(path))
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    if let token = Keychain.loadToken() {
+      request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    }
+    if let json {
+      request.httpBody = json
+    }
+    let (data, response) = try await session.data(for: request)
+    try Self.check(response, data: data)
+    do {
+      return try decoder.decode(T.self, from: data)
+    } catch let error as DecodingError {
+      throw PartnerError.decoding(Self.summarize(error))
+    } catch {
+      throw PartnerError.invalidResponse
+    }
   }
 
   // MARK: - Plumbing

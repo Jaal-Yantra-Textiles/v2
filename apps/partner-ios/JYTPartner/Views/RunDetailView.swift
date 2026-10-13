@@ -15,6 +15,19 @@ struct RunDetailView: View {
   @State private var showFinishSheet = false
   @State private var showCompleteSheet = false
   @State private var acting = false
+  /// #2401 — nil until loaded, and when the read fails; the button only
+  /// shows for a run that carries a deal.
+  @State private var profitShare: ProfitShare?
+  @State private var showProfitShareSheet = false
+
+  /// A deal exists only with a percent; `owed == nil` means NO deal, which
+  /// must never be shown as ₹0 owed.
+  private var dealShare: ProfitShare? {
+    guard let profitShare, profitShare.hasDeal,
+          profitShare.summary.owed?.value != nil
+    else { return nil }
+    return profitShare
+  }
 
   private var pendingTasks: [RunTask] {
     (detail?.tasks ?? []).filter {
@@ -50,6 +63,28 @@ struct RunDetailView: View {
             }
             if let qty = detail.production_run.quantity {
               LabeledContent("Quantity", value: "\(qty)")
+            }
+          }
+
+          if let share = dealShare {
+            Section("Profit share") {
+              Button {
+                showProfitShareSheet = true
+              } label: {
+                HStack {
+                  Label("Profit share", systemImage: "indianrupeesign.circle")
+                  Spacer()
+                  if share.summary.currency_mismatch != true,
+                     let owed = share.summary.owed?.value {
+                    Text("\(ProfitShareSheet.currency.string(owed, code: share.summary.currency_code ?? "inr")) owed")
+                      .font(.footnote)
+                      .foregroundStyle(.secondary)
+                  }
+                  Image(systemName: "chevron.up")
+                    .font(.footnote)
+                    .foregroundStyle(.tertiary)
+                }
+              }
             }
           }
 
@@ -137,6 +172,13 @@ struct RunDetailView: View {
         Task { await run(.complete, completeBody: body) }
       }
     }
+    .sheet(isPresented: $showProfitShareSheet) {
+      if let share = dealShare {
+        ProfitShareSheet(runID: runID, share: share) { updated in
+          profitShare = updated
+        }
+      }
+    }
     .alert("Action failed", isPresented: Binding(
       get: { actionError != nil },
       set: { if !$0 { actionError = nil } }
@@ -166,6 +208,11 @@ struct RunDetailView: View {
     do {
       detail = try await PartnerAPI.shared.productionRun(id: runID)
       loading = false
+      // #2401 — the deal, if any. A failed read hides the button rather
+      // than failing the run screen.
+      if let share = try? await PartnerAPI.shared.profitShare(runId: runID) {
+        profitShare = share
+      }
       // The linked design carries the complete form's material options.
       if design == nil, let designID = detail?.production_run.design_id {
         design = try? await PartnerAPI.shared.design(id: designID)
