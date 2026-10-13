@@ -16,9 +16,10 @@ jest.setTimeout(120000)
  *
  * The `sandbox: true` flag routes booking/label/cancel to DTDC's Shipsy demo
  * host (alphademodashboardapi.shipsy.io) and tracking to the staging host
- * (dtdcstagingapi.dtdc.com), so no live waybill is minted. Note the demo env
- * has two known limitations, asserted below rather than glossed over:
- *   - label streaming returns HTTP 403 ({"error": …})
+ * (dtdcstagingapi.dtdc.com), so no live waybill is minted. The demo env
+ * drifts (since ~2026-10-09 labels stream a real PDF instead of a 403, and a
+ * fresh AWB tracks with no scans), so these tests pin what must always hold:
+ *   - a label is real PDF bytes or a structured error, never a fake success
  *   - cancellation is rejected by the demo ERP ("REJECTED_BY_ERP_SERVER")
  */
 
@@ -165,30 +166,56 @@ describe("DTDC shipping end-to-end (real test environment)", () => {
         expect(tracking.current_status).toBeTruthy()
       })
 
-      it("normalizes tracking scans into scan_type events", async () => {
-        // The demo books instantly but its tracking index can lag a beat, so
-        // poll briefly until the freshly-minted AWB shows scan events.
-        let tracking: any
-        for (let attempt = 0; attempt < 5; attempt++) {
-          tracking = await adapter.track({ awb })
-          if (tracking.events?.length) break
-          await new Promise((r) => setTimeout(r, 1000))
-        }
+      it("returns an events array for the booked AWB", async () => {
+        // Since ~2026-10-09 the staging tracker answers a fresh demo AWB with
+        // no scans at all, so the live call can only prove the shape. The
+        // scan normalization itself is pinned by the fixture test below.
+        const tracking = await adapter.track({ awb })
         expect(Array.isArray(tracking.events)).toBe(true)
-        expect(tracking.events.length).toBeGreaterThan(0)
-        for (const event of tracking.events) {
-          expect(event.scan_type).toBeTruthy()
-          expect(event.status).toBeTruthy()
+      })
+
+      it("normalizes tracking scans into scan_type events", async () => {
+        // Fixture taken from a real staging response (trackHeader/trackDetails).
+        const stub = new DtdcProviderAdapter({ ...TEST_CREDENTIALS, sandbox: true })
+        ;(stub as any).client = {
+          trackShipment: async () => ({
+            trackHeader: { strShipmentNo: "X0012189541", strStatus: "Pickup Awaited" },
+            trackDetails: [
+              {
+                strCode: "SPL",
+                strAction: "Softdata Upload",
+                strOrigin: "GHAZIABAD APEX",
+                strActionDate: "27082026",
+                strActionTime: "0806",
+              },
+            ],
+          }),
         }
+        const tracking = await stub.track({ awb: "X0012189541" })
+        expect(tracking.current_status).toBe("Pickup Awaited")
+        expect(tracking.events).toHaveLength(1)
+        expect(tracking.events[0].scan_type).toBe("created")
+        expect(tracking.events[0].status).toBe("Softdata Upload")
+        expect(tracking.events[0].location).toBe("GHAZIABAD APEX")
       })
     })
 
-    describe("label (demo limitation)", () => {
-      it("reaches the label endpoint (demo returns a structured 403)", async () => {
-        // The Shipsy demo does not stream labels — it answers JSON 403. The
-        // client surfaces that as a DtdcApiError rather than pretending a PDF
-        // arrived. On a live account this same call returns PDF bytes.
-        await expect(adapter.getLabel({ awb })).rejects.toThrow(/label/i)
+    describe("label", () => {
+      it("returns real PDF bytes, or a structured label error — never a fake PDF", async () => {
+        // The Shipsy demo used to answer JSON 403 here; since ~2026-10-09 it
+        // streams a real PDF. Either is an honest answer. What must never
+        // happen is a "success" whose bytes are not a PDF.
+        const outcome = await adapter.getLabel({ awb }).then(
+          (label) => ({ label, error: null as any }),
+          (error) => ({ label: null as any, error })
+        )
+        if (outcome.error) {
+          expect(String(outcome.error?.message ?? outcome.error)).toMatch(/label/i)
+          return
+        }
+        expect(outcome.label.format).toBe("pdf")
+        const bytes = Buffer.from(String(outcome.label.data), "base64")
+        expect(bytes.subarray(0, 5).toString("latin1")).toBe("%PDF-")
       })
     })
 
