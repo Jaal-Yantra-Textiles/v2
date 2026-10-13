@@ -48,7 +48,7 @@ export default async function consumptionCommittedApplyToInventoryHandler({
       logger.info(
         `[consumption-apply] ${logIds.length} committed log(s): ${result.summary}`
       )
-      await noteOnRuns(container, logIds, result)
+      await noteOnRuns(container, logger, logIds, result)
     } catch (e: any) {
       logger.error(
         `[consumption-apply] failed for logs ${logIds.join(", ")}: ${e?.message ?? e}`
@@ -62,6 +62,7 @@ export default async function consumptionCommittedApplyToInventoryHandler({
 
 async function noteOnRuns(
   container: any,
+  logger: Logger,
   logIds: string[],
   result: { summary: string; changes?: Array<Record<string, any>> }
 ) {
@@ -95,9 +96,16 @@ async function noteOnRuns(
           log_ids: logIds,
           changes: result.changes ?? [],
         },
+        // NOT NULL with no default: leaving it out failed every insert, and
+        // the swallowed error hid it (prod, 2026-10-13: stock moved, no note).
+        occurred_at: new Date(),
       })
-    } catch {
+    } catch (e: any) {
       // The timeline is an audit mirror; the stock movement already happened.
+      // Still say so, or a missing note reads as "nothing was applied".
+      logger.warn(
+        `[consumption-apply] could not note run ${runId}: ${e?.message ?? e}`
+      )
     }
   }
 }
