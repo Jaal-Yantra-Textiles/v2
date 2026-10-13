@@ -33,6 +33,10 @@ import com.jyt.partner.models.PartnerOrderDetailResponse
 import com.jyt.partner.models.PartnerOrderListResponse
 import com.jyt.partner.models.ProductionRunDetail
 import com.jyt.partner.models.ProductionRunListResponse
+import com.jyt.partner.models.ProfitShare
+import com.jyt.partner.models.ProfitShareResponse
+import com.jyt.partner.models.RecordSaleBody
+import com.jyt.partner.models.RecordSaleResponse
 import com.jyt.partner.models.ReceiveIncomingBody
 import com.jyt.partner.models.RunCostSummary
 import com.jyt.partner.models.RunCostSummaryResponse
@@ -329,6 +333,20 @@ class PartnerApi private constructor(
     /** The run's cost rollup — your rate and total, materials, cost per piece. */
     suspend fun productionRunCostSummary(id: String): RunCostSummary =
         get<RunCostSummaryResponse>("partners/production-runs/$id/cost-summary").costSummary
+
+    /** The run's profit share (#2322): the percent, the sales, what we were
+     *  paid and what is still owed. percent == null means no deal. */
+    suspend fun profitShare(runId: String): ProfitShare =
+        get<ProfitShareResponse>("partners/production-runs/$runId/profit-share").profitShare
+
+    /** Report pieces sold from the run. Returns the whole profit share as
+     *  it stands after the sale (the route's 201 body carries it). A 400
+     *  for selling more than the run's pieces surfaces as the server's message. */
+    suspend fun reportProfitShareSale(runId: String, body: RecordSaleBody): RecordSaleResponse =
+        postDecoding(
+            "partners/production-runs/$runId/profit-share/sales",
+            json.encodeToString(RecordSaleBody.serializer(), body),
+        )
 
     // ── Run lifecycle actions ────────────────────────────────────────────
 
@@ -690,6 +708,13 @@ class PartnerApi private constructor(
         val request = baseRequest(path)
             .post((body ?: "{}").toRequestBody("application/json".toMediaType())).build()
         execute(request)
+    }
+
+    /** POST that decodes the response body into [T] — [post] discards it. */
+    private suspend inline fun <reified T> postDecoding(path: String, body: String? = null): T {
+        val request = baseRequest(path)
+            .post((body ?: "{}").toRequestBody("application/json".toMediaType())).build()
+        return decodeBody<T>(execute(request))
     }
 
     /** POST returning the parsed top-level JSON object (login). */
