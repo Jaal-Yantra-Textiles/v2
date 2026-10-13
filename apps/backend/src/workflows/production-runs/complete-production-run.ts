@@ -1,8 +1,9 @@
 /**
  * Partner: Complete a production run.
  *
- * Logs consumptions, marks run completed (with locking), completes tasks,
- * updates design cost + status, stocks finished goods, signals lifecycle.
+ * Marks run completed (with locking), logs consumptions, completes tasks,
+ * updates design cost + status, stocks finished goods, signals lifecycle, and
+ * commits the consumptions LAST (committing is what moves material stock).
  */
 import {
   createStep,
@@ -12,8 +13,9 @@ import {
   transform,
   when,
 } from "@medusajs/framework/workflows-sdk"
-import { MedusaError, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 
+import { CONSUMPTION_LOG_MODULE } from "../../modules/consumption_log"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { runUnitCost } from "./lib/run-payable"
 import { resolveProducedOutput, runGoodQuantity, type OutputLine } from "./lib/run-output"
@@ -47,6 +49,12 @@ import {
 export type ConsumptionEntry = {
   inventory_item_id?: string
   quantity: number
+  /**
+   * What `quantity` measures: everything this run used ("total"), or one
+   * piece's worth ("per_piece"). Unset, the log is never deducted from stock —
+   * the apply job will not guess a basis.
+   */
+  quantity_basis?: "total" | "per_piece" | null
   unit_cost?: number
   unit_of_measure?: string
   consumption_type?: string
@@ -179,10 +187,23 @@ export function checkCompletionOutput(input: {
 // Step: Log consumptions (batch)
 // ---------------------------------------------------------------------------
 
+/**
+ * Write the partner's consumption logs — UNCOMMITTED. Committing them is what
+ * moves stock (`consumption-committed-apply-to-inventory`), so that waits for
+ * `commitRunConsumptionsStep` at the very end of the workflow.
+ *
+ * 🔴 prod 2026-10-13: this step used to run FIRST and commit each log as it
+ * went, with no compensation. A completion that then failed (a duplicate sku,
+ * a 400 to the partner) kept its logs; the partner's retry wrote them again —
+ * 4 committed logs for 2 materials. Now it runs only after the run is actually
+ * marked completed by this call, and a later failure deletes what it wrote.
+ */
 const logConsumptionsStep = createStep(
   "log-consumptions-batch",
   async (
     input: {
+      /** False when the lock step found the run already completed: log nothing. */
+      completed: boolean
       consumptions: ConsumptionEntry[]
       design_id: string
       production_run_id: string
@@ -191,43 +212,109 @@ const logConsumptionsStep = createStep(
     },
     { container }
   ) => {
-    if (!input.consumptions?.length) {
-      return new StepResponse({ logged_ids: [] })
+    if (!input.completed || !input.consumptions?.length) {
+      return new StepResponse({ logged_ids: [] as string[] }, [] as string[])
     }
 
     const loggedIds: string[] = []
 
-    for (const c of input.consumptions) {
-      const { result } = await logConsumptionWorkflow(container).run({
-        input: {
-          design_id: input.design_id,
-          production_run_id: input.production_run_id,
-          inventory_item_id: c.inventory_item_id,
-          quantity: c.quantity,
-          unit_cost: c.unit_cost,
-          unit_of_measure: c.unit_of_measure as any,
-          consumption_type: (c.consumption_type || (input.run_type === "sample" ? "sample" : "production")) as any,
-          consumed_by: "partner" as const,
-          location_id: c.location_id || input.default_location_id,
-          notes: c.notes,
-        },
-      })
-
-      if (result?.id) {
-        loggedIds.push(result.id)
-
-        await commitConsumptionWorkflow(container).run({
+    try {
+      for (const c of input.consumptions) {
+        const { result } = await logConsumptionWorkflow(container).run({
           input: {
             design_id: input.design_id,
-            log_ids: [result.id],
+            production_run_id: input.production_run_id,
+            inventory_item_id: c.inventory_item_id,
+            quantity: c.quantity,
+            quantity_basis: c.quantity_basis ?? null,
+            unit_cost: c.unit_cost,
+            unit_of_measure: c.unit_of_measure as any,
+            consumption_type: (c.consumption_type || (input.run_type === "sample" ? "sample" : "production")) as any,
+            consumed_by: "partner" as const,
+            location_id: c.location_id || input.default_location_id,
+            notes: c.notes,
           },
-        }).catch(() => {
-          // Commit can happen later — log was created
         })
+        if (result?.id) loggedIds.push(result.id)
       }
+    } catch (e) {
+      // A step that throws is not compensated: undo the logs this one wrote.
+      await removeRunConsumptionLogs(container, loggedIds)
+      throw e
     }
 
-    return new StepResponse({ logged_ids: loggedIds })
+    return new StepResponse({ logged_ids: loggedIds }, loggedIds)
+  },
+  async (loggedIds, { container }) => {
+    await removeRunConsumptionLogs(container, loggedIds ?? [])
+  }
+)
+
+/**
+ * Delete logs a failed completion wrote. Unlink first, then delete, exactly as
+ * the admin DELETE does, so no link row is ever left pointing at nothing
+ * (#1857).
+ *
+ * 🔴 A log whose stock already moved (`inventory_applied_at`) is NOT deleted.
+ * The apply job stamps WHEN and WHERE, but not how much it took off: the amount
+ * is `quantity` or `quantity × pieces` by basis, floored at the level, and
+ * carried forward across logs on one item, so it cannot be reversed exactly
+ * from the row. Deleting it would hide a real decrement. It stays, with a
+ * warning naming it, for a deliberate reversing entry. With the commit at the
+ * end of the workflow this needs another actor to commit the log mid-flight.
+ */
+async function removeRunConsumptionLogs(container: any, logIds: string[]) {
+  if (!logIds.length) return
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  const service: any = container.resolve(CONSUMPTION_LOG_MODULE)
+  const link: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  for (const id of logIds) {
+    try {
+      const log = await service.retrieveConsumptionLog(id).catch(() => null)
+      if (!log) continue
+      const applied = log.inventory_applied_at ?? log.metadata?.inventory_applied_at
+      if (applied) {
+        logger?.warn?.(
+          `[complete-production-run] rollback kept consumption log ${id} (run ` +
+            `${log.production_run_id}): its stock movement was applied at ${applied} ` +
+            `at ${log.inventory_applied_location_id ?? log.metadata?.inventory_applied_location_id}. ` +
+            `Reverse ${log.quantity} ${log.unit_of_measure} of ${log.inventory_item_id} by hand.`
+        )
+        continue
+      }
+      await link.delete({ [CONSUMPTION_LOG_MODULE]: { consumption_log_id: id } })
+      await service.deleteConsumptionLogs(id)
+    } catch (e: any) {
+      logger?.error?.(
+        `[complete-production-run] rollback could not delete consumption log ${id}: ${e?.message ?? e}`
+      )
+    }
+  }
+}
+
+/**
+ * Commit the logs — the movement that takes material off our stock. LAST, so
+ * nothing after it can fail and leave stock moved for a completion that did not
+ * happen. Best-effort as before: an uncommitted log can be committed later.
+ */
+const commitRunConsumptionsStep = createStep(
+  "commit-run-consumptions",
+  async (input: { production_run_id: string; log_ids: string[] }, { container }) => {
+    if (!input.log_ids?.length) return new StepResponse({ committed: false })
+    try {
+      await commitConsumptionWorkflow(container).run({
+        input: { production_run_id: input.production_run_id, log_ids: input.log_ids },
+      })
+      return new StepResponse({ committed: true })
+    } catch (e: any) {
+      const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+      logger?.warn?.(
+        `[complete-production-run] run ${input.production_run_id}: logs ${input.log_ids.join(", ")} ` +
+          `were written but not committed: ${e?.message ?? e}`
+      )
+      return new StepResponse({ committed: false })
+    }
   }
 )
 
@@ -498,20 +585,6 @@ export const completeProductionRunWorkflow = createWorkflow(
       partner_id: input.partner_id,
     })
 
-    // Log consumptions
-    const consumptionInput = transform(
-      { run, input, partnerLocation },
-      (data) => ({
-        consumptions: data.input.consumptions || [],
-        design_id: (data.run as any).design_id,
-        production_run_id: data.input.production_run_id,
-        run_type: (data.run as any).run_type || "production",
-        default_location_id: data.partnerLocation.location_id,
-      })
-    )
-
-    const consumptionResult = logConsumptionsStep(consumptionInput)
-
     // Cost is stored verbatim as the partner entered it, paired with
     // cost_type. Every reader — the cost-summary route, the partner
     // production-run-card, and the unified-order dual-write — treats
@@ -535,7 +608,28 @@ export const completeProductionRunWorkflow = createWorkflow(
       require_output_split: data.input.require_output_split,
     }))
 
-    completeRunWithLockStep(completeData)
+    const lockResult = completeRunWithLockStep(completeData)
+
+    /**
+     * Log consumptions — AFTER the run is marked completed, and only when THIS
+     * call completed it: a retry that finds the run already completed must not
+     * log the materials a second time. Before the stock-target step, whose
+     * draft price reads the run's costed consumption. Uncommitted until the
+     * last step; compensated (deleted) if anything in between fails.
+     */
+    const consumptionInput = transform(
+      { run, input, partnerLocation, lockResult },
+      (data) => ({
+        completed: !!(data.lockResult as any)?.completed,
+        consumptions: data.input.consumptions || [],
+        design_id: (data.run as any).design_id,
+        production_run_id: data.input.production_run_id,
+        run_type: (data.run as any).run_type || "production",
+        default_location_id: data.partnerLocation.location_id,
+      })
+    )
+
+    const consumptionResult = logConsumptionsStep(consumptionInput)
 
     // Complete linked tasks
     completeLinkedTasksStep({ production_run_id: input.production_run_id })
@@ -677,6 +771,15 @@ export const completeProductionRunWorkflow = createWorkflow(
     mirrorUnifiedRunOrderStatusStep({
       production_run_id: input.production_run_id,
     })
+
+    // Last: committing takes the material off our stock. Nothing after it can
+    // fail, so stock never moves for a completion that was rolled back.
+    commitRunConsumptionsStep(
+      transform({ input, consumptionResult }, (data) => ({
+        production_run_id: data.input.production_run_id,
+        log_ids: ((data.consumptionResult as any)?.logged_ids ?? []) as string[],
+      }))
+    )
 
     return new WorkflowResponse({ run, consumptions: consumptionResult })
   }

@@ -13,6 +13,7 @@ import {
 } from "@medusajs/ui"
 import { useState } from "react"
 import { PartnerDesign } from "../../hooks/api/partner-designs"
+import { buildConsumptionsPayload, type ConsumptionFormRow } from "../../lib/completion-consumptions"
 import { planCompletionOutput } from "../../lib/completion-output"
 import {
   comboKey,
@@ -34,13 +35,7 @@ export const UNIT_OPTIONS = [
   { value: "Other", label: "Other" },
 ]
 
-type ConsumptionEntry = {
-  inventory_item_id: string
-  quantity: string
-  unit_cost: string
-  unit_of_measure: string
-  notes: string
-}
+type ConsumptionEntry = ConsumptionFormRow
 
 export const REJECTION_REASONS = [
   { value: "stitching_defect", label: "Stitching defect" },
@@ -187,15 +182,8 @@ export const CompleteRunForm = ({
   }
 
   const buildBody = () => {
-    const validConsumptions = consumptions
-      .filter((c) => c.quantity && parseFloat(c.quantity) > 0)
-      .map((c) => ({
-        inventory_item_id: c.inventory_item_id,
-        quantity: parseFloat(c.quantity),
-        unit_cost: c.unit_cost ? parseFloat(c.unit_cost) : undefined,
-        unit_of_measure: c.unit_of_measure,
-        notes: c.notes || undefined,
-      }))
+    // quantity_basis "total": the form asks what was consumed during this run.
+    const validConsumptions = buildConsumptionsPayload(consumptions)
 
     // A cost with no type is refused by the backend (#1554) — say so here
     // rather than letting the partner submit and read a 400. The two readings

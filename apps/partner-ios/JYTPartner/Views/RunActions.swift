@@ -313,6 +313,8 @@ struct CompleteRunSheet: View {
       return PartnerAPI.ConsumptionEntry(
         inventory_item_id: row.item.id,
         quantity: qty,
+        // The form asks what THIS RUN consumed, so the number is a total.
+        quantity_basis: "total",
         unit_cost: row.unitCost,
         unit_of_measure: row.item.unit_of_measure,
         consumption_type: "production",
