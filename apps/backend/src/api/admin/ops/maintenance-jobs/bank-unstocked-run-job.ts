@@ -15,6 +15,7 @@ import {
   resolveRunStockTarget,
 } from "../../../../workflows/production-runs/lib/run-output-variants"
 import { resolveRunVariant } from "../../../../workflows/production-runs/lib/run-variant"
+import { soldQuantityForRun } from "../../../../workflows/production-runs/lib/profit-share-stock"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -81,6 +82,15 @@ export const bankUnstockedRunJob: MaintenanceJob = {
 
     const good = runGoodQuantity(run)
     if (!(good > 0)) refuse("has no good units to bank")
+    // #2401 — a sold piece is not in the warehouse. Closing already banks
+    // made − sold; this job would bank all of them, so it stops instead.
+    const sold = await soldQuantityForRun(container, runId)
+    if (sold > 0) {
+      refuse(
+        `has ${sold} piece(s) reported sold, so its ${good} good unit(s) are not all in stock — ` +
+          `set the warehouse level by hand to what is actually there`
+      )
+    }
 
     // What was made, per size/colour.
     let lines: OutputLine[]

@@ -350,6 +350,12 @@ export type StockFinishedGoodsInput = {
    * `legacy` keeps the single-variant path below exactly as it was.
    */
   target?: RunStockTarget | null
+  /**
+   * #2401 — pieces already reported sold that could not be left out of this
+   * banking (a sized run: a sale does not say which size). Logged, not guessed.
+   */
+  sold_not_deducted?: number
+  sold_not_deducted_reason?: string | null
 }
 
 type StockRollbackData =
@@ -382,6 +388,14 @@ export type StockFinishedGoodsResult = {
 export const stockFinishedGoodsStep = createStep(
   "stock-finished-goods",
   async (input: StockFinishedGoodsInput, { container }) => {
+    if ((input.sold_not_deducted ?? 0) > 0) {
+      const log: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+      log?.warn?.(
+        `[stock-finished-goods] run ${input.production_run_id}: ${input.sold_not_deducted} ` +
+          `piece(s) already sold were banked anyway — ${input.sold_not_deducted_reason ?? "more sold than made"}`
+      )
+    }
+
     /**
      * Nothing to bank. A rejected-only run legitimately produces no good units,
      * and that is not a failure — it is an answer.
