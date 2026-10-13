@@ -44,6 +44,8 @@ import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.DesignDetail
 import com.jyt.partner.models.ProductionRunDetail
+import com.jyt.partner.models.ProfitShare
+import com.jyt.partner.models.profitShareStatusLabel
 import com.jyt.partner.models.RunCostSummary
 import com.jyt.partner.models.RunTask
 import kotlinx.coroutines.launch
@@ -71,6 +73,9 @@ fun RunDetailScreen(
     // without materials and no hint why.
     var designFailed by remember { mutableStateOf(false) }
     var costSummary by remember { mutableStateOf<RunCostSummary?>(null) }
+    // Profit share (#2401): shown only when the run has a deal (percent set).
+    var profitShare by remember { mutableStateOf<ProfitShare?>(null) }
+    var showProfitShare by rememberSaveable { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
@@ -102,6 +107,9 @@ fun RunDetailScreen(
             costSummary = if (fetched.productionRun.status == "completed") {
                 runCatching { PartnerApi.get(context).productionRunCostSummary(runId) }.getOrNull()
             } else null
+            // No deal, or the call fails: the entry stays hidden.
+            profitShare = runCatching { PartnerApi.get(context).profitShare(runId) }
+                .getOrNull()?.takeIf { it.hasDeal }
         } catch (e: Exception) {
             errorText = e.message
         }
@@ -257,6 +265,36 @@ fun RunDetailScreen(
                         item { RunCostCard(summary, fallbackCurrency = run.costCurrency) }
                     }
 
+                    profitShare?.let { share ->
+                        item {
+                            SectionCard("Profit share") {
+                                ClickableRow(onClick = { showProfitShare = true }) {
+                                    Column(Modifier.weight(1f)) {
+                                        val owed = share.summary?.owed?.value
+                                        val currency = share.summary?.currencyCode
+                                            ?.trim()?.takeIf { it.isNotEmpty() }?.uppercase() ?: "INR"
+                                        Text(
+                                            if (owed != null && share.summary?.currencyMismatch != true) {
+                                                "Owed ${formatCurrency(owed, currency)}"
+                                            } else "Sales and payments",
+                                            fontWeight = FontWeight.Medium,
+                                        )
+                                        Text(
+                                            profitShareStatusLabel(share.summary?.status),
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowForward,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     run.designId?.let { designId ->
                         item {
                             SectionCard("Design") {
@@ -362,6 +400,16 @@ fun RunDetailScreen(
                 scope.launch { reload() }
             },
             onDismiss = { showComplete = false },
+        )
+    }
+
+    val share = profitShare
+    if (showProfitShare && share != null) {
+        ProfitShareSheet(
+            runId = runId,
+            profitShare = share,
+            onUpdated = { profitShare = it },
+            onDismiss = { showProfitShare = false },
         )
     }
 

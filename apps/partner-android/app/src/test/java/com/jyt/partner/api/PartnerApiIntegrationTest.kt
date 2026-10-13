@@ -317,6 +317,120 @@ class PartnerApiIntegrationTest {
         assertEquals(57.05, summary.costPerUnit!!, 0.0)
     }
 
+    // ── Profit share (#2401) ──────────────────────────────────────────────
+
+    private val profitShareJson = """
+        {"production_run_id": "run-9", "partner_id": "par-1", "percent": 20,
+         "sales": [
+           {"id": "sale-1", "quantity": 4, "unit_price": "1250.50", "currency_code": "inr",
+            "sold_at": "2026-10-01T10:00:00.000Z", "note": "Diwali stall", "reported_by": "partner"},
+           {"id": "sale-2", "quantity": 1, "unit_price": 900, "currency_code": "inr",
+            "sold_at": "2026-10-03T10:00:00.000Z", "note": null, "reported_by": "admin"}
+         ],
+         "settlements": [
+           {"id": "set-1", "amount": "500", "currency_code": "inr", "paid_at": "2026-10-05T10:00:00.000Z",
+            "reference": "UTR123", "receipt_url": null, "note": null}
+         ],
+         "summary": {"percent": 20, "currency_code": "inr", "run_quantity": 10, "sold_quantity": 5,
+           "unsold_quantity": 5, "gross_sales": 5902, "owed": 1180.4, "paid": 500, "balance": 680.4,
+           "status": "open", "currency_mismatch": false, "working": ["4 × 1250.50 = 5002.00"]}}
+    """.trimIndent()
+
+    @Test
+    fun `profit share decodes sales, payments and the summary, with string amounts`() = runBlocking {
+        enqueueJson("""{"profit_share": $profitShareJson}""")
+
+        val share = api.profitShare("run-9")
+
+        val request = take()
+        assertEquals("GET", request.method)
+        assertEquals("/partners/production-runs/run-9/profit-share", request.path)
+        assertTrue(share.hasDeal)
+        assertEquals(20.0, share.percent!!.value!!, 0.0)
+        assertEquals(2, share.sales.size)
+        // unit_price arrives as a JSON string on one row and a number on the other.
+        assertEquals(1250.5, share.sales[0].unitPrice!!.value!!, 0.0)
+        assertEquals(900.0, share.sales[1].unitPrice!!.value!!, 0.0)
+        assertEquals(5002.0, share.sales[0].lineTotal!!, 0.0)
+        assertEquals("You", com.jyt.partner.models.profitShareReporterLabel(share.sales[0].reportedBy))
+        assertEquals("JYT", com.jyt.partner.models.profitShareReporterLabel(share.sales[1].reportedBy))
+        assertEquals(500.0, share.settlements[0].amount!!.value!!, 0.0)
+        assertEquals("UTR123", share.settlements[0].reference)
+        val summary = share.summary!!
+        assertEquals(10.0, summary.runQuantity!!.value!!, 0.0)
+        assertEquals(1180.4, summary.owed!!.value!!, 0.0)
+        assertEquals(680.4, summary.balance!!.value!!, 0.0)
+        assertEquals("open", summary.status)
+        assertFalse(summary.currencyMismatch)
+    }
+
+    @Test
+    fun `a run with no deal decodes with no percent and no owed`() = runBlocking {
+        enqueueJson(
+            """
+            {"profit_share": {"production_run_id": "run-9", "partner_id": "par-1", "percent": null,
+              "sales": [], "settlements": [],
+              "summary": {"percent": null, "currency_code": "inr", "run_quantity": null, "sold_quantity": 0,
+                "unsold_quantity": null, "gross_sales": 0, "owed": null, "paid": 0, "balance": null,
+                "status": "none", "currency_mismatch": false, "working": []}}}
+            """.trimIndent()
+        )
+
+        val share = api.profitShare("run-9")
+
+        assertFalse(share.hasDeal)
+        assertNull(share.summary!!.owed?.value)
+        assertNull(share.summary!!.balance?.value)
+    }
+
+    @Test
+    fun `report sale posts the snake_case body and decodes the returned profit share`() = runBlocking {
+        enqueueJson(
+            """{"sale": {"id": "sale-3", "quantity": 2, "unit_price": "300", "currency_code": "inr",
+               "sold_at": "2026-10-13T12:00:00.000Z", "note": null, "reported_by": "partner"},
+               "profit_share": $profitShareJson}""",
+            code = 201,
+        )
+
+        val result = api.reportProfitShareSale(
+            "run-9",
+            com.jyt.partner.models.RecordSaleBody(
+                quantity = 2.0,
+                unitPrice = 300.0,
+                soldAt = "2026-10-13T12:00:00+05:30",
+            ),
+        )
+
+        val request = take()
+        assertEquals("POST", request.method)
+        assertEquals("/partners/production-runs/run-9/profit-share/sales", request.path)
+        // No note and no currency: left out, not sent as null (the route's zod refuses null).
+        assertEquals(
+            """{"quantity":2.0,"unit_price":300.0,"sold_at":"2026-10-13T12:00:00+05:30"}""",
+            request.body.readUtf8(),
+        )
+        assertEquals(300.0, result.sale!!.unitPrice!!.value!!, 0.0)
+        assertEquals("open", result.profitShare.summary!!.status)
+        assertEquals(1180.4, result.profitShare.summary!!.owed!!.value!!, 0.0)
+    }
+
+    @Test
+    fun `selling more than the run's pieces shows the server message`() = runBlocking {
+        val message = "Only 5 of this run's 10 pieces are unsold."
+        enqueueJson("""{"type":"not_allowed","message":"$message"}""", code = 400)
+
+        try {
+            api.reportProfitShareSale(
+                "run-9",
+                com.jyt.partner.models.RecordSaleBody(quantity = 6.0, unitPrice = 100.0),
+            )
+            fail("expected PartnerException.Http")
+        } catch (e: PartnerException.Http) {
+            assertEquals(400, e.status)
+            assertEquals(message, e.message)
+        }
+    }
+
     // ── Run lifecycle ─────────────────────────────────────────────────────
 
     @Test
