@@ -17,6 +17,10 @@ import {
   registerShiprocketPickup,
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolvePlatformTaxIdForCountry } from "../../modules/shipping-providers/seller-tax-id"
+import {
+  originAddressFromLocation,
+  resolveOriginAddress,
+} from "../../modules/shipping-providers/origin-address"
 import type {
   Dimensions,
   ShipmentResult,
@@ -259,6 +263,17 @@ export async function createInventoryOrderShipment(
     // figure; this exists so the number can be changed without a deploy.
     defaultSampleDeclaredValue: readEnvDeclaredValue(),
   })
+  // The ship-from address. Shiprocket and Delhivery derive the origin from the
+  // registered pickup name, but DTDC and Blue Dart read `from` inline — left
+  // empty, DTDC refuses the booking ("Origin Address Line 1 should be present").
+  // Same location the pickup was resolved from: explicit input, else the
+  // order's own from_location.
+  const origin = input.pickupStockLocationId
+    ? await resolveOriginAddress(container, input.pickupStockLocationId)
+    : originAddressFromLocation(fromLocation)
+  if (origin) {
+    shipmentInput.from = origin
+  }
   const result = await provider.createShipment(shipmentInput)
 
   // Schedule the carrier pickup for the requested date (best-effort — the
