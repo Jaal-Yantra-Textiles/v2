@@ -17,6 +17,7 @@ import { MedusaError, Modules } from "@medusajs/framework/utils"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { runUnitCost } from "./lib/run-payable"
 import { resolveProducedOutput, runGoodQuantity, type OutputLine } from "./lib/run-output"
+import { bankAfterSales, soldQuantityForRun } from "./lib/profit-share-stock"
 import type ProductionRunService from "../../modules/production_runs/service"
 import { awaitRunCompleteStepId } from "./run-production-run-lifecycle"
 import { logConsumptionWorkflow } from "../consumption-logs/log-consumption"
@@ -471,6 +472,16 @@ const cascadeParentCompletionStep = createStep(
   }
 )
 
+/**
+ * #2401 — pieces the partner already reported sold (offline, before closing)
+ * are not in their warehouse; the stock step banks made − sold.
+ */
+const loadRunSoldQuantityStep = createStep(
+  "load-run-sold-quantity",
+  async (input: { production_run_id: string }, { container }) =>
+    new StepResponse(await soldQuantityForRun(container, input.production_run_id))
+)
+
 export const completeProductionRunWorkflow = createWorkflow(
   "complete-production-run",
   function (input: CompleteProductionRunInput) {
@@ -571,16 +582,25 @@ export const completeProductionRunWorkflow = createWorkflow(
     }))
     const stockTarget = resolveRunStockTargetStep(stockTargetInput)
 
+    const soldQuantity = loadRunSoldQuantityStep(
+      transform({ input }, (data) => ({ production_run_id: data.input.production_run_id }))
+    )
+
     // Stock finished goods
     const stockInput = transform(
-      { run, input, partnerLocation, stockTarget },
+      { run, input, partnerLocation, stockTarget, soldQuantity },
       (data) => {
         const r = data.run as any
-        const goodQty = runGoodQuantity({
-          produced_quantity: data.input.produced_quantity,
-          rejected_quantity: data.input.rejected_quantity,
-          quantity: r.quantity,
+        const banking = bankAfterSales({
+          good_quantity: runGoodQuantity({
+            produced_quantity: data.input.produced_quantity,
+            rejected_quantity: data.input.rejected_quantity,
+            quantity: r.quantity,
+          }),
+          sold_quantity: data.soldQuantity as number,
+          target: data.stockTarget as any,
         })
+        const goodQty = banking.good_quantity
         return {
           production_run_id: data.input.production_run_id,
           design_id: r.design_id,
@@ -596,7 +616,9 @@ export const completeProductionRunWorkflow = createWorkflow(
           order_id: r.order_id || null,
           order_line_item_id: r.order_line_item_id || null,
           run_quantity: r.quantity || 0,
-          target: data.stockTarget,
+          target: banking.target,
+          sold_not_deducted: banking.sold_not_deducted,
+          sold_not_deducted_reason: banking.reason,
         }
       }
     )

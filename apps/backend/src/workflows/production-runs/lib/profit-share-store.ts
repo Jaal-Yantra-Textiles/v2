@@ -4,6 +4,10 @@ import { z } from "@medusajs/framework/zod"
 import { PRODUCTION_RUNS_MODULE } from "../../../modules/production_runs"
 import type ProductionRunService from "../../../modules/production_runs/service"
 import { computeProfitShare } from "./profit-share"
+import {
+  deductSaleFromBankedStock,
+  restoreSaleToBankedStock,
+} from "./profit-share-stock"
 
 /**
  * #2322 — reads and writes for a run's profit share, shared by the admin and
@@ -149,7 +153,7 @@ export async function recordSale(
       `Selling ${body.quantity} would report ${current.summary.sold_quantity + body.quantity} sold, more than the run's ${cap} pieces.`
     )
   }
-  return serviceOf(scope).createProductionRunSales({
+  const sale: any = await serviceOf(scope).createProductionRunSales({
     production_run_id: run.id,
     partner_id: run.partner_id ?? null,
     quantity: body.quantity,
@@ -160,6 +164,18 @@ export async function recordSale(
     reported_by: actor.type,
     actor_id: actor.id,
   } as any)
+
+  // #2401 — sold after the close: those pieces are no longer in the warehouse
+  // the close banked them into. Recorded on the sale so a delete undoes it.
+  const stock_effect = await deductSaleFromBankedStock(scope, run, body.quantity)
+  if (stock_effect.deducted > 0 || (run.stocked_at && "reason" in stock_effect)) {
+    await serviceOf(scope).updateProductionRunSales({
+      id: sale.id,
+      metadata: { ...(sale.metadata ?? {}), stock_effect },
+    } as any)
+    sale.metadata = { ...(sale.metadata ?? {}), stock_effect }
+  }
+  return sale
 }
 
 export async function recordSettlement(
@@ -202,6 +218,9 @@ export async function deleteRunRow(
   if (!rows.length) {
     throw new MedusaError(MedusaError.Types.NOT_FOUND, `${kind} ${rowId} not found on this run`)
   }
-  if (kind === "sale") await service.softDeleteProductionRunSales([rowId])
+  if (kind === "sale") {
+    await service.softDeleteProductionRunSales([rowId])
+    await restoreSaleToBankedStock(scope, rows[0])
+  }
   else await service.softDeleteProductionRunSettlements([rowId])
 }

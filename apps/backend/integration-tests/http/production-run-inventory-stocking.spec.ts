@@ -318,5 +318,80 @@ setupSharedTestSuite(() => {
        */
       expect(level.stocked_quantity).toBe(9)
     })
+
+    /**
+     * #2401 — a piece the partner sold offline is not in their warehouse.
+     * Sharlho's Ivory run sold all 10 offline and closing it banked +10 anyway.
+     */
+    it("banks made − sold at the close, and a later sale comes off that stock", async () => {
+      const name = `InvStock Sold Design ${Date.now()}`
+      const design = await api.post(
+        "/admin/designs",
+        { name, design_type: "Original", status: "In_Development", priority: "Medium", estimated_cost: 200 },
+        adminHeaders
+      )
+      const runDesignId = design.data.design.id
+      await api.post(`/admin/designs/${runDesignId}/approve`, {}, adminHeaders)
+
+      const { partnerId, headers: partnerHeaders } = await registerPartner("sold")
+      const loc = await api.post("/admin/stock-locations", { name: `Sold WH ${Date.now()}` }, adminHeaders)
+      const stockLocationId = loc.data.stock_location.id
+      await (getContainer().resolve(ContainerRegistrationKeys.LINK) as any).create({
+        [PARTNER_MODULE]: { partner_id: partnerId },
+        [Modules.STOCK_LOCATION]: { stock_location_id: stockLocationId },
+      })
+
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: runDesignId, partner_id: partnerId, quantity: 10, run_type: "production" },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      await (getContainer().resolve("production_runs") as any).updateProductionRuns({
+        id: runId,
+        status: "sent_to_partner",
+      })
+      await api.post(`/admin/production-runs/${runId}/profit-share`, { percent: 50 }, adminHeaders)
+
+      const asPartner = { headers: partnerHeaders }
+      await api.post(`/partners/production-runs/${runId}/accept`, {}, asPartner)
+      await api.post(`/partners/production-runs/${runId}/start`, {}, asPartner)
+      // Sold before the close.
+      await api.post(`/partners/production-runs/${runId}/profit-share/sales`, { quantity: 4, unit_price: 1000 }, asPartner)
+      await api.post(`/partners/production-runs/${runId}/finish`, { finish_notes: "done" }, asPartner)
+      const completed = await api
+        .post(
+          `/partners/production-runs/${runId}/complete`,
+          { produced_quantity: 9, rejected_quantity: 1, partner_cost_estimate: 900, cost_type: "total" },
+          asPartner
+        )
+        .catch((e: any) => e.response)
+      if (completed.status !== 200) {
+        throw new Error(`Complete failed ${completed.status}: ${JSON.stringify(completed.data)}`)
+      }
+
+      const levelNow = async () => {
+        const products = await api.get(`/admin/products?q=${encodeURIComponent(name)}&fields=*variants`, adminHeaders)
+        const sku = products.data.products[0].variants[0].sku
+        const inv = await api.get(`/admin/inventory-items?sku=${sku}&fields=*location_levels`, adminHeaders)
+        return inv.data.inventory_items[0].location_levels.find((l: any) => l.location_id === stockLocationId)
+          ?.stocked_quantity
+      }
+      // 9 good − 4 already sold.
+      expect(await levelNow()).toBe(5)
+
+      // Sold after the close: comes off the 5.
+      const later = await api.post(
+        `/partners/production-runs/${runId}/profit-share/sales`,
+        { quantity: 2, unit_price: 1000 },
+        asPartner
+      )
+      expect(later.data.sale.metadata.stock_effect.deducted).toBe(2)
+      expect(await levelNow()).toBe(3)
+
+      // Deleting that sale puts the 2 back.
+      await api.delete(`/admin/production-runs/${runId}/profit-share/sales/${later.data.sale.id}`, adminHeaders)
+      expect(await levelNow()).toBe(5)
+    })
   })
 })
