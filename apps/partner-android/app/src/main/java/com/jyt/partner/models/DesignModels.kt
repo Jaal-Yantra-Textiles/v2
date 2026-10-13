@@ -28,6 +28,9 @@ data class PartnerDesignRow(
     @SerialName("partner_engagement") val partnerEngagement: String? = null,
     @SerialName("has_partner_run") val hasPartnerRun: Boolean? = null,
     @SerialName("partner_run_count") val partnerRunCount: Int? = null,
+    /** The list sends the whole design row, media included — the fallback
+     *  picture when `thumbnail_url` was never set. */
+    @SerialName("media_files") val mediaFiles: List<MediaFile>? = null,
 )
 
 @Serializable

@@ -13,10 +13,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Checkroom
 import androidx.compose.material.icons.outlined.Inventory2
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -260,6 +262,7 @@ private val LunaMuted = androidx.compose.ui.graphics.Color(0xFF9E9E9E)
 
 private enum class Tab(val label: String, val filled: androidx.compose.ui.graphics.vector.ImageVector, val outlined: androidx.compose.ui.graphics.vector.ImageVector) {
     ORDERS("Orders", Icons.Filled.Checkroom, Icons.Outlined.Checkroom),
+    DESIGNS("Designs", Icons.Filled.Palette, Icons.Outlined.Palette),
     INVENTORY("Inventory", Icons.Filled.Inventory2, Icons.Outlined.Inventory2),
     SETTINGS("Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 }
@@ -291,6 +294,9 @@ private fun MainScaffold(auth: AuthViewModel, navController: androidx.navigation
             when (selectedTab) {
                 Tab.ORDERS -> OrdersScreen(
                     onOpenOrder = { id -> navController.navigate(Routes.order(id)) },
+                )
+                Tab.DESIGNS -> DesignsScreen(
+                    onOpenDesign = { id -> navController.navigate(Routes.design(id)) },
                 )
                 Tab.INVENTORY -> InventoryOrdersScreen(
                     onOpenOrder = { id -> navController.navigate(Routes.inventoryOrder(id)) },

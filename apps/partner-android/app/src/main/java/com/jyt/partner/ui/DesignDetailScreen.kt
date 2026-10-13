@@ -267,6 +267,29 @@ fun DesignDetailScreen(
                     }
                 }
 
+                // The design's bill of materials — the inventory items linked to it.
+                current.inventoryItems?.takeIf { it.isNotEmpty() }?.let { materials ->
+                    item {
+                        SectionCard("Materials") {
+                            materials.forEach { material ->
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(material.displayName, fontWeight = FontWeight.Medium)
+                                    listOfNotNull(
+                                        material.sku?.takeIf { it.isNotBlank() && it != material.displayName },
+                                        material.unitOfMeasure?.takeIf { it.isNotBlank() },
+                                    ).takeIf { it.isNotEmpty() }?.let { details ->
+                                        Text(
+                                            details.joinToString(" · "),
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (runs.isNotEmpty()) {
                     item {
                         SectionCard("Production runs") {
