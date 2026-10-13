@@ -149,6 +149,12 @@ actor PartnerAPI {
     return wrapper.design
   }
 
+  /// The design's moodboards from this partner's view: their own plus
+  /// everyone else's (#2017). Same endpoint the Android app reads.
+  func designMoodboards(id: String) async throws -> MoodboardBoardsResponse {
+    try await get(path: "partners/designs/\(id)/moodboards")
+  }
+
   func productionRuns(designId: String? = nil, limit: Int = 20, offset: Int = 0) async throws -> ProductionRunListResponse {
     var path = "partners/production-runs?limit=\(limit)&offset=\(offset)"
     if let designId {

@@ -19,6 +19,8 @@ struct RootView: View {
       TabView {
         DesignOrdersView()
           .tabItem { Label("Orders", systemImage: "shirt") }
+        DesignsView()
+          .tabItem { Label("Designs", systemImage: "paintpalette") }
         InventoryOrdersView()
           .tabItem { Label("Inventory", systemImage: "shippingbox") }
         ProfileView()
