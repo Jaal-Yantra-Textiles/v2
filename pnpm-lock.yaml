@@ -159,8 +159,8 @@ importers:
         specifier: ^5.0.1
         version: 5.2.2(react-hook-form@7.71.2(react@18.3.1))
       '@jytextiles/medusa-plugin-dtdc-shipping':
-        specifier: ^0.3.0
-        version: 0.3.0(@medusajs/framework@2.21.1(@medusajs/cli@2.21.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))(@medusajs/medusa@2.21.1)(@medusajs/types@2.21.1(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)))
+        specifier: ^0.3.1
+        version: 0.3.1(@medusajs/framework@2.21.1(@medusajs/cli@2.21.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))(@medusajs/medusa@2.21.1)(@medusajs/types@2.21.1(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)))
       '@jytextiles/medusa-plugin-etsy-sync':
         specifier: ^0.1.6
         version: 0.1.6(4e501fe013885bc6f51967004efbd110)
@@ -5277,12 +5277,12 @@ packages:
     peerDependencies:
       tslib: '2'
 
-  '@jytextiles/medusa-plugin-dtdc-shipping@0.3.0':
-    resolution: {integrity: sha512-lgIRqoOTPhKkjJeOhQm+cnR/2i3jNK43bV2XVp8xLxuygkNLaRcJ39mQbPmQ0bWh025CNdX4wKAHyddu1v8W3w==}
+  '@jytextiles/medusa-plugin-dtdc-shipping@0.3.1':
+    resolution: {integrity: sha512-e6SCXBLs8LZgOKlSoJZqgVdqrqbNvl0HTLzMND13fo7+/obkau/hUrwGA60SYJO1LWRn0RDct4thA++phRhPTA==}
     peerDependencies:
-      '@medusajs/framework': 2.20.1
-      '@medusajs/medusa': 2.20.1
-      '@medusajs/types': 2.20.1
+      '@medusajs/framework': 2.21.1
+      '@medusajs/medusa': 2.21.1
+      '@medusajs/types': 2.21.1
 
   '@jytextiles/medusa-plugin-etsy-sync@0.1.6':
     resolution: {integrity: sha512-lh1YdMjUMmYByArhqy4PvrAIFgctw1Xg5zNBwbA03OPQ/kpr0ftj4aEfnUlZSF4k9v3ZHAbKL4QZnVT9ujoIvA==}
@@ -27371,7 +27371,7 @@ snapshots:
       '@jsonjoy.com/codegen': 17.67.0(tslib@2.8.1)
       tslib: 2.8.1
 
-  '@jytextiles/medusa-plugin-dtdc-shipping@0.3.0(@medusajs/framework@2.21.1(@medusajs/cli@2.21.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))(@medusajs/medusa@2.21.1)(@medusajs/types@2.21.1(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)))':
+  '@jytextiles/medusa-plugin-dtdc-shipping@0.3.1(@medusajs/framework@2.21.1(@medusajs/cli@2.21.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0))(@medusajs/medusa@2.21.1)(@medusajs/types@2.21.1(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0)))':
     dependencies:
       '@medusajs/framework': 2.21.1(@medusajs/cli@2.21.1(@types/node@20.19.34))(@types/node@20.19.34)(ioredis@5.9.3)(vite@7.3.6(@types/node@20.19.34)(jiti@2.6.1)(sass-embedded@1.97.3)(sass@1.97.3)(terser@5.46.0)(tsx@4.21.0)(yaml@2.9.0))(zod@4.2.0)
       '@medusajs/medusa': 2.21.1(85ff7dd3ff166e440741dc1fd310d00d)
