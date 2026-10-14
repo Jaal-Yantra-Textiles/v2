@@ -82,6 +82,13 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:cancel_inventory_order_shipment",
   /**
+   * #2425 — `inventory-orders/[id]/external-awb/route.ts` parses an inline zod
+   * `bodySchema` in the handler (awb, carrier, tracking_url, label_url,
+   * weight_grams, dimensions_cm, pickup_stock_location_id, notes), like the
+   * booking route above. No matcher binds it.
+   */
+  "admin:attach_inventory_order_awb",
+  /**
    * The balance route reads `confirm` straight off the body and refuses
    * without it; the sample-approval route validates its own zod in the
    * handler (production_run_id, decision, notes, confirm). Neither binds a

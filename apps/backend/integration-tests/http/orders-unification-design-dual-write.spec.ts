@@ -571,15 +571,12 @@ setupSharedTestSuite(() => {
     })
 
     /**
-     * #2030 item 2.1, the other half: a LATER split for the same partner must
-     * land on the order the earlier one made — "included in the same order, or
-     * collated from a previous one" — rather than minting another.
-     *
-     * The first split here is a LONE child, so it keeps its per-run mirror
-     * (a collated order of one would only cost the partner the single-design
-     * screen). The second split joins that mirror and PROMOTES it.
+     * 2026-10-14 — a LATER split for the same partner is a new job and gets
+     * its OWN order. It used to join the earlier one (#2030 item 2.1), which
+     * is how Sharlho's customer jacket became line 3 of a 9-day-old stock
+     * order (#128), under that order's number and date.
      */
-    it("joins a later split onto the partner's earlier order, promoting a mirror", async () => {
+    it("gives a later split its own order rather than joining the partner's earlier one", async () => {
       await createRegion()
       const { partnerId } = await createPartner("join")
       // Templates make the run DISPATCH, and dispatch is what writes the
@@ -630,35 +627,21 @@ setupSharedTestSuite(() => {
       expect(second.status).toBe(201)
       const secondChild = second.data.children[0]
 
-      // 🔑 Same order — not a second one.
-      expect(await unifiedOrderIdOf(secondChild.id)).toBe(firstOrderId)
+      // 🔑 A second order — the first is left exactly as it was.
+      const secondOrderId = await unifiedOrderIdOf(secondChild.id)
+      expect(secondOrderId).toBeTruthy()
+      expect(secondOrderId).not.toBe(firstOrderId)
 
-      const joined = await fetchUnifiedOrder(firstOrderId)
-      // Promoted: it holds two runs now, so it must render as collated.
-      expect(joined.metadata.collated_design_order).toBe(true)
-      expect(joined.items).toHaveLength(2)
-
-      /**
-       * 🔴 The promoted mirror's OWN run must survive into the run list. It was
-       * never in `production_run_ids` (a mirror carries `production_run_id`
-       * singular), so a union that trusted metadata alone would drop it — and
-       * the order's rolled-up status is computed from this list.
-       */
-      expect(joined.metadata.production_run_ids).toEqual(
-        expect.arrayContaining([firstChild.id, secondChild.id])
-      )
+      const untouched = await fetchUnifiedOrder(firstOrderId)
+      expect(untouched.metadata.collated_design_order ?? false).toBe(false)
+      expect(untouched.items).toHaveLength(1)
     })
     /**
-     * #2030 item 2.2 — the DISPATCH path joins a per-run mirror too.
-     *
-     * `findOpenPartnerWorkOrder` used to require `collated_design_order`, so
-     * only an order that had ALREADY collected several designs could collect
-     * another. A partner's first job always mints a mirror, which made that
-     * first order permanently ineligible: the common shape — one job, then
-     * another a few days later — could never collate, and every batch minted
-     * its own order.
+     * The DISPATCH path mints a new order by default (2026-10-14), and joins
+     * the partner's open one — a per-run mirror included (#2030 item 2.2) —
+     * only when the admin asks with `collate: "partner-open"`.
      */
-    it("dispatch joins the partner's existing mirror rather than minting another", async () => {
+    it("dispatch joins the partner's mirror only when asked, and mints a new order by default", async () => {
       await createRegion()
       const { partnerId } = await createPartner("dispatch-join")
       const templateName = await createTemplate(
@@ -687,26 +670,54 @@ setupSharedTestSuite(() => {
       const mirror = await fetchUnifiedOrder(mirrorOrderId)
       expect(mirror.metadata.collated_design_order ?? false).toBe(false)
 
-      // A later dispatch through the door the drawer actually uses.
+      // Asked to join, through the door the drawer actually uses.
       const secondDesign = await createDesign()
-      const produce = await post(
+      const joinedRes = await post(
         "/admin/designs/produce",
         {
           design_ids: [secondDesign],
           partner_id: partnerId,
           template_names: [templateName],
+          collate: "partner-open",
         },
         adminHeaders
       )
-      expect(produce.status).toBe(200)
+      expect(joinedRes.status).toBe(200)
 
-      // 🔑 It landed on the order that already existed.
-      expect(produce.data.design_production.work_order_id).toBe(mirrorOrderId)
-      expect(produce.data.design_production.work_order_joined).toBe(true)
+      // 🔑 It landed on the order that already existed, and promoted it.
+      expect(joinedRes.data.design_production.work_order_id).toBe(mirrorOrderId)
+      expect(joinedRes.data.design_production.work_order_joined).toBe(true)
 
       const joined = await fetchUnifiedOrder(mirrorOrderId)
       expect(joined.metadata.collated_design_order).toBe(true)
       expect(joined.items).toHaveLength(2)
+
+      /**
+       * 🔴 The promoted mirror's OWN run must survive into the run list. It was
+       * never in `production_run_ids` (a mirror carries `production_run_id`
+       * singular), so a union that trusted metadata alone would drop it — and
+       * the order's rolled-up status is computed from this list.
+       */
+      expect(joined.metadata.production_run_ids).toEqual(
+        expect.arrayContaining([first.data.children[0].id])
+      )
+
+      // The default, with that order still open: a NEW order, the open one untouched.
+      const thirdDesign = await createDesign()
+      const fresh = await post(
+        "/admin/designs/produce",
+        {
+          design_ids: [thirdDesign],
+          partner_id: partnerId,
+          template_names: [templateName],
+        },
+        adminHeaders
+      )
+      expect(fresh.status).toBe(200)
+      expect(fresh.data.design_production.work_order_id).toBeTruthy()
+      expect(fresh.data.design_production.work_order_id).not.toBe(mirrorOrderId)
+      expect(fresh.data.design_production.work_order_joined).toBe(false)
+      expect((await fetchUnifiedOrder(mirrorOrderId)).items).toHaveLength(2)
     })
     /**
      * #2030 — the partner must not be shown the planning artifact.
