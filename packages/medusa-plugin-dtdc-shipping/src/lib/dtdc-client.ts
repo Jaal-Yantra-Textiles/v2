@@ -342,7 +342,8 @@ export class DtdcClient {
       cod_amount: params.cod_amount != null ? String(params.cod_amount) : "",
       commodity_id:
         resolveDtdcCommodityId(params.commodity_id) ?? this.defaultCommodityId,
-      description: params.description ?? "",
+      // DTDC refuses a description of 250+ characters.
+      description: (params.description ?? "").slice(0, 249),
       reference_number: params.reference_number ?? "",
     }
 

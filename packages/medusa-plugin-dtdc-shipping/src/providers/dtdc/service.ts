@@ -207,7 +207,8 @@ class DtdcFulfillmentService extends AbstractFulfillmentProviderService {
         height: maxHeight || 5,
         weight: (totalWeight || 500) / 1000,
         declared_value: declaredValue || 500,
-        num_pieces: totalQuantity,
+        // Boxes, not units — see the adapter. One set of dimensions = one box.
+        num_pieces: 1,
         origin: {
           name: fromLocation.name || "Warehouse",
           phone: fromLocation.address?.phone || "",
