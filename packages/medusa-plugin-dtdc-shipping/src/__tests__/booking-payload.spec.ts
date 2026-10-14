@@ -50,3 +50,48 @@ describe("DTDC booking payload", () => {
     expect(c.description.length).toBeLessThan(250)
   })
 })
+
+describe("DTDC pickup hub for a franchisee-served origin", () => {
+  /** Replay DTDC: the first booking can't allocate a hub, the pincode API names A47. */
+  function fakeDtdc(firstReason: string | null) {
+    const bookings: any[] = []
+    const pincodeCalls: any[] = []
+    const fetchImpl = async (url: string, init: any) => {
+      const body = JSON.parse(init.body)
+      if (url.includes("PincodeApiCall")) {
+        pincodeCalls.push(body)
+        return { ok: true, json: async () => ({ SERV_ORG_BR: [{ CODE: "A47", BR_NAME: "BHUJ SUPER FRANCHISEE" }] }) }
+      }
+      const c = body.consignments[0]
+      bookings.push(c)
+      const refuse = bookings.length === 1 && firstReason
+      const data = refuse
+        ? [{ success: false, message: "Auto allocated hub not found", reason: firstReason }]
+        : [{ success: true, reference_number: "AWB1" }]
+      return { ok: true, text: async () => JSON.stringify({ status: "OK", data }), json: async () => ({ status: "OK", data }) }
+    }
+    const adapter = new DtdcProviderAdapter({ customer_code: "CC", api_key: "k", fetchImpl } as any)
+    return { adapter, bookings, pincodeCalls }
+  }
+
+  it("names the origin's branch as the hub and retries once (Bhuj 370020 → A47)", async () => {
+    const { adapter, bookings, pincodeCalls } = fakeDtdc("AUTO_ALLOCATED_HUB_NOT_FOUND")
+    const result = await adapter.createShipment(input)
+
+    expect(pincodeCalls).toEqual([{ orgPincode: "370020", desPincode: "176215" }])
+    expect(bookings).toHaveLength(2)
+    expect(bookings[0].hub_code).toBeUndefined()
+    expect(bookings[1].hub_code).toBe("A47")
+    expect(bookings[1].origin_details.address_hub_code).toBe("A47")
+    expect(result.awb).toBe("AWB1")
+  })
+
+  it("leaves a route DTDC can allocate alone: one booking, no hub, no lookup", async () => {
+    const { adapter, bookings, pincodeCalls } = fakeDtdc(null)
+    await adapter.createShipment(input)
+
+    expect(bookings).toHaveLength(1)
+    expect(bookings[0].hub_code).toBeUndefined()
+    expect(pincodeCalls).toHaveLength(0)
+  })
+})

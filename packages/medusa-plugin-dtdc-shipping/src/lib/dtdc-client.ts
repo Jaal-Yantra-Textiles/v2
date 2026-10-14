@@ -3,6 +3,7 @@ import {
   DtdcOptions,
   DtdcFetchLike,
   DtdcBookingRequest,
+  DtdcConsignmentInput,
   DtdcBookingResponse,
   DtdcCancelRequest,
   DtdcCancelResponse,
@@ -284,7 +285,7 @@ export class DtdcClient {
     invoice_date?: string
     reference_number?: string
   }): Promise<DtdcBookingResponse> {
-    const consignment = {
+    const consignment: DtdcConsignmentInput = {
       customer_code: this.customerCode,
       service_type_id:
         resolveDtdcServiceType(params.service_type_id) ?? this.defaultServiceType,
@@ -347,6 +348,36 @@ export class DtdcClient {
       reference_number: params.reference_number ?? "",
     }
 
+    let json = await this.postConsignment(consignment)
+
+    // DTDC could not pick a pickup hub from the origin pincode — a pincode
+    // served only by a franchisee. Name the branch its own pincode API lists
+    // for the origin and try once more. Routes DTDC can allocate never reach
+    // this, so their bookings are unchanged.
+    if (
+      json?.data?.[0]?.reason === "AUTO_ALLOCATED_HUB_NOT_FOUND" &&
+      !consignment.hub_code
+    ) {
+      const hub = await this.originHubCode(
+        consignment.origin_details.pincode,
+        consignment.destination_details.pincode
+      )
+      if (hub) {
+        json = await this.postConsignment({
+          ...consignment,
+          hub_code: hub,
+          origin_details: { ...consignment.origin_details, address_hub_code: hub },
+        })
+      }
+    }
+
+    assertDtdcBookingSucceeded(json)
+    return json
+  }
+
+  private async postConsignment(
+    consignment: DtdcConsignmentInput
+  ): Promise<any> {
     const body: DtdcBookingRequest = { consignments: [consignment] }
 
     const res = await this.fetch_(
@@ -363,9 +394,20 @@ export class DtdcClient {
       throw new Error(`DTDC shipment creation failed (${res.status}): ${text}`)
     }
 
-    const json = await this.safeJson(res)
-    assertDtdcBookingSucceeded(json)
-    return json
+    return this.safeJson(res)
+  }
+
+  /** The branch DTDC's pincode API lists for the origin, or null. */
+  private async originHubCode(
+    originPincode: string,
+    destinationPincode: string
+  ): Promise<string | null> {
+    try {
+      const r = await this.checkPincodeServiceability(originPincode, destinationPincode)
+      return r?.SERV_ORG_BR?.[0]?.CODE || null
+    } catch {
+      return null
+    }
   }
 
   /**
