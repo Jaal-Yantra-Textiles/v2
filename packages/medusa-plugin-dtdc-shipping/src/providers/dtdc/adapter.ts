@@ -94,7 +94,11 @@ export class DtdcProviderAdapter implements ShippingProviderClient {
       height: input.dimensions_cm?.height ?? 5,
       weight: input.weight_grams / 1000,
       declared_value: input.sub_total ?? input.cod_amount ?? 500,
-      num_pieces: input.items.reduce((s, i) => s + i.quantity, 0),
+      // Boxes, not units. DTDC reads num_pieces as the parcel count, and more
+      // than 1 is a multi-piece booking that needs pieces_detail per box. Summing
+      // item quantities sent 180 "boxes" for 18 fabrics × 10 m. One consignment
+      // carries one set of dimensions and one weight, so it is one box.
+      num_pieces: 1,
       origin: input.from
         ? {
             name: input.from.name,

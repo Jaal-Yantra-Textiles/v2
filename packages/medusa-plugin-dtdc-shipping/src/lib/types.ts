@@ -47,6 +47,8 @@ export type DtdcAddress = {
   state: string
   country?: string
   email?: string
+  /** The DTDC branch that serves this address — see `hub_code`. */
+  address_hub_code?: string
 }
 
 export type DtdcConsignmentInput = {
@@ -74,6 +76,13 @@ export type DtdcConsignmentInput = {
   commodity_id?: string
   description?: string
   reference_number?: string
+  /**
+   * The pickup hub. DTDC normally allocates it from the origin pincode, but
+   * cannot for a pincode served only by a franchisee (Bhuj 370020 → BHUJ SUPER
+   * FRANCHISEE A47): it refuses with AUTO_ALLOCATED_HUB_NOT_FOUND. Naming the
+   * hub gets past that. Not in DTDC's PDF; it is in the Shipsy request schema.
+   */
+  hub_code?: string
 }
 
 export type DtdcBookingRequest = {
@@ -145,6 +154,8 @@ export type DtdcPincodeResponse = {
     b2B_SERVICEABLE?: string
   }>
   SERV_LIST_DTLS?: Array<{ CODE?: string; TAT?: string; NAME?: string }>
+  /** The branch that serves the ORIGIN pincode — its CODE is a pickup hub. */
+  SERV_ORG_BR?: Array<{ CODE?: string; BR_NAME?: string }>
   PIN_CITY?: Array<{ PIN?: string; CITY?: string; STATE_NAME?: string }>
   [key: string]: any
 }
