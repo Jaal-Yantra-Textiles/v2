@@ -2204,6 +2204,54 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["create_inventory_order_shipment", "get_inventory_order"],
   },
   {
+    name: "attach_inventory_order_awb",
+    description:
+      "Attach a waybill (AWB) that was booked OUTSIDE the system — on the carrier's portal, by a direct API call, or at a counter — to an inventory order, so the order lists the shipment like one booked with create_inventory_order_shipment. Sensitive: requires confirm:true. " +
+      "NO carrier API is called and nothing is booked or charged. Use create_inventory_order_shipment to BOOK; use this only when the waybill already exists. The same AWB cannot be attached twice. " +
+      "🔴 A shipment is NOT a receipt: no stock moves until receive_inventory_order.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/external-awb",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "awb",
+      "carrier",
+      "tracking_url",
+      "label_url",
+      "weight_grams",
+      "dimensions_cm",
+      "pickup_stock_location_id",
+      "notes",
+    ],
+    inputSchema: obj(
+      {
+        id: STR("Inventory order id, e.g. 'inv_order_...'."),
+        awb: STR("The waybill / AWB number exactly as the carrier issued it."),
+        carrier: STR("Carrier id, e.g. 'dtdc', 'delhivery', 'shiprocket', or a name for one we do not integrate."),
+        tracking_url: STR("Where a human can follow the parcel (optional)."),
+        label_url: STR("Public URL of the label, if there is one (optional)."),
+        weight_grams: { type: "number", description: "Parcel weight in grams (optional)." },
+        dimensions_cm: {
+          type: "object",
+          description: "Box size in CENTIMETRES: { length, breadth, height } (optional).",
+          properties: {
+            length: { type: "number" },
+            breadth: { type: "number" },
+            height: { type: "number" },
+          },
+        },
+        pickup_stock_location_id: STR("Stock location the parcel was picked up from (optional)."),
+        notes: STR("Why it was booked outside the system. Kept on the shipment and the timeline."),
+      },
+      ["id", "awb", "carrier"]
+    ),
+    sideEffects:
+      "Creates an inventory_shipment row (status created) linked to the order, sets metadata.shipment + partner_tracking_number to the AWB, and writes a shipment_attached activity. No carrier call, no stock movement.",
+    nextSteps: ["get_inventory_order", "receive_inventory_order"],
+  },
+  {
     name: "link_raw_material_group_colors",
     description:
       "Put existing raw materials into a raw material group as its colours, by setting each one's group_id. Sensitive: requires confirm:true. " +
