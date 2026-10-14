@@ -66,14 +66,14 @@ describe("produceDesignsAsWorkOrder — dry run (#1803)", () => {
     expect(byDesign.design_b.quantity).toBe(1)
   })
 
-  it("names the work-order the lines would join", async () => {
+  it("names the work-order the lines would join, when asked to join", async () => {
     const { container } = makeContainer([openWorkOrder])
 
     const result = await produceDesignsAsWorkOrder(
       container,
       ["design_a"],
       "partner_1",
-      { dryRun: true, templateIds: ["tpl_1"] }
+      { dryRun: true, templateIds: ["tpl_1"], collate: "partner-open" }
     )
 
     expect(result.work_order_id).toBe("order_open")
@@ -87,11 +87,30 @@ describe("produceDesignsAsWorkOrder — dry run (#1803)", () => {
       container,
       ["design_a"],
       "partner_1",
+      { dryRun: true, templateIds: ["tpl_1"], collate: "partner-open" }
+    )
+
+    expect(result.work_order_id).toBeNull()
+    expect(result.work_order_joined).toBe(false)
+  })
+
+  /**
+   * 2026-10-14 — a new batch is a new work-order unless the admin asks to
+   * join. Sharlho's customer jacket became line 3 of a 9-day-old stock order.
+   */
+  it("plans a NEW work-order by default, even when the partner has one open", async () => {
+    const { container, graph } = makeContainer([openWorkOrder])
+
+    const result = await produceDesignsAsWorkOrder(
+      container,
+      ["design_a"],
+      "partner_1",
       { dryRun: true, templateIds: ["tpl_1"] }
     )
 
     expect(result.work_order_id).toBeNull()
     expect(result.work_order_joined).toBe(false)
+    expect(graph).not.toHaveBeenCalled()
   })
 
   it("does not look for an open order when the batch must be billed on its own", async () => {

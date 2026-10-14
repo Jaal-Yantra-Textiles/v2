@@ -46,9 +46,9 @@ const ProduceBody = z
     /** Preview which design would get which templates; creates nothing. */
     dry_run: z.boolean().optional(),
     /**
-     * #1597 — where these designs' lines land. Omitted means `partner-open`:
-     * join the partner's most recent open collated work-order instead of
-     * minting another. Pass `"new"` for a batch that must be billed on its own.
+     * #1597 — where these designs' lines land. Omitted means `new`: this
+     * batch gets its own work-order. Pass `"partner-open"` to join the
+     * partner's most recent open work-order instead.
      */
     collate: z.enum(["partner-open", "new"]).optional(),
     collate_within_days: z.number().int().positive().max(365).optional(),

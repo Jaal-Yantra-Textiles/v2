@@ -131,7 +131,7 @@ export const CollateDesignsWizard = ({
   const [perDesignProcess, setPerDesignProcess] = useState(false)
   const [selectedPartnerId, setSelectedPartnerId] = useState("")
   const [partnerSearch, setPartnerSearch] = useState("")
-  const [separateOrder, setSeparateOrder] = useState(false)
+  const [separateOrder, setSeparateOrder] = useState(true)
   const [windowDays, setWindowDays] = useState<number>(
     DEFAULT_COLLATION_WINDOW_DAYS
   )
@@ -176,7 +176,7 @@ export const CollateDesignsWizard = ({
     setPerDesignProcess(false)
     setSelectedPartnerId("")
     setPartnerSearch("")
-    setSeparateOrder(false)
+    setSeparateOrder(true)
     setWindowDays(DEFAULT_COLLATION_WINDOW_DAYS)
     setPreview(null)
     setPreviewError(null)

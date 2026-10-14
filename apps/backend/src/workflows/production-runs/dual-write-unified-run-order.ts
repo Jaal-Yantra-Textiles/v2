@@ -1220,15 +1220,19 @@ export const dualWriteUnifiedRunOrderStep = createStep(
  * what the partner actually saw, and reading them as three jobs is how ₹1,200
  * nearly got paid a third time (#2026).
  *
- * The rule, per partner, in order:
- *   1. JOIN their open work-order when they have one — including a per-run
- *      mirror left by an earlier split, which the join promotes. This is the
- *      "same order / collated from a previous one" case.
- *   2. Otherwise COLLATE this partner's children into one new order — when
- *      there are several. Several children for one partner are one batch.
- *   3. A LONE child with nothing to join keeps its per-run mirror, which stays
- *      joinable for the next batch. See the guard below for why a collation of
- *      one is not harmless.
+ * The rule, per partner:
+ *   1. COLLATE this partner's children into one new order — when there are
+ *      several. Several children of ONE split are one batch.
+ *   2. A LONE child keeps its per-run mirror. See the guard below for why a
+ *      collation of one is not harmless.
+ *
+ * 🔴 A split NEVER joins the partner's other open work-order (2026-10-14).
+ * It used to (#2030 item 2.1): Sharlho's Silk Jacket for a customer became a
+ * third line on #128, a 9-day-old stock order of shirts and aprons, under that
+ * order's number and date — so it read as old work, not a new job. A new
+ * split is a new job and gets its own order. Joining an open order is now
+ * only done when an admin asks for it (`produceDesignsAsWorkOrder`,
+ * `collate: "partner-open"`).
  *
  * ⚠️ Children with NO partner keep the per-run mirror. Collation is a
  * PARTNER-scoped idea — there is no "their open order" to join and nothing
@@ -1296,74 +1300,51 @@ export const projectChildRunsCollated = async (
       continue
     }
 
-    let projected = false
-    // A mirror left by an earlier split is exactly the "same order" this
-    // batch belongs on, and the lookup treats it as joinable.
-    const open = await findOpenPartnerWorkOrder(container, partnerId)
-    if (open) {
-      try {
-        await joinRunsIntoWorkOrder(container, open.order_id, partnerRuns)
-        projected = true
-        logger.info(
-          `[orders-unification] ${partnerRuns.length} child run(s) joined partner ${partnerId}'s open work-order ${open.order_id}`
-        )
-      } catch (e: any) {
-        logger.warn(
-          `[orders-unification] could not join work-order ${open.order_id} for partner ${partnerId} (${e?.message}) — minting a new one`
-        )
-      }
-    }
-
     /**
-     * Nothing to join. Several children for one partner are one batch and get
-     * ONE order between them — but a LONE child keeps the per-run mirror.
+     * Several children for one partner are one batch and get ONE order
+     * between them — but a LONE child keeps the per-run mirror.
      *
      * ⚠️ Not an optimisation: `collated_design_order` is what the partner's
      * detail page branches on, and a collated order of one renders the
      * many-designs view — losing the single-design screen (media, size sets,
      * BOM, cost estimate) for what is the most common split there is. A
      * collation of one collates nothing; it only changes the screen.
-     *
-     * The mirror stays JOINABLE, so the partner's next batch still lands on
-     * it rather than minting another order.
      */
-    if (!projected && partnerRuns.length < 2) {
+    if (partnerRuns.length < 2) {
       for (const run of partnerRuns) {
         await projectRunToUnifiedOrder(container, run.id)
       }
       continue
     }
 
-    if (!projected) {
-      const result = await collateRunsIntoWorkOrder(container, partnerRuns, {
-        // The commissioning order the children inherited from the parent.
-        sourceOrderId: partnerRuns[0]?.order_id ?? null,
-      })
-      if (!result.unified_order_id) {
-        /*
-         * 🔴 A missing REGION cannot be fixed by retrying per run:
-         * `projectRunToUnifiedOrder` opens with the same
-         * `resolveRegionAndCurrency` guard and refuses for the same reason, so
-         * this "fallback" used to re-ask the question that had just failed and
-         * log as though it had done something. Say so, and leave the runs
-         * unprojected — loudly — rather than claim a recovery.
-         *
-         * Any OTHER failure (a thrown error) is specific to the collation, so
-         * one mirror each is still worth trying: worse than one order, better
-         * than work with no order at all.
-         */
-        if (result.skipped === "no_region") {
-          logger.error(
-            `[orders-unification] collation refused for partner ${partnerId} (no_region) — per-run mirrors would hit the same guard, so ${partnerRuns.length} run(s) are left with NO work-order`
-          )
-          continue
-        }
-        logger.warn(
-          `[orders-unification] collation produced no order for partner ${partnerId} (${result.skipped ?? result.error ?? "unknown"}) — falling back to per-run mirrors`
+    const result = await collateRunsIntoWorkOrder(container, partnerRuns, {
+      // The commissioning order the children inherited from the parent.
+      sourceOrderId: partnerRuns[0]?.order_id ?? null,
+    })
+    if (!result.unified_order_id) {
+      /*
+       * 🔴 A missing REGION cannot be fixed by retrying per run:
+       * `projectRunToUnifiedOrder` opens with the same
+       * `resolveRegionAndCurrency` guard and refuses for the same reason, so
+       * this "fallback" used to re-ask the question that had just failed and
+       * log as though it had done something. Say so, and leave the runs
+       * unprojected — loudly — rather than claim a recovery.
+       *
+       * Any OTHER failure (a thrown error) is specific to the collation, so
+       * one mirror each is still worth trying: worse than one order, better
+       * than work with no order at all.
+       */
+      if (result.skipped === "no_region") {
+        logger.error(
+          `[orders-unification] collation refused for partner ${partnerId} (no_region) — per-run mirrors would hit the same guard, so ${partnerRuns.length} run(s) are left with NO work-order`
         )
-        for (const run of partnerRuns) {
-          await projectRunToUnifiedOrder(container, run.id)
-        }
+        continue
+      }
+      logger.warn(
+        `[orders-unification] collation produced no order for partner ${partnerId} (${result.skipped ?? result.error ?? "unknown"}) — falling back to per-run mirrors`
+      )
+      for (const run of partnerRuns) {
+        await projectRunToUnifiedOrder(container, run.id)
       }
     }
   }

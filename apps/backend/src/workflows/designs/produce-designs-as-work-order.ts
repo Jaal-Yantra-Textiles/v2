@@ -78,12 +78,12 @@ export async function produceDesignsAsWorkOrder(
     /**
      * Where these runs' lines land (#1597).
      *
-     * - `"partner-open"` (**default**) — append to the partner's most recent
-     *   open collated work-order when there is one, so a partner sent four
-     *   designs across a week gets ONE order rather than four. Falls back to
-     *   minting a fresh order when there is nothing open to join.
-     * - `"new"` — always mint a fresh order. The behaviour before this option
-     *   existed; keep it for a batch that must be billed on its own.
+     * - `"new"` (**default**, since 2026-10-14) — mint a fresh order for this
+     *   batch. A new job is a new order: Sharlho's customer jacket for Dovra
+     *   landed as a third line on a 9-day-old stock order (#128), under that
+     *   order's old number and date, so it read as part of the old batch.
+     * - `"partner-open"` — opt in to appending to the partner's most recent
+     *   open work-order (#1597) when there is one; falls back to minting.
      */
     collate?: "partner-open" | "new"
     /** Override the collation window. See WORK_ORDER_COLLATION_WINDOW_DAYS. */
@@ -171,7 +171,7 @@ export async function produceDesignsAsWorkOrder(
      * as "a new order" and is wrong exactly when collation is doing its job.
      */
     let plannedWorkOrderId: string | null = null
-    if ((options?.collate ?? "partner-open") === "partner-open") {
+    if ((options?.collate ?? "new") === "partner-open") {
       const open = await findOpenPartnerWorkOrder(container, partnerId, {
         withinDays: options?.collateWithinDays,
       })
@@ -317,7 +317,8 @@ export async function produceDesignsAsWorkOrder(
   )
 
   /**
-   * #1597 — collate into the partner's open work-order by DEFAULT.
+   * #1597 — collate into the partner's open work-order, when ASKED to.
+   * (It was the default until 2026-10-14; see the `collate` option.)
    *
    * The habitual path is one design at a time, so a partner sent four designs
    * across a week ended up with four orders for what is operationally one batch
@@ -330,7 +331,7 @@ export async function produceDesignsAsWorkOrder(
    * order is the only outcome that leaves them visible — an exception here
    * would strand dispatched work with no line on any order.
    */
-  const collate = options?.collate ?? "partner-open"
+  const collate = options?.collate ?? "new"
   let projection: Awaited<ReturnType<typeof collateRunsIntoWorkOrder>> | null =
     null
   let joined = false
