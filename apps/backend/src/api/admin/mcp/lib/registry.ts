@@ -137,6 +137,13 @@ const PAGINATION = {
   q: { type: "string", description: "Free-text search filter." },
 } as const
 
+/**
+ * PAGINATION without `q`, for list routes that have no free-text search.
+ * Advertising a `q` the route ignores returns the unfiltered first page as if
+ * it were the search result (#2292).
+ */
+const PAGE_ONLY = { limit: PAGINATION.limit, offset: PAGINATION.offset } as const
+
 // The per-assignment material allocation, as the model sees it. Mirrors
 // `RunMaterialSchema` in the production-run validators — the row IS a contract
 // with its validator (#1348/#1361), so `planned_quantity` carries the same
@@ -459,7 +466,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     description: "List storefronts / stores configured on the platform.",
     method: "GET",
     path: "/admin/stores",
-    queryParams: ["limit", "offset"],
+    queryParams: ["q", "limit", "offset"],
     inputSchema: obj({ ...PAGINATION }),
   },
   {
@@ -701,7 +708,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     method: "GET",
     path: "/admin/payments/payment-providers",
     queryParams: ["limit", "offset"],
-    inputSchema: obj({ ...PAGINATION }),
+    inputSchema: obj({ ...PAGE_ONLY }),
   },
   {
     name: "create_region",
@@ -1028,7 +1035,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "List the fulfillment providers registered in the container — the carriers that can actually move goods. Registered is not the same as reaching a given destination: a provider must also be attached to a service zone that covers the country. Pair with list_shipping_options when asking why a region cannot be shipped to.",
     method: "GET",
     path: "/admin/fulfillment-providers",
-    queryParams: ["limit", "offset", "is_enabled"],
+    queryParams: ["q", "limit", "offset", "is_enabled"],
     inputSchema: obj({
       ...PAGINATION,
       is_enabled: { type: "boolean", description: "Filter to enabled providers only." },
@@ -2711,7 +2718,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     description: "List platform notifications (paginated). Use to review recent system events.",
     method: "GET",
     path: "/admin/notifications",
-    queryParams: ["limit", "offset"],
+    queryParams: ["q", "limit", "offset"],
     inputSchema: obj({ ...PAGINATION }),
   },
 
@@ -7601,7 +7608,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     path: "/admin/ops/maintenance-jobs/runs",
     queryParams: ["limit", "offset", "job_id"],
     inputSchema: obj({
-      ...PAGINATION,
+      ...PAGE_ONLY,
       job_id: STR("Only runs of this job id, e.g. 'repair-inventory-order-route'."),
     }),
   },
@@ -7684,7 +7691,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       engagement_state: STR(
         "Where the CONVERSATION is (not the deal): 'not_contacted' | 'awaiting_reply' | 'in_conversation' | 'follow_up_due' | 'stalled' | 'do_not_contact' | 'closed'. Use 'follow_up_due' and 'not_contacted' to answer 'who needs chasing'."
       ),
-      ...PAGINATION,
+      ...PAGE_ONLY,
     }),
     sideEffects:
       "engagement_state is derived from the activity log — never set it by hand; log an activity instead.",
@@ -7709,7 +7716,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       name: STR("Exact company name match."),
       industry: STR("Exact industry match."),
       region: STR("Exact region match."),
-      ...PAGINATION,
+      ...PAGE_ONLY,
     }),
   },
   {
@@ -7725,7 +7732,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ),
       company_id: STR("Only deals for this company."),
       owner_person_id: STR("Only deals whose contact is this person."),
-      ...PAGINATION,
+      ...PAGE_ONLY,
     }),
   },
   {
@@ -7747,7 +7754,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       assignee_person_id: STR("Only tasks assigned to this contact."),
       related_type: STR("'person' | 'company' | 'opportunity'."),
       related_id: STR("Id of the related record."),
-      ...PAGINATION,
+      ...PAGE_ONLY,
     }),
   },
   {
@@ -7760,7 +7767,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     inputSchema: obj({
       related_type: STR("'person' | 'company' | 'opportunity' | 'task'."),
       related_id: STR("Id of the related record."),
-      ...PAGINATION,
+      ...PAGE_ONLY,
     }),
   },
   {
@@ -8045,7 +8052,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ),
       channel: STR("'whatsapp' | 'email' | 'phone' | 'instagram' | 'facebook' | 'in_person' | 'other'."),
       activity_type: STR("'message' | 'call' | 'meeting' | 'note' | 'lifecycle' | 'system'."),
-      ...PAGINATION,
+      ...PAGE_ONLY,
     }),
     nextSteps: ["log_crm_activity", "get_crm_contact"],
   },
