@@ -7,6 +7,8 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { partnerVisibleRunTasks } from "../../lib/partner-visible-run-tasks"
+
 // #843 — the partner production-run listing, lifted out of
 // `GET /partners/production-runs` into a workflow so the admin inspection
 // mirror (`GET /admin/partners/:id/production-runs`) runs the *same* read
@@ -127,6 +129,7 @@ export const listPartnerProductionRunsWorkflow = createWorkflow(
       // accessor — tolerate both rather than betting on one shape.
       production_runs: (listed.runs as any[]).map((run: any) => ({
         ...run,
+        tasks: partnerVisibleRunTasks(run?.tasks, run?.status),
         unified_order_id: Array.isArray(run?.order)
           ? run.order[0]?.id
           : run?.order?.id,

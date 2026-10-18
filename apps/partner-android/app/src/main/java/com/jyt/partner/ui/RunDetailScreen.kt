@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jyt.partner.api.PartnerApi
+import com.jyt.partner.models.RunMaterials
 import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.DesignDetail
@@ -391,7 +392,7 @@ fun RunDetailScreen(
     if (showComplete) {
         CompleteRunSheet(
             orderedQuantity = current?.productionRun?.quantity ?: 0.0,
-            materials = design?.inventoryItems.orEmpty(),
+            materials = RunMaterials.optionsFor(current?.productionRun, design),
             run = current?.productionRun,
             // Throws on failure, so the sheet keeps the input and shows why.
             onSubmit = { body ->

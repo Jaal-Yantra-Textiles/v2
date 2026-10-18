@@ -249,9 +249,14 @@ private struct MaterialUsage: Identifiable {
 
 struct CompleteRunSheet: View {
   let orderedQuantity: Int
-  /// The design's inventory items — the Complete form's material options
-  /// (the web's resolveRunMaterialOptions). Logged as consumptions.
+  /// The Complete form's material options: the run's allotment when it has
+  /// one, else the design's BOM. Build with `RunMaterials.options` — passing
+  /// the BOM alone offers an allotted run items the backend will refuse.
   var materials: [DesignInventoryItem] = []
+  /// True when `materials` is the run's allotment, not the whole BOM.
+  var materialsConstrained = false
+  /// Allotment notes by inventory item id.
+  var materialNotes: [String: String] = [:]
   /// The run being completed — its snapshot says which sizes/colours it is for (#2271).
   var run: ProductionRun?
   let onConfirm: (PartnerAPI.CompleteRunBody) -> Void
@@ -270,16 +275,18 @@ struct CompleteRunSheet: View {
 
   init(
     orderedQuantity: Int,
-    materials: [DesignInventoryItem] = [],
+    materials: RunMaterialOptions = RunMaterialOptions(items: [], constrained: false, notes: [:]),
     run: ProductionRun? = nil,
     onConfirm: @escaping (PartnerAPI.CompleteRunBody) -> Void
   ) {
     self.orderedQuantity = orderedQuantity
-    self.materials = materials
+    self.materials = materials.items
+    self.materialsConstrained = materials.constrained
+    self.materialNotes = materials.notes
     self.run = run
     self.onConfirm = onConfirm
     _producedQty = State(initialValue: String(max(orderedQuantity, 0)))
-    _usage = State(initialValue: materials.map { MaterialUsage(item: $0) })
+    _usage = State(initialValue: materials.items.map { MaterialUsage(item: $0) })
     _splitValues = State(initialValue: CompletionSplit.initial(
       planned: run?.planned_output?.lines ?? [],
       snapshot: run?.snapshot ?? RunSnapshot(),
@@ -395,6 +402,11 @@ struct CompleteRunSheet: View {
               VStack(alignment: .leading, spacing: 6) {
                 Toggle(row.item.displayName, isOn: $row.used)
                   .font(.body)
+                if let note = materialNotes[row.item.id] {
+                  Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 if row.used {
                   HStack {
                     TextField("Quantity used", text: $row.quantityText)
@@ -411,7 +423,9 @@ struct CompleteRunSheet: View {
           } header: {
             Text("Materials used")
           } footer: {
-            Text("The design's bill of materials. Log what this run actually consumed — it drives the cost rollup.")
+            Text(materialsConstrained
+              ? "The materials allotted to this run. Log what it actually consumed — it drives the cost rollup."
+              : "The design's bill of materials. Log what this run actually consumed — it drives the cost rollup.")
           }
         }
 

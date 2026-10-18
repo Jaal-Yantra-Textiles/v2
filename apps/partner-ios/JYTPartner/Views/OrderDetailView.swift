@@ -176,7 +176,7 @@ struct OrderDetailView: View {
   private var completeSheet: some View {
     CompleteRunSheet(
       orderedQuantity: activeRun?.quantity ?? 0,
-      materials: design?.inventory_items ?? [],
+      materials: RunMaterials.options(run: activeRun, design: design),
       run: activeRun
     ) { body in
       Task { await run(.complete, completeBody: body) }

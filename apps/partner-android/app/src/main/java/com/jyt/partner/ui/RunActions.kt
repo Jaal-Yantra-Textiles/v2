@@ -50,6 +50,7 @@ import com.jyt.partner.models.DesignInventoryItem
 import com.jyt.partner.models.SplitPlan
 import com.jyt.partner.models.CompletionSplit
 import com.jyt.partner.models.ProductionRun
+import com.jyt.partner.models.RunMaterialOptions
 import com.jyt.partner.models.RunTask
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -209,7 +210,10 @@ fun FinishRunSheet(
 fun CompleteRunSheet(
     /** The run's ORDERED quantity — the payout multiplier. */
     orderedQuantity: Double,
-    materials: List<DesignInventoryItem>,
+    /** What to offer — the run's allotment when it has one, else the design's
+     *  BOM. Build it with [RunMaterials.optionsFor]; never pass the BOM alone,
+     *  or an allotted run offers items the backend will refuse. */
+    materials: RunMaterialOptions,
     /** The run being completed — its snapshot says which sizes/colours it is for (#2271). */
     run: ProductionRun?,
     /** Sends the completion; throws on failure. The sheet closes only on success. */
@@ -220,6 +224,7 @@ fun CompleteRunSheet(
     val ordered = max(orderedQuantity, 0.0)
     // The run's cost currency, else INR (the web falls back the same way).
     val currency = run?.costCurrency?.trim()?.takeIf { it.isNotEmpty() }?.uppercase() ?: "INR"
+    val materialItems = materials.items
     var producedQty by rememberSaveable { mutableStateOf(ordered.toLong().toString()) }
     var rejectedQty by rememberSaveable { mutableStateOf("") }
     var rejectionReason by rememberSaveable { mutableStateOf<RejectionReason?>(null) }
@@ -241,8 +246,8 @@ fun CompleteRunSheet(
 
     // Keyed by the material id list, so the same BOM after a reload (same
     // ids, new object identities) restores the typed state.
-    val materialIds = materials.map { it.id }
-    var usedMap by rememberSaveable(materialIds) { mutableStateOf(materials.associate { it.id to false }) }
+    val materialIds = materialItems.map { it.id }
+    var usedMap by rememberSaveable(materialIds) { mutableStateOf(materialItems.associate { it.id to false }) }
     var qtyMap by rememberSaveable(materialIds) { mutableStateOf(mapOf<String, String>()) }
     var costMap by rememberSaveable(materialIds) { mutableStateOf(mapOf<String, String>()) }
 
@@ -264,7 +269,7 @@ fun CompleteRunSheet(
     val splitOk = split !is SplitPlan.Needed || split.ok
 
     val consumptions: List<PartnerApi.ConsumptionEntry>? =
-        materials.mapNotNull { item ->
+        materialItems.mapNotNull { item ->
             if (usedMap[item.id] != true) return@mapNotNull null
             val qty = qtyOf(item.id) ?: return@mapNotNull null
             PartnerApi.ConsumptionEntry(
@@ -414,14 +419,18 @@ fun CompleteRunSheet(
                     else MaterialTheme.colorScheme.error,
                 )
             }
-            if (materials.isNotEmpty()) {
+            if (materialItems.isNotEmpty()) {
                 Text("Materials used", fontWeight = FontWeight.SemiBold)
                 Text(
-                    "The design's bill of materials. Log what this run actually consumed — it drives the cost rollup.",
+                    if (materials.constrained) {
+                        "The materials allotted to this run. Log what it actually consumed — it drives the cost rollup."
+                    } else {
+                        "The design's bill of materials. Log what this run actually consumed — it drives the cost rollup."
+                    },
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                materials.forEach { item ->
+                materialItems.forEach { item ->
                     MaterialUsedRow(
                         item = item,
                         used = usedMap[item.id] == true,
@@ -431,6 +440,7 @@ fun CompleteRunSheet(
                         unitCost = costMap[item.id] ?: "",
                         onUnitCostChange = { text -> costMap = costMap + (item.id to decimalOnly(text)) },
                         currency = currency,
+                        note = materials.notes[item.id],
                     )
                 }
             }
@@ -552,6 +562,8 @@ private fun MaterialUsedRow(
     unitCost: String,
     onUnitCostChange: (String) -> Unit,
     currency: String,
+    /** The admin's allotment note for this material, if any. */
+    note: String? = null,
 ) {
     val unit = item.unitOfMeasure?.takeIf { it.isNotBlank() } ?: "units"
     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
@@ -562,6 +574,13 @@ private fun MaterialUsedRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = used, onCheckedChange = onUsedChange)
                 Text(item.displayName, modifier = Modifier.weight(1f))
+            }
+            if (!note.isNullOrBlank()) {
+                Text(
+                    note,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             if (used) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -17,6 +17,8 @@ export type RunMaterialOption = {
   sku?: string
   /** Set only when the run was allocated this item. */
   planned_quantity?: number | null
+  /** The admin's allotment note, e.g. which colour to cut. Allocated items only. */
+  note?: string | null
 }
 
 export const resolveRunMaterialOptions = (
@@ -36,6 +38,7 @@ export const resolveRunMaterialOptions = (
           row.planned_quantity === null || row.planned_quantity === undefined
             ? null
             : Number(row.planned_quantity),
+        note: typeof row.note === "string" && row.note.trim() ? row.note.trim() : null,
       })),
     }
   }

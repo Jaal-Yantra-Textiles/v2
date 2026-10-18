@@ -30,6 +30,25 @@ describe("resolveRunMaterialOptions", () => {
     expect(options[0].planned_quantity).toBe(40)
   })
 
+  it("carries the allotment note so the partner sees which cloth to use", () => {
+    const { options } = resolveRunMaterialOptions(
+      {
+        materials: [
+          {
+            inventory_item_id: "iitem_silk",
+            planned_quantity: null,
+            note: "  Stole 70 x 200 cm in linen red  ",
+            inventory_item: { id: "iitem_silk", title: "Mulberry silk" },
+          },
+          { inventory_item_id: "iitem_thread", note: "   " },
+        ],
+      },
+      design
+    )
+    expect(options[0].note).toBe("Stole 70 x 200 cm in linen red")
+    expect(options[1].note).toBeNull()
+  })
+
   /** The control: an unallocated run must not lose its materials list. */
   it.each([undefined, null, []])(
     "falls back to the design BOM when materials is %p",
