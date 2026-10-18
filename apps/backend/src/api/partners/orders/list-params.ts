@@ -1,4 +1,5 @@
 import type { PartnerOrderKind } from "./validators"
+import { partnerWorkOrderStatusFilter } from "../../../lib/partner-cancelled-visibility"
 
 // #486 — the partner orders list (GET /partners/orders) used to forward ONLY
 // `status` + `q` into the orders workflow, so every other filter the partner-UI
@@ -124,6 +125,20 @@ export function buildPartnerOrderListParams(
     if (isPresent(query[key])) {
       baseFilters[key] = query[key]
     }
+  }
+
+  // Partner lists hide cancelled work unless asked (founder, 2026-10-18): a
+  // design/inventory work order that was cancelled is history, not work. It
+  // comes back with an explicit `status` filter or `include_cancelled=true`.
+  // Retail and `all` are left as they were: a customer's cancelled order is
+  // the store's record, not the partner's workload.
+  if (kind === "design" || kind === "inventory") {
+    const status = partnerWorkOrderStatusFilter(
+      baseFilters.status,
+      String(query.include_cancelled ?? "") === "true"
+    )
+    if (status === undefined) delete baseFilters.status
+    else baseFilters.status = status
   }
 
   if (kind === "retail") {

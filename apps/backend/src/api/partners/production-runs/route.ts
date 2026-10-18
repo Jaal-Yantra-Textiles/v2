@@ -94,7 +94,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest<ListProductionRunsQuery>,
   res: MedusaResponse
 ) {
-  const { limit = 20, offset = 0, status, role, run_type, design_id } =
+  const { limit = 20, offset = 0, status, role, run_type, design_id, include_cancelled } =
     (req.validatedQuery || {}) as ListProductionRunsQuery
 
   const partnerId = req.auth_context?.actor_id
@@ -114,6 +114,7 @@ export async function GET(
       role,
       run_type,
       design_id,
+      include_cancelled,
       offset,
       limit,
       locale: req.locale,

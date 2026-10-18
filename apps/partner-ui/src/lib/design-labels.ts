@@ -167,6 +167,9 @@ export const bucketLabel = (
     yours: t("partner.designs.bucketOptions.yours"),
     completed: t("partner.designs.bucketOptions.completed"),
     all: t("partner.designs.bucketOptions.all"),
+    // Reuses the run-status label: a cancelled bucket is the partner's
+    // cancelled work, already translated under that key.
+    cancelled: t("partner.designs.runStatusOptions.cancelled"),
   }
   return map[v ?? "all"] ?? map["all"]
 }

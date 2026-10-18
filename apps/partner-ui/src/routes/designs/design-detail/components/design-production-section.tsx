@@ -29,6 +29,9 @@ export const DesignProductionSection = ({ design }: DesignProductionSectionProps
   const { production_runs = [], isPending } = usePartnerProductionRuns({
     design_id: design.id,
     limit: 50,
+    // The run history keeps cancelled runs behind the "previous" toggle, which
+    // is the partner asking for them; the list hides them by default.
+    include_cancelled: true,
   })
   const [showPrevious, setShowPrevious] = useState(false)
 

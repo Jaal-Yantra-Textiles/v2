@@ -289,9 +289,12 @@ class PartnerApi private constructor(
         limit: Int = 20,
         offset: Int = 0,
         query: String? = null,
+        /** The server hides cancelled work orders unless this is true. */
+        includeCancelled: Boolean = false,
     ): PartnerOrderListResponse {
         var path = "partners/orders?kind=$kind&limit=$limit&offset=$offset"
         if (!query.isNullOrBlank()) path += "&q=${urlEncode(query)}"
+        if (includeCancelled) path += "&include_cancelled=true"
         return get(path)
     }
 

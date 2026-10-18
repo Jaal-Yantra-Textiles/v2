@@ -1,5 +1,7 @@
 import { z } from "@medusajs/framework/zod"
 
+import { includeCancelledQueryParam } from "../../../lib/partner-cancelled-visibility"
+
 export const listDesignsQuerySchema = z.object({
   limit: z.string().transform(Number).optional(),
   offset: z.string().transform(Number).optional(),
@@ -12,8 +14,10 @@ export const listDesignsQuerySchema = z.object({
   // Maps to partner_status buckets (incoming/in_progress/completed) or
   // ownership (yours = owner_partner_id). Filtered + counted in-app.
   bucket: z
-    .enum(["all", "incoming", "in_progress", "completed", "yours"])
+    .enum(["all", "incoming", "in_progress", "completed", "yours", "cancelled"])
     .optional(),
+  /** Cancelled assignments are hidden unless this is "true" or bucket=cancelled. */
+  include_cancelled: includeCancelledQueryParam,
 })
 
 export type ListDesignsQuery = z.infer<typeof listDesignsQuerySchema>

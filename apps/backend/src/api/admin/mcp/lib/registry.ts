@@ -8533,12 +8533,14 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "region_id",
       "sales_channel_id",
       "order",
+      "include_cancelled",
       "limit",
       "offset",
     ],
     inputSchema: obj(
       {
         id: STR("Partner id, e.g. 'partner_...'."),
+        include_cancelled: STR("'true' to include cancelled work orders (design/inventory kinds). Hidden by default; a status filter naming them also shows them."),
         kind: STR(
           "'retail' (default) | 'design' | 'inventory' | 'all' — the order family to list."
         ),
@@ -8595,11 +8597,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     method: "GET",
     path: "/admin/partners/:id/production-runs",
     pathParams: ["id"],
-    queryParams: ["status", "role", "run_type", "design_id", "limit", "offset"],
+    queryParams: ["status", "role", "run_type", "design_id", "include_cancelled", "limit", "offset"],
     inputSchema: obj(
       {
         id: STR("Partner id, e.g. 'partner_...'."),
         status: STR("Run status filter."),
+        include_cancelled: STR("'true' to include cancelled items. Hidden by default; a status filter naming them also shows them."),
         role: STR("Role filter."),
         run_type: STR("'production' | 'sample'."),
         design_id: STR("Only runs for this design."),

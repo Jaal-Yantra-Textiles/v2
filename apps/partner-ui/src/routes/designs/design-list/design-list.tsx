@@ -41,6 +41,9 @@ const WORK_BUCKETS: DesignBucket[] = [
   "yours",
   "completed",
   "all",
+  // Cancelled assignments are hidden from every other tab (2026-10-18); this
+  // tab is how a partner asks for them.
+  "cancelled",
 ]
 
 /** Next-action badge color per partner work status (label lives in i18n). */

@@ -138,6 +138,7 @@ describe("design work buckets (#6 partner tabs)", () => {
       in_progress: 3, // d_prog, d_review, d_own
       completed: 2, // d_fin, d_done
       yours: 1, // d_own
+      cancelled: 0,
     })
   })
 
@@ -153,5 +154,43 @@ describe("design work buckets (#6 partner tabs)", () => {
   it("bucket=all is a no-op narrowing", () => {
     const { count } = applyDesignListFilters(set, { bucket: "all" })
     expect(count).toBe(7)
+  })
+})
+
+describe("cancelled assignments are hidden unless asked for (2026-10-18)", () => {
+  const set = [
+    make({ id: "d_live", partner_status: "in_progress" }),
+    make({ id: "d_new", partner_status: "incoming" }),
+    make({ id: "d_cancelled", partner_status: "cancelled" }),
+    // Owned by this partner: a cancelled run does not withdraw THEIR design.
+    make({ id: "d_own_cancelled", partner_status: "cancelled", owner_partner_id: "p", is_owner: true }),
+  ]
+
+  it("drops a cancelled assignment from the default list and its count", () => {
+    const { items, count } = applyDesignListFilters(set, {})
+    expect(items.map((d) => d.id)).toEqual(["d_live", "d_new", "d_own_cancelled"])
+    expect(count).toBe(3)
+  })
+
+  it("keeps a cancelled design the partner owns", () => {
+    const { items } = applyDesignListFilters(set, { bucket: "yours" })
+    expect(items.map((d) => d.id)).toEqual(["d_own_cancelled"])
+  })
+
+  it("the cancelled bucket shows them, explicitly asked for", () => {
+    const { items, count } = applyDesignListFilters(set, { bucket: "cancelled" })
+    expect(items.map((d) => d.id)).toEqual(["d_cancelled", "d_own_cancelled"])
+    expect(count).toBe(2)
+  })
+
+  it("include_cancelled brings them back into the ordinary list", () => {
+    const { count } = applyDesignListFilters(set, { include_cancelled: true })
+    expect(count).toBe(4)
+  })
+
+  it("the cancelled facet is counted even while they are hidden, so the tab can say so", () => {
+    const { facets } = applyDesignListFilters(set, {})
+    expect(facets.cancelled).toBe(2)
+    expect(facets.all).toBe(3)
   })
 })

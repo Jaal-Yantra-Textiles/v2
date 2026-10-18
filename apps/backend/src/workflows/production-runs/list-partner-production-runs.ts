@@ -7,6 +7,7 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { partnerRunStatusFilter } from "../../lib/partner-cancelled-visibility"
 import { partnerVisibleRunTasks } from "../../lib/partner-visible-run-tasks"
 
 // #843 — the partner production-run listing, lifted out of
@@ -22,6 +23,8 @@ export type ListPartnerProductionRunsWorkflowInput = {
   role?: string
   run_type?: "production" | "sample"
   design_id?: string
+  // Cancelled runs are excluded unless this is true or `status` names them.
+  include_cancelled?: boolean
   offset: number
   limit: number
   /** Forwarded to `query.graph` for translated fields; the route reads it off the request. */
@@ -88,8 +91,9 @@ export const listPartnerProductionRunsStep = createStep(
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
     const filters: any = { partner_id: input.partnerId }
-    if (input.status) {
-      filters.status = input.status
+    const status = partnerRunStatusFilter(input.status, input.include_cancelled)
+    if (status !== undefined) {
+      filters.status = status
     }
     if (input.role) {
       filters.role = input.role

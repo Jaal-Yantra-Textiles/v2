@@ -2645,6 +2645,12 @@
         "placeholder": "{{ $last.bucket }}"
       },
       {
+        "name": "include_cancelled",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      },
+      {
         "name": "offset",
         "type": "number",
         "required": true,
@@ -7856,6 +7862,12 @@
         "type": "id",
         "required": false,
         "placeholder": "{{ $last.design_id }}"
+      },
+      {
+        "name": "include_cancelled",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
       },
       {
         "name": "offset",

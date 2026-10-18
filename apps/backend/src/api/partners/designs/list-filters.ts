@@ -29,7 +29,13 @@ export type PartnerDesignView = {
  * single lens over the same partner-scoped set: three collapse the
  * `partner_status` lifecycle, `yours` keys on ownership (cross-cuts status).
  */
-export type DesignBucket = "all" | "incoming" | "in_progress" | "completed" | "yours"
+export type DesignBucket =
+  | "all"
+  | "incoming"
+  | "in_progress"
+  | "completed"
+  | "yours"
+  | "cancelled"
 
 export type DesignBucketFacets = Record<DesignBucket, number>
 
@@ -37,8 +43,24 @@ export type DesignListFilters = {
   q?: string
   status?: string
   bucket?: DesignBucket
+  /** Show cancelled designs in the ordinary buckets too (see isHiddenCancelled). */
+  include_cancelled?: boolean
   offset?: number
   limit?: number
+}
+
+/**
+ * PURE: is this a cancelled assignment the partner should not see by default?
+ * Partner lists hide cancelled work unless asked (founder, 2026-10-18). A design
+ * has no cancelled status of its own: it is cancelled for this partner when
+ * their work on it was cancelled (`partner_status === "cancelled"`). A design
+ * the partner OWNS stays visible — it is theirs, not a withdrawn commission.
+ */
+export function isHiddenCancelled(design: PartnerDesignView): boolean {
+  return (
+    String(design.partner_info?.partner_status || "") === "cancelled" &&
+    !design.is_owner
+  )
 }
 
 /**
@@ -63,6 +85,8 @@ export function matchesBucket(design: PartnerDesignView, bucket: DesignBucket): 
       return ps === "in_progress" || ps === "awaiting_review"
     case "completed":
       return ps === "finished" || ps === "completed"
+    case "cancelled":
+      return ps === "cancelled"
     default:
       return true
   }
@@ -82,12 +106,14 @@ export function computeBucketFacets<T extends PartnerDesignView>(
     in_progress: 0,
     completed: 0,
     yours: 0,
+    cancelled: 0,
   }
   for (const d of designs) {
     if (matchesBucket(d, "incoming")) facets.incoming++
     if (matchesBucket(d, "in_progress")) facets.in_progress++
     if (matchesBucket(d, "completed")) facets.completed++
     if (matchesBucket(d, "yours")) facets.yours++
+    if (matchesBucket(d, "cancelled")) facets.cancelled++
   }
   return facets
 }
@@ -100,7 +126,7 @@ export function computeBucketFacets<T extends PartnerDesignView>(
  */
 export function applyDesignListFilters<T extends PartnerDesignView>(
   designs: T[],
-  { q, status, bucket = "all", offset = 0, limit = 20 }: DesignListFilters
+  { q, status, bucket = "all", include_cancelled = false, offset = 0, limit = 20 }: DesignListFilters
 ): { items: T[]; count: number; facets: DesignBucketFacets } {
   let filtered = designs
 
@@ -119,7 +145,16 @@ export function applyDesignListFilters<T extends PartnerDesignView>(
 
   // Bucket facets are counted over the q+status set (BEFORE the active bucket
   // narrows it) so every tab badge stays accurate regardless of the open tab.
-  const facets = computeBucketFacets(filtered)
+  //
+  // Cancelled assignments are hidden from every bucket unless asked for: by the
+  // `cancelled` bucket itself, or `include_cancelled`. The `cancelled` facet is
+  // counted over the full set, so the tab can say how many are behind it.
+  const showCancelled = include_cancelled || bucket === "cancelled"
+  const cancelledCount = filtered.filter((d) => matchesBucket(d, "cancelled")).length
+  if (!showCancelled) {
+    filtered = filtered.filter((d) => !isHiddenCancelled(d))
+  }
+  const facets = { ...computeBucketFacets(filtered), cancelled: cancelledCount }
 
   // Then narrow to the active bucket (the tab the partner is on).
   if (bucket !== "all") {

@@ -40,9 +40,17 @@ class OrderFilterTest {
     }
 
     @Test
-    fun `counts add up to All`() {
+    fun `All hides cancelled work, Closed is where it is asked for`() {
+        val all = orders.filter { OrderFilter.ALL.matches(it.workStatus) }.map { it.id }
+        assertEquals(listOf("a", "b", "c", "d", "e", "f", "g", "i"), all)
+        assertTrue(OrderFilter.CLOSED.matches(WorkStatus.CANCELLED))
+    }
+
+    @Test
+    fun `counts add up to All plus the hidden cancelled`() {
         val counts = OrderFilter.counts(orders)
-        assertEquals(9, counts[OrderFilter.ALL])
+        // 9 orders, one cancelled: All shows 8, Closed still counts it.
+        assertEquals(8, counts[OrderFilter.ALL])
         assertEquals(mapOf(OrderFilter.ONGOING to 3, OrderFilter.NEW to 2, OrderFilter.DONE to 2, OrderFilter.CLOSED to 2),
             counts - OrderFilter.ALL)
         assertTrue(OrderFilter.NEW.matches(null))
