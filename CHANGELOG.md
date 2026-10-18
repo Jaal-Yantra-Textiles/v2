@@ -1,3 +1,22 @@
+# [13.178.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.177.1...v13.178.0) (2026-10-18)
+
+
+### Bug Fixes
+
+* **work-orders:** a new batch gets its own work order, joining is opt-in ([#2401](https://github.com/Jaal-Yantra-Textiles/v2/issues/2401)) ([#2427](https://github.com/Jaal-Yantra-Textiles/v2/issues/2427)) ([16b2c1d](https://github.com/Jaal-Yantra-Textiles/v2/commit/16b2c1d19f9b7977fed9bd2e84b52cbe76e07826)), closes [#132](https://github.com/Jaal-Yantra-Textiles/v2/issues/132) [#128](https://github.com/Jaal-Yantra-Textiles/v2/issues/128) [#128](https://github.com/Jaal-Yantra-Textiles/v2/issues/128) [#2425](https://github.com/Jaal-Yantra-Textiles/v2/issues/2425) [#2425](https://github.com/Jaal-Yantra-Textiles/v2/issues/2425)
+* **partners:** hide a re-dispatched run's cancelled steps; complete form offers only the run's allotted materials ([#2429](https://github.com/Jaal-Yantra-Textiles/v2/issues/2429)) ([3f073d8](https://github.com/Jaal-Yantra-Textiles/v2/commit/3f073d8301a4b020704d3445502cdb078d540646))
+* **dtdc:** keep the shipment description under DTDC's 250-character limit ([#2421](https://github.com/Jaal-Yantra-Textiles/v2/issues/2421)) ([be0ad33](https://github.com/Jaal-Yantra-Textiles/v2/commit/be0ad33e705e71b2c3df70cd81cc6d4aec9758a7)), closes [#2420](https://github.com/Jaal-Yantra-Textiles/v2/issues/2420)
+* **dtdc-plugin:** name the pickup hub, book one box, cap the description (0.3.1) ([#2423](https://github.com/Jaal-Yantra-Textiles/v2/issues/2423)) ([24a6a50](https://github.com/Jaal-Yantra-Textiles/v2/commit/24a6a50fc8fa1b3b7f67bae038293ec1e44f345b)), closes [#2421](https://github.com/Jaal-Yantra-Textiles/v2/issues/2421)
+* **partners:** payment-collection routes check the partner owns the order ([#2428](https://github.com/Jaal-Yantra-Textiles/v2/issues/2428)) ([463bc4b](https://github.com/Jaal-Yantra-Textiles/v2/commit/463bc4b0c49ceedc1d0de71b391f4a203679df9c))
+* **dtdc:** run plugin 0.3.0 in prod so a chosen service type reaches DTDC ([#2420](https://github.com/Jaal-Yantra-Textiles/v2/issues/2420)) ([3ad78a5](https://github.com/Jaal-Yantra-Textiles/v2/commit/3ad78a5d196a02ed2fc3257b797a1a732b5c7d8e)), closes [#1835](https://github.com/Jaal-Yantra-Textiles/v2/issues/1835)
+* **dtdc:** run plugin 0.3.1 in prod (pickup hub, one box) ([#2424](https://github.com/Jaal-Yantra-Textiles/v2/issues/2424)) ([a7f1247](https://github.com/Jaal-Yantra-Textiles/v2/commit/a7f1247fcf1b67571d249ebff4a53ec757390a6e)), closes [#2423](https://github.com/Jaal-Yantra-Textiles/v2/issues/2423)
+
+
+### Features
+
+* **inventory-orders:** attach a waybill booked outside the system ([#2425](https://github.com/Jaal-Yantra-Textiles/v2/issues/2425)) ([362fcf2](https://github.com/Jaal-Yantra-Textiles/v2/commit/362fcf2ef0b67ac7fb9a75b685d3ac052cce3cdb))
+* **partners:** hide cancelled runs, designs and work orders unless the partner asks ([#2430](https://github.com/Jaal-Yantra-Textiles/v2/issues/2430)) ([b62ba2e](https://github.com/Jaal-Yantra-Textiles/v2/commit/b62ba2e5e14231b170bfe8505b80872c489d4839))
+
 ## [13.177.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.177.0...v13.177.1) (2026-10-13)
 
 
