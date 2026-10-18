@@ -308,14 +308,25 @@ setupSharedTestSuite(() => {
           adminHeaders
         )
 
-        // Partner list should show cancelled status
-        const listRes = await api.get("/partners/designs", {
+        // Partner lists hide cancelled work by default (#2430)...
+        const defaultRes = await api.get("/partners/designs", {
           headers: partnerHeaders,
         })
-        expect(listRes.status).toBe(200)
-        const design = listRes.data.designs?.find((d: any) => d.id === designId)
-        expect(design).toBeDefined()
-        expect(design.partner_info.partner_status).toBe("cancelled")
+        expect(defaultRes.status).toBe(200)
+        expect(
+          defaultRes.data.designs?.find((d: any) => d.id === designId)
+        ).toBeUndefined()
+
+        // ...and show it, with its cancelled status, when the partner asks.
+        for (const qs of ["include_cancelled=true", "bucket=cancelled"]) {
+          const listRes = await api.get(`/partners/designs?${qs}`, {
+            headers: partnerHeaders,
+          })
+          expect(listRes.status).toBe(200)
+          const design = listRes.data.designs?.find((d: any) => d.id === designId)
+          expect(design).toBeDefined()
+          expect(design.partner_info.partner_status).toBe("cancelled")
+        }
       })
 
       it("should show cancelled status in partner design detail", async () => {

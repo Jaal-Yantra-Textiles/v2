@@ -327,7 +327,8 @@ setupSharedTestSuite(() => {
       const dispatch = async (designId: string) => {
         const res = await post(
           "/admin/designs/produce",
-          { design_ids: [designId], partner_id: partnerId },
+          // Joining the open order is opt-in since #2401.
+          { design_ids: [designId], partner_id: partnerId, collate: "partner-open" },
           adminHeaders
         )
         expect(res.status).toBe(200)

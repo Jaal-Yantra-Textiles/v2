@@ -140,11 +140,14 @@ describe("DTDC shipping end-to-end (real test environment)", () => {
     })
 
     it("refuses an unsupported service type with a structured failure", async () => {
-      // The old client sent "B2C GROUND EXPRESS", which DTDC rejects for this
-      // lane — the client must surface it as an error, not a silent success.
+      // GROUND_EXPRESS is a real type that DTDC refuses for this lane ("NOT
+      // APPLICABLE FOR THIS PINCODE PAIR", as HR Handloom's prod booking was on
+      // 2026-10-13) — the client must surface it as an error, not a silent
+      // success. ⚠️ Not an UNKNOWN string: since plugin 0.2.0 an unrecognised
+      // type resolves to the default (PRIORITY) and books.
       await expect(
         client.createShipment({
-          service_type_id: "B2C GROUND EXPRESS" as any,
+          service_type_id: "GROUND_EXPRESS" as any,
           length: 30,
           width: 25,
           height: 5,
