@@ -595,6 +595,11 @@ export const CompleteRunForm = ({
                       Remove
                     </Button>
                   </div>
+                  {item?.note && (
+                    <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+                      {item.note}
+                    </Text>
+                  )}
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                     <div>
                       <Text size="xsmall" className="text-ui-fg-subtle mb-1">Qty</Text>

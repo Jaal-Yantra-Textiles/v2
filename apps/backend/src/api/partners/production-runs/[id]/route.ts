@@ -107,6 +107,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { PRODUCTION_RUNS_MODULE } from "../../../../modules/production_runs"
 import type ProductionRunService from "../../../../modules/production_runs/service"
 import { readRunAllocation } from "../../../../lib/production-run-allocation"
+import { partnerVisibleRunTasks } from "../../../../lib/partner-visible-run-tasks"
 import { workOrderIdForRun, workOrderReadsEnabled } from "../../../../lib/work-orders/read-work-orders"
 
 export async function GET(
@@ -198,15 +199,20 @@ export async function GET(
   // card is rendered from three places) then has the allocation with it,
   // instead of some of them silently falling back to the design's full BOM and
   // offering the partner materials the consumption gate will refuse.
+  // A re-dispatched run keeps its first dispatch's tasks, cancelled. Both
+  // copies of the list drop them, or the partner sees every step twice.
+  const tasks = partnerVisibleRunTasks((node as any)?.tasks, (node as any)?.status)
+
   const runWithMaterials = {
     ...(node as any),
+    tasks,
     materials: allocation,
     materials_constrained: allocation.length > 0,
   }
 
   return res.status(200).json({
     production_run: runWithMaterials,
-    tasks: node?.tasks || [],
+    tasks,
     unified_order_id: unifiedOrderId,
     materials: allocation,
     materials_constrained: allocation.length > 0,

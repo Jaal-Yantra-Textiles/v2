@@ -227,6 +227,29 @@ data class ProductionRun(
      *  whole run from decoding. */
     val snapshot: JsonElement? = null,
     @SerialName("planned_output") val plannedOutput: JsonElement? = null,
+    /** The materials THIS run was allotted — a subset of the design's bill of
+     *  materials. Sent by the run-detail route only; empty or absent means no
+     *  allotment was made and the whole BOM applies. See [RunMaterials]. */
+    val materials: List<RunMaterialAllocation>? = null,
+    @SerialName("materials_constrained") val materialsConstrained: Boolean? = null,
+)
+
+@Serializable
+data class RunMaterialAllocation(
+    @SerialName("inventory_item_id") val inventoryItemId: String,
+    @SerialName("planned_quantity") val plannedQuantity: Double? = null,
+    /** The admin's instruction for this material, e.g. which colour to cut. */
+    val note: String? = null,
+    @SerialName("inventory_item") val inventoryItem: RunAllocatedItem? = null,
+)
+
+/** Every field optional on purpose: one odd allotment row must not stop the
+ *  whole run from decoding ("Couldn't load this run"). */
+@Serializable
+data class RunAllocatedItem(
+    val id: String? = null,
+    val title: String? = null,
+    val sku: String? = null,
 )
 
 @Serializable

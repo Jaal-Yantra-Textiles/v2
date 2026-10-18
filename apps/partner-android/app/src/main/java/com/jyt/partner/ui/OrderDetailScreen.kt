@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jyt.partner.api.PartnerApi
+import com.jyt.partner.models.RunMaterials
 import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
 import com.jyt.partner.models.DesignDetail
@@ -670,7 +671,7 @@ fun OrderDetailScreen(
         key(run.id) {
             CompleteRunSheet(
                 orderedQuantity = run.quantity ?: 0.0,
-                materials = designOf(run)?.inventoryItems.orEmpty(),
+                materials = RunMaterials.optionsFor(run, designOf(run)),
                 run = run,
                 title = when {
                     completeTotal > 1 -> "Complete $position of $completeTotal · ${nameOf(run)}"

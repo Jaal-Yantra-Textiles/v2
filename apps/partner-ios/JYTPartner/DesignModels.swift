@@ -266,6 +266,61 @@ struct ProductionRun: Codable, Identifiable, Hashable {
   /// The sizes/colours the run was commissioned for (#2271).
   var snapshot: RunSnapshot?
   var planned_output: OutputLines?
+  /// The materials THIS run was allotted — a subset of the design's bill of
+  /// materials. Sent by the run-detail route only; empty or absent means no
+  /// allotment was made and the whole BOM applies. See `RunMaterials`.
+  var materials: [RunMaterialAllocation]?
+  var materials_constrained: Bool?
+}
+
+/// One allotted material. Every field optional on purpose: a single odd row
+/// must not stop the whole run from decoding ("Couldn't load this run").
+struct RunMaterialAllocation: Codable, Hashable {
+  var inventory_item_id: String?
+  var planned_quantity: Double?
+  /// The admin's instruction for this material, e.g. which colour to cut.
+  var note: String?
+  var inventory_item: RunAllocatedItem?
+}
+
+struct RunAllocatedItem: Codable, Hashable {
+  var id: String?
+  var title: String?
+  var sku: String?
+}
+
+/// Which materials to offer when completing a run — the iOS twin of
+/// partner-ui's `resolveRunMaterialOptions`. The backend REFUSES consumption
+/// outside a run's allotment, and one refused item fails the whole completion,
+/// so an allotted run offers only its allotment. A run with no allotment is
+/// unconstrained (nobody chose, not "chose nothing") and keeps the full BOM.
+struct RunMaterialOptions {
+  var items: [DesignInventoryItem]
+  /// True when `items` is the run's allotment rather than the whole BOM.
+  var constrained: Bool
+  /// Allotment notes by inventory item id; empty when unconstrained.
+  var notes: [String: String]
+}
+
+enum RunMaterials {
+  static func options(run: ProductionRun?, design: DesignDetail?) -> RunMaterialOptions {
+    let allotted = (run?.materials ?? []).filter { ($0.inventory_item_id ?? "").isEmpty == false }
+    if !allotted.isEmpty {
+      var notes: [String: String] = [:]
+      for row in allotted {
+        let note = row.note?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !note.isEmpty { notes[row.inventory_item_id!] = note }
+      }
+      return RunMaterialOptions(
+        items: allotted.map {
+          DesignInventoryItem(id: $0.inventory_item_id!, title: $0.inventory_item?.title, sku: $0.inventory_item?.sku)
+        },
+        constrained: true,
+        notes: notes
+      )
+    }
+    return RunMaterialOptions(items: design?.inventory_items ?? [], constrained: false, notes: [:])
+  }
 }
 
 struct ProductionRunListResponse: Codable {
