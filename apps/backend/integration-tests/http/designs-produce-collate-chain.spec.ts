@@ -17,7 +17,9 @@ jest.setTimeout(120 * 1000)
  * The habitual path is one design at a time: create a design, send it to a
  * partner, repeat. Each dispatch minted its own work-order, so a partner sent
  * four designs across a week ended up with four orders for what is operationally
- * one batch of work. Collating into their open order is now the default.
+ * one batch of work. Collating into their open order was the default until
+ * 2026-10-14 (#2401): a new batch now gets its own order, and these cases ask to
+ * join with `collate: "partner-open"`.
  *
  * 🔑 These cases go through `POST /admin/designs/produce` — the same door the
  * "Send to Production" drawer uses — precisely because collation reaching into
@@ -75,6 +77,9 @@ setupSharedTestSuite(() => {
       expect(res.status).toBe(200)
       return res.data.design_production
     }
+
+    /** Joining the partner's open order is opt-in since #2401. */
+    const JOIN = { collate: "partner-open" }
 
     const readWorkOrder = async (orderId: string) => {
       const container = getContainer()
@@ -194,7 +199,7 @@ setupSharedTestSuite(() => {
       // Nothing to join on the first dispatch — this partner had no order.
       expect(first.work_order_joined).toBe(false)
 
-      const second = await dispatch(designB)
+      const second = await dispatch(designB, JOIN)
 
       // 🔑 The whole issue, in one assertion.
       expect(second.work_order_id).toBe(first.work_order_id)
@@ -210,7 +215,7 @@ setupSharedTestSuite(() => {
       const beforeCount = before.items.length
 
       const designD = await newDesign("D")
-      const second = await dispatch(designD)
+      const second = await dispatch(designD, JOIN)
       expect(second.work_order_id).toBe(orderId)
 
       /**
@@ -245,7 +250,7 @@ setupSharedTestSuite(() => {
       const orderId = first.work_order_id as string
 
       const designF = await newDesign("F")
-      const second = await dispatch(designF)
+      const second = await dispatch(designF, JOIN)
       expect(second.work_order_id).toBe(orderId)
 
       // order↔run — BOTH runs, 1:many.
@@ -302,7 +307,7 @@ setupSharedTestSuite(() => {
       const orderId = first.work_order_id as string
 
       const designH = await newDesign("H")
-      await dispatch(designH)
+      await dispatch(designH, JOIN)
 
       const order = await readWorkOrder(orderId)
       const runIds = (order.metadata?.production_run_ids || []) as string[]
@@ -320,12 +325,16 @@ setupSharedTestSuite(() => {
       expect(order.status).toBe("pending")
     })
 
-    it("honours an explicit collate:new — the opt-out still mints its own order", async () => {
+    /**
+     * 🔴 #2401: Sharlho's customer jacket became line 3 of a 9-day-old stock
+     * order. With no `collate`, a second batch must NOT join the open order.
+     */
+    it("gives a second dispatch its own order by default (#2401)", async () => {
       const designI = await newDesign("I")
       const first = await dispatch(designI)
 
       const designJ = await newDesign("J")
-      const second = await dispatch(designJ, { collate: "new" })
+      const second = await dispatch(designJ)
 
       expect(second.work_order_id).not.toBe(first.work_order_id)
       expect(second.work_order_joined).toBe(false)
@@ -340,7 +349,7 @@ setupSharedTestSuite(() => {
       const first = await dispatch(designK)
 
       const designL = await newDesign("L")
-      const second = await dispatch(designL, { collate_within_days: 1 })
+      const second = await dispatch(designL, { ...JOIN, collate_within_days: 1 })
       // The open order was minted seconds ago, so a 1-day window still joins it.
       expect(second.work_order_id).toBe(first.work_order_id)
     })
@@ -363,6 +372,7 @@ setupSharedTestSuite(() => {
           design_ids: [designN],
           partner_id: other.id,
           template_ids: [templateId],
+          ...JOIN,
         },
         adminHeaders
       )
