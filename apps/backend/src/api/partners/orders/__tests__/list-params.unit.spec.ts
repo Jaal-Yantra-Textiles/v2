@@ -46,9 +46,34 @@ describe("buildPartnerOrderListParams (#486 partner orders filters)", () => {
     })
     // Work-order kinds live in the internal channel + carry no region, so these
     // must be dropped or they'd filter every work-order out (empty table).
-    expect(buildPartnerOrderListParams(q, "design").baseFilters).toEqual({ q: "x" })
-    expect(buildPartnerOrderListParams(q, "inventory").baseFilters).toEqual({ q: "x" })
+    // (They also hide cancelled work by default — see the block below.)
+    const hidden = { $ne: "canceled" }
+    expect(buildPartnerOrderListParams(q, "design").baseFilters).toEqual({ q: "x", status: hidden })
+    expect(buildPartnerOrderListParams(q, "inventory").baseFilters).toEqual({ q: "x", status: hidden })
     expect(buildPartnerOrderListParams(q, "all").baseFilters).toEqual({ q: "x" })
+  })
+
+  describe("cancelled work orders are hidden unless asked for (2026-10-18)", () => {
+    it.each(["design", "inventory"] as const)("%s: excludes canceled by default", (kind) => {
+      expect(buildPartnerOrderListParams({}, kind).baseFilters.status).toEqual({ $ne: "canceled" })
+    })
+
+    it("an explicit status filter wins, so asking for canceled shows canceled", () => {
+      expect(buildPartnerOrderListParams({ status: "canceled" }, "design").baseFilters.status).toBe(
+        "canceled"
+      )
+    })
+
+    it("include_cancelled=true brings them back", () => {
+      expect(
+        buildPartnerOrderListParams({ include_cancelled: "true" }, "design").baseFilters
+      ).not.toHaveProperty("status")
+    })
+
+    it("leaves retail and all untouched: a customer's cancelled order is the store's record", () => {
+      expect(buildPartnerOrderListParams({}, "retail").baseFilters).not.toHaveProperty("status")
+      expect(buildPartnerOrderListParams({}, "all").baseFilters).not.toHaveProperty("status")
+    })
   })
 
   it("omits absent / blank filters rather than sending empty values", () => {

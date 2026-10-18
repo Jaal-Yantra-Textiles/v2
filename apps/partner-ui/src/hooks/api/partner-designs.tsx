@@ -72,7 +72,13 @@ export type PartnerDesign = Record<string, any> & {
 }
 
 /** #6 — the partner "work" tab buckets (server-side lens over the same set). */
-export type DesignBucket = "all" | "incoming" | "in_progress" | "completed" | "yours"
+export type DesignBucket =
+  | "all"
+  | "incoming"
+  | "in_progress"
+  | "completed"
+  | "yours"
+  | "cancelled"
 
 export type DesignBucketFacets = Record<DesignBucket, number>
 

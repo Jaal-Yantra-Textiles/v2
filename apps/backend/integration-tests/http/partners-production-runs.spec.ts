@@ -230,6 +230,46 @@ setupSharedTestSuite(() => {
         validateStatus: () => true,
       })
       expect(cross.status).toBe(404)
+
+      // ── Cancelled runs are hidden unless asked for (2026-10-18) ──────────
+      const cancel = await api
+        .post(`/admin/production-runs/${partnerARunId}/cancel`, { reason: "test" }, adminHeaders)
+        .catch((err: any) => err.response)
+      expect(cancel.status).toBe(200)
+
+      const ids = (res: any) => (res.data.production_runs || []).map((r: any) => r.id)
+
+      const byDefault = await api.get("/partners/production-runs", { headers: partnerAHeaders })
+      expect(ids(byDefault)).not.toContain(partnerARunId)
+      expect(byDefault.data.count).toBe(ids(byDefault).length)
+
+      const included = await api.get("/partners/production-runs?include_cancelled=true", {
+        headers: partnerAHeaders,
+      })
+      expect(ids(included)).toContain(partnerARunId)
+
+      const askedFor = await api.get("/partners/production-runs?status=cancelled", {
+        headers: partnerAHeaders,
+      })
+      expect(ids(askedFor)).toEqual([partnerARunId])
+
+      // Partner B's live run is untouched by A's cancellation.
+      const listBAfter = await api.get("/partners/production-runs", { headers: partnerBHeaders })
+      expect(ids(listBAfter)).toContain(partnerBRunId)
+
+      // Work orders: the default design list carries no canceled row, and
+      // include_cancelled is a superset of it.
+      const woDefault = await api.get("/partners/orders?kind=design&limit=100", {
+        headers: partnerAHeaders,
+      })
+      expect(woDefault.status).toBe(200)
+      const woRows = woDefault.data.orders || []
+      expect(woRows.some((o: any) => o.status === "canceled")).toBe(false)
+      const woAll = await api.get("/partners/orders?kind=design&limit=100&include_cancelled=true", {
+        headers: partnerAHeaders,
+      })
+      expect(woAll.status).toBe(200)
+      expect((woAll.data.orders || []).length).toBeGreaterThanOrEqual(woRows.length)
     })
   })
 })

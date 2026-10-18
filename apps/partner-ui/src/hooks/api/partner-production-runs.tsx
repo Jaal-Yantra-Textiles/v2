@@ -45,6 +45,8 @@ export type ListPartnerProductionRunsParams = {
   role?: string
   run_type?: "production" | "sample"
   design_id?: string
+  /** Cancelled runs are hidden unless this is true or `status` names them. */
+  include_cancelled?: boolean
 }
 
 export type PartnerProductionRunsListResponse = {

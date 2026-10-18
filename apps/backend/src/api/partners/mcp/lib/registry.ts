@@ -572,9 +572,10 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "List the partner's orders (paginated). Supports free-text search via q. Pass kind to switch between retail, design or inventory work-orders. Filter by status, date range, region or sales channel.",
     method: "GET",
     path: "/partners/orders",
-    queryParams: ["limit", "offset", "q", "status", "kind", "created_at", "updated_at", "region_id", "sales_channel_id", "order"],
+    queryParams: ["limit", "offset", "q", "status", "kind", "created_at", "updated_at", "region_id", "sales_channel_id", "order", "include_cancelled"],
     inputSchema: obj({
       ...PAGINATION,
+      include_cancelled: STR("'true' to include cancelled work orders (design/inventory kinds). Hidden by default; a status filter naming them also shows them."),
       status: STR("Optional order status filter."),
       kind: STR(
         "Which order family to list: 'retail' (default) | 'design' | 'inventory' | 'all'."
@@ -695,13 +696,14 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "List the partner's designs / design briefs (paginated). Filter by status or bucket (incoming / in_progress / completed / yours).",
     method: "GET",
     path: "/partners/designs",
-    queryParams: ["limit", "offset", "q", "status", "bucket"],
+    queryParams: ["limit", "offset", "q", "status", "bucket", "include_cancelled"],
     inputSchema: obj({
       ...PAGINATION,
+      include_cancelled: STR("'true' to include cancelled designs. Hidden by default; bucket 'cancelled' also shows them."),
       status: STR("Filter designs by status (e.g. 'In_Development', 'Approved')."),
       bucket: {
         type: "string",
-        description: "Action-oriented bucket: 'all' (default) | 'incoming' | 'in_progress' | 'completed' | 'yours'.",
+        description: "Action-oriented bucket: 'all' (default) | 'incoming' | 'in_progress' | 'completed' | 'yours' | 'cancelled'.",
       },
     }),
   },
@@ -1264,9 +1266,10 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
       "List the partner's production runs (paginated). Filter by status, role, run_type ('production'|'sample') or design_id.",
     method: "GET",
     path: "/partners/production-runs",
-    queryParams: ["limit", "offset", "q", "status", "role", "run_type", "design_id"],
+    queryParams: ["limit", "offset", "q", "status", "role", "run_type", "design_id", "include_cancelled"],
     inputSchema: obj({
       ...PAGINATION,
+      include_cancelled: STR("'true' to include cancelled runs. Hidden by default; a status filter naming them also shows them."),
       status: STR("Optional status filter."),
       role: STR("Optional role filter."),
       run_type: { type: "string", enum: ["production", "sample"], description: "Run type filter." },

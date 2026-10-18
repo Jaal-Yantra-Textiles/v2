@@ -13,7 +13,10 @@ enum class OrderFilter(val label: String) {
     CLOSED("Closed");
 
     fun matches(status: WorkStatus?): Boolean = when (this) {
-        ALL -> true
+        // Cancelled work is hidden unless asked for (2026-10-18): only the
+        // Closed chip shows it. The screen fetches it (include_cancelled) so
+        // that chip has something to show.
+        ALL -> status != WorkStatus.CANCELLED
         ONGOING -> status == WorkStatus.ACCEPTED || status == WorkStatus.IN_PROGRESS || status == WorkStatus.PARTIAL
         // No status yet = just handed over, same as assigned.
         NEW -> status == null || status == WorkStatus.ASSIGNED

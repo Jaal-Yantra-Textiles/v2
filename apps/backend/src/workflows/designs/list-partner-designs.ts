@@ -30,6 +30,8 @@ export type ListPartnerDesignsWorkflowInput = {
   q?: string
   status?: string
   bucket?: DesignBucket
+  // Cancelled assignments are hidden unless this is true or bucket=cancelled.
+  include_cancelled?: boolean
   offset: number
   limit: number
   /** Forwarded to `query.graph` for translated fields; the route reads it off the request. */
@@ -335,6 +337,7 @@ export const listPartnerDesignsWorkflow = createWorkflow(
           q: input.q,
           status: input.status,
           bucket: input.bucket,
+          include_cancelled: input.include_cancelled,
           offset: input.offset,
           limit: input.limit,
         })

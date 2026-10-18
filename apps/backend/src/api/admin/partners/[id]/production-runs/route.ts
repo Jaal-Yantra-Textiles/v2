@@ -28,7 +28,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Parsed against the partner schema itself so the two surfaces share one
   // query contract rather than two that can drift.
-  const { limit = 20, offset = 0, status, role, run_type, design_id } =
+  const { limit = 20, offset = 0, status, role, run_type, design_id, include_cancelled } =
     listProductionRunsQuerySchema.parse(
       (req.query as Record<string, unknown>) || {}
     )
@@ -42,6 +42,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       role,
       run_type,
       design_id,
+      include_cancelled,
       offset,
       limit,
       locale: req.locale,

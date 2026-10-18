@@ -103,6 +103,9 @@ fun OrdersScreen(onOpenOrder: (String) -> Unit) {
                     limit = PAGE_SIZE,
                     offset = loaded.size,
                     query = search.takeIf { it.isNotBlank() },
+                    // The chips narrow in memory, and Closed must have the
+                    // cancelled rows to narrow to; All hides them again.
+                    includeCancelled = true,
                 )
                 if (seq != requestSeq) return // superseded by a newer request
                 loaded = loaded + page.orders

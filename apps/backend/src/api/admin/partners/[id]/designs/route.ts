@@ -24,7 +24,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   // Parsed here rather than via `validateAndTransformQuery` middleware so this
   // route reads the partner schema itself — one contract, not two that can
   // drift apart.
-  const { limit = 20, offset = 0, status, q, bucket } =
+  const { limit = 20, offset = 0, status, q, bucket, include_cancelled } =
     listDesignsQuerySchema.parse((req.query as Record<string, unknown>) || {})
 
   // 404s on an unknown partner before any partner helper can voice a
@@ -37,6 +37,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       q,
       status,
       bucket,
+      include_cancelled,
       offset,
       limit,
       locale: req.locale,

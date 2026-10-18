@@ -115,7 +115,7 @@ export async function GET(
   req: AuthenticatedMedusaRequest<ListDesignsQuery>,
   res: MedusaResponse
 ) {
-  const { limit = 20, offset = 0, status, q, bucket } =
+  const { limit = 20, offset = 0, status, q, bucket, include_cancelled } =
     req.validatedQuery as ListDesignsQuery
 
   // Authenticated partner
@@ -137,6 +137,7 @@ export async function GET(
       q,
       status,
       bucket,
+      include_cancelled,
       offset,
       limit,
       locale: req.locale,
