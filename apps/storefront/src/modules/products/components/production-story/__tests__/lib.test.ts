@@ -7,6 +7,8 @@ import {
   nonZeroConsumptionMetrics,
   formatNumber,
   formatStoryDate,
+  condenseJourney,
+  publicTimeline,
 } from "../lib"
 import type { ProductionStory } from "@lib/data/designs"
 
@@ -150,5 +152,51 @@ describe("formatStoryDate", () => {
   it("returns null for null/garbage", () => {
     expect(formatStoryDate(null)).toBeNull()
     expect(formatStoryDate("not-a-date")).toBeNull()
+  })
+})
+
+describe("public timeline teaser", () => {
+  const step = (id: string, label: string) => ({ id, label, date: null, done: label === "Completed" })
+
+  it("keeps the first and last step and counts the rest", () => {
+    const out = condenseJourney([
+      step("1", "Sent to the maker"),
+      step("2", "Accepted by the maker"),
+      step("3", "Work started"),
+      step("4", "Completed"),
+    ])
+    expect(out.steps.map((s) => s.label)).toEqual(["Sent to the maker", "Completed"])
+    expect(out.hiddenSteps).toBe(2)
+  })
+
+  it("hides nothing when there are two steps or fewer", () => {
+    expect(condenseJourney([step("1", "Work started")]).hiddenSteps).toBe(0)
+  })
+
+  it("uses the backend teaser when present", () => {
+    const out = publicTimeline({
+      journey: {
+        steps: [
+          { id: "a", label: "Work started", date: null },
+          { id: "b", label: "Completed", date: null },
+        ],
+        hidden_steps: 3,
+      },
+    } as any)
+    expect(out.hiddenSteps).toBe(3)
+    expect(out.steps[1].done).toBe(true)
+  })
+
+  it("condenses a full story from an older backend too", () => {
+    const run = (n: number) => ({
+      id: `act${n}`,
+      activity_type: "lifecycle_event",
+      kind: "x",
+      summary: `Step ${n}`,
+      created_at: `2026-10-0${n}T00:00:00Z`,
+    })
+    const out = publicTimeline({ runs: [{ activity: [run(1), run(2), run(3), run(4), run(5)] }] } as any)
+    expect(out.steps.map((s) => s.label)).toEqual(["Step 1", "Step 5"])
+    expect(out.hiddenSteps).toBe(3)
   })
 })

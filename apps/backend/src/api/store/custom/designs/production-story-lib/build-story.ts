@@ -148,6 +148,39 @@ export function summarizeConsumption(
 
 type RawRun = Record<string, any>
 type RawActivity = Record<string, any>
+
+/**
+ * The ONLY run activities a shopper may see, and the words they see.
+ *
+ * `production_run_activity` is an internal log: partner reminders
+ * (`reminder_sent`: assignment_pending / not_started / idle), admin notes
+ * (free text), system rows. All of it used to reach the product page. A
+ * stage appears here only if it is a lifecycle event in this allowlist; the
+ * label is ours, never the stored `summary`, which is written for admins.
+ */
+export const PUBLIC_LIFECYCLE_LABELS: Record<string, string> = {
+  sent_to_partner: "Sent to the maker",
+  accepted: "Accepted by the maker",
+  accepted_by_admin: "Accepted by the maker",
+  started: "Work started",
+  started_by_admin: "Work started",
+  finished: "Work finished",
+  finished_by_admin: "Work finished",
+  completed: "Completed",
+}
+
+export function toPublicActivity(a: RawActivity): ProductionStoryActivity | null {
+  if (a?.activity_type !== "lifecycle_event") return null
+  const label = PUBLIC_LIFECYCLE_LABELS[String(a.kind ?? "")]
+  if (!label) return null
+  return {
+    id: a.id,
+    activity_type: a.activity_type,
+    kind: a.kind,
+    summary: label,
+    created_at: toIso(a.created_at),
+  }
+}
 type RawPersonLink = Record<string, any>
 type RawPartner = Record<string, any>
 type RawInventoryItem = Record<string, any>
@@ -218,13 +251,9 @@ export function buildProductionStory(input: BuildStoryInput): ProductionStory {
     finished_at: toIso(r.finished_at),
     completed_at: toIso(r.completed_at),
     created_at: toIso(r.created_at),
-    activity: (activitiesByRun[r.id] || []).map((a) => ({
-      id: a.id,
-      activity_type: a.activity_type,
-      kind: a.kind,
-      summary: a.summary ?? null,
-      created_at: toIso(a.created_at),
-    })),
+    activity: (activitiesByRun[r.id] || [])
+      .map(toPublicActivity)
+      .filter((a): a is ProductionStoryActivity => a !== null),
   }))
 
   const people: StoryPerson[] = (personLinks || [])
@@ -250,5 +279,61 @@ export function buildProductionStory(input: BuildStoryInput): ProductionStory {
     people,
     partners: storyPartners,
     materials: Array.from(materialMap.values()),
+  }
+}
+
+export type JourneyStep = { id: string; label: string; date: string | null }
+
+/**
+ * Merge every run's public activity into one chronological journey. Runs come
+ * as a parent + one child per partner assignment, so the same stage can be
+ * logged more than once: de-dup by label + date (ISO dates sort lexically).
+ */
+export function mergeJourney(runs: ProductionStoryRun[]): JourneyStep[] {
+  const seen = new Set<string>()
+  const steps: JourneyStep[] = []
+  for (const run of runs || []) {
+    for (const a of run.activity || []) {
+      const label = (a.summary || "").trim()
+      if (!label) continue
+      const key = `${label.toLowerCase()}__${a.created_at ?? ""}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      steps.push({ id: a.id, label, date: a.created_at })
+    }
+  }
+  return steps.sort((x, y) => (x.date ?? "").localeCompare(y.date ?? ""))
+}
+
+export type ProductionStoryTeaser = ProductionStory & {
+  /** First and last step only; the rest is counted, not shown. */
+  journey: { steps: JourneyStep[]; hidden_steps: number }
+}
+
+const EMPTY_CONSUMPTION: ConsumptionSummary = {
+  energy: { electricity_kwh: 0, water_liters: 0, gas_cubic_meters: 0 },
+  labor_hours: 0,
+  materials_consumed: [],
+  total_logs: 0,
+}
+
+/**
+ * What the PUBLIC route returns: enough to sell, not the whole making story.
+ *
+ * Kept: run status and quantities, the maker partners, the raw materials.
+ * Withheld (they travel only in the emailed story, to a shopper who asked):
+ * every step between the first and the last, the people who made it, and the
+ * energy / labour / materials-consumed numbers. Withheld in the DATA, not just
+ * hidden in the page, so a direct API call shows no more than the page does.
+ */
+export function toStoryTeaser(story: ProductionStory): ProductionStoryTeaser {
+  const all = mergeJourney(story.runs)
+  const steps = all.length <= 2 ? all : [all[0], all[all.length - 1]]
+  return {
+    ...story,
+    runs: story.runs.map((r) => ({ ...r, activity: [] })),
+    people: [],
+    consumption: EMPTY_CONSUMPTION,
+    journey: { steps, hidden_steps: all.length - steps.length },
   }
 }
