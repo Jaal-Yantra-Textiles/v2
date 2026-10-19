@@ -1950,6 +1950,77 @@ export const emailTemplatesData = [
     template_type: "cart_abandoned",
     is_active: true,
   },
+
+  // =========================================================================
+  // STOREFRONT
+  // =========================================================================
+
+  {
+    name: "Production Story (shopper asked)",
+    template_key: "production-story",
+    from: "shop@jaalyantra.com",
+    subject: "How {{title}} was made",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">How {{title}} was made</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">The full making story you asked for</p>
+  </div>
+  <div style="padding:32px;">
+    {{#if steps.length}}
+    <p style="color:#18181B;font-size:15px;font-weight:600;margin:0 0 12px;">Every step</p>
+    <table role="presentation" style="width:100%;border-collapse:collapse;">
+      {{#each steps}}
+      <tr><td style="padding:6px 0;color:#18181B;font-size:14px;">&#9679; {{label}}</td><td style="padding:6px 0;color:#71717A;font-size:13px;text-align:right;">{{date}}</td></tr>
+      {{/each}}
+    </table>
+    {{/if}}
+    {{#if makers.length}}
+    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">Made with</p>
+    <p style="color:#52525B;font-size:14px;margin:0;">{{#each makers}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
+    {{/if}}
+    {{#if people.length}}
+    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">The hands behind it</p>
+    <p style="color:#52525B;font-size:14px;margin:0;">{{#each people}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
+    {{/if}}
+    {{#if materials.length}}
+    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">Materials</p>
+    <p style="color:#52525B;font-size:14px;margin:0;">{{#each materials}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
+    {{/if}}
+    {{#if materials_consumed.length}}
+    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">What went into it</p>
+    {{#each materials_consumed}}<p style="color:#52525B;font-size:14px;margin:2px 0;">{{this}}</p>{{/each}}
+    {{/if}}
+    {{#if energy.length}}
+    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">Energy and time</p>
+    {{#each energy}}<p style="color:#52525B;font-size:14px;margin:2px 0;">{{this}}</p>{{/each}}
+    {{/if}}
+    {{#if product_url}}
+    <div style="text-align:center;margin:32px 0 8px;">
+      <a href="{{product_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;">Back to {{title}}</a>
+    </div>
+    {{/if}}
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">You asked for this story on our store. We will not email you again unless you sign up.</p>
+    <p style="color:#A1A1AA;font-size:11px;margin:4px 0 0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: {
+      title: "Product or design name",
+      product_url: "Link back to the product page",
+      steps: "Every production step: [{ label, date }]",
+      makers: "Maker partner names",
+      people: "People who made it, with role",
+      materials: "Raw material names",
+      materials_consumed: "Materials used, with quantity",
+      energy: "Energy and labour lines",
+      current_year: "Current year",
+    },
+    template_type: "production_story",
+    is_active: true,
+  },
 ]
 
 export default async function seedEmailTemplates({ container }: { container: any }) {

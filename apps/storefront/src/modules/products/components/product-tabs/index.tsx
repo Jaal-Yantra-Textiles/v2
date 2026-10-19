@@ -33,8 +33,9 @@ const ProductTabs = ({ product, story }: ProductTabsProps) => {
     0
   )
   const consumed = story?.consumption?.materials_consumed ?? []
-  const hasEnergyOutput =
-    energyMetrics.length > 0 || producedTotal > 0 || consumed.length > 0
+  // Energy and materials consumed are emailed on request, not served publicly,
+  // so a units-made count alone does not open an "environmental cost" tab.
+  const hasEnergyOutput = energyMetrics.length > 0 || consumed.length > 0
 
   const tabs = [
     {

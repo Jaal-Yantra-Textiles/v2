@@ -199,3 +199,35 @@ export function formatStoryDate(value: string | null | undefined): string | null
     day: "numeric",
   })
 }
+
+/**
+ * The public timeline: the first and the last step, the rest counted. The
+ * backend already sends only this (`story.journey`); this condenses a full
+ * list too, so a page served by an older backend still shows no more.
+ */
+export function condenseJourney(steps: JourneyStep[]): {
+  steps: JourneyStep[]
+  hiddenSteps: number
+} {
+  if (steps.length <= 2) return { steps, hiddenSteps: 0 }
+  return {
+    steps: [steps[0], steps[steps.length - 1]],
+    hiddenSteps: steps.length - 2,
+  }
+}
+
+/** The teaser timeline for a product page, from the public story. */
+export function publicTimeline(
+  story: ProductionStory | null | undefined
+): { steps: JourneyStep[]; hiddenSteps: number } {
+  if (story?.journey) {
+    return {
+      steps: story.journey.steps.map((s) => ({
+        ...s,
+        done: s.label === "Completed",
+      })),
+      hiddenSteps: story.journey.hidden_steps,
+    }
+  }
+  return condenseJourney(summarizeProductionJourney(story?.runs)?.steps ?? [])
+}

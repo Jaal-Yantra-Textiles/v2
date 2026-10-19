@@ -22,32 +22,13 @@ import { StoreDesign } from "../../../types/product-design"
 import { buildProductJsonLd } from "./product-jsonld"
 import { buildBreadcrumbJsonLd } from "@lib/util/breadcrumb-jsonld"
 import { getProductionStory } from "@lib/data/designs"
-import { summarizeProductionJourney } from "@modules/products/components/production-story/lib"
+import { publicTimeline } from "@modules/products/components/production-story/lib"
 
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct & { designs?: StoreDesign[] } // Extend product type to include designs
   region: HttpTypes.StoreRegion
   countryCode: string
   images: HttpTypes.StoreProductImage[]
-}
-
-const calculateDesignScore = (design: StoreDesign | undefined) => {
-  if (!design) {
-    return { score: 0, maxScore: 4 }
-  }
-
-  let score = 1 // Base score for having a design
-  if (design.tasks && design.tasks.length > 0) {
-    score++
-  }
-  if (design.partners && design.partners.length > 0) {
-    score++
-  }
-  if (design.inventory_items && design.inventory_items.length > 0) {
-    score++
-  }
-
-  return { score, maxScore: 4 }
 }
 
 const ProductTemplate = async ({
@@ -61,14 +42,12 @@ const ProductTemplate = async ({
   }
 
   const design = product.designs?.[0]
-  const designScore = calculateDesignScore(design)
 
-  // v2 production story (money-free). Powers the "Crafted by" tab + the clean
-  // Activity Timeline in DesignInfo. Empty/absent for v1-only designs, which
-  // then keep their task-based timeline.
+  // v2 production story (money-free), public TEASER: first and last step,
+  // makers, materials. The rest is emailed to a shopper who asks. Empty for
+  // v1-only designs, which keep their task-based timeline.
   const story = design?.id ? await getProductionStory(design.id) : null
-  const activityTimeline =
-    summarizeProductionJourney(story?.runs)?.steps ?? undefined
+  const timeline = publicTimeline(story)
 
   const jsonLd = buildProductJsonLd(product, { countryCode })
 
@@ -107,8 +86,10 @@ const ProductTemplate = async ({
           <div className="hidden small:block">
             <DesignInfo
               design={design}
-              designScore={designScore}
-              activityTimeline={activityTimeline}
+              activityTimeline={timeline.steps}
+              hiddenSteps={timeline.hiddenSteps}
+              productTitle={product.title}
+              productHandle={product.handle}
             />
           </div>
           <div className="hidden small:block">
@@ -121,8 +102,10 @@ const ProductTemplate = async ({
         <div className="w-full py-8 small:hidden">
           <DesignInfo
             design={design}
-            designScore={designScore}
-            activityTimeline={activityTimeline}
+            activityTimeline={timeline.steps}
+            hiddenSteps={timeline.hiddenSteps}
+            productTitle={product.title}
+            productHandle={product.handle}
           />
           <div className="mt-8">
             <ProductTabs product={product} story={story} />

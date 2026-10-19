@@ -407,6 +407,15 @@ export type ProductionStory = {
   people: StoryPerson[]
   partners: StoryPartner[]
   materials: StoryMaterial[]
+  /**
+   * The public teaser: first and last step only, the rest counted. The full
+   * journey, the people and the energy numbers are emailed on request
+   * (`shareProductionStory`) and never come back in this payload.
+   */
+  journey?: {
+    steps: { id: string; label: string; date: string | null }[]
+    hidden_steps: number
+  }
 }
 
 const EMPTY_PRODUCTION_STORY = (designId: string): ProductionStory => ({
@@ -421,6 +430,7 @@ const EMPTY_PRODUCTION_STORY = (designId: string): ProductionStory => ({
   people: [],
   partners: [],
   materials: [],
+  journey: { steps: [], hidden_steps: 0 },
 })
 
 /**
@@ -450,5 +460,36 @@ export const getProductionStory = async (
   } catch (error) {
     console.error("Error fetching production story:", error)
     return EMPTY_PRODUCTION_STORY(designId)
+  }
+}
+
+/**
+ * Ask for a design's full production story by email. The backend builds the
+ * email from the design id alone and sends one per address per design per day.
+ */
+export const shareProductionStory = async (input: {
+  designId: string
+  email: string
+  productTitle?: string
+  productHandle?: string
+  productUrl?: string
+}): Promise<{ sent: boolean; error?: string }> => {
+  try {
+    const data = await sdk.client.fetch<{ sent: boolean }>(
+      `/store/custom/designs/${input.designId}/production-story/share`,
+      {
+        method: "POST",
+        body: {
+          email: input.email,
+          product_title: input.productTitle,
+          product_handle: input.productHandle,
+          product_url: input.productUrl,
+        },
+        cache: "no-store",
+      }
+    )
+    return { sent: !!data?.sent }
+  } catch (error: any) {
+    return { sent: false, error: error?.message || "Could not send the story" }
   }
 }

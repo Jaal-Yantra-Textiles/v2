@@ -12,9 +12,8 @@ jest.setTimeout(90000)
  * #729 — public storefront "production story" for a design.
  *
  * Verifies GET /store/custom/designs/:id/production-story (PUBLIC, no auth)
- * surfaces the v2 story: production runs + energy/consumption + people +
- * materials, money-free; and that a design with nothing returns a clean
- * empty story.
+ * returns only a teaser (run status, materials, first/last step) and that
+ * POST …/share emails the full story once per address and logs the lead.
  */
 setupSharedTestSuite(() => {
   describe("Store: design production story (#729)", () => {
@@ -138,7 +137,7 @@ setupSharedTestSuite(() => {
       )
     })
 
-    it("returns runs + consumption + people + materials (public, money-free)", async () => {
+    it("returns a teaser: makers' materials and run status, not people or energy", async () => {
       // No auth headers — this is a public route.
       const res = await api.get(
         `/store/custom/designs/${designId}/production-story`,
@@ -150,21 +149,20 @@ setupSharedTestSuite(() => {
       expect(story).toBeDefined()
       expect(story.design_id).toBe(designId)
 
-      // Production runs
+      // Production runs: status yes, per-run steps no
       expect(Array.isArray(story.runs)).toBe(true)
       expect(story.runs.length).toBeGreaterThanOrEqual(1)
       expect(story.runs[0]).toHaveProperty("status")
+      expect(story.runs[0].activity).toEqual([])
+      expect(story.journey).toBeDefined()
 
-      // Energy + consumption
-      expect(story.consumption.energy.electricity_kwh).toBe(12)
-      expect(story.consumption.total_logs).toBeGreaterThanOrEqual(2)
-      expect(story.consumption.materials_consumed.length).toBeGreaterThanOrEqual(1)
+      // Withheld until a shopper asks by email
+      expect(story.people).toEqual([])
+      expect(story.consumption.energy.electricity_kwh).toBe(0)
+      expect(story.consumption.materials_consumed).toEqual([])
+      expect(JSON.stringify(story)).not.toContain("Maker One")
 
-      // People
-      expect(story.people.length).toBeGreaterThanOrEqual(1)
-      expect(story.people[0].name).toBe("Maker One")
-
-      // Materials
+      // Materials stay public
       expect(story.materials.length).toBeGreaterThanOrEqual(1)
       expect(story.materials[0]).toHaveProperty("name", "Story Cotton")
 
@@ -172,6 +170,66 @@ setupSharedTestSuite(() => {
       const json = JSON.stringify(story)
       expect(json).not.toContain("unit_cost")
       expect(json).not.toContain("partner_cost_estimate")
+    })
+
+    describe("share: the full story by email", () => {
+      const listStoryRequests = async () => {
+        const notifications = getContainer().resolve(Modules.NOTIFICATION) as any
+        const rows = await notifications.listNotifications({ channel: "feed" })
+        return (rows || []).filter(
+          (n: any) => n?.data?.metadata?.kind === "production_story_request"
+        )
+      }
+
+      beforeEach(async () => {
+        const { emailTemplatesData } = await import("../../src/scripts/seed-email-templates")
+        const { EMAIL_TEMPLATES_MODULE } = await import("../../src/modules/email_templates")
+        const template = emailTemplatesData.find((t: any) => t.template_key === "production-story")
+        await (getContainer().resolve(EMAIL_TEMPLATES_MODULE) as any).createEmailTemplates(template)
+      })
+
+      it("emails the story once per address and logs the lead", async () => {
+        const first = await api.post(
+          `/store/custom/designs/${designId}/production-story/share`,
+          { email: "Buyer@Story.test", product_title: "Story Dress" },
+          storeHeaders
+        )
+        expect(first.status).toBe(200)
+        expect(first.data.sent).toBe(true)
+
+        const again = await api.post(
+          `/store/custom/designs/${designId}/production-story/share`,
+          { email: "buyer@story.test" },
+          storeHeaders
+        )
+        expect(again.status).toBe(200)
+
+        const leads = await listStoryRequests()
+        expect(leads).toHaveLength(1)
+        expect(leads[0].data.metadata.email).toBe("buyer@story.test")
+        expect(leads[0].data.metadata.design_id).toBe(designId)
+      })
+
+      it("refuses a malformed email and an unknown design", async () => {
+        const bad = await api
+          .post(
+            `/store/custom/designs/${designId}/production-story/share`,
+            { email: "not-an-email" },
+            storeHeaders
+          )
+          .catch((e: any) => e.response)
+        expect(bad.status).toBe(400)
+
+        const missing = await api
+          .post(
+            `/store/custom/designs/des_does_not_exist/production-story/share`,
+            { email: "buyer@story.test" },
+            storeHeaders
+          )
+          .catch((e: any) => e.response)
+        expect(missing.status).toBe(404)
+        expect(await listStoryRequests()).toHaveLength(0)
+      })
     })
 
     it("returns a clean empty story for a design with nothing", async () => {

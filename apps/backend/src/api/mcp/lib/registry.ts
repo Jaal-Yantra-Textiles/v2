@@ -995,7 +995,7 @@ export const STORE_MCP_TOOLS: McpToolDef[] = [
   ),
   getTool(
     "get_production_story",
-    "Get the public production story (timeline + credits) for a custom design.",
+    "Get the public production-story teaser for a custom design: first and last step, makers, materials. The full story is emailed to a shopper on request.",
     "/store/custom/designs/:id/production-story"
   ),
   {
