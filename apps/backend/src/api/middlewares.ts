@@ -598,6 +598,19 @@ async function getAllowedOriginsFromDb(scope: any): Promise<Set<string>> {
   }
 }
 
+// An env list can carry whitespace a human never sees: prod's PARTNER_CORS
+// was stored in SSM with a trailing newline, so its LAST origin
+// (invest.jaalyantra.com) never matched and every investor preflight fell
+// through to auth as a 401. Medusa's parser does not trim; we do.
+const parseEnvCorsOrigins = (value: string | undefined) =>
+  parseCorsOrigins(
+    (value ?? "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean)
+      .join(",")
+  )
+
 // Three-layer origin resolver used by both /web and /partners CORS:
 //   1. exact / regex matches from the *_CORS env var
 //   2. *.ROOT_DOMAIN regex (auto-provisioned partner subdomains)
@@ -634,7 +647,7 @@ const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
   return async (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     req.scope.resolve<ConfigModule>("configModule")
 
-    const envOrigins = parseCorsOrigins(process.env.WEB_CORS as string)
+    const envOrigins = parseEnvCorsOrigins(process.env.WEB_CORS)
     const rootRegexes = rootDomainOrigins()
     const dbAllowed = await getAllowedOriginsFromDb(req.scope)
 
@@ -659,7 +672,7 @@ const createCorsPartnerMiddleware = (corsOptions?: cors.CorsOptions) => {
       process.env.WEB_CORS ||
       ""
 
-    const envOrigins = parseCorsOrigins(partnerOrigins)
+    const envOrigins = parseEnvCorsOrigins(partnerOrigins)
     const rootRegexes = rootDomainOrigins()
     const dbAllowed = await getAllowedOriginsFromDb(req.scope)
 
