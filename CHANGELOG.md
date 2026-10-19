@@ -1,3 +1,11 @@
+## [13.178.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.178.0...v13.178.1) (2026-10-19)
+
+
+### Bug Fixes
+
+* **payouts:** a priced run whose payout draft is refused raises an admin alert ([#2433](https://github.com/Jaal-Yantra-Textiles/v2/issues/2433)) ([#2434](https://github.com/Jaal-Yantra-Textiles/v2/issues/2434)) ([28c9b8b](https://github.com/Jaal-Yantra-Textiles/v2/commit/28c9b8bff279aa7bbb23529fefe06329fd9bd831)), closes [#2202](https://github.com/Jaal-Yantra-Textiles/v2/issues/2202)
+* **investors:** reset link goes to the investor app; investor preflights stop failing on a newline in PARTNER_CORS ([#2435](https://github.com/Jaal-Yantra-Textiles/v2/issues/2435)) ([db51e29](https://github.com/Jaal-Yantra-Textiles/v2/commit/db51e2911f7a384b0ca9a3625292a1f1cbd1843e))
+
 # [13.178.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.177.1...v13.178.0) (2026-10-18)
 
 
