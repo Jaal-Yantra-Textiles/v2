@@ -1958,55 +1958,137 @@ export const emailTemplatesData = [
   {
     name: "Production Story (shopper asked)",
     template_key: "production-story",
-    from: "shop@jaalyantra.com",
+    from: "designs@jaalyantra.com",
     subject: "How {{title}} was made",
-    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
-<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
-<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
-  <div style="background:#27272A;padding:32px;text-align:center;">
-    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">How {{title}} was made</h1>
-    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">The full making story you asked for</p>
-  </div>
-  <div style="padding:32px;">
-    {{#if steps.length}}
-    <p style="color:#18181B;font-size:15px;font-weight:600;margin:0 0 12px;">Every step</p>
-    <table role="presentation" style="width:100%;border-collapse:collapse;">
-      {{#each steps}}
-      <tr><td style="padding:6px 0;color:#18181B;font-size:14px;">&#9679; {{label}}</td><td style="padding:6px 0;color:#71717A;font-size:13px;text-align:right;">{{date}}</td></tr>
-      {{/each}}
-    </table>
-    {{/if}}
-    {{#if makers.length}}
-    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">Made with</p>
-    <p style="color:#52525B;font-size:14px;margin:0;">{{#each makers}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
-    {{/if}}
-    {{#if people.length}}
-    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">The hands behind it</p>
-    <p style="color:#52525B;font-size:14px;margin:0;">{{#each people}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
-    {{/if}}
-    {{#if materials.length}}
-    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">Materials</p>
-    <p style="color:#52525B;font-size:14px;margin:0;">{{#each materials}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
-    {{/if}}
-    {{#if materials_consumed.length}}
-    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">What went into it</p>
-    {{#each materials_consumed}}<p style="color:#52525B;font-size:14px;margin:2px 0;">{{this}}</p>{{/each}}
-    {{/if}}
-    {{#if energy.length}}
-    <p style="color:#18181B;font-size:15px;font-weight:600;margin:24px 0 6px;">Energy and time</p>
-    {{#each energy}}<p style="color:#52525B;font-size:14px;margin:2px 0;">{{this}}</p>{{/each}}
-    {{/if}}
-    {{#if product_url}}
-    <div style="text-align:center;margin:32px 0 8px;">
-      <a href="{{product_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;padding:10px 24px;border-radius:8px;font-weight:500;font-size:14px;">Back to {{title}}</a>
-    </div>
-    {{/if}}
-  </div>
-  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
-    <p style="color:#71717A;font-size:11px;margin:0;">You asked for this story on our store. We will not email you again unless you sign up.</p>
-    <p style="color:#A1A1AA;font-size:11px;margin:4px 0 0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
-  </div>
-</div></body></html>`,
+    html_content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<title>How {{title}} was made</title>
+</head>
+<body style="margin:0;padding:0;background:#F4EFE8;-webkit-font-smoothing:antialiased;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Every step, every pair of hands, everything that went into {{title}}.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4EFE8;">
+<tr><td align="center" style="padding:32px 16px;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+
+    <!-- Wordmark -->
+    <tr><td align="center" style="padding:0 0 20px;font-family:Georgia,'Times New Roman',serif;font-size:13px;letter-spacing:4px;text-transform:uppercase;color:#7A6F66;">
+      Jaal Yantra Textiles
+    </td></tr>
+
+    <!-- Card -->
+    <tr><td style="background:#FFFFFF;border:1px solid #E6DED3;border-radius:16px;overflow:hidden;">
+
+      <!-- Hero -->
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td style="background:#1F1B17;padding:44px 40px 40px;">
+          <p style="margin:0 0 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:#C9B79C;">The making story</p>
+          <h1 style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:30px;line-height:1.25;font-weight:normal;color:#FFFFFF;">How {{title}} was made</h1>
+          <p style="margin:16px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.6;color:#BDB3A8;">You asked to see the whole journey behind this piece. Here it is, step by step, with the people and materials that shaped it.</p>
+        </td></tr>
+      </table>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr><td style="padding:36px 40px 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+
+          {{#if steps.length}}
+          <!-- Timeline -->
+          <p style="margin:0 0 18px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#9A8B7A;">Every step</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            {{#each steps}}
+            <tr>
+              <td width="22" valign="top" style="padding:0;{{#unless @last}}background-image:linear-gradient(#E6DED3,#E6DED3);background-repeat:no-repeat;background-size:2px 100%;background-position:5px 0;{{/unless}}">
+                <div style="width:12px;height:12px;border-radius:12px;background:{{#if @last}}#2B3A67{{else}}#C9B79C{{/if}};margin-top:4px;"></div>
+              </td>
+              <td valign="top" style="padding:0 0 {{#if @last}}0{{else}}20px{{/if}} 10px;">
+                <p style="margin:0;font-size:15px;line-height:1.4;color:#1F1B17;font-weight:600;">{{label}}</p>
+                {{#if date}}<p style="margin:2px 0 0;font-size:13px;color:#9A8B7A;">{{date}}</p>{{/if}}
+              </td>
+            </tr>
+            {{/each}}
+          </table>
+          {{/if}}
+
+          {{#if makers.length}}
+          <!-- Makers -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;border-top:1px solid #EFE8DE;">
+            <tr><td style="padding-top:24px;">
+              <p style="margin:0 0 10px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#9A8B7A;">Made with</p>
+              <p style="margin:0;font-family:Georgia,'Times New Roman',serif;font-size:18px;line-height:1.5;color:#1F1B17;">{{#each makers}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}</p>
+            </td></tr>
+          </table>
+          {{/if}}
+
+          {{#if people.length}}
+          <!-- People -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:24px;">
+            <tr><td>
+              <p style="margin:0 0 10px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#9A8B7A;">The hands behind it</p>
+              {{#each people}}<p style="margin:0 0 4px;font-size:15px;line-height:1.5;color:#3D352F;">{{this}}</p>{{/each}}
+            </td></tr>
+          </table>
+          {{/if}}
+
+          {{#if materials.length}}
+          <!-- Materials -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;border-top:1px solid #EFE8DE;">
+            <tr><td style="padding-top:24px;">
+              <p style="margin:0 0 12px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#9A8B7A;">Materials</p>
+              {{#each materials}}<span style="display:inline-block;margin:0 6px 8px 0;padding:6px 14px;border-radius:999px;background:#F4EFE8;border:1px solid #E6DED3;font-size:13px;color:#3D352F;">{{this}}</span>{{/each}}
+            </td></tr>
+          </table>
+          {{/if}}
+
+          {{#if materials_consumed.length}}
+          <!-- What went into it -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px;">
+            <tr><td>
+              <p style="margin:0 0 10px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#9A8B7A;">What went into it</p>
+              {{#each materials_consumed}}<p style="margin:0 0 4px;font-size:14px;line-height:1.5;color:#3D352F;">{{this}}</p>{{/each}}
+            </td></tr>
+          </table>
+          {{/if}}
+
+          {{#if energy.length}}
+          <!-- Energy and time -->
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:28px;background:#F8F5F0;border-radius:12px;">
+            <tr><td style="padding:20px 22px;">
+              <p style="margin:0 0 10px;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:#9A8B7A;">Energy and time</p>
+              {{#each energy}}<p style="margin:0 0 4px;font-size:14px;line-height:1.5;color:#3D352F;">{{this}}</p>{{/each}}
+            </td></tr>
+          </table>
+          {{/if}}
+
+        </td></tr>
+
+        {{#if product_url}}
+        <!-- CTA -->
+        <tr><td align="center" style="padding:32px 40px 40px;">
+          <a href="{{product_url}}" style="display:inline-block;background:#1F1B17;color:#FFFFFF;text-decoration:none;padding:14px 32px;border-radius:999px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14px;font-weight:600;letter-spacing:0.3px;">Back to {{title}}</a>
+        </td></tr>
+        {{else}}
+        <tr><td style="padding:0 0 32px;"></td></tr>
+        {{/if}}
+      </table>
+
+    </td></tr>
+
+    <!-- Footer -->
+    <tr><td align="center" style="padding:24px 24px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+      <p style="margin:0;font-size:12px;line-height:1.6;color:#9A8B7A;">You asked for this story on our store. We will not email you again unless you sign up.</p>
+      <p style="margin:6px 0 0;font-size:12px;color:#B5A898;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+    </td></tr>
+
+  </table>
+
+</td></tr>
+</table>
+</body>
+</html>`,
     variables: {
       title: "Product or design name",
       product_url: "Link back to the product page",
@@ -2018,7 +2100,7 @@ export const emailTemplatesData = [
       energy: "Energy and labour lines",
       current_year: "Current year",
     },
-    template_type: "production_story",
+    template_type: "transactional",
     is_active: true,
   },
 ]
