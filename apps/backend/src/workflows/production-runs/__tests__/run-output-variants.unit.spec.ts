@@ -296,6 +296,7 @@ describe("prod 2026-10-13: duplicate sku on a product-level-linked design", () =
       query,
       link: { create: jest.fn() },
       product: { updateProductVariants: jest.fn(), listProductOptions: jest.fn(async () => []) },
+      production_runs: { listProductionRuns: jest.fn(async () => rows.production_runs ?? []) },
     }
     return { query, resolve: (key: string) => services[key] }
   }
@@ -382,5 +383,87 @@ describe("prod 2026-10-13: duplicate sku on a product-level-linked design", () =
       has_location: true,
     })
     expect(decision).toEqual({ mode: "legacy" })
+  })
+
+  describe("an intermediate stage banks nothing (Cherry's apron, 2026-10-19)", () => {
+    // Sharlho stitches, then Embroprint embroiders the SAME pieces: the
+    // embroidery run waits on the stitching run, under a different parent.
+    const priceable = {
+      design_product_variant: [],
+      product_design: [],
+      design: [{ id: "D1", estimated_cost: 1000, cost_currency: "inr" }],
+    }
+    const decide = (container: any) =>
+      decideRunStockTarget(container, {
+        run: { id: "run_stitch", design_id: "D1", produced_output: null },
+        good_quantity: 2,
+        has_location: true,
+      })
+
+    it("skips minting and stocking when a later stage waits on the run", async () => {
+      const decision = await decide(
+        fakeContainer({
+          ...priceable,
+          production_runs: [
+            {
+              id: "run_embroider",
+              status: "approved",
+              parent_run_id: "parent_embroidery",
+              depends_on_run_ids: ["run_stitch"],
+            },
+          ],
+        })
+      )
+      expect(decision.mode).toBe("skip")
+      expect((decision as any).reason).toContain("run_embroider")
+      expect(applyDesignProductPlan).not.toHaveBeenCalled()
+    })
+
+    it("still skips when the later stage has already completed", async () => {
+      const decision = await decide(
+        fakeContainer({
+          ...priceable,
+          production_runs: [
+            { id: "run_embroider", status: "completed", depends_on_run_ids: ["run_stitch"] },
+          ],
+        })
+      )
+      expect(decision.mode).toBe("skip")
+    })
+
+    it("a sibling waiting by approval `order` splits the pieces, so it does not count", async () => {
+      const decision = await decideRunStockTarget(
+        fakeContainer({
+          ...priceable,
+          production_runs: [
+            {
+              id: "run_b",
+              status: "approved",
+              parent_run_id: "parent_1",
+              depends_on_run_ids: ["run_stitch"],
+            },
+          ],
+        }),
+        {
+          run: { id: "run_stitch", parent_run_id: "parent_1", design_id: "D1", produced_output: null },
+          good_quantity: 2,
+          has_location: true,
+        }
+      )
+      expect(decision.mode).not.toBe("skip")
+    })
+
+    it("a cancelled later stage, or a run waiting on something else, does not count", async () => {
+      const decision = await decide(
+        fakeContainer({
+          ...priceable,
+          production_runs: [
+            { id: "run_old", status: "cancelled", depends_on_run_ids: ["run_stitch"] },
+            { id: "run_other", status: "approved", depends_on_run_ids: ["run_x"] },
+          ],
+        })
+      )
+      expect(decision.mode).not.toBe("skip")
+    })
   })
 })
