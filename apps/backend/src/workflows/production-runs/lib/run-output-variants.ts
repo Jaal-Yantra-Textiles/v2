@@ -35,6 +35,7 @@ import { loadCostConfig } from "../../../modules/platform-cost-config/read-confi
 import { applyDesignProductPlan } from "../../designs/design-product-plan"
 import { resolveApprovalCurrency, resolveApprovalPrice } from "../approval-pricing"
 import { runOutputAxes, type OutputLine } from "./run-output"
+import { findLaterStages } from "./run-dependencies"
 
 export const SIZE_OPTION = "Size"
 export const COLOR_OPTION = "Color"
@@ -678,6 +679,7 @@ export async function decideRunStockTarget(
   input: {
     run: {
       id: string
+      parent_run_id?: string | null
       design_id?: string | null
       variant_id?: string | null
       approved_variant_id?: string | null
@@ -693,6 +695,18 @@ export async function decideRunStockTarget(
 ): Promise<RunStockDecision> {
   const { run } = input
   if (!(input.good_quantity > 0) || !run.design_id) return { mode: "legacy" }
+
+  // An intermediate stage hands its pieces to the next partner; only the
+  // final stage makes them a product and stock (see `findLaterStages`).
+  const later = await findLaterStages(container, run)
+  if (later.length) {
+    return {
+      mode: "skip",
+      reason:
+        `a later stage works these pieces (${later.map((r) => r.id).join(", ")}); ` +
+        `the final stage makes the product and banks the stock`,
+    }
+  }
 
   const axes = runOutputAxes(run.snapshot)
   const lines = Array.isArray(run.produced_output)

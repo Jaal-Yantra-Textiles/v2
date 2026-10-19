@@ -118,3 +118,38 @@ export const resolveUnmetDependencies = async (
 
   return unmet
 }
+
+/**
+ * Runs that work on THIS run's pieces after it: a run under a DIFFERENT parent
+ * whose `depends_on_run_ids` names it and that is not cancelled. A completed
+ * later stage still counts — it has already banked the finished piece.
+ *
+ * Why a different parent: a run-to-run edge means two things. Approval derives
+ * one from the assignment `order` between SIBLINGS, and those split the pieces
+ * (A makes 5, B makes the other 5 after A), so A's pieces are finished goods.
+ * An edge attached afterwards to a run under another parent is a later stage
+ * on the SAME pieces (Sharlho stitches Cherry's apron, then Embroprint
+ * embroiders it, 2026-10-19). Only the second makes this run an intermediate
+ * stage: completing it pays the partner, commits its material and releases
+ * the next stage, but must not mint a product or bank stock. The final stage
+ * does that, once.
+ */
+export const findLaterStages = async (
+  container: any,
+  run: { id: string; parent_run_id?: string | null }
+): Promise<{ id: string; status: string }[]> => {
+  const service: ProductionRunService = container.resolve(PRODUCTION_RUNS_MODULE)
+  const candidates = (await service.listProductionRuns(
+    {},
+    { select: ["id", "status", "parent_run_id", "depends_on_run_ids"], take: null } as any
+  )) as any[]
+  return (candidates || [])
+    .filter(
+      (r) =>
+        r?.status !== "cancelled" &&
+        r?.id !== run.id &&
+        !(run.parent_run_id && r?.parent_run_id === run.parent_run_id) &&
+        cleanIds(r?.depends_on_run_ids).includes(String(run.id))
+    )
+    .map((r) => ({ id: r.id, status: r.status }))
+}
