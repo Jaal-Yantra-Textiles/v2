@@ -4,6 +4,8 @@ import type { ICacheService, INotificationModuleService } from "@medusajs/types"
 import { sendProductionStoryEmailWorkflow } from "../../../../../../../workflows/email/workflows/send-production-story-email"
 import { buildStoryEmailData } from "../../../production-story-lib/story-email-data"
 import { loadDesignStory } from "../../../production-story-lib/load-story"
+import { importLeadToCrm } from "../../../../../../../modules/crm/import-lead"
+import { SOCIALS_MODULE } from "../../../../../../../modules/socials"
 
 /** One story per address per design per day: the form cannot be used to flood an inbox. */
 const SHARE_TTL_SECONDS = 24 * 60 * 60
@@ -14,7 +16,8 @@ const SHARE_TTL_SECONDS = 24 * 60 * 60
  *
  * The product page shows only a teaser of how a piece was made (first and
  * last step). A shopper who wants the rest leaves an email here; we email the
- * full story and drop a lead into the admin feed.
+ * full story, record them as a lead (`socials.Lead`, beside the ad leads) and
+ * promote that lead to a CRM contact, plus an admin feed alert.
  *
  * The email is built server-side from the design id, never from anything the
  * page sends, so this cannot be used to mail arbitrary content. A repeat
@@ -70,6 +73,19 @@ export const POST = async (req: MedusaStoreRequest, res: MedusaResponse) => {
     },
   })
 
+  // The lead is the durable record; the CRM contact is where it gets worked.
+  // Both are best-effort: the CRM lives on another machine behind a tunnel,
+  // and neither may cost the shopper their email.
+  try {
+    await recordStoryLead(req.scope, { designId, email, title, productHandle, productUrl })
+  } catch (error) {
+    logger.error(
+      `[production-story-share] lead/CRM for ${email} on design ${designId}: ${
+        (error as Error)?.message
+      }`
+    )
+  }
+
   let sent = false
   try {
     await sendProductionStoryEmailWorkflow(req.scope).run({
@@ -95,4 +111,43 @@ export const POST = async (req: MedusaStoreRequest, res: MedusaResponse) => {
   }
 
   res.status(sent ? 200 : 502).json({ sent })
+}
+
+/**
+ * One lead per shopper per design: `meta_lead_id` (required on `Lead`, named
+ * for Meta) carries `story:<design>:<email>`, which doubles as the duplicate
+ * key. A repeat request on a later day re-uses the lead.
+ */
+async function recordStoryLead(
+  scope: { resolve: (key: string) => any },
+  input: {
+    designId: string
+    email: string
+    title: string
+    productHandle: string
+    productUrl: string
+  }
+) {
+  const socials: any = scope.resolve(SOCIALS_MODULE)
+  const key = `story:${input.designId}:${input.email}`
+
+  const [existing] = await socials.listLeads({ meta_lead_id: key }, { take: 1 })
+  const lead =
+    existing ??
+    (await socials.createLeads({
+      meta_lead_id: key,
+      email: input.email,
+      created_time: new Date(),
+      source_platform: "storefront",
+      form_name: "production_story",
+      notes: `Asked for the full making story of ${input.title}.`,
+      field_data: {
+        design_id: input.designId,
+        product_title: input.title,
+        product_handle: input.productHandle || null,
+        product_url: input.productUrl || null,
+      },
+    }))
+
+  await importLeadToCrm(scope, lead, { markContacted: false })
 }

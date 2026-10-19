@@ -204,10 +204,20 @@ setupSharedTestSuite(() => {
         )
         expect(again.status).toBe(200)
 
-        const leads = await listStoryRequests()
+        const alerts = await listStoryRequests()
+        expect(alerts).toHaveLength(1)
+        expect(alerts[0].data.metadata.email).toBe("buyer@story.test")
+        expect(alerts[0].data.metadata.design_id).toBe(designId)
+
+        // Recorded as ONE lead beside the ad leads, still `new` for follow-up
+        const socials = getContainer().resolve("socials") as any
+        const leads = await socials.listLeads({ email: "buyer@story.test" })
         expect(leads).toHaveLength(1)
-        expect(leads[0].data.metadata.email).toBe("buyer@story.test")
-        expect(leads[0].data.metadata.design_id).toBe(designId)
+        expect(leads[0].meta_lead_id).toBe(`story:${designId}:buyer@story.test`)
+        expect(leads[0].source_platform).toBe("storefront")
+        expect(leads[0].form_name).toBe("production_story")
+        expect(leads[0].status).toBe("new")
+        expect(leads[0].field_data.design_id).toBe(designId)
       })
 
       it("refuses a malformed email and an unknown design", async () => {
