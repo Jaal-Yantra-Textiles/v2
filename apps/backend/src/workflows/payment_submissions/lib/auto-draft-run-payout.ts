@@ -5,6 +5,7 @@ import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions
 import { assessRunPayout } from "../../production-runs/lib/run-payable"
 import { hydrateRunKind } from "../../production-runs/lib/run-kind"
 import { createPaymentSubmissionWorkflow } from "../create-payment-submission"
+import { notifyPayoutNotDrafted } from "./notify-payout-not-drafted"
 
 /**
  * Pre-fill a partner's payment submission for one completed run.
@@ -166,10 +167,27 @@ export const autoDraftRunPayout = async (
       source,
     }
   } catch (e: any) {
-    // A guard refusing is the normal case, not an error worth paging on — the
-    // design may already sit in an open submission raised by hand.
+    const refusal = String(e?.message || e)
     logger.info(
-      `[auto-draft-payment-submission] run ${runId}: no draft created — ${e?.message}`
+      `[auto-draft-payment-submission] run ${runId}: no draft created — ${refusal}`
+    )
+    /*
+     * #2433 — a refusal HERE is a priced, completed, payable run with no
+     * payout. The guard is usually right to refuse, but a log line alone is how
+     * Ksaman's payout went missing (design not linked to the partner). A person
+     * is told; nothing is retried or forced.
+     */
+    await notifyPayoutNotDrafted(
+      container,
+      {
+        runId,
+        partnerId: payout.partner_id,
+        designId: payout.design_id,
+        amount: payout.amount,
+        refusal,
+        source,
+      },
+      logger
     )
     return { drafted: false, reason: "refused", source }
   }
