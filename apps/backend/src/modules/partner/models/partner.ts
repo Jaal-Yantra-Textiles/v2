@@ -13,6 +13,12 @@ const Partner = model.define("partner", {
         .default('pending'),
     is_verified: model.boolean().default(false),
 
+    // #2444 — the partner has a public page on the shop. Off by default and
+    // never inferred from status/verification: those answer "can we work with
+    // them", not "did they agree to be shown". Typed column NOT metadata —
+    // it decides what strangers can read.
+    is_public: model.boolean().default(false),
+
     // Workspace type — controls sidebar navigation and available features.
     // `designer` (#338/#958): a designer-persona partner who authors designs
     // (sketches → moodboard → fabric spec) and routes them to a producing

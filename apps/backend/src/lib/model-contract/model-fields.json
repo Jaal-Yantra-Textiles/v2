@@ -2764,6 +2764,7 @@
       "handle",
       "hosting_provider",
       "id",
+      "is_public",
       "is_verified",
       "logo",
       "metadata",

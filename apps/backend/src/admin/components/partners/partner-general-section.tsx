@@ -15,6 +15,7 @@ export type AdminPartner = {
   logo?: string | null
   status: "active" | "inactive" | "pending"
   is_verified: boolean
+  is_public?: boolean
   workspace_type?: "seller" | "manufacturer" | "individual" | "designer"
   whatsapp_number?: string | null
   whatsapp_verified?: boolean
@@ -30,6 +31,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
   const [logo, setLogo] = useState(partner.logo || "")
   const [status, setStatus] = useState<"active" | "inactive" | "pending">(partner.status)
   const [isVerified, setIsVerified] = useState<boolean>(!!partner.is_verified)
+  const [isPublic, setIsPublic] = useState<boolean>(!!partner.is_public)
   const [workspaceType, setWorkspaceType] = useState<"seller" | "manufacturer" | "individual" | "designer">(
     partner.workspace_type || "manufacturer"
   )
@@ -86,8 +88,9 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
     setLogo(partner.logo || "")
     setStatus(partner.status)
     setIsVerified(!!partner.is_verified)
+    setIsPublic(!!partner.is_public)
     setWorkspaceType(partner.workspace_type || "manufacturer")
-  }, [partner.id, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified, partner.workspace_type])
+  }, [partner.id, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified, partner.is_public, partner.workspace_type])
 
   const isDirty = useMemo(() => {
     const norm = (v: string | null | undefined) => (v || "").trim()
@@ -97,9 +100,10 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
       norm(logo) !== norm(partner.logo) ||
       status !== partner.status ||
       Boolean(isVerified) !== Boolean(partner.is_verified) ||
+      Boolean(isPublic) !== Boolean(partner.is_public) ||
       workspaceType !== (partner.workspace_type || "manufacturer")
     )
-  }, [name, handle, logo, status, isVerified, workspaceType, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified, partner.workspace_type])
+  }, [name, handle, logo, status, isVerified, isPublic, workspaceType, partner.name, partner.handle, partner.logo, partner.status, partner.is_verified, partner.is_public, partner.workspace_type])
 
   const resetFields = () => {
     setName(partner.name)
@@ -107,6 +111,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
     setLogo(partner.logo || "")
     setStatus(partner.status)
     setIsVerified(!!partner.is_verified)
+    setIsPublic(!!partner.is_public)
     setWorkspaceType(partner.workspace_type || "manufacturer")
   }
 
@@ -121,7 +126,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
     try {
       await updatePartner({
         id: partner.id,
-        data: { name, handle, logo: logo || null, status, is_verified: isVerified, workspace_type: workspaceType },
+        data: { name, handle, logo: logo || null, status, is_verified: isVerified, is_public: isPublic, workspace_type: workspaceType },
       })
       toast.success("Partner updated", { description: "Your changes have been saved." })
       setShowEdit(false)
@@ -167,6 +172,7 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
         <div className="flex items-center gap-2">
           <Badge color={partner.status === "active" ? "green" : partner.status === "pending" ? "orange" : "grey"}>{partner.status}</Badge>
           {partner.is_verified ? <Badge color="green">Verified</Badge> : <Badge>Verified</Badge>}
+          {partner.is_public && <Badge color="blue">Public page</Badge>}
           <ActionMenu
             groups={[
               {
@@ -273,6 +279,15 @@ export const PartnerGeneralSection = ({ partner }: { partner: AdminPartner }) =>
             <div>
               <Label size="small">Logo URL</Label>
               <Input value={logo} onChange={(e) => setLogo(e.target.value)} placeholder="https://..." />
+            </div>
+            <div className="flex items-start gap-2">
+              <Switch checked={isPublic} onCheckedChange={setIsPublic} />
+              <div>
+                <Label size="small">Public page on the shop</Label>
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  Shows what they make, pieces made, team roles (counts, never names) and measured energy at /partners/{handle}. Turn on only once they have agreed.
+                </Text>
+              </div>
             </div>
           </Drawer.Body>
           <Drawer.Footer>

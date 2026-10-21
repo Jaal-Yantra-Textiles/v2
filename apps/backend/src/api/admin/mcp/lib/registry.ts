@@ -4302,6 +4302,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "logo",
       "status",
       "is_verified",
+      "is_public",
       "workspace_type",
       "tax_id",
       "tax_id_type",
@@ -4317,6 +4318,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         logo: STR("New logo URL."),
         status: STR("New status: 'active' | 'inactive' | 'pending'."),
         is_verified: { type: "boolean", description: "New verification flag." },
+        is_public: { type: "boolean", description: "Show this partner's public page on the shop (/partners/<handle>): what they make, pieces made, team roles (counts, never names), measured energy. Off by default. 🔑 Turn on only when the partner agreed to be shown (#2444)." },
         workspace_type: STR("New workspace type: 'seller' | 'manufacturer' | 'individual' | 'designer'. 🔑 Do NOT 'correct' this to describe what a partner does — the enum conflates 'sells direct' with 'handles physical goods', which are independent (#2061/#2067)."),
         tax_id: STR(
           "The partner's own tax registration number — a GSTIN in India. 🔴 Load-bearing for compliance, NOT decoration: while it is null, invoice and label generation falls back to the PLATFORM's tax ID (#348), so every document raised for this partner silently carries OUR registration instead of theirs. Send tax_id_type with it."
