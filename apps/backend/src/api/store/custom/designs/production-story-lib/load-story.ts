@@ -1,6 +1,8 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import designPartnersLink from "../../../../../links/design-partners-link"
 import designsPersonLink from "../../../../../links/designs-person-link"
 import { buildProductionStory, ProductionStory } from "./build-story"
+import { loadMaterialSuppliers } from "./material-suppliers"
 
 export type LoadedDesignStory = {
   design: { id: string; name?: string | null }
@@ -98,6 +100,34 @@ export async function loadDesignStory(
     }
   }
 
+  // 4b. The roster with each partner's stage (stitching, supplier, …). The
+  // design's plain `partners` relation carries no link columns.
+  const { data: partnerLinks } = await query
+    .graph({
+      entity: designPartnersLink.entryPoint,
+      filters: { design_id: designId },
+      fields: ["stage_role", "partner.id", "partner.name"],
+    })
+    .catch(() => ({ data: null }))
+
+  // 4c. Who supplied each fabric, from the purchase orders that bought it.
+  const materialsByItem: Record<string, string[]> = {}
+  for (const inv of (design as any).inventory_items || []) {
+    const rms = Array.isArray(inv?.raw_materials)
+      ? inv.raw_materials
+      : inv?.raw_materials
+        ? [inv.raw_materials]
+        : []
+    if (inv?.id) materialsByItem[inv.id] = rms.map((rm: any) => rm?.id).filter(Boolean)
+  }
+  // A failed lookup costs the supplier line, never the product page.
+  const suppliers = await loadMaterialSuppliers(query, { designId, materialsByItem }).catch(
+    (e: any) => {
+      console.warn(`[production-story] supplier lookup failed for ${designId}: ${e?.message}`)
+      return {}
+    }
+  )
+
   // 5. Consumption logs by design_id (energy / labor / materials). No money.
   const { data: logs } = await query.graph({
     entity: "consumption_log",
@@ -117,8 +147,9 @@ export async function loadDesignStory(
     activitiesByRun,
     logs: logs || [],
     personLinks: personLinks || [],
-    partners: (design as any).partners || [],
+    partners: partnerLinks ?? (design as any).partners ?? [],
     inventoryItems: (design as any).inventory_items || [],
+    suppliers,
   })
 
   return { design: { id: design.id, name: (design as any).name ?? null }, production_story }

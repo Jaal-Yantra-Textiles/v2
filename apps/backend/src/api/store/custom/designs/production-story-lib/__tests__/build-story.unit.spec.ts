@@ -99,7 +99,8 @@ describe("buildProductionStory", () => {
       { id: "per_1", name: "Asha K", role: "tailor" },
       { id: "per_2", name: "Ravi", role: null },
     ])
-    expect(story.partners).toEqual([{ id: "partner_1", name: "Stitch Co" }])
+    expect(story.partners).toEqual([{ id: "partner_1", name: "Stitch Co", stage_role: null }])
+    expect(story.materials[0].supplier).toBeNull()
     expect(story.materials[0]).toMatchObject({ id: "rm_1", name: "Cotton", material_type: "Fabric", media: { url: "x.jpg" } })
     expect(story.consumption.energy.electricity_kwh).toBe(5)
 

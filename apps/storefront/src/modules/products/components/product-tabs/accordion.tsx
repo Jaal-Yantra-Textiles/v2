@@ -54,14 +54,12 @@ const Item: React.FC<AccordionItemProps> = ({
     >
       <AccordionPrimitive.Header className="px-1">
         <div className="flex flex-col">
-          <div className="flex w-full items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Text className="text-ui-fg-subtle text-sm">{title}</Text>
-            </div>
-            <AccordionPrimitive.Trigger>
-              {customTrigger || <MorphingTrigger />}
-            </AccordionPrimitive.Trigger>
-          </div>
+          {/* The whole row is the trigger: only the 20px "+" opened it, and
+              shoppers tapping the title got nothing (#2442). */}
+          <AccordionPrimitive.Trigger className="flex w-full items-center justify-between gap-x-4 text-left">
+            <Text as="span" className="text-ui-fg-subtle text-sm">{title}</Text>
+            <span className="shrink-0">{customTrigger || <MorphingTrigger />}</span>
+          </AccordionPrimitive.Trigger>
           {subtitle && (
             <Text as="span" size="small" className="mt-1">
               {subtitle}
