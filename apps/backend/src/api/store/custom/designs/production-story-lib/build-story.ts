@@ -13,6 +13,8 @@
  * surfaces own the cost view.
  */
 
+import type { StorySupplier } from "./material-suppliers"
+
 export type ProductionStoryActivity = {
   id: string
   activity_type: string
@@ -56,7 +58,12 @@ export type ConsumptionSummary = {
 }
 
 export type StoryPerson = { id: string; name: string | null; role: string | null }
-export type StoryPartner = { id: string; name: string | null }
+export type StoryPartner = {
+  id: string
+  name: string | null
+  /** The stage they do on this design (#2306): "stitching", "supplier", … */
+  stage_role: string | null
+}
 export type StoryMaterial = {
   id: string
   name: string | null
@@ -64,6 +71,8 @@ export type StoryMaterial = {
   color: string | null
   media: unknown
   material_type: string | null
+  /** Who supplied it, from the purchase orders that bought it (#2442). */
+  supplier: StorySupplier | null
 }
 
 export type ProductionStory = {
@@ -202,8 +211,11 @@ export type BuildStoryInput = {
   logs: RawLog[]
   /** rows from the designs-person link entryPoint (person + extra `role`) */
   personLinks: RawPersonLink[]
+  /** design ↔ partner link rows (partner + `stage_role`), or bare partners */
   partners: RawPartner[]
   inventoryItems: RawInventoryItem[]
+  /** raw material id → supplier, from `loadMaterialSuppliers` */
+  suppliers?: Record<string, StorySupplier>
 }
 
 /** Assemble the full public-safe production story. */
@@ -216,6 +228,7 @@ export function buildProductionStory(input: BuildStoryInput): ProductionStory {
     personLinks,
     partners,
     inventoryItems,
+    suppliers = {},
   } = input
 
   // Materials: flatten inventory_items.raw_materials, de-dup by raw material id
@@ -236,6 +249,7 @@ export function buildProductionStory(input: BuildStoryInput): ProductionStory {
         color: rm.color ?? null,
         media: rm.media ?? null,
         material_type: rm.material_type?.name ?? null,
+        supplier: suppliers[rm.id] ?? null,
       })
     }
   }
@@ -269,8 +283,13 @@ export function buildProductionStory(input: BuildStoryInput): ProductionStory {
     .filter(Boolean) as StoryPerson[]
 
   const storyPartners: StoryPartner[] = (partners || [])
-    .filter((p) => p?.id)
-    .map((p) => ({ id: p.id, name: p.name ?? null }))
+    .map((row) => ({ partner: row?.partner ?? row, stage_role: row?.stage_role ?? null }))
+    .filter(({ partner }) => partner?.id)
+    .map(({ partner, stage_role }) => ({
+      id: partner.id,
+      name: partner.name ?? null,
+      stage_role,
+    }))
 
   return {
     design_id: designId,

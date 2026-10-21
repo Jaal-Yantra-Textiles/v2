@@ -231,3 +231,86 @@ export function publicTimeline(
   }
   return condenseJourney(summarizeProductionJourney(story?.runs)?.steps ?? [])
 }
+
+/** How a shopper reads each production stage: "Stitched by Sharlho". */
+const STAGE_VERBS: Record<string, string> = {
+  supplier: "Fabric from",
+  weaving: "Woven by",
+  dyeing: "Dyed by",
+  printing: "Printed by",
+  embroidery: "Embroidered by",
+  cutting: "Cut by",
+  stitching: "Stitched by",
+  finishing: "Finished by",
+  sampling: "Sampled by",
+}
+/** Stages that are not making the piece; never shown as a maker. */
+const NOT_MAKING = new Set(["photoshoot"])
+
+export type CraftedBy = {
+  /** "Organic Kala Cotton — Earthy Tones", and who supplied it when known */
+  fabrics: { id: string; name: string; supplier: string | null }[]
+  /** "Stitched by" + "Sharlho", in roster order */
+  makers: { id: string; verb: string; name: string }[]
+}
+
+/**
+ * Who made the piece and what it is made from, in plain words (#2442).
+ *
+ * A fabric's supplier comes from the purchase order that bought it (backend).
+ * A roster partner tagged `supplier` names the fabric only when no order did,
+ * and is otherwise not repeated as a maker. Unknown stages read "Made by".
+ */
+export function craftedBy(
+  story: ProductionStory | null | undefined,
+  fallbackPartners: { id?: string; name?: string | null }[] = []
+): CraftedBy {
+  // Two raw-material rows can carry one fabric's name (a re-entered colour,
+  // a second batch): the shopper reads it once.
+  const fabrics: CraftedBy["fabrics"] = []
+  const fabricKeys = new Set<string>()
+  for (const m of story?.materials ?? []) {
+    const name = m.name?.trim()
+    if (!name) continue
+    const supplier = m.supplier?.name?.trim() || null
+    const key = `${name.toLowerCase()}::${supplier ?? ""}`
+    if (fabricKeys.has(key)) continue
+    fabricKeys.add(key)
+    fabrics.push({ id: m.id, name, supplier })
+  }
+
+  const roster =
+    story?.partners && story.partners.length > 0
+      ? story.partners
+      : fallbackPartners.map((p) => ({ id: p.id ?? "", name: p.name ?? null, stage_role: null }))
+
+  const knownSuppliers = new Set(fabrics.map((f) => f.supplier).filter(Boolean))
+  const makers: CraftedBy["makers"] = []
+  const seen = new Set<string>()
+  for (const p of roster) {
+    const name = p.name?.trim()
+    const stage = p.stage_role ?? null
+    if (!name || (stage && NOT_MAKING.has(stage))) continue
+    if (stage === "supplier") {
+      // Named on the fabric already, or lend the name to fabrics with none.
+      if (knownSuppliers.has(name)) continue
+      if (fabrics.some((f) => !f.supplier)) {
+        for (const f of fabrics) if (!f.supplier) f.supplier = name
+        knownSuppliers.add(name)
+        continue
+      }
+    }
+    const verb = (stage && STAGE_VERBS[stage]) || "Made by"
+    const key = `${verb}::${name}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    makers.push({ id: p.id, verb, name })
+  }
+
+  return { fabrics, makers }
+}
+
+/** "a@b.co" yes, "a@b", "" and "a b@c.d" no. Server checks again. */
+export function looksLikeEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim())
+}

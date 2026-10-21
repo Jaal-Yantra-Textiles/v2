@@ -86,6 +86,7 @@ const ProductTemplate = async ({
           <div className="hidden small:block">
             <DesignInfo
               design={design}
+              story={story}
               activityTimeline={timeline.steps}
               hiddenSteps={timeline.hiddenSteps}
               productTitle={product.title}
@@ -93,7 +94,7 @@ const ProductTemplate = async ({
             />
           </div>
           <div className="hidden small:block">
-            <ProductTabs product={product} story={story} />
+            <ProductTabs product={product} />
           </div>
         </div>
         <div className="block w-full relative">
@@ -102,13 +103,14 @@ const ProductTemplate = async ({
         <div className="w-full py-8 small:hidden">
           <DesignInfo
             design={design}
+            story={story}
             activityTimeline={timeline.steps}
             hiddenSteps={timeline.hiddenSteps}
             productTitle={product.title}
             productHandle={product.handle}
           />
           <div className="mt-8">
-            <ProductTabs product={product} story={story} />
+            <ProductTabs product={product} />
           </div>
         </div>
 

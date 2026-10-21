@@ -1,6 +1,8 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { PARTNER_MODULE } from "../../src/modules/partner"
+import { ORDER_INVENTORY_MODULE } from "../../src/modules/inventory_orders"
 import {
   createApiKeysWorkflow,
   linkSalesChannelsToApiKeyWorkflow,
@@ -170,6 +172,60 @@ setupSharedTestSuite(() => {
       const json = JSON.stringify(story)
       expect(json).not.toContain("unit_cost")
       expect(json).not.toContain("partner_cost_estimate")
+    })
+
+    it("names each fabric's supplier from its purchase order, and each maker's stage (#2442)", async () => {
+      const container = getContainer()
+      const remoteLink = container.resolve(ContainerRegistrationKeys.LINK) as any
+      const partnerService: any = container.resolve(PARTNER_MODULE)
+      const unique = `${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+      const mill = await partnerService.createPartners({ name: "HR Handloom", handle: `hr-${unique}` })
+      const wrong = await partnerService.createPartners({ name: "Cancelled Mill", handle: `cx-${unique}` })
+      const tailor = await partnerService.createPartners({ name: "Sharlho", handle: `sh-${unique}` })
+
+      const loc = await api.post("/admin/stock-locations", { name: "Supplier Story WH" }, adminHeaders)
+      const buy = async (status: string) => {
+        const res = await api.post(
+          "/admin/inventory-orders",
+          {
+            order_lines: [{ inventory_item_id: inventoryItemId, quantity: 5, price: 100 }],
+            quantity: 5,
+            total_price: 500,
+            status,
+            expected_delivery_date: new Date().toISOString(),
+            order_date: new Date().toISOString(),
+            shipping_address: { first_name: "JYT", address_1: "Mill Road 1", city: "Jaipur", country_code: "in", postal_code: "302001" },
+            stock_location_id: loc.data.stock_location.id,
+          },
+          adminHeaders
+        )
+        expect(res.status).toBe(201)
+        return res.data.inventoryOrder?.id ?? res.data.inventory_order?.id
+      }
+      const goodOrder = await buy("Pending")
+      expect(goodOrder).toBeTruthy()
+      // A newer order from another mill, then cancelled: it must not win.
+      const cancelledOrder = await buy("Pending")
+      await container.resolve(ORDER_INVENTORY_MODULE).updateInventoryOrders({ id: cancelledOrder, status: "Cancelled" })
+
+      await remoteLink.create([
+        { [PARTNER_MODULE]: { partner_id: mill.id }, [ORDER_INVENTORY_MODULE]: { inventory_orders_id: goodOrder } },
+        { [PARTNER_MODULE]: { partner_id: wrong.id }, [ORDER_INVENTORY_MODULE]: { inventory_orders_id: cancelledOrder } },
+      ])
+      const roster = await api.post(
+        `/admin/designs/${designId}/partner`,
+        { partners: [{ partner_id: tailor.id, stage_role: "stitching" }] },
+        adminHeaders
+      )
+      expect([200, 201]).toContain(roster.status)
+
+      const res = await api.get(`/store/custom/designs/${designId}/production-story`, storeHeaders)
+      const story = res.data.production_story
+      const cotton = story.materials.find((m: any) => m.name === "Story Cotton")
+      expect(cotton.supplier).toEqual({ id: mill.id, name: "HR Handloom" })
+      expect(story.partners).toEqual(
+        expect.arrayContaining([{ id: tailor.id, name: "Sharlho", stage_role: "stitching" }])
+      )
     })
 
     describe("share: the full story by email", () => {

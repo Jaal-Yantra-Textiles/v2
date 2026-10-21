@@ -390,7 +390,12 @@ export type ConsumptionSummary = {
 }
 
 export type StoryPerson = { id: string; name: string | null; role: string | null }
-export type StoryPartner = { id: string; name: string | null }
+export type StoryPartner = {
+  id: string
+  name: string | null
+  /** Their stage on this design: "stitching", "supplier", … (older backends: absent) */
+  stage_role?: string | null
+}
 export type StoryMaterial = {
   id: string
   name: string | null
@@ -398,6 +403,8 @@ export type StoryMaterial = {
   color: string | null
   media: unknown
   material_type: string | null
+  /** Who supplied it, from the purchase order that bought it (#2442). */
+  supplier?: { id: string; name: string | null } | null
 }
 
 export type ProductionStory = {
@@ -434,6 +441,14 @@ const EMPTY_PRODUCTION_STORY = (designId: string): ProductionStory => ({
 })
 
 /**
+ * How long a product page may show a story before asking again. The fetch was
+ * `force-cache` with only a per-visitor tag that nothing revalidates, so a page
+ * served its FIRST copy forever: cicilabel.com still showed the story from
+ * before #2437 a day after it shipped (#2442).
+ */
+const STORY_CACHE_TTL_SECONDS = 300
+
+/**
  * Fetches the public production story for a design.
  *
  * Public/cacheable — no auth required (mirrors the public product → designs.*
@@ -445,6 +460,7 @@ export const getProductionStory = async (
 ): Promise<ProductionStory> => {
   const next = {
     ...(await getCacheOptions("designs")),
+    revalidate: STORY_CACHE_TTL_SECONDS,
   }
 
   try {
@@ -453,7 +469,6 @@ export const getProductionStory = async (
       {
         method: "GET",
         next,
-        cache: "force-cache",
       }
     )
     return data.production_story ?? EMPTY_PRODUCTION_STORY(designId)
