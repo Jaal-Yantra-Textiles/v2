@@ -9,6 +9,7 @@ import {
   formatStoryDate,
   condenseJourney,
   publicTimeline,
+  impactPerPiece,
 } from "../lib"
 import type { ProductionStory } from "@lib/data/designs"
 
@@ -198,5 +199,39 @@ describe("public timeline teaser", () => {
     const out = publicTimeline({ runs: [{ activity: [run(1), run(2), run(3), run(4), run(5)] }] } as any)
     expect(out.steps.map((s) => s.label)).toEqual(["Step 1", "Step 5"])
     expect(out.hiddenSteps).toBe(3)
+  })
+})
+
+describe("impactPerPiece", () => {
+  it("shows only the measured, non-zero lines per piece", () => {
+    const r = impactPerPiece({
+      ...emptyStory,
+      impact: {
+        measured: true,
+        pieces_made: 4,
+        per_piece: { electricity_kwh: 2.5, water_liters: 0, gas_cubic_meters: 0.25 },
+      },
+    })
+    expect(r.measured).toBe(true)
+    expect(r.piecesMade).toBe(4)
+    expect(r.metrics).toEqual([
+      { label: "Electricity", value: "2.5 kWh" },
+      { label: "Gas", value: "0.25 m³" },
+    ])
+  })
+
+  it("is not measured with no impact, or with only zeros", () => {
+    expect(impactPerPiece(emptyStory).measured).toBe(false)
+    expect(impactPerPiece(null).measured).toBe(false)
+    expect(
+      impactPerPiece({
+        ...emptyStory,
+        impact: {
+          measured: true,
+          pieces_made: 2,
+          per_piece: { electricity_kwh: 0, water_liters: 0, gas_cubic_meters: 0 },
+        },
+      }).measured
+    ).toBe(false)
   })
 })

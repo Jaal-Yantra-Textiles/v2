@@ -1,4 +1,4 @@
-import { buildProductionStory, toPublicActivity, toStoryTeaser } from "../build-story"
+import { buildProductionStory, piecesMade, toPublicActivity, toStoryTeaser } from "../build-story"
 import { buildStoryEmailData } from "../story-email-data"
 
 const act = (id: string, activity_type: string, kind: string, day: number, summary = "internal words") => ({
@@ -71,6 +71,63 @@ describe("public teaser — the page and the API show the same", () => {
     const teaser = toStoryTeaser(story())
     expect(teaser.partners.map((p) => p.name)).toEqual(["Sharlho"])
     expect(teaser.materials.map((m) => m.name)).toEqual(["Kala Cotton"])
+  })
+})
+
+describe("public impact — measured energy per piece", () => {
+  const withRuns = (runs: any[], logs: any[]) =>
+    buildProductionStory({
+      designId: "des_2",
+      runs,
+      activitiesByRun: {},
+      logs,
+      personLinks: [],
+      partners: [],
+      inventoryItems: [],
+    })
+
+  it("divides the measured totals by the pieces made", () => {
+    const teaser = toStoryTeaser(
+      withRuns(
+        [{ id: "r1", status: "completed", produced_quantity: 4 }],
+        [
+          { consumption_type: "energy_electricity", quantity: 10, unit_of_measure: "kWh" },
+          { consumption_type: "energy_water", quantity: 6, unit_of_measure: "L" },
+        ]
+      )
+    )
+    expect(teaser.impact).toEqual({
+      measured: true,
+      pieces_made: 4,
+      per_piece: { electricity_kwh: 2.5, water_liters: 1.5, gas_cubic_meters: 0 },
+    })
+    // the batch total itself stays email-only
+    expect(teaser.consumption.energy.electricity_kwh).toBe(0)
+  })
+
+  it("counts a batch once across its stage runs, and adds batches", () => {
+    expect(
+      piecesMade([
+        { id: "root", parent_run_id: null, status: "completed", produced_quantity: 2 },
+        { id: "stitch", parent_run_id: "root", status: "completed", produced_quantity: 2 },
+        { id: "embroider", parent_run_id: "root", status: "completed", produced_quantity: 2 },
+        { id: "root2", parent_run_id: null, status: "completed", produced_quantity: 5 },
+        { id: "open", parent_run_id: null, status: "in_progress", produced_quantity: 9 },
+      ] as any)
+    ).toBe(7)
+  })
+
+  it("says not measured when nothing was logged or nothing is made yet", () => {
+    const noLogs = toStoryTeaser(withRuns([{ id: "r1", status: "completed", produced_quantity: 3 }], []))
+    expect(noLogs.impact).toEqual({ measured: false, pieces_made: 3, per_piece: null })
+    const noPieces = toStoryTeaser(
+      withRuns(
+        [{ id: "r1", status: "in_progress" }],
+        [{ consumption_type: "energy_electricity", quantity: 5, unit_of_measure: "kWh" }]
+      )
+    )
+    expect(noPieces.impact.measured).toBe(false)
+    expect(noPieces.impact.per_piece).toBeNull()
   })
 })
 

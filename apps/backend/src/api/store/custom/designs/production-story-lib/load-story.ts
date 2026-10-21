@@ -65,6 +65,7 @@ export async function loadDesignStory(
     filters: { design_id: designId },
     fields: [
       "id",
+      "parent_run_id",
       "status",
       "run_type",
       "quantity",
