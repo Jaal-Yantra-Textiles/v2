@@ -11,8 +11,9 @@ import {
   toast,
   usePrompt,
 } from "@medusajs/ui"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { PartnerDesign } from "../../hooks/api/partner-designs"
+import { useMediaQuery } from "../../hooks/use-media-query"
 import { buildConsumptionsPayload, type ConsumptionFormRow } from "../../lib/completion-consumptions"
 import { planCompletionOutput } from "../../lib/completion-output"
 import {
@@ -23,6 +24,12 @@ import {
   splitAxes,
   splitCombos,
 } from "../../lib/completion-split"
+import {
+  COMPLETION_STEPS,
+  completionStepNav,
+  showCompletionSection,
+  type CompletionStepKey,
+} from "../../lib/completion-steps"
 import { resolveRunMaterialOptions } from "../../lib/run-materials"
 
 export const UNIT_OPTIONS = [
@@ -81,6 +88,17 @@ export const CompleteRunForm = ({
   )
   const prompt = usePrompt()
   const runQuantity = run.quantity || 1
+
+  // #2440 — on a phone, one step per screen (the long single page bled past
+  // the screen edge). Desktop keeps every section visible at once.
+  const stepped = useMediaQuery("(max-width: 767px)")
+  const [stepIndex, setStepIndex] = useState(0)
+  useEffect(() => {
+    if (open) setStepIndex(0)
+  }, [open])
+  const nav = completionStepNav(stepIndex)
+  const show = (section: CompletionStepKey) =>
+    showCompletionSection(section, stepped, stepIndex)
 
   // ── Step 1: Output ──
   const [producedQty, setProducedQty] = useState(String(runQuantity))
@@ -221,7 +239,12 @@ export const CompleteRunForm = ({
     return body
   }
 
-  const handleSubmit = async () => {
+  /**
+   * The output checks, shared by Submit and by "Next" on a phone — a partner
+   * should hear the sizes don't add up on the output step, not two screens
+   * later. Returns false (after a toast) when the output can't go forward.
+   */
+  const checkOutput = () => {
     // Mirror the backend gate so the partner gets a control, not a 400 telling
     // them to do something the form could not express (#1271).
     if (outputPlan.needsReason) {
@@ -232,17 +255,32 @@ export const CompleteRunForm = ({
             "Say what happened to them — record them as rejected, or write the reason in the shortfall box. Don't raise the produced count to cover them.",
         }
       )
-      return
+      return false
     }
 
     if (split.needed && !split.ok) {
       toast.error("Sizes don't add up", {
         description: `The sizes you entered add up to ${split.total}, but ${split.target} piece${split.target !== 1 ? "s are" : " is"} going to stock. Say how many of each were made.`,
       })
+      return false
+    }
+
+    return true
+  }
+
+  const goNext = () => {
+    if (nav.step.key === "output" && !checkOutput()) return
+    setStepIndex(nav.next)
+  }
+
+  const handleSubmit = async () => {
+    if (!checkOutput()) {
+      if (stepped) setStepIndex(0)
       return
     }
 
     const body = buildBody()
+    if (!body) return
 
     // Warn if no cost data
     if (!costValue && !isSample) {
@@ -277,11 +315,28 @@ export const CompleteRunForm = ({
           <FocusModal.Description>
             {runQuantity} piece{runQuantity !== 1 ? "s" : ""} ordered
             {isSample ? " · Sample run" : ""}
+            {stepped
+              ? ` · Step ${nav.index + 1} of ${COMPLETION_STEPS.length}: ${nav.step.label}`
+              : ""}
           </FocusModal.Description>
         </FocusModal.Header>
-        <FocusModal.Body className="flex flex-col items-center overflow-y-auto py-6">
-          <div className="flex w-full max-w-2xl flex-col gap-y-4 px-4">
-      {pendingTasks.length > 0 && (
+        <FocusModal.Body className="flex flex-col items-center overflow-y-auto overflow-x-hidden py-6">
+          <div className="flex w-full min-w-0 max-w-2xl flex-col gap-y-4 px-4">
+      {stepped && (
+        <div className="flex gap-1.5" aria-hidden>
+          {COMPLETION_STEPS.map((s, i) => (
+            <div
+              key={s.key}
+              className={clx(
+                "h-1 flex-1 rounded-full",
+                i <= nav.index ? "bg-ui-fg-interactive" : "bg-ui-border-base"
+              )}
+            />
+          ))}
+        </div>
+      )}
+
+      {show("output") && pendingTasks.length > 0 && (
         <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-3 mb-4">
           <Text size="small" weight="plus" className="text-ui-fg-subtle mb-1">
             {pendingTasks.length} pending task(s) will be marked as done
@@ -297,10 +352,11 @@ export const CompleteRunForm = ({
       )}
 
       {/* ── Step 1: Output ── */}
+      {show("output") && (
       <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-4 mb-4">
         <Text size="small" weight="plus" className="mb-3">Output</Text>
         <div className="grid grid-cols-2 gap-4">
-          <div>
+          <div className="min-w-0">
             <Text size="xsmall" className="text-ui-fg-subtle mb-1">
               Good pieces produced
             </Text>
@@ -313,7 +369,7 @@ export const CompleteRunForm = ({
               onChange={(e) => setProducedQty(e.target.value)}
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <Text size="xsmall" className="text-ui-fg-subtle mb-1">
               Rejected
             </Text>
@@ -329,7 +385,7 @@ export const CompleteRunForm = ({
 
         {/* Yield indicator */}
         {produced > 0 && (
-          <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ui-border-base">
+          <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-ui-border-base">
             <StatusBadge color={yieldPct >= 90 ? "green" : yieldPct >= 70 ? "orange" : "red"}>
               {yieldPct}% yield
             </StatusBadge>
@@ -350,7 +406,7 @@ export const CompleteRunForm = ({
         */}
         {unaccounted > 0 && (
           <div className="mt-3 pt-3 border-t border-ui-border-base">
-            <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
               <Text size="xsmall" weight="plus" className="text-ui-tag-orange-text">
                 {unaccounted} piece{unaccounted !== 1 ? "s" : ""} not accounted for
               </Text>
@@ -382,8 +438,8 @@ export const CompleteRunForm = ({
         {/* Rejection details */}
         {rejected > 0 && (
           <div className="mt-3 pt-3 border-t border-ui-border-base">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0">
                 <Text size="xsmall" className="text-ui-fg-subtle mb-1">Reason</Text>
                 <Select value={rejectionReason} onValueChange={setRejectionReason}>
                   <Select.Trigger>
@@ -396,7 +452,7 @@ export const CompleteRunForm = ({
                   </Select.Content>
                 </Select>
               </div>
-              <div>
+              <div className="min-w-0">
                 <Text size="xsmall" className="text-ui-fg-subtle mb-1">Details (optional)</Text>
                 <Input
                   placeholder="e.g. thread pull on collar"
@@ -409,8 +465,10 @@ export const CompleteRunForm = ({
         )}
       </div>
 
+      )}
+
       {/* ── Step 1b: which sizes/colours (#2271) ── */}
-      {split.needed && (
+      {show("output") && split.needed && (
         <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-4 mb-4">
           <Text size="small" weight="plus" className="mb-1">What was made</Text>
           <Text size="xsmall" className="text-ui-fg-subtle mb-3">
@@ -427,8 +485,8 @@ export const CompleteRunForm = ({
             {splitCombos(axes).map((c) => {
               const key = comboKey(c.size_label, c.color)
               return (
-                <div key={key}>
-                  <Text size="xsmall" className="text-ui-fg-subtle mb-1">
+                <div key={key} className="min-w-0">
+                  <Text size="xsmall" className="text-ui-fg-subtle mb-1 break-words">
                     {comboLabel(c)}
                   </Text>
                   <Input
@@ -457,7 +515,8 @@ export const CompleteRunForm = ({
         </div>
       )}
 
-      {/* ── Step 2: Cost ── */}
+      {/* ── Step 2: Cost ── (a phone shows it last, with the notes) */}
+      {show("cost") && (
       <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-4 mb-4">
         <Text size="small" weight="plus" className="mb-1">
           Your production cost
@@ -470,8 +529,8 @@ export const CompleteRunForm = ({
           }
         </Text>
 
-        <div className="flex items-end gap-3">
-          <div className="flex-1 max-w-[200px]">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-0 flex-1 max-w-[200px]">
             <Input
               type="number"
               step="0.01"
@@ -516,7 +575,7 @@ export const CompleteRunForm = ({
             previewed a total the payment would never match. */}
         {costValue > 0 && costType && (
           <div className="flex items-center gap-3 mt-3 pt-3 border-t border-ui-border-base">
-            <Text size="xsmall" className="text-ui-fg-muted">
+            <Text size="xsmall" className="text-ui-fg-muted break-words">
               {(() => {
                 const cur = ((design as any)?.cost_currency || "").toUpperCase()
                 const prefix = cur ? `${cur} ` : ""
@@ -540,9 +599,12 @@ export const CompleteRunForm = ({
         )}
       </div>
 
+      )}
+
       {/* ── Step 3: Materials ── */}
+      {show("materials") && (
       <div className="rounded-xl border border-ui-border-base bg-ui-bg-base px-4 py-4 mb-4">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
           <Text size="small" weight="plus">
             Materials
             {isSample && <span className="text-ui-fg-error ml-1">*</span>}
@@ -555,7 +617,7 @@ export const CompleteRunForm = ({
         </div>
 
         {materialsConstrained && (
-          <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+          <Text size="xsmall" className="text-ui-fg-subtle mb-2 break-words">
             This run was assigned specific materials
             {inventoryItems.some((i) => i.planned_quantity != null)
               ? ` — ${inventoryItems
@@ -588,20 +650,20 @@ export const CompleteRunForm = ({
               const item = inventoryItems.find((i: any) => i.id === entry.inventory_item_id)
               const label = item?.title || item?.sku || entry.inventory_item_id
               return (
-                <div key={entry.inventory_item_id} className="rounded-lg border border-ui-border-base p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <Text size="xsmall" weight="plus">{label}</Text>
-                    <Button variant="transparent" size="small" onClick={() => removeConsumptionItem(idx)}>
+                <div key={entry.inventory_item_id} className="min-w-0 rounded-lg border border-ui-border-base p-3">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <Text size="xsmall" weight="plus" className="min-w-0 break-words">{label}</Text>
+                    <Button variant="transparent" size="small" className="shrink-0" onClick={() => removeConsumptionItem(idx)}>
                       Remove
                     </Button>
                   </div>
                   {item?.note && (
-                    <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+                    <Text size="xsmall" className="text-ui-fg-subtle mb-2 break-words">
                       {item.note}
                     </Text>
                   )}
                   <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-                    <div>
+                    <div className="min-w-0">
                       <Text size="xsmall" className="text-ui-fg-subtle mb-1">Qty</Text>
                       <Input
                         type="number"
@@ -612,7 +674,7 @@ export const CompleteRunForm = ({
                         onChange={(e) => updateConsumption(idx, "quantity", e.target.value)}
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Text size="xsmall" className="text-ui-fg-subtle mb-1">Cost/unit</Text>
                       <Input
                         type="number"
@@ -623,7 +685,7 @@ export const CompleteRunForm = ({
                         onChange={(e) => updateConsumption(idx, "unit_cost", e.target.value)}
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Text size="xsmall" className="text-ui-fg-subtle mb-1">Unit</Text>
                       <Select value={entry.unit_of_measure} onValueChange={(v) => updateConsumption(idx, "unit_of_measure", v)}>
                         <Select.Trigger><Select.Value /></Select.Trigger>
@@ -634,7 +696,7 @@ export const CompleteRunForm = ({
                         </Select.Content>
                       </Select>
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Text size="xsmall" className="text-ui-fg-subtle mb-1">Notes</Text>
                       <Input
                         placeholder="Optional"
@@ -651,14 +713,14 @@ export const CompleteRunForm = ({
 
         {/* Add item selector */}
         {availableItems.length > 0 && (
-          <div className="mt-3">
+          <div className="mt-3 min-w-0">
             <Select onValueChange={(v) => { addConsumptionItem(v); setShowMaterialForm(true) }}>
-              <Select.Trigger>
+              <Select.Trigger className="w-full min-w-0 [&>span]:truncate">
                 <Select.Value placeholder="Add an inventory item..." />
               </Select.Trigger>
-              <Select.Content>
+              <Select.Content className="max-w-[calc(100vw-2rem)]">
                 {availableItems.map((item: any) => (
-                  <Select.Item key={item.id} value={item.id}>
+                  <Select.Item key={item.id} value={item.id} className="break-words">
                     {item.title || item.sku || item.id}
                   </Select.Item>
                 ))}
@@ -668,7 +730,10 @@ export const CompleteRunForm = ({
         )}
       </div>
 
-      {/* ── Step 4: Notes ── */}
+      )}
+
+      {/* ── Step 4: Notes ── (shares the last step with cost on a phone) */}
+      {show("cost") && (
       <div className="mb-4">
         <Text size="xsmall" weight="plus" className="text-ui-fg-subtle mb-1">
           Completion notes (optional)
@@ -680,16 +745,29 @@ export const CompleteRunForm = ({
           rows={3}
         />
       </div>
+      )}
 
           </div>
         </FocusModal.Body>
         <FocusModal.Footer>
-          <Button variant="secondary" size="small" onClick={() => onOpenChange(false)} disabled={isLoading}>
-            Cancel
-          </Button>
-          <Button size="small" onClick={handleSubmit} isLoading={isLoading}>
-            Confirm & Complete
-          </Button>
+          {stepped && !nav.isFirst ? (
+            <Button variant="secondary" size="small" onClick={() => setStepIndex(nav.prev)} disabled={isLoading}>
+              Back
+            </Button>
+          ) : (
+            <Button variant="secondary" size="small" onClick={() => onOpenChange(false)} disabled={isLoading}>
+              Cancel
+            </Button>
+          )}
+          {stepped && !nav.isLast ? (
+            <Button size="small" onClick={goNext}>
+              Next: {COMPLETION_STEPS[nav.next].label}
+            </Button>
+          ) : (
+            <Button size="small" onClick={handleSubmit} isLoading={isLoading}>
+              Confirm & Complete
+            </Button>
+          )}
         </FocusModal.Footer>
       </FocusModal.Content>
     </FocusModal>
