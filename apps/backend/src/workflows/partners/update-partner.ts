@@ -16,6 +16,8 @@ export type UpdatePartnerInput = {
     logo: string | null
     status: "active" | "inactive" | "pending"
     is_verified: boolean
+    /** #2444 — public page on the shop; opt-in. */
+    is_public: boolean
     /**
      * The partner's OWN tax registration (a GSTIN in India), and what kind of
      * number it is.
@@ -101,6 +103,7 @@ export const updatePartnerStep = createStep(
       logo: previous.logo ?? null,
       status: previous.status,
       is_verified: previous.is_verified,
+      is_public: previous.is_public ?? false,
       metadata: previous.metadata ?? null,
       auto_accept_production_runs: previous.auto_accept_production_runs ?? false,
     } as any)

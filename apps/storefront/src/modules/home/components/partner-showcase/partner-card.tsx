@@ -38,7 +38,17 @@ export function PartnerCard({ partner }: { partner: ShowcasePartner }) {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <Text className="font-medium truncate">{partner.name}</Text>
+          {partner.is_public ? (
+            <LocalizedClientLink
+              href={`/partners/${encodeURIComponent(partner.handle)}`}
+              className="block font-medium truncate hover:underline"
+              data-testid="partner-page-link"
+            >
+              {partner.name}
+            </LocalizedClientLink>
+          ) : (
+            <Text className="font-medium truncate">{partner.name}</Text>
+          )}
           <Text className="text-neutral-500 text-xs">
             {partner.product_count} product
             {partner.product_count !== 1 ? "s" : ""}

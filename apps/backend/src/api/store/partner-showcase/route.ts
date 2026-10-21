@@ -22,6 +22,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "name",
       "handle",
       "logo",
+      "is_public",
       "metadata",
       "stores.id",
       "stores.name",
@@ -112,6 +113,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       name: partner.name,
       handle: partner.handle,
       logo: partner.logo,
+      // #2444 — the shop links to /partners/<handle> only when this is on.
+      is_public: !!partner.is_public,
       storefront_url: storefrontUrl,
       store: {
         id: store.id,

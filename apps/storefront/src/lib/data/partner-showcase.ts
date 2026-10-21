@@ -16,6 +16,8 @@ export type ShowcasePartner = {
   name: string
   handle: string
   logo: string | null
+  /** #2444 — has a public page at /partners/<handle>. */
+  is_public?: boolean
   storefront_url: string | null
   store: { id: string; name: string }
   categories: Array<{ id: string; name: string; handle: string }>
@@ -31,14 +33,14 @@ export type PartnerShowcaseResponse = {
 
 export const getPartnerShowcase =
   async (): Promise<PartnerShowcaseResponse> => {
+    // `force-cache` with only a per-visitor tag never expired (#2442's story
+    // fetch had the same shape): a partner switched public would never link.
     const next = {
       ...(await getCacheOptions("partner-showcase")),
+      revalidate: 300,
     }
 
     return sdk.client
-      .fetch<PartnerShowcaseResponse>("/store/partner-showcase", {
-        next,
-        cache: "force-cache",
-      })
+      .fetch<PartnerShowcaseResponse>("/store/partner-showcase", { next })
       .catch(() => ({ partners: [], count: 0 }))
   }
