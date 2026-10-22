@@ -1,3 +1,19 @@
+# [13.179.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.178.1...v13.179.0) (2026-10-22)
+
+
+### Bug Fixes
+
+* **production-runs:** an intermediate stage completes without minting a product or banking stock ([#2438](https://github.com/Jaal-Yantra-Textiles/v2/issues/2438)) ([b42fd9e](https://github.com/Jaal-Yantra-Textiles/v2/commit/b42fd9e74b77202d456aa53a1c0f393f8906ad1a))
+* **storefront:** product-page story names each fabric's supplier, refreshes, and stops flagging an empty email ([#2442](https://github.com/Jaal-Yantra-Textiles/v2/issues/2442)) ([#2443](https://github.com/Jaal-Yantra-Textiles/v2/issues/2443)) ([d9fbd0d](https://github.com/Jaal-Yantra-Textiles/v2/commit/d9fbd0d02ba9208abf2f134314e7250eb12be307)), closes [#2437](https://github.com/Jaal-Yantra-Textiles/v2/issues/2437)
+* **partner-ui:** run completion is three steps on a phone and no longer bleeds off the screen ([#2440](https://github.com/Jaal-Yantra-Textiles/v2/issues/2440)) ([#2441](https://github.com/Jaal-Yantra-Textiles/v2/issues/2441)) ([3d24aba](https://github.com/Jaal-Yantra-Textiles/v2/commit/3d24aba729ee05046eddbee5f048a106e399ecd0))
+
+
+### Features
+
+* **storefront:** opt-in public page per partner — what they make, pieces made, team roles, measured energy ([#2444](https://github.com/Jaal-Yantra-Textiles/v2/issues/2444)) ([#2445](https://github.com/Jaal-Yantra-Textiles/v2/issues/2445)) ([b264ca2](https://github.com/Jaal-Yantra-Textiles/v2/commit/b264ca20c0e92559af1650707299c0cee875d6c6)), closes [#697](https://github.com/Jaal-Yantra-Textiles/v2/issues/697)
+* **storefront:** product page shows each piece's measured energy, water and gas ([#2448](https://github.com/Jaal-Yantra-Textiles/v2/issues/2448)) ([d4fde05](https://github.com/Jaal-Yantra-Textiles/v2/commit/d4fde05333c988537f63b0045a4acac325615afc)), closes [#2437](https://github.com/Jaal-Yantra-Textiles/v2/issues/2437)
+* **storefront:** production-story teaser on the product page; full story by email ([#2437](https://github.com/Jaal-Yantra-Textiles/v2/issues/2437)) ([3692e01](https://github.com/Jaal-Yantra-Textiles/v2/commit/3692e016c533fb970880e72dd290062614059a51))
+
 ## [13.178.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.178.0...v13.178.1) (2026-10-19)
 
 
