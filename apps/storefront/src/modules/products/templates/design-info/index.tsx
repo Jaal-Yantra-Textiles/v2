@@ -13,6 +13,7 @@ import {
   condenseJourney,
   craftedBy,
   formatStoryDate,
+  impactPerPiece,
   looksLikeEmail,
 } from "../../components/production-story/lib"
 
@@ -77,6 +78,7 @@ export const DesignInfo = ({
       : condenseJourney(taskSteps)
 
   const palette = (design.color_palette ?? []).filter((c) => c?.code)
+  const impact = impactPerPiece(story)
 
   return (
     <div className="flex flex-col gap-y-6" data-testid="design-info">
@@ -187,6 +189,34 @@ export const DesignInfo = ({
           </ol>
         </section>
       )}
+
+      <section className="flex flex-col gap-y-2" data-testid="piece-impact">
+        <SectionLabel>Impact of this piece</SectionLabel>
+        {impact.measured ? (
+          <>
+            <dl className="grid grid-cols-3 gap-3">
+              {impact.metrics.map((m) => (
+                <div
+                  key={m.label}
+                  className="flex flex-col rounded-lg border border-ui-border-base px-3 py-2"
+                >
+                  <dt className="text-small text-ui-fg-muted">{m.label}</dt>
+                  <dd className="text-base-semi text-ui-fg-base">{m.value}</dd>
+                </div>
+              ))}
+            </dl>
+            <Text className="text-small text-ui-fg-muted">
+              Measured by the makers while it was made, divided across the{" "}
+              {impact.piecesMade} {impact.piecesMade === 1 ? "piece" : "pieces"} made.
+            </Text>
+          </>
+        ) : (
+          <Text className="text-small-regular text-ui-fg-subtle">
+            Not yet measured. When the makers log the electricity, water and
+            gas used to make it, it will show here, per piece.
+          </Text>
+        )}
+      </section>
 
       <StoryRequest
         designId={design.id}

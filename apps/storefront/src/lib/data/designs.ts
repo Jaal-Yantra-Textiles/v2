@@ -423,6 +423,15 @@ export type ProductionStory = {
     steps: { id: string; label: string; date: string | null }[]
     hidden_steps: number
   }
+  /**
+   * Measured electricity / water / gas for ONE piece (batch totals divided by
+   * the pieces made). `measured: false` → nothing logged yet, or nothing made.
+   */
+  impact?: {
+    measured: boolean
+    pieces_made: number
+    per_piece: EnergySummary | null
+  }
 }
 
 const EMPTY_PRODUCTION_STORY = (designId: string): ProductionStory => ({
@@ -438,6 +447,7 @@ const EMPTY_PRODUCTION_STORY = (designId: string): ProductionStory => ({
   partners: [],
   materials: [],
   journey: { steps: [], hidden_steps: 0 },
+  impact: { measured: false, pieces_made: 0, per_piece: null },
 })
 
 /**

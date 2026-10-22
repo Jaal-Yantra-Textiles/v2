@@ -25,6 +25,8 @@ export type ProductionStoryActivity = {
 
 export type ProductionStoryRun = {
   id: string
+  /** Stage runs hang off one root run per batch; null on the root itself. */
+  parent_run_id: string | null
   status: string
   run_type: string
   quantity: number | null
@@ -256,6 +258,7 @@ export function buildProductionStory(input: BuildStoryInput): ProductionStory {
 
   const storyRuns: ProductionStoryRun[] = (runs || []).map((r) => ({
     id: r.id,
+    parent_run_id: r.parent_run_id ?? null,
     status: r.status,
     run_type: r.run_type,
     quantity: r.quantity ?? null,
@@ -324,9 +327,62 @@ export function mergeJourney(runs: ProductionStoryRun[]): JourneyStep[] {
   return steps.sort((x, y) => (x.date ?? "").localeCompare(y.date ?? ""))
 }
 
+/**
+ * The environmental cost of ONE piece, from measured energy logs only: the
+ * design's electricity / water / gas totals divided by the pieces made.
+ * `measured: false` when nothing was logged or no piece is counted yet; the
+ * page then says "not yet measured" rather than showing a made-up zero.
+ */
+export type StoryImpact = {
+  measured: boolean
+  pieces_made: number
+  per_piece: EnergySummary | null
+}
+
+/**
+ * Pieces made across every batch. One batch is a root run plus a child run per
+ * stage (stitching, embroidery, …) that all count the SAME pieces, so a batch
+ * contributes its largest completed count, and batches add up.
+ */
+export function piecesMade(runs: ProductionStoryRun[]): number {
+  const byBatch = new Map<string, number>()
+  for (const r of runs || []) {
+    if (r.status !== "completed") continue
+    const made = typeof r.produced_quantity === "number" ? r.produced_quantity : 0
+    if (made <= 0) continue
+    const batch = r.parent_run_id ?? r.id
+    byBatch.set(batch, Math.max(byBatch.get(batch) ?? 0, made))
+  }
+  let total = 0
+  for (const n of byBatch.values()) total += n
+  return total
+}
+
+const round2 = (n: number) => Math.round(n * 100) / 100
+
+export function storyImpact(story: ProductionStory): StoryImpact {
+  const pieces = piecesMade(story.runs)
+  const e = story.consumption.energy
+  const any = e.electricity_kwh > 0 || e.water_liters > 0 || e.gas_cubic_meters > 0
+  if (!any || pieces <= 0) {
+    return { measured: false, pieces_made: pieces, per_piece: null }
+  }
+  return {
+    measured: true,
+    pieces_made: pieces,
+    per_piece: {
+      electricity_kwh: round2(e.electricity_kwh / pieces),
+      water_liters: round2(e.water_liters / pieces),
+      gas_cubic_meters: round2(e.gas_cubic_meters / pieces),
+    },
+  }
+}
+
 export type ProductionStoryTeaser = ProductionStory & {
   /** First and last step only; the rest is counted, not shown. */
   journey: { steps: JourneyStep[]; hidden_steps: number }
+  /** Measured energy / water / gas per piece (founder, 2026-10-21). */
+  impact: StoryImpact
 }
 
 const EMPTY_CONSUMPTION: ConsumptionSummary = {
@@ -339,11 +395,12 @@ const EMPTY_CONSUMPTION: ConsumptionSummary = {
 /**
  * What the PUBLIC route returns: enough to sell, not the whole making story.
  *
- * Kept: run status and quantities, the maker partners, the raw materials.
+ * Kept: run status and quantities, the maker partners, the raw materials, and
+ * the measured energy / water / gas PER PIECE (`impact`).
  * Withheld (they travel only in the emailed story, to a shopper who asked):
- * every step between the first and the last, the people who made it, and the
- * energy / labour / materials-consumed numbers. Withheld in the DATA, not just
- * hidden in the page, so a direct API call shows no more than the page does.
+ * every step between the first and the last, the people who made it, the
+ * batch totals, labour hours and materials consumed. Withheld in the DATA, not
+ * just hidden in the page, so a direct API call shows no more than the page.
  */
 export function toStoryTeaser(story: ProductionStory): ProductionStoryTeaser {
   const all = mergeJourney(story.runs)
@@ -354,5 +411,6 @@ export function toStoryTeaser(story: ProductionStory): ProductionStoryTeaser {
     people: [],
     consumption: EMPTY_CONSUMPTION,
     journey: { steps, hidden_steps: all.length - steps.length },
+    impact: storyImpact(story),
   }
 }

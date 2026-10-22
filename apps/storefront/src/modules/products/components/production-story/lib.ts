@@ -114,6 +114,34 @@ export function nonZeroConsumptionMetrics(
   return metrics
 }
 
+/**
+ * The environmental cost of one piece, as the product page shows it: only the
+ * measured, non-zero lines. `measured: false` means the page says "not yet
+ * measured" instead of drawing zeros.
+ */
+export function impactPerPiece(story: ProductionStory | null | undefined): {
+  measured: boolean
+  piecesMade: number
+  metrics: { label: string; value: string }[]
+} {
+  const impact = story?.impact
+  const e = impact?.per_piece
+  const metrics: { label: string; value: string }[] = []
+  const push = (label: string, value: number | null | undefined, unit: string) => {
+    if (typeof value === "number" && value > 0) {
+      metrics.push({ label, value: `${formatNumber(value)} ${unit}` })
+    }
+  }
+  push("Electricity", e?.electricity_kwh, "kWh")
+  push("Water", e?.water_liters, "L")
+  push("Gas", e?.gas_cubic_meters, "m³")
+  return {
+    measured: Boolean(impact?.measured) && metrics.length > 0,
+    piecesMade: impact?.pieces_made ?? 0,
+    metrics,
+  }
+}
+
 /** Trim trailing-zero decimals: 12.0 → "12", 12.5 → "12.5". */
 export function formatNumber(value: number): string {
   if (!Number.isFinite(value)) return "0"
