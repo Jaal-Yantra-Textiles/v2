@@ -1,3 +1,10 @@
+## [13.179.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.179.0...v13.179.1) (2026-10-22)
+
+
+### Bug Fixes
+
+* **storefront:** impact per piece counts the same pieces once when each stage is its own batch ([#2450](https://github.com/Jaal-Yantra-Textiles/v2/issues/2450)) ([804b491](https://github.com/Jaal-Yantra-Textiles/v2/commit/804b49109c63901ce7aa2407f3245730cfdb6e2a))
+
 # [13.179.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.178.1...v13.179.0) (2026-10-22)
 
 
