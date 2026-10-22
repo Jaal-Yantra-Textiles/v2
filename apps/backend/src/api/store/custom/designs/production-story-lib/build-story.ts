@@ -340,21 +340,24 @@ export type StoryImpact = {
 }
 
 /**
- * Pieces made across every batch. One batch is a root run plus a child run per
- * stage (stitching, embroidery, …) that all count the SAME pieces, so a batch
- * contributes its largest completed count, and batches add up.
+ * Pieces made, counted conservatively. A design's runs do not map one batch to
+ * one root: Cherry's apron has a separate root run per stage (stitching at
+ * Sharlho, embroidery at Embroprint), each counting the SAME 2 pieces. So per
+ * run type (sample / production) we take the LARGEST completed count rather
+ * than adding runs up. A genuine re-run is undercounted, which makes the
+ * per-piece figure read high, never low (founder, 2026-10-22).
  */
 export function piecesMade(runs: ProductionStoryRun[]): number {
-  const byBatch = new Map<string, number>()
+  const byType = new Map<string, number>()
   for (const r of runs || []) {
     if (r.status !== "completed") continue
     const made = typeof r.produced_quantity === "number" ? r.produced_quantity : 0
     if (made <= 0) continue
-    const batch = r.parent_run_id ?? r.id
-    byBatch.set(batch, Math.max(byBatch.get(batch) ?? 0, made))
+    const type = r.run_type || "production"
+    byType.set(type, Math.max(byType.get(type) ?? 0, made))
   }
   let total = 0
-  for (const n of byBatch.values()) total += n
+  for (const n of byType.values()) total += n
   return total
 }
 
