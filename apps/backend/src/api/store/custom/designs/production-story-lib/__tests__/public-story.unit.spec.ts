@@ -105,16 +105,27 @@ describe("public impact — measured energy per piece", () => {
     expect(teaser.consumption.energy.electricity_kwh).toBe(0)
   })
 
-  it("counts a batch once across its stage runs, and adds batches", () => {
+  it("counts the same pieces once across stage runs, even when each stage is its own root", () => {
+    // Cherry's apron in prod: two roots, each with one stage child, all 2 pieces.
     expect(
       piecesMade([
-        { id: "root", parent_run_id: null, status: "completed", produced_quantity: 2 },
-        { id: "stitch", parent_run_id: "root", status: "completed", produced_quantity: 2 },
-        { id: "embroider", parent_run_id: "root", status: "completed", produced_quantity: 2 },
-        { id: "root2", parent_run_id: null, status: "completed", produced_quantity: 5 },
-        { id: "open", parent_run_id: null, status: "in_progress", produced_quantity: 9 },
+        { id: "emb", parent_run_id: null, run_type: "sample", status: "completed", produced_quantity: 2 },
+        { id: "emb-c", parent_run_id: "emb", run_type: "sample", status: "completed", produced_quantity: 2 },
+        { id: "sti", parent_run_id: null, run_type: "sample", status: "completed", produced_quantity: 2 },
+        { id: "sti-c", parent_run_id: "sti", run_type: "sample", status: "completed", produced_quantity: 2 },
+        { id: "open", parent_run_id: null, run_type: "sample", status: "in_progress", produced_quantity: 9 },
       ] as any)
-    ).toBe(7)
+    ).toBe(2)
+  })
+
+  it("adds sample and production pieces, which are different pieces", () => {
+    expect(
+      piecesMade([
+        { id: "s", parent_run_id: null, run_type: "sample", status: "completed", produced_quantity: 2 },
+        { id: "p", parent_run_id: null, run_type: "production", status: "completed", produced_quantity: 20 },
+        { id: "p2", parent_run_id: null, run_type: "production", status: "completed", produced_quantity: 12 },
+      ] as any)
+    ).toBe(22)
   })
 
   it("says not measured when nothing was logged or nothing is made yet", () => {
