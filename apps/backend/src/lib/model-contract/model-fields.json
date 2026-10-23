@@ -3470,6 +3470,18 @@
       "updated_at"
     ]
   },
+  "ProductionRunPartnerTask (modules/production_runs/models/production-run-partner-task.ts)": {
+    "file": "modules/production_runs/models/production-run-partner-task.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "id",
+      "partner_id",
+      "production_run_id",
+      "task_id",
+      "updated_at"
+    ]
+  },
   "ProductionRunPolicies (modules/production_policy/models/production-run-policy.ts)": {
     "file": "modules/production_policy/models/production-run-policy.ts",
     "fields": [

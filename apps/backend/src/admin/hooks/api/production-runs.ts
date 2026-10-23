@@ -1039,3 +1039,30 @@ export const useRunApprovals = (
     },
   })
 }
+
+/** A partner task done FOR a run (e.g. a photo shoot), by any partner. */
+export type AdminRunPartnerTask = {
+  id: string
+  title: string
+  description?: string | null
+  status: string
+  priority?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  completed_at?: string | null
+  estimated_cost?: number | null
+  actual_cost?: number | null
+  cost_currency?: string | null
+  partner: { id: string; name: string; handle?: string | null } | null
+}
+
+export const useProductionRunPartnerTasks = (runId: string) =>
+  useQuery({
+    queryKey: [...productionRunQueryKeys.detail(runId), "partner-tasks"],
+    queryFn: async () =>
+      sdk.client.fetch<{ partner_tasks: AdminRunPartnerTask[]; count: number }>(
+        `/admin/production-runs/${runId}/partner-tasks`,
+        { method: "GET" }
+      ),
+    enabled: !!runId,
+  })

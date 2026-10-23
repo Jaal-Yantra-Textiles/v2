@@ -2,6 +2,7 @@ import { Badge, Container, Heading, Text, toast } from "@medusajs/ui"
 import { Plus, PlaySolid, SquaresPlus } from "@medusajs/icons"
 import { usePartnerTasks } from "../../hooks/api/partner-tasks"
 import { ActionMenu } from "../common/action-menu"
+import { Link } from "react-router-dom"
 
 type PartnerTasksSectionProps = {
   partnerId: string
@@ -65,9 +66,38 @@ export const PartnerTasksSection = ({ partnerId }: PartnerTasksSectionProps) => 
         ) : taskCount === 0 ? (
           <Text size="small" className="text-ui-fg-subtle">No tasks assigned yet.</Text>
         ) : (
-          <Text size="small" className="text-ui-fg-base">
-            {taskCount} {taskCount === 1 ? 'task' : 'tasks'} assigned
-          </Text>
+          <div className="flex flex-col gap-y-2">
+            {(tasks ?? [])
+              .filter((t: any) => !t.parent_task_id)
+              .map((t: any) => (
+                <div
+                  key={t.id}
+                  className="flex items-center justify-between gap-x-3 rounded-md border px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <Text size="small" weight="plus" className="truncate">
+                      {t.title}
+                    </Text>
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      {t.production_run ? (
+                        <Link
+                          to={`/production-runs/${t.production_run.id}`}
+                          className="hover:underline"
+                        >
+                          For run: {t.production_run.design_name || t.production_run.id}
+                          {t.production_run.quantity != null
+                            ? ` · ${t.production_run.quantity} pcs`
+                            : ""}
+                        </Link>
+                      ) : (
+                        "Not for a production run"
+                      )}
+                    </Text>
+                  </div>
+                  <Badge size="2xsmall">{String(t.status).replace(/_/g, " ")}</Badge>
+                </div>
+              ))}
+          </div>
         )}
       </div>
     </Container>

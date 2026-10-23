@@ -140,6 +140,12 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import PartnerTaskLink from "../../../../../links/partner-task";
 import { createTaskWorkflow } from "../../../../../workflows/tasks/create-task";
 import { createTaskAssignmentWorkflow } from "../../../../../workflows/tasks/create-task-assignment";
+import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs";
+import type ProductionRunService from "../../../../../modules/production_runs/service";
+import {
+    setTaskProductionRun,
+    withProductionRun,
+} from "../../../../../workflows/production-runs/lib/run-partner-tasks";
 import { AdminCreatePartnerTaskReq } from "./validators";
 
 
@@ -166,9 +172,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
             ? partnerData[0].tasks
             : [];
 
+        const withRuns = await withProductionRun(req.scope, tasks);
+
         return res.json({ 
-            tasks: tasks,
-            count: tasks.length
+            tasks: withRuns,
+            count: withRuns.length
         });
     } catch (error) {
         const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
@@ -186,6 +194,20 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
  */
 export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: MedusaResponse) => {
     const partnerId = req.params.id;
+    const productionRunId = req.validatedBody.production_run_id;
+
+    // Check the run before creating anything, so a bad id leaves no orphan task.
+    if (productionRunId) {
+        const run = await req.scope
+            .resolve<ProductionRunService>(PRODUCTION_RUNS_MODULE)
+            .retrieveProductionRun(productionRunId)
+            .catch(() => null);
+        if (!run) {
+            return res.status(404).json({
+                message: `Production run ${productionRunId} not found`,
+            });
+        }
+    }
 
     try {
         // Create the task (without assignee_id since we'll link it separately)
@@ -265,6 +287,14 @@ export const POST = async (req: MedusaRequest<AdminCreatePartnerTaskReq>, res: M
                 partnerId: partnerId
             }
         });
+
+        if (productionRunId) {
+            await setTaskProductionRun(req.scope, {
+                task_id: taskId,
+                partner_id: partnerId,
+                production_run_id: productionRunId,
+            });
+        }
 
         return res.json({ 
             task: task

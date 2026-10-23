@@ -24,6 +24,7 @@ import { KeyboundForm } from "../utilitites/key-bound-form";
 import { useState, useEffect } from "react";
 import { useAssignPartnerTask, useCreatePartnerTask } from "../../hooks/api/partner-tasks";
 import type { ProgressStatus } from "@medusajs/ui";
+import { ProductionRunPicker } from "../production-runs/production-run-picker";
 
 const TASK_PRIORITIES = ["low", "medium", "high"] as const;
 const TASK_STATUSES = ["pending", "in_progress", "completed", "blocked"] as const;
@@ -51,6 +52,7 @@ const taskSchema = z.object({
   end_date: z.date().optional(),
   start_date: z.date().optional(),
   estimated_cost: z.string().optional(),
+  production_run_id: z.string().optional(),
   assign_immediately: z.boolean(),
   workflow_config: logicalExpressionSchema,
   steps: z.array(taskStepSchema).min(1, "At least one step is required"),
@@ -122,6 +124,7 @@ export const CreatePartnerTaskComponent = () => {
       end_date: undefined,
       start_date: undefined,
       estimated_cost: "",
+      production_run_id: undefined,
       assign_immediately: false,
       workflow_config: {
         type: "sequential",
@@ -226,6 +229,7 @@ export const CreatePartnerTaskComponent = () => {
         ...(!isNaN(parsedCost) && parsedCost > 0
           ? { estimated_cost: parsedCost, cost_currency: "inr" }
           : {}),
+        ...(data.production_run_id ? { production_run_id: data.production_run_id } : {}),
         metadata,
         child_tasks, // Pass child tasks to create parent-child relationship
         dependency_type: "subtask" as const,
@@ -488,6 +492,28 @@ export const CreatePartnerTaskComponent = () => {
                         <Form.Hint>
                           The agreed amount for this task. Used when the partner
                           submits the completed task for payment.
+                        </Form.Hint>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )}
+                  />
+
+                  <Form.Field
+                    control={form.control}
+                    name="production_run_id"
+                    render={({ field }) => (
+                      <Form.Item>
+                        <Form.Label optional>For a production run</Form.Label>
+                        <Form.Control>
+                          <ProductionRunPicker
+                            value={field.value}
+                            onChange={field.onChange}
+                          />
+                        </Form.Control>
+                        <Form.Hint>
+                          Work done for a run, like a photo shoot. It shows on the
+                          run's page but stays this partner's task: it does not
+                          complete or block the run.
                         </Form.Hint>
                         <Form.ErrorMessage />
                       </Form.Item>

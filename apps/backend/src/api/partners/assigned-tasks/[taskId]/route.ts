@@ -101,6 +101,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../helpers";
 import { TASKS_MODULE } from "../../../../modules/tasks";
 import TaskService from "../../../../modules/tasks/service";
+import { withProductionRun } from "../../../../workflows/production-runs/lib/run-partner-tasks";
 
 /**
  * GET /partners/assigned-tasks/[taskId]
@@ -174,8 +175,10 @@ export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) 
 
     ;(retrievedTask as any).subtasks = subtasks;
 
+    const [withRun] = await withProductionRun(req.scope, [retrievedTask as any], { forPartner: true })
+
     return res.status(200).json({
-      task: retrievedTask,
+      task: withRun,
     });
   } catch (error) {
     console.error("Error fetching task:", error);

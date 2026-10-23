@@ -7,6 +7,10 @@
 import { MedusaRequest, MedusaResponse, refetchEntity } from "@medusajs/framework";
 import { MedusaError } from "@medusajs/framework/utils";
 import { updateTaskWorkflow } from "../../../../../../workflows/tasks/update-task";
+import {
+    setTaskProductionRun,
+    withProductionRun,
+} from "../../../../../../workflows/production-runs/lib/run-partner-tasks";
 import { AdminUpdatePartnerTaskReq } from "../validators";
 
 async function getPartnerTask(req: MedusaRequest) {
@@ -39,7 +43,8 @@ async function getPartnerTask(req: MedusaRequest) {
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     const task = await getPartnerTask(req);
-    return res.json({ task });
+    const [withRun] = await withProductionRun(req.scope, [task as any]);
+    return res.json({ task: withRun });
 };
 
 /**
@@ -51,10 +56,18 @@ export const PATCH = async (
     req: MedusaRequest<AdminUpdatePartnerTaskReq>,
     res: MedusaResponse
 ) => {
-    const { taskId } = req.params;
+    const { id: partnerId, taskId } = req.params;
     await getPartnerTask(req);
 
     const body = req.validatedBody;
+    if (body.production_run_id !== undefined) {
+        await setTaskProductionRun(req.scope, {
+            task_id: taskId,
+            partner_id: partnerId,
+            production_run_id: body.production_run_id,
+        });
+    }
+
     const { result } = await updateTaskWorkflow(req.scope).run({
         input: {
             id: taskId,
@@ -79,5 +92,6 @@ export const PATCH = async (
     });
 
     const task = Array.isArray(result) ? result[0] : result;
-    return res.json({ task });
+    const [withRun] = await withProductionRun(req.scope, [task as any]);
+    return res.json({ task: withRun });
 };
