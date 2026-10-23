@@ -4090,6 +4090,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "cost_currency",
       "cost_type",
       "metadata",
+      "production_run_id",
     ],
     inputSchema: obj(
       {
@@ -4104,6 +4105,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         cost_currency: STR("Currency code for estimated/actual cost."),
         cost_type: STR("'per_unit' | 'total'."),
         metadata: { type: "object", description: "Optional key/value metadata." },
+        production_run_id: STR(
+          "Optional production run this task is done for (e.g. a photo shoot for a run). Any partner's run. The task stays a partner task: it does not decide when the run completes, and completing or cancelling the run leaves it alone."
+        ),
       },
       ["id", "title"]
     ),
@@ -4132,6 +4136,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "cost_currency",
       "cost_type",
       "metadata",
+      "production_run_id",
     ],
     inputSchema: obj(
       {
@@ -4148,6 +4153,10 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         cost_currency: STR("Currency code for cost fields."),
         cost_type: STR("'per_unit' | 'total'."),
         metadata: { type: "object", description: "Metadata to merge." },
+        production_run_id: {
+          type: ["string", "null"],
+          description: "Production run this task is done for; null detaches it.",
+        },
       },
       ["id", "taskId"]
     ),
@@ -5705,6 +5714,15 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       },
       ["id", "inventoryItemId", "quantity"]
     ),
+  },
+  {
+    name: "list_production_run_partner_tasks",
+    description:
+      "List partner tasks done FOR a production run (e.g. a photographer's shoot for a weaver's run), with each task's partner, status and cost. These are separate from the run's own steps (get_production_run_task).",
+    method: "GET",
+    path: "/admin/production-runs/:id/partner-tasks",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Production run id.") }, ["id"]),
   },
   {
     name: "get_production_run_task",

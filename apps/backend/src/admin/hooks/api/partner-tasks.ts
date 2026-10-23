@@ -23,6 +23,14 @@ export type AdminPartnerTask = {
   cost_currency?: string | null;
   cost_type?: "per_unit" | "total" | null;
   metadata?: Record<string, any>;
+  /** The production run this task is done for, if any. */
+  production_run?: {
+    id: string;
+    status: string | null;
+    quantity: number | null;
+    design_id: string | null;
+    design_name: string | null;
+  } | null;
   created_at: Date;
   updated_at: Date;
   deleted_at?: Date | null;
@@ -39,10 +47,14 @@ export type CreatePartnerTaskPayload = {
   cost_currency?: string;
   cost_type?: "per_unit" | "total";
   metadata?: Record<string, any>;
+  /** The production run this task is done for (any partner's run). */
+  production_run_id?: string;
 };
 
-export type UpdatePartnerTaskPayload = Partial<CreatePartnerTaskPayload> & {
+export type UpdatePartnerTaskPayload = Omit<Partial<CreatePartnerTaskPayload>, "production_run_id"> & {
   actual_cost?: number;
+  /** Attach to a run, move it, or null to detach. */
+  production_run_id?: string | null;
 };
 
 export interface PartnerTaskResponse {

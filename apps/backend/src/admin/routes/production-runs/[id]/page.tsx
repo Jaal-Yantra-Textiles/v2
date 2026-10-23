@@ -36,6 +36,7 @@ import { ProductionRunChildrenSection } from "../../../components/production-run
 import { ProductionRunActivityTimeline } from "../../../components/production-runs/production-run-activity-timeline"
 import { GoodsTransferSection } from "../../../components/production-runs/goods-transfer-section"
 import { ProfitShareSection } from "../../../components/production-runs/profit-share-section"
+import { RunPartnerTasksSection } from "../../../components/production-runs/run-partner-tasks-section"
 import { EntityGraph } from "../../../components/graph/entity-graph"
 import { productionRunLoader } from "./loader"
 import {
@@ -918,6 +919,12 @@ const ProductionRunDetailPage = () => {
                 </div>
               )}
             </div>
+          </Container>
+        )}
+
+        {id && (
+          <Container className="divide-y p-0">
+            <RunPartnerTasksSection runId={id} />
           </Container>
         )}
 

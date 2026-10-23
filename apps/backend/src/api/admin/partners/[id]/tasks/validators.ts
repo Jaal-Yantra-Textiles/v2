@@ -32,6 +32,8 @@ export const AdminCreatePartnerTaskReq = z.object({
     metadata: z.record(z.string(), z.any()).optional(),
     child_tasks: z.array(childTaskSchema).optional(),
     dependency_type: z.enum(["blocking", "related", "subtask"]).optional(),
+    /** The production run this task is done for (any partner's run). */
+    production_run_id: z.string().min(1).optional(),
 });
 
 export type AdminCreatePartnerTaskReq = z.infer<typeof AdminCreatePartnerTaskReq>;
@@ -56,6 +58,8 @@ export const AdminUpdatePartnerTaskReq = z.object({
     notifiable: z.boolean().optional(),
     message: z.string().optional(),
     metadata: z.record(z.string(), z.any()).optional(),
+    /** Attach to a production run, move to another, or null to detach. */
+    production_run_id: z.string().min(1).nullable().optional(),
 });
 
 export type AdminUpdatePartnerTaskReq = z.infer<typeof AdminUpdatePartnerTaskReq>;
