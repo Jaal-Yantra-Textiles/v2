@@ -58,9 +58,11 @@ export const useColumns = () => {
                   content={
                     <div className="flex flex-col gap-y-1">
                       {orderLines.map((line: any, i: number) => {
+                        // The item's current title first: `material_name`
+                        // is a copy from order time and misses a rename.
                         const label =
-                          line.material_name ||
                           line.inventory_items?.[0]?.title ||
+                          line.material_name ||
                           line.inventory_items?.[0]?.sku ||
                           "Item";
                         return (
