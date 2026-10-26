@@ -87,7 +87,11 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
             // nothing saying what was bought. Name the product first.
             const variant = inventoryItem.variants?.find((v) => v?.id);
             const productTitle = variant?.product?.title;
+            // A line's `material_name` is a copy taken when it was ordered, so
+            // a renamed item kept its old name here. A raw-material line shows
+            // the item's current title, falling back to the copy.
             const label =
+              (line.material_name && inventoryItem.title) ||
               line.material_name ||
               (productTitle
                 ? [productTitle, variant?.title].filter(Boolean).join(" · ")
