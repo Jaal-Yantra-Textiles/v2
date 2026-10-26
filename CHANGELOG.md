@@ -1,3 +1,15 @@
+# [13.180.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.179.1...v13.180.0) (2026-10-26)
+
+
+### Bug Fixes
+
+* **admin:** inventory order lines show the item's current name, not the name it had when ordered ([#2454](https://github.com/Jaal-Yantra-Textiles/v2/issues/2454)) ([dba1f29](https://github.com/Jaal-Yantra-Textiles/v2/commit/dba1f2995d7e20695ceef55b2c1a450d4018b21d))
+
+
+### Features
+
+* **partner-tasks:** a partner task can be done for a production run, without becoming a run step ([#2451](https://github.com/Jaal-Yantra-Textiles/v2/issues/2451)) ([#2452](https://github.com/Jaal-Yantra-Textiles/v2/issues/2452)) ([22dc3cd](https://github.com/Jaal-Yantra-Textiles/v2/commit/22dc3cdb51ff3278adb57621e1b7eb6d2ea44ab4))
+
 ## [13.179.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.179.0...v13.179.1) (2026-10-22)
 
 
