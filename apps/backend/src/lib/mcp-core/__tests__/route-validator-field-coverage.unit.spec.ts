@@ -118,6 +118,13 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:reprice_design_order",
   "admin:convert_design_order",
   /**
+   * `orders/[lineItemId]/deposit/route.ts` validates in the handler through
+   * `decideDeposit` (deposit_pct a number strictly between 0 and 100,
+   * balance_trigger "manual" | "dispatch"), unit-tested in
+   * `mutate-design-order.unit.spec.ts`. No matcher binds it.
+   */
+  "admin:set_design_order_deposit",
+  /**
    * Both wrap CORE shipping-option routes, whose validators core registers in
    * its own middleware config — so nothing in this repo's `middlewares.ts`
    * binds them and there is nothing here to match against. Not unchecked: the
