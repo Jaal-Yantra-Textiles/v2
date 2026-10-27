@@ -888,5 +888,8 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/investor",
   },
+  {
+    resolve: "./src/modules/order-approval",
+  },
 ],
 });

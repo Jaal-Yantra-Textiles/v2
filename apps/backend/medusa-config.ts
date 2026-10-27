@@ -263,6 +263,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/designer-invite",
     },
     {
+      resolve: "./src/modules/order-approval",
+    },
+    {
       resolve: "./src/modules/design_inquiry",
     },
     {

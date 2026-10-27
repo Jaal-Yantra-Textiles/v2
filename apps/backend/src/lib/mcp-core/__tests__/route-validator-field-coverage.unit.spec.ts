@@ -125,6 +125,12 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:set_design_order_deposit",
   /**
+   * #2463 — `orders/[id]/approval-requests/route.ts` parses an inline zod
+   * `bodySchema` in the handler (photo_urls: url[], note: string <= 2000).
+   * No matcher binds it.
+   */
+  "admin:request_order_approval",
+  /**
    * Both wrap CORE shipping-option routes, whose validators core registers in
    * its own middleware config — so nothing in this repo's `middlewares.ts`
    * binds them and there is nothing here to match against. Not unchecked: the
