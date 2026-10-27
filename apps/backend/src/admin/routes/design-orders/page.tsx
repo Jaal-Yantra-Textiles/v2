@@ -154,7 +154,9 @@ const DesignOrderActions = ({ row }: { row: DesignOrderItem }) => {
 
   const allApproved = row.items.every((i) => i.design.status === "Approved");
   const hasOrder = !!row.order;
-  const isCanceled = !!row.order?.canceled_at;
+  // The list API returns order.status, not order.canceled_at — reading the
+  // latter left this always false, so the action stayed live on a cancelled order.
+  const isCanceled = row.order?.status === "canceled";
 
   return (
     <EntityActions
@@ -244,16 +246,41 @@ const useColumns = () =>
       }),
       columnHelper.accessor("order", {
         header: "Order",
-        cell: ({ getValue }) => {
+        cell: ({ getValue, row }) => {
           const order = getValue();
-          if (!order)
+          if (!order) {
+            // Cancelling a design order is soft: it stamps cart.metadata and
+            // deletes nothing, so without this the row still reads "In Cart".
+            const md = row.original.cart?.metadata;
+            if (md?.cancelled_at) {
+              const reason = md.cancelled_reason
+                ? `: ${md.cancelled_reason}`
+                : "";
+              return (
+                <Tooltip
+                  content={`Cancelled ${new Date(md.cancelled_at).toLocaleDateString()}${reason}`}
+                >
+                  <Badge color="red" size="2xsmall" className="cursor-default">
+                    Cancelled
+                  </Badge>
+                </Tooltip>
+              );
+            }
             return (
               <Badge color="grey" size="2xsmall">
                 In Cart
               </Badge>
             );
+          }
           return (
-            <span className="font-medium">#{order.display_id}</span>
+            <div className="flex items-center gap-x-1.5">
+              <span className="font-medium">#{order.display_id}</span>
+              {order.status === "canceled" && (
+                <Badge color="red" size="2xsmall">
+                  Cancelled
+                </Badge>
+              )}
+            </div>
           );
         },
       }),
