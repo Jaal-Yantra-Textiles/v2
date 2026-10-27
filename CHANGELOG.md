@@ -1,3 +1,16 @@
+# [13.182.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.181.0...v13.182.0) (2026-10-27)
+
+
+### Bug Fixes
+
+* **deposits:** a design-order deposit is the % of the total at checkout, not when it was set ([#2465](https://github.com/Jaal-Yantra-Textiles/v2/issues/2465)) ([5bfee44](https://github.com/Jaal-Yantra-Textiles/v2/commit/5bfee443ce394f8e5b6d7f33f6355a7afdefb48a)), closes [#2462](https://github.com/Jaal-Yantra-Textiles/v2/issues/2462)
+
+
+### Features
+
+* **orders:** customer approves or rejects finished goods from an email link ([#2463](https://github.com/Jaal-Yantra-Textiles/v2/issues/2463)) ([#2464](https://github.com/Jaal-Yantra-Textiles/v2/issues/2464)) ([39e1ec5](https://github.com/Jaal-Yantra-Textiles/v2/commit/39e1ec55fdceca90d0316591398d503a8c8ce80d))
+* **design-orders:** take a deposit on a design order through its own checkout link ([#2462](https://github.com/Jaal-Yantra-Textiles/v2/issues/2462)) ([73e172d](https://github.com/Jaal-Yantra-Textiles/v2/commit/73e172d7747e98523efe3315ec3926ab5a3f6eb1))
+
 # [13.181.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.180.0...v13.181.0) (2026-10-27)
 
 
