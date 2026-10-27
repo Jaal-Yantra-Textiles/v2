@@ -57,9 +57,18 @@ export const PATCH = async (
     res: MedusaResponse
 ) => {
     const { id: partnerId, taskId } = req.params;
-    await getPartnerTask(req);
+    const current = await getPartnerTask(req);
 
     const body = req.validatedBody;
+
+    // An admin marking a task done must stamp completed_at the way the partner's
+    // finish workflow does — otherwise the task reads completed with no date.
+    // Stamping only when it is unset keeps the original date on a re-save, and
+    // also lets a re-save backfill a task completed before this existed.
+    const completedAt =
+        body.status === "completed" && !(current as any).completed_at
+            ? new Date()
+            : undefined;
     if (body.production_run_id !== undefined) {
         await setTaskProductionRun(req.scope, {
             task_id: taskId,
@@ -75,6 +84,7 @@ export const PATCH = async (
                 title: body.title,
                 description: body.description,
                 status: body.status,
+                completed_at: completedAt,
                 priority: body.priority,
                 start_date: body.start_date
                     ? (typeof body.start_date === "string" ? new Date(body.start_date) : body.start_date)
