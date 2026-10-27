@@ -20,6 +20,7 @@ import { tourEmailTemplate } from "../../../../scripts/seed-tour-email-template"
 import { quoteEmailTemplates } from "../../../../scripts/seed-quote-email-template"
 import { visualFlowLifecycleTemplates } from "../../../../scripts/seed-visual-flow-lifecycle-email-templates"
 import { designMaterialsDeliveredEmailTemplates } from "../../../../scripts/seed-design-materials-delivered-email"
+import { orderApprovalEmailTemplates } from "../../../../scripts/seed-order-approval-emails"
 
 /**
  * #457 Data Plumbing — SEED jobs.
@@ -124,6 +125,12 @@ export const EMAIL_TEMPLATE_SETS: Array<{
     key: "design-materials-delivered",
     label: "design material-arrival template",
     specs: designMaterialsDeliveredEmailTemplates as EmailTemplateSpec[],
+  },
+  // #2463 — the customer finished-goods approval: request, balance-due, admin alert.
+  {
+    key: "order-approval",
+    label: "finished-goods approval templates",
+    specs: orderApprovalEmailTemplates as EmailTemplateSpec[],
   },
 ]
 

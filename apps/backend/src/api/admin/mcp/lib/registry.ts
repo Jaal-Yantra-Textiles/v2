@@ -8512,6 +8512,49 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_order_balance", "send_production_run_to_production"],
   },
   {
+    name: "request_order_approval",
+    description: [
+      "Ask the customer to approve or reject the FINISHED GOODS of their order (#2463). Emails them a no-login link (valid 14 days) showing the photos, with Approve / Reject; a reason is required to reject. Sensitive: requires confirm:true.",
+      "",
+      "Photos default to the image media attached to the order's production runs; pass `photo_urls` to choose others. Refused when there are no photos at all.",
+      "",
+      "A new request SUPERSEDES any still-open one for the order — its link stops working. On the customer's answer we get an admin feed alert (and an email to ADMIN_NOTIFY_EMAIL). A rejection sends nothing to the partner. An approval on an order with a PAID deposit raises the balance and emails the customer the pay link.",
+      "",
+      "Returns `approval_url` too, so it can be shared by hand if the email did not send (`emailed: false`).",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/orders/:id/approval-requests",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["photo_urls", "note"],
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        photo_urls: {
+          type: "array",
+          items: { type: "string" },
+          description: "Photo URLs to show. Omit to use the photos attached to the order's production runs.",
+        },
+        note: STR("Optional note shown to the customer above the photos."),
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Creates an approval request, supersedes any open one for the order, and EMAILS the customer the approval link.",
+    nextSteps: ["list_order_approvals"],
+  },
+  {
+    name: "list_order_approvals",
+    description:
+      "List an order's finished-goods approval requests (#2463), newest first: status (pending / approved / rejected / superseded), the photos sent, who it went to, the customer's reason, and the balance link an approval raised. Read.",
+    method: "GET",
+    path: "/admin/orders/:id/approval-requests",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Order id, e.g. 'order_...'.") }, ["id"]),
+    nextSteps: ["request_order_approval", "get_order_balance"],
+  },
+  {
     name: "get_production_run_payments",
     description:
       "Read whether a production run has already been billed and by which payout — the run's billing status, the live claim, what remains billable, and every line naming this run. Read. 🔴 The run does not know it has been billed; this is the one place to learn that before creating a payout for it. Call it BEFORE create_payment_submission so a completed run already paid for is not claimed twice.",

@@ -2720,6 +2720,27 @@
       "updated_at"
     ]
   },
+  "OrderApproval (modules/order-approval/models/order-approval.ts)": {
+    "file": "modules/order-approval/models/order-approval.ts",
+    "fields": [
+      "balance_pay_url",
+      "created_at",
+      "decided_at",
+      "decision_reason",
+      "deleted_at",
+      "expires_at",
+      "id",
+      "metadata",
+      "note",
+      "order_id",
+      "photos",
+      "sent_by",
+      "sent_to",
+      "status",
+      "token_hash",
+      "updated_at"
+    ]
+  },
   "Page (modules/website/models/page.ts)": {
     "file": "modules/website/models/page.ts",
     "fields": [
