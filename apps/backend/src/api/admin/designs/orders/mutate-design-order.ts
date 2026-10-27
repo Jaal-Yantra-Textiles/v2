@@ -377,3 +377,132 @@ export const isCancelled = (
   const v = cart?.metadata?.cancelled_at
   return typeof v === "string" && v.trim().length > 0
 }
+
+export type DepositRefusal =
+  | "no_cart"
+  | "cart_completed"
+  | "cancelled"
+  | "already_has_deposit"
+  | "not_a_pct"
+  | "bad_balance_trigger"
+  | "no_total"
+
+export type DepositBalanceTrigger = "manual" | "dispatch"
+
+export type DepositDecision =
+  | {
+      ok: true
+      deposit_pct: number
+      balance_trigger: DepositBalanceTrigger
+      /** The cart total the schedule is written against — tax included. */
+      total_due: number
+    }
+  | { ok: false; reason: DepositRefusal; message: string }
+
+/**
+ * Put a deposit on a design order: the buyer pays `deposit_pct` of the total
+ * through the SAME checkout link, and the rest is raised later as the balance.
+ *
+ * ## Why this reuses the quote's machinery
+ *
+ * A deposit already exists end to end for carts minted by accepting a B2B
+ * quote: a `payment_schedule` row keyed on the cart decides what the checkout
+ * collects (`planCartCollection`), `order-placed-mark-deposit` attaches the
+ * order and marks the deposit paid, and `request_order_balance` raises the
+ * rest. But a quote needs a partner and a catalogue variant, and a design order
+ * is our own made-to-order line with neither — Cherry's 10 aprons (2026-10-27)
+ * had no way to take 10% down. The schedule service already anticipated this
+ * with `source_type: "manual"`; nothing exposed it.
+ *
+ * ## What it refuses
+ *
+ * - a CONVERTED order: the cart no longer decides what is charged.
+ * - a CANCELLED one: its link is dead, so there is nothing to collect against.
+ * - a cart that already HAS a schedule: one schedule per cart, and silently
+ *   replacing one could change a figure a buyer was already shown — or paid.
+ * - a percentage that is not strictly between 0 and 100. 0 would mint a free
+ *   checkout (a completed order having paid nothing), and 100 is no deposit at
+ *   all — just leave the order as it is.
+ */
+export function decideDeposit(input: {
+  cart:
+    | (DesignOrderCart & {
+        metadata?: Record<string, unknown> | null
+        total?: number | string | null
+      })
+    | null
+    | undefined
+  depositPct: unknown
+  balanceTrigger?: unknown
+  /** Does an order already exist for this design? See `isConverted`. */
+  hasLinkedOrder?: boolean
+  /** Does the cart already carry a payment schedule? */
+  hasSchedule?: boolean
+}): DepositDecision {
+  const { cart } = input
+
+  if (!cart) {
+    return { ok: false, reason: "no_cart", message: "This design order has no cart." }
+  }
+
+  if (isConverted({ cart, hasLinkedOrder: input.hasLinkedOrder })) {
+    return {
+      ok: false,
+      reason: "cart_completed",
+      message:
+        "This design order has already been converted to an order, so its cart no " +
+        "longer decides what is charged. Raise a balance on the order instead.",
+    }
+  }
+
+  if (isCancelled(cart)) {
+    return {
+      ok: false,
+      reason: "cancelled",
+      message: "This design order is cancelled; its checkout link no longer works.",
+    }
+  }
+
+  if (input.hasSchedule) {
+    return {
+      ok: false,
+      reason: "already_has_deposit",
+      message:
+        "This design order already has a payment schedule. One schedule per cart — " +
+        "replacing it could change a figure the buyer was already shown.",
+    }
+  }
+
+  // `typeof` first: Number(null) and Number("") are both 0, and a missing field
+  // must not arrive looking like a deliberate 0%.
+  const pct = typeof input.depositPct === "number" ? input.depositPct : NaN
+  if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+    return {
+      ok: false,
+      reason: "not_a_pct",
+      message:
+        "deposit_pct must be a number greater than 0 and less than 100 — 0 would let " +
+        "the buyer check out paying nothing, and 100 is no deposit at all.",
+    }
+  }
+
+  const trigger = input.balanceTrigger ?? "manual"
+  if (trigger !== "manual" && trigger !== "dispatch") {
+    return {
+      ok: false,
+      reason: "bad_balance_trigger",
+      message: "balance_trigger must be 'manual' or 'dispatch'.",
+    }
+  }
+
+  const total = Number(cart.total)
+  if (cart.total === null || cart.total === undefined || !Number.isFinite(total) || total <= 0) {
+    return {
+      ok: false,
+      reason: "no_total",
+      message: "This design order has no total to take a deposit against.",
+    }
+  }
+
+  return { ok: true, deposit_pct: pct, balance_trigger: trigger, total_due: total }
+}

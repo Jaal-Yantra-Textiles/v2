@@ -118,6 +118,13 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:reprice_design_order",
   "admin:convert_design_order",
   /**
+   * `orders/[lineItemId]/deposit/route.ts` validates in the handler through
+   * `decideDeposit` (deposit_pct a number strictly between 0 and 100,
+   * balance_trigger "manual" | "dispatch"), unit-tested in
+   * `mutate-design-order.unit.spec.ts`. No matcher binds it.
+   */
+  "admin:set_design_order_deposit",
+  /**
    * #2463 — `orders/[id]/approval-requests/route.ts` parses an inline zod
    * `bodySchema` in the handler (photo_urls: url[], note: string <= 2000).
    * No matcher binds it.

@@ -1,3 +1,16 @@
+# [13.181.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.180.0...v13.181.0) (2026-10-27)
+
+
+### Bug Fixes
+
+* **admin:** design orders list shows cancelled quotes as Cancelled ([#2460](https://github.com/Jaal-Yantra-Textiles/v2/issues/2460)) ([bc8c629](https://github.com/Jaal-Yantra-Textiles/v2/commit/bc8c629bd8f29de37a51d8c59439deba96efa6cd))
+* **admin:** marking a partner task completed stamps completed_at ([#2461](https://github.com/Jaal-Yantra-Textiles/v2/issues/2461)) ([716636e](https://github.com/Jaal-Yantra-Textiles/v2/commit/716636e5a168ea17676a114c9694e63f5230ac4c))
+
+
+### Features
+
+* **ops:** data plumbing job to correct a placed order's shipping country ([#2458](https://github.com/Jaal-Yantra-Textiles/v2/issues/2458)) ([d48ee31](https://github.com/Jaal-Yantra-Textiles/v2/commit/d48ee318c096ae092584eb2ae0e4e017814c7acd)), closes [#123](https://github.com/Jaal-Yantra-Textiles/v2/issues/123)
+
 # [13.180.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.179.1...v13.180.0) (2026-10-26)
 
 

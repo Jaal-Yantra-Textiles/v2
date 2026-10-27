@@ -6558,6 +6558,41 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_design_order", "convert_design_order"],
   },
   {
+    name: "set_design_order_deposit",
+    description: [
+      "Put a deposit on a design order: the buyer's EXISTING checkout link then collects `deposit_pct` of the total now, and the rest is raised later as the balance with request_order_balance. Sensitive: requires confirm:true.",
+      "",
+      "🔑 Set the price FIRST. The deposit fixes the order's total, and reprice_design_order refuses once a deposit is set.",
+      "",
+      "`balance_trigger` decides when the balance is asked for: 'manual' (default — only when an admin calls request_order_balance) or 'dispatch' (raised automatically when the order ships).",
+      "",
+      "If the buyer already opened checkout, their unpaid payment request for the full total is cleared so checkout makes the deposit one. Refuses with 409 when a payment was already taken, when a deposit is already set, or when the order is converted or cancelled. Nothing is emailed.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/orders/:lineItemId/deposit",
+    pathParams: ["lineItemId"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["deposit_pct", "balance_trigger"],
+    inputSchema: obj(
+      {
+        lineItemId: STR("The design order's cart line item id (`cali_...`)."),
+        deposit_pct: {
+          type: "number",
+          description:
+            "Percentage of the total collected now, greater than 0 and less than 100 (e.g. 10).",
+        },
+        balance_trigger: STR(
+          "'manual' (default) or 'dispatch' — when the balance is asked for."
+        ),
+      },
+      ["lineItemId", "deposit_pct"]
+    ),
+    sideEffects:
+      "Creates a payment schedule on the design order's cart, so its checkout charges the deposit instead of the total; may clear an unpaid payment collection. Sends nothing.",
+    nextSteps: ["get_design_order", "get_order_balance", "request_order_balance"],
+  },
+  {
     name: "convert_design_order",
     description: [
       "Turn a design order (a cart) into a REAL order, admin-side, without routing the customer through checkout. Sensitive: requires confirm:true.",
