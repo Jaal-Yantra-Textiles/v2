@@ -31,23 +31,26 @@ const SCHEDULE = {
   currency_code: "eur",
 }
 
-const scopeWith = (schedule: any) => {
+const scopeWith = (schedule: any, collectionGraph: any = null) => {
   const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
   const paymentService = {
     createPaymentCollections: jest.fn(async () => [{ id: "pc_deposit" }]),
+    updatePaymentCollections: jest.fn(async () => undefined),
   }
+  const query = { graph: jest.fn(async () => ({ data: collectionGraph ? [collectionGraph] : [] })) }
   const link = { create: jest.fn(async () => undefined) }
   const schedules = { findByCartId: jest.fn(async () => schedule) }
   const scope = {
     resolve: (key: string) => {
       if (key === ContainerRegistrationKeys.LOGGER) return logger
       if (key === ContainerRegistrationKeys.LINK) return link
+      if (key === ContainerRegistrationKeys.QUERY) return query
       if (key === Modules.PAYMENT) return paymentService
       if (key === "payment_schedule") return schedules
       throw new Error(`unexpected resolve(${key})`)
     },
   }
-  return { scope, logger, paymentService, link, schedules }
+  return { scope, logger, paymentService, link, schedules, query }
 }
 
 const cart = (over: Record<string, unknown> = {}) => ({
@@ -181,5 +184,65 @@ describe("refreshCartPaymentCollection — the trap that would undo the fix", ()
         cart({ payment_collection: { id: "pc", amount: 1429.95, payment_sessions: [] } })
       )
     ).resolves.toMatchObject({ preserved_deposit: false })
+  })
+})
+
+describe("a MANUAL deposit's collection follows the cart total", () => {
+  const MANUAL = {
+    id: "sched_cherry",
+    source_type: "manual",
+    deposit_pct: 10,
+    deposit_amount: 800,
+    total_due: 8000,
+    deposit_status: "pending",
+    currency_code: "inr",
+  }
+  const inrCart = (over: Record<string, unknown> = {}) =>
+    cart({ currency_code: "inr", total: 8400, ...over })
+
+  it("re-aligns an unpaid collection made before GST applied, instead of refusing", async () => {
+    const { scope, paymentService } = scopeWith(MANUAL, {
+      id: "pc_old",
+      amount: 800,
+      payments: [],
+      payment_sessions: [{ id: "ps_old" }],
+    })
+    const out = await ensureCartPaymentCollection(
+      scope,
+      inrCart({ payment_collection: { id: "pc_old", amount: 800 } })
+    )
+    expect(out.id).toBe("pc_old")
+    expect(out.plan.amount).toBe(840)
+    expect(mockDeleteSessions).toHaveBeenCalledWith({ input: { ids: ["ps_old"] } })
+    expect(paymentService.updatePaymentCollections).toHaveBeenCalledWith("pc_old", { amount: 840 })
+  })
+
+  it("refuses to move a collection that already holds a payment", async () => {
+    const { scope, paymentService } = scopeWith(MANUAL, {
+      id: "pc_old",
+      amount: 800,
+      payments: [{ id: "pay_1" }],
+      payment_sessions: [],
+    })
+    await expect(
+      ensureCartPaymentCollection(scope, inrCart({ payment_collection: { id: "pc_old", amount: 800 } }))
+    ).rejects.toThrow(/already holds a payment/)
+    expect(paymentService.updatePaymentCollections).not.toHaveBeenCalled()
+  })
+
+  it("re-aligns on refresh too, so a payment retry charges the live deposit", async () => {
+    const { scope, paymentService } = scopeWith(MANUAL, {
+      id: "pc_old",
+      amount: 800,
+      payments: [],
+      payment_sessions: [],
+    })
+    const out = await refreshCartPaymentCollection(
+      scope,
+      inrCart({ payment_collection: { id: "pc_old", amount: 800, payment_sessions: [] } })
+    )
+    expect(out.preserved_deposit).toBe(true)
+    expect(paymentService.updatePaymentCollections).toHaveBeenCalledWith("pc_old", { amount: 840 })
+    expect(mockCoreRefresh).not.toHaveBeenCalled()
   })
 })

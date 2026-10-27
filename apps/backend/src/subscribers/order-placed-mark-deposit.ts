@@ -69,6 +69,40 @@ export default async function markDepositPaidOnOrderPlaced({
       await schedules.attachOrder(schedule.id, data.id)
     }
 
+    /**
+     * A MANUAL deposit (design order) was set before tax and freight were
+     * known, so its stored total and balance are from the cart as it was then.
+     * Re-base them on the order as placed: the total is the order's, the
+     * deposit is what checkout actually collected, and the balance is the
+     * difference — the same figure the order will report as outstanding, so
+     * `request_order_balance` reconciles instead of refusing.
+     */
+    if (schedule.source_type === "manual" && schedule.deposit_status === "pending") {
+      const { data: orders } = await query.graph({
+        entity: "order",
+        fields: ["id", "total", "payment_collections.amount"],
+        filters: { id: data.id },
+      })
+      const order = orders?.[0] as any
+      const total = Number(order?.total)
+      const collected = (order?.payment_collections ?? []).reduce(
+        (sum: number, c: any) => sum + (Number(c?.amount) || 0),
+        0
+      )
+      if (Number.isFinite(total) && total > 0 && collected > 0 && collected <= total) {
+        const balance = Math.round((total - collected) * 100) / 100
+        await schedules.updatePaymentSchedules({
+          id: schedule.id,
+          total_due: total,
+          deposit_amount: collected,
+          balance_amount: balance,
+        })
+        logger.info(
+          `[deposit] schedule=${schedule.id} re-based on order=${data.id}: total ${total}, deposit ${collected}, balance ${balance}`
+        )
+      }
+    }
+
     if (schedule.deposit_status === "pending") {
       await schedules.markDepositPaid(schedule.id, data.id)
       logger.info(

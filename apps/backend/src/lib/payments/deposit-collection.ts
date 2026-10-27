@@ -39,6 +39,41 @@ export type CollectionSchedule = {
   total_due?: number | string | null
   deposit_status?: string | null
   currency_code?: string | null
+  /** "manual" = set by an admin on a design order; see `manualDepositAmount`. */
+  source_type?: string | null
+  deposit_pct?: number | string | null
+}
+
+const round2 = (n: number): number => {
+  const scaled = n * 100
+  return Math.round(scaled + Math.sign(scaled) * Number.EPSILON * Math.abs(scaled)) / 100
+}
+
+/**
+ * A MANUAL deposit (an admin's percentage on a design order) follows the cart
+ * total at checkout, not the total when it was set.
+ *
+ * A quote cart is minted with its address, tax and freight already priced, so
+ * its stored `deposit_amount` is final. A design order is not: its cart is
+ * ₹8,000 before the buyer gives an address, and ₹8,400 once 5% GST applies. A
+ * fixed amount stored at ₹8,000 charged 10% of the wrong total and left a
+ * balance the order would never agree with (Cherry, 2026-10-27). So the
+ * percentage is the agreement, and the amount is taken from the live total.
+ *
+ * Null when this is not a manual schedule, or the pct or total is unusable —
+ * the caller then falls back to the stored amount and its own refusals.
+ */
+export function manualDepositAmount(
+  schedule: Pick<CollectionSchedule, "source_type" | "deposit_pct"> | null | undefined,
+  cartTotal: unknown
+): number | null {
+  if (schedule?.source_type !== "manual") return null
+  const pct = Number(schedule.deposit_pct)
+  const total = Number(cartTotal)
+  if (cartTotal === null || cartTotal === undefined || cartTotal === "") return null
+  if (!Number.isFinite(pct) || pct <= 0 || pct > 100) return null
+  if (!Number.isFinite(total) || total <= 0) return null
+  return round2((total * pct) / 100)
 }
 
 export type CollectionPlan =
@@ -135,7 +170,7 @@ export function planCartCollection(input: {
     )
   }
 
-  const deposit = num(schedule.deposit_amount)
+  const deposit = manualDepositAmount(schedule, input.cartTotal) ?? num(schedule.deposit_amount)
 
   /**
    * 🔑 `> 0`, not `!= null`. A stored 0 reads as a free deposit and would mint

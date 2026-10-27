@@ -38,23 +38,7 @@ setupSharedTestSuite(() => {
 
     // Build a fresh design order (cart → design line item → address); returns
     // its line_item_id. Uses the suite's single customer/key session.
-    const buildDesignOrder = async (): Promise<{ lineItemId: string; cartId: string }> => {
-      const cartRes = await api.post(
-        "/store/carts",
-        { region_id: regionId },
-        customerHeaders
-      )
-      const cartId = cartRes.data.cart.id
-
-      const checkoutRes = await api.post(
-        `/store/custom/designs/${designId}/checkout`,
-        { cart_id: cartId, currency_code: "usd" },
-        customerHeaders
-      )
-      expect(checkoutRes.status).toBe(200)
-      const lineItemId = checkoutRes.data.line_item_id
-      expect(lineItemId).toBeDefined()
-
+    const addAddress = async (cartId: string) => {
       const credentials = getTestCustomerCredentials()
       await api.post(
         `/store/carts/${cartId}`,
@@ -71,6 +55,30 @@ setupSharedTestSuite(() => {
         },
         customerHeaders
       )
+    }
+
+    const buildDesignOrder = async (
+      opts: { withAddress?: boolean } = {}
+    ): Promise<{ lineItemId: string; cartId: string }> => {
+      const cartRes = await api.post(
+        "/store/carts",
+        { region_id: regionId },
+        customerHeaders
+      )
+      const cartId = cartRes.data.cart.id
+
+      const checkoutRes = await api.post(
+        `/store/custom/designs/${designId}/checkout`,
+        { cart_id: cartId, currency_code: "usd" },
+        customerHeaders
+      )
+      expect(checkoutRes.status).toBe(200)
+      const lineItemId = checkoutRes.data.line_item_id
+      expect(lineItemId).toBeDefined()
+
+      if (opts.withAddress !== false) {
+        await addAddress(cartId)
+      }
       return { lineItemId, cartId }
     }
 
@@ -204,6 +212,41 @@ setupSharedTestSuite(() => {
         setB.data.design_order_deposit.deposit_amount,
         2
       )
+    })
+
+    /**
+     * Cherry, 2026-10-27: the deposit was set while her cart had no address,
+     * so before tax. It must follow the total the buyer actually checks out
+     * at — 10% of the taxed total, not of the pre-tax one.
+     */
+    it("charges the percentage of the total at checkout, after tax applies", async () => {
+      const cartTotal = async (cartId: string) =>
+        Number((await api.get(`/store/carts/${cartId}`, customerHeaders)).data.cart.total)
+
+      const c = await buildDesignOrder({ withAddress: false })
+      const before = await cartTotal(c.cartId)
+      const set = await api.post(
+        `/admin/designs/orders/${c.lineItemId}/deposit`,
+        { deposit_pct: 10 },
+        adminHeaders
+      )
+      expect(set.status).toBe(200)
+      expect(set.data.design_order_deposit.deposit_amount).toBeCloseTo(before * 0.1, 2)
+
+      // The buyer gives an address; the region's 5% tax now applies.
+      await addAddress(c.cartId)
+      const after = await cartTotal(c.cartId)
+      expect(after).toBeGreaterThan(before)
+
+      const collection = (
+        await api.post("/store/payment-collections", { cart_id: c.cartId }, customerHeaders)
+      ).data.payment_collection
+      expect(Number(collection.amount)).toBeCloseTo(after * 0.1, 2)
+
+      const terms = (await api.get(`/store/carts/${c.cartId}/quote-terms`, customerHeaders)).data
+        .quote_terms
+      expect(terms.deposit_due_now).toBeCloseTo(after * 0.1, 2)
+      expect(terms.balance_due_later).toBeCloseTo(after * 0.9, 2)
     })
   })
 })

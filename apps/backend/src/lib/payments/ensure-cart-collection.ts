@@ -66,11 +66,21 @@ export async function ensureCartPaymentCollection(
      * these are decimal money values, not floats-with-hope.
      */
     const existingAmount = Number(cart.payment_collection?.amount)
-    if (
+    const differs =
       plan.basis === "deposit" &&
       Number.isFinite(existingAmount) &&
       Math.round(existingAmount * 100) !== Math.round(plan.amount * 100)
-    ) {
+    /**
+     * A MANUAL deposit follows the cart total, so its collection going stale
+     * is expected — the buyer added an address and GST applied. Re-align it
+     * the way core re-aligns an ordinary cart's collection. A quote's deposit
+     * is fixed at mint, so a mismatch there still means something is wrong.
+     */
+    if (differs && schedule?.source_type === "manual") {
+      await alignManualDepositCollection(scope, cart.payment_collection as any, plan.amount, cart.id)
+      return { id: existingId, plan }
+    }
+    if (differs) {
       throw new MedusaError(
         MedusaError.Types.NOT_ALLOWED,
         `Cart ${cart.id} already has a payment collection for ${existingAmount}, but its payment schedule says ${plan.amount} is due now. ` +
@@ -190,10 +200,60 @@ export async function refreshCartPaymentCollection(
     await deletePaymentSessionsWorkflow(scope).run({ input: { ids } })
   }
 
+  // A manual deposit follows the cart total; keep its collection in step.
+  const collectionAmount = Number(cart.payment_collection?.amount)
+  if (
+    schedule?.source_type === "manual" &&
+    cart.payment_collection?.id &&
+    Number.isFinite(collectionAmount) &&
+    Math.round(collectionAmount * 100) !== Math.round(plan.amount * 100)
+  ) {
+    await alignManualDepositCollection(scope, { id: cart.payment_collection.id }, plan.amount, cart.id)
+  }
+
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   logger?.info?.(
     `[deposit] cart=${cart.id} refreshed ${ids.length} session(s), PRESERVING the deposit amount ${plan.amount} — core's refresh would have reset it to the cart total.`
   )
 
   return { preserved_deposit: true, plan }
+}
+
+/**
+ * Set a manual deposit's collection to the amount the plan says is due now,
+ * dropping any sessions priced at the old amount so the rail opens a fresh one.
+ *
+ * Only an UNPAID collection is touched: once money has landed on it, a figure
+ * changing underneath is a reconciliation for a human, not something to fix
+ * quietly here — so that case throws, like the quote path's mismatch does.
+ */
+async function alignManualDepositCollection(
+  scope: any,
+  collection: { id: string; payment_sessions?: Array<{ id: string }> | null },
+  amount: number,
+  cartId: string
+): Promise<void> {
+  const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "payment_collection",
+    fields: ["id", "amount", "payments.id", "payment_sessions.id"],
+    filters: { id: collection.id },
+  })
+  const current = data?.[0]
+  if ((current?.payments ?? []).length) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Cart ${cartId}'s payment collection ${collection.id} already holds a payment, so its deposit cannot be re-aligned to ${amount}. Reconcile it by hand.`
+    )
+  }
+  const sessionIds = (current?.payment_sessions ?? []).map((s: any) => s.id).filter(Boolean)
+  if (sessionIds.length) {
+    await deletePaymentSessionsWorkflow(scope).run({ input: { ids: sessionIds } })
+  }
+  await (scope.resolve(Modules.PAYMENT) as any).updatePaymentCollections(collection.id, { amount })
+
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  logger?.info?.(
+    `[deposit] cart=${cartId} manual deposit collection ${collection.id} re-aligned to ${amount} (cart total changed)`
+  )
 }
