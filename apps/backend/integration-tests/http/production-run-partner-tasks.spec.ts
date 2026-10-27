@@ -169,5 +169,41 @@ setupSharedTestSuite(() => {
       const onRun = await api.get(`/admin/production-runs/${runId}/partner-tasks`, adminHeaders)
       expect(onRun.data.partner_tasks).toHaveLength(0)
     })
+
+    it("an admin marking a task completed stamps completed_at, once", async () => {
+      const container = getContainer()
+      await createAdminUser(container)
+      const adminHeaders = await getAuthHeaders(api)
+      const photographer = await createPartner(Date.now(), "done")
+      const base = `/admin/partners/${photographer.partnerId}/tasks`
+
+      const created = await loud("create", () =>
+        api.post(base, { title: "Photo Shoot", estimated_cost: 500, cost_currency: "inr" }, adminHeaders)
+      )
+      const task = created.data.task
+      const taskId: string = Array.isArray(task) ? task[0].id : task.id ?? task.parent?.id
+      expect(created.data.task.completed_at ?? null).toBeNull()
+
+      const done = await loud("complete", () =>
+        api.patch(`${base}/${taskId}`, { status: "completed", actual_cost: 500 }, adminHeaders)
+      )
+      expect(done.data.task.status).toBe("completed")
+      const stampedAt = done.data.task.completed_at
+      expect(stampedAt).toBeTruthy()
+
+      // A later save must keep the original date, not move it.
+      const resaved = await loud("resave", () =>
+        api.patch(`${base}/${taskId}`, { status: "completed", description: "edited" }, adminHeaders)
+      )
+      expect(resaved.data.task.completed_at).toBe(stampedAt)
+
+      // A task completed before the stamp existed (completed, no date) is
+      // backfilled by re-saving it as completed.
+      await container.resolve("tasks").updateTasks({ id: taskId, completed_at: null })
+      const backfilled = await loud("backfill", () =>
+        api.patch(`${base}/${taskId}`, { status: "completed" }, adminHeaders)
+      )
+      expect(backfilled.data.task.completed_at).toBeTruthy()
+    })
   })
 })
