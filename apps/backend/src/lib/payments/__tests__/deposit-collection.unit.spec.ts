@@ -1,4 +1,4 @@
-import { planCartCollection, assertCollectable } from "../deposit-collection"
+import { planCartCollection, assertCollectable, manualDepositAmount } from "../deposit-collection"
 
 /**
  * #1451 — the quote page promised a 30% deposit and the rail charged 100%.
@@ -148,5 +148,53 @@ describe("planCartCollection", () => {
         )
       ).not.toThrow()
     })
+  })
+})
+
+/**
+ * A MANUAL deposit (admin's % on a design order) follows the cart total at
+ * checkout. Cherry, 2026-10-27: set at 10% while the cart was ₹8,000 pre-GST,
+ * stored ₹800; the cart is ₹8,400 once 5% GST applies, so ₹840 is due.
+ */
+describe("planCartCollection — a manual deposit follows the live cart total", () => {
+  const manual = {
+    id: "sched_cherry",
+    source_type: "manual",
+    deposit_pct: 10,
+    deposit_amount: 800,
+    total_due: 8000,
+    deposit_status: "pending",
+    currency_code: "inr",
+  }
+
+  it("charges 10% of the cart AS IT IS NOW, not of the total when it was set", () => {
+    const plan = planCartCollection({ cartTotal: 8400, cartCurrency: "inr", schedule: manual })
+    expect(plan.basis).toBe("deposit")
+    expect(plan.amount).toBe(840)
+    expect(plan.reason).toContain("7560")
+  })
+
+  it("leaves a QUOTE deposit exactly as stored — it was priced with tax at mint", () => {
+    const plan = planCartCollection({
+      cartTotal: 8400,
+      cartCurrency: "inr",
+      schedule: { ...manual, source_type: "quote" },
+    })
+    expect(plan.amount).toBe(800)
+  })
+
+  it("rounds to the paisa", () => {
+    expect(manualDepositAmount({ source_type: "manual", deposit_pct: 10 }, 293.69)).toBe(29.37)
+  })
+
+  it.each([
+    [{ source_type: "quote", deposit_pct: 10 }, 8400],
+    [{ source_type: "manual", deposit_pct: null }, 8400],
+    [{ source_type: "manual", deposit_pct: 0 }, 8400],
+    [{ source_type: "manual", deposit_pct: 10 }, null],
+    [{ source_type: "manual", deposit_pct: 10 }, 0],
+    [null, 8400],
+  ])("has no live amount for %p at total %p — the stored figure and its refusals apply", (sched, total) => {
+    expect(manualDepositAmount(sched as any, total)).toBeNull()
   })
 })
