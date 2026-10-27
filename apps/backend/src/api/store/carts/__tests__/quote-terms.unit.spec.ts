@@ -120,4 +120,40 @@ describe("deriveQuoteCartTerms", () => {
     expect(terms.deposit_due_now).toBeNull()
     expect(terms.unavailable_reason).toMatch(/paid/i)
   })
+
+  /**
+   * A design order with an admin-set deposit (source_type "manual") has no
+   * quote_id, and its checkout collects only the deposit — so it must be
+   * described, or the page shows ₹8,400 while PayU charges ₹840.
+   */
+  it("describes a design-order deposit even though the cart has no quote_id", () => {
+    const terms = deriveQuoteCartTerms(
+      { id: "cart_in", currency_code: "inr", total: 8400, metadata: { source: "design-order" } },
+      {
+        id: "sched_in",
+        currency_code: "inr",
+        total_due: 8400,
+        deposit_pct: 10,
+        deposit_amount: 840,
+        deposit_status: "pending",
+        balance_status: "not_due",
+        rail: "payu",
+        source_type: "manual",
+      }
+    )
+
+    expect(terms.is_quote_cart).toBe(true)
+    expect(terms.quote_id).toBeNull()
+    expect(terms.deposit_due_now).toBe(840)
+    expect(terms.balance_due_later).toBe(7560)
+    expect(terms.unavailable_reason).toBeNull()
+  })
+
+  it("still says nothing about a non-quote cart whose schedule is a quote's", () => {
+    const terms = deriveQuoteCartTerms(
+      { id: "cart_x", currency_code: "aud", total: 314.77, metadata: null },
+      { ...AU_SCHEDULE, source_type: "quote" }
+    )
+    expect(terms.is_quote_cart).toBe(false)
+  })
 })

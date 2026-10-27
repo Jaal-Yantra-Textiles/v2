@@ -2,6 +2,7 @@ import {
   blockingDesignIds,
   decideCancel,
   decideCustomerAttach,
+  decideDeposit,
   decideReprice,
   isCancelled,
   isConverted,
@@ -432,5 +433,75 @@ describe("blockingDesignIds", () => {
         },
       })
     ).toEqual(["d1"])
+  })
+})
+
+describe("decideDeposit — a part payment through the same checkout link", () => {
+  const cart = { id: "cart_1", total: 8400, metadata: null }
+
+  it("takes 10% of the cart total, with the balance raised by hand by default", () => {
+    expect(decideDeposit({ cart, depositPct: 10 })).toEqual({
+      ok: true,
+      deposit_pct: 10,
+      balance_trigger: "manual",
+      total_due: 8400,
+    })
+  })
+
+  it("accepts a dispatch-triggered balance", () => {
+    const d = decideDeposit({ cart, depositPct: 10, balanceTrigger: "dispatch" })
+    expect(d.ok && d.balance_trigger).toBe("dispatch")
+  })
+
+  // 0 mints a free checkout; 100 is no deposit; null/"" are Number() → 0.
+  it.each([0, 100, -5, 150, null, undefined, "10", NaN])(
+    "refuses a deposit_pct of %p",
+    (pct) => {
+      const d = decideDeposit({ cart, depositPct: pct })
+      expect(d).toMatchObject({ ok: false, reason: "not_a_pct" })
+    }
+  )
+
+  it("refuses an unknown balance trigger", () => {
+    expect(
+      decideDeposit({ cart, depositPct: 10, balanceTrigger: "sample_approved" })
+    ).toMatchObject({ ok: false, reason: "bad_balance_trigger" })
+  })
+
+  it("refuses a converted order", () => {
+    expect(
+      decideDeposit({ cart, depositPct: 10, hasLinkedOrder: true })
+    ).toMatchObject({ ok: false, reason: "cart_completed" })
+  })
+
+  it("refuses a cancelled order", () => {
+    expect(
+      decideDeposit({
+        cart: { ...cart, metadata: { cancelled_at: "2026-10-27T10:27:43.728Z" } },
+        depositPct: 10,
+      })
+    ).toMatchObject({ ok: false, reason: "cancelled" })
+  })
+
+  it("refuses a second schedule rather than replacing the first", () => {
+    expect(
+      decideDeposit({ cart, depositPct: 10, hasSchedule: true })
+    ).toMatchObject({ ok: false, reason: "already_has_deposit" })
+  })
+
+  it("refuses a cart with no total", () => {
+    expect(
+      decideDeposit({ cart: { ...cart, total: 0 }, depositPct: 10 })
+    ).toMatchObject({ ok: false, reason: "no_total" })
+    expect(
+      decideDeposit({ cart: { ...cart, total: null }, depositPct: 10 })
+    ).toMatchObject({ ok: false, reason: "no_total" })
+  })
+
+  it("refuses a missing cart", () => {
+    expect(decideDeposit({ cart: null, depositPct: 10 })).toMatchObject({
+      ok: false,
+      reason: "no_cart",
+    })
   })
 })

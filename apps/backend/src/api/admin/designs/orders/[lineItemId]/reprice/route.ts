@@ -5,6 +5,7 @@ import {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
+import { PAYMENT_SCHEDULE_MODULE } from "../../../../../../modules/payment_schedule"
 import { hasLinkedSaleOrder } from "../../linked-sale-order"
 import { decideReprice } from "../../mutate-design-order"
 
@@ -84,6 +85,18 @@ export async function POST(
             ? 404
             : 400
       res.status(status).json({ message: decision.message, reason: decision.reason })
+      return
+    }
+
+    // A deposit's schedule froze the old total; repricing under it would charge
+    // a deposit and a balance that no longer add up to what the buyer owes.
+    if (cart && (await req.scope.resolve<any>(PAYMENT_SCHEDULE_MODULE).findByCartId(cart.id))) {
+      res.status(409).json({
+        reason: "has_deposit",
+        message:
+          "This design order has a deposit set, which fixed its total. Reprice it " +
+          "before setting the deposit, or cancel and re-issue it.",
+      })
       return
     }
 

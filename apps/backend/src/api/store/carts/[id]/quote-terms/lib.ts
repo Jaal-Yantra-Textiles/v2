@@ -94,6 +94,7 @@ export function deriveQuoteCartTerms(
         deposit_pct?: number | string | null
         balance_status?: string | null
         rail?: string | null
+        source_type?: string | null
       })
     | null
     | undefined
@@ -104,8 +105,14 @@ export function deriveQuoteCartTerms(
    * `metadata.quote_id` is the marker `acceptQuoteWorkflow` stamps, and it is
    * the same marker the storefronts use to refuse a re-region. One definition
    * of "this is a quote cart", not two.
+   *
+   * The one addition: a design order with a deposit set by an admin
+   * (`source_type: "manual"`) carries no quote_id, but its checkout collects
+   * only the deposit all the same. Left out, the page would show the full total
+   * while the rail charges a part of it.
    */
-  if (!quoteId) {
+  const manualDeposit = schedule?.source_type === "manual"
+  if (!quoteId && !manualDeposit) {
     return NOT_A_QUOTE_CART
   }
 
@@ -113,7 +120,7 @@ export function deriveQuoteCartTerms(
   const base = {
     ...NOT_A_QUOTE_CART,
     is_quote_cart: true,
-    quote_id: String(quoteId),
+    quote_id: quoteId ? String(quoteId) : null,
     currency_code: cart?.currency_code ?? null,
     total,
     deposit_status: schedule?.deposit_status ?? null,
