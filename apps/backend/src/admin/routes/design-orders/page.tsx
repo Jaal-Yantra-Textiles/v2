@@ -154,7 +154,9 @@ const DesignOrderActions = ({ row }: { row: DesignOrderItem }) => {
 
   const allApproved = row.items.every((i) => i.design.status === "Approved");
   const hasOrder = !!row.order;
-  const isCanceled = !!row.order?.canceled_at;
+  // The list API returns order.status, not order.canceled_at — reading the
+  // latter left this always false, so the action stayed live on a cancelled order.
+  const isCanceled = row.order?.status === "canceled";
 
   return (
     <EntityActions
