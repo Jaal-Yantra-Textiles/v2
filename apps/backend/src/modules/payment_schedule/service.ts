@@ -31,6 +31,12 @@ class PaymentScheduleService extends MedusaService({ PaymentSchedule }) {
     partner_deposit_pct?: number | null
     /** Null/omitted means `dispatch`, the behaviour before the column. */
     balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
+    /**
+     * A fixed deposit agreed with the buyer. It wins over any percentage and
+     * stores `deposit_pct: null`, so checkout charges this figure rather than
+     * a share of the live total.
+     */
+    fixed_deposit_amount?: number | null
     metadata?: Record<string, any> | null
   }) {
     if (!input.cart_id) {
@@ -40,8 +46,7 @@ class PaymentScheduleService extends MedusaService({ PaymentSchedule }) {
       )
     }
 
-    const pct = resolveDepositPct(input.quote_deposit_pct, input.partner_deposit_pct)
-    const split = splitDeposit(input.total_due, pct)
+    const split = this.splitFor(input)
 
     const created: any = await this.createPaymentSchedules([
       {
@@ -65,6 +70,65 @@ class PaymentScheduleService extends MedusaService({ PaymentSchedule }) {
     // The generated create accepts an array and returns one; its TYPE says a
     // single row. Normalising here rather than destructuring keeps both true.
     return Array.isArray(created) ? created[0] : created
+  }
+
+  /**
+   * Replace an UNPAID manual deposit in place — same row, new figures. A quote
+   * schedule or a paid deposit is refused: those are what the buyer agreed to
+   * or already paid.
+   */
+  async replaceManualDeposit(
+    id: string,
+    input: {
+      total_due: number
+      quote_deposit_pct?: number | null
+      fixed_deposit_amount?: number | null
+      balance_trigger?: "dispatch" | "sample_approved" | "manual" | null
+      metadata?: Record<string, any> | null
+    }
+  ) {
+    const current: any = await this.retrievePaymentSchedule(id)
+    if (current.source_type !== "manual" || current.deposit_status !== "pending") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        `Payment schedule ${id} is ${current.source_type}/${current.deposit_status}; only an unpaid manual deposit can be replaced.`
+      )
+    }
+    const split = this.splitFor(input)
+    return await this.updatePaymentSchedules({
+      id,
+      total_due: input.total_due,
+      deposit_pct: split.deposit_pct,
+      deposit_amount: split.deposit_amount,
+      balance_amount: split.balance_amount,
+      balance_trigger: input.balance_trigger ?? current.balance_trigger,
+      metadata: { ...(current.metadata ?? {}), ...(input.metadata ?? {}) },
+    } as any)
+  }
+
+  private splitFor(input: {
+    total_due: number
+    quote_deposit_pct?: number | null
+    partner_deposit_pct?: number | null
+    fixed_deposit_amount?: number | null
+  }): { deposit_pct: number | null; deposit_amount: number; balance_amount: number } {
+    const fixed = input.fixed_deposit_amount
+    if (fixed !== null && fixed !== undefined) {
+      const total = Number(input.total_due)
+      if (!Number.isFinite(fixed) || fixed <= 0 || !(fixed < total)) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `A fixed deposit of ${fixed} must be above 0 and below the total ${total}`
+        )
+      }
+      return {
+        deposit_pct: null,
+        deposit_amount: fixed,
+        balance_amount: Math.round((total - fixed) * 100) / 100,
+      }
+    }
+    const pct = resolveDepositPct(input.quote_deposit_pct, input.partner_deposit_pct)
+    return splitDeposit(input.total_due, pct)
   }
 
   /** The schedule for a cart, or null. One schedule per cart by construction. */

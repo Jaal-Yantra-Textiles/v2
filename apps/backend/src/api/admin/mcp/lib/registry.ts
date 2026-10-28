@@ -6560,20 +6560,22 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "set_design_order_deposit",
     description: [
-      "Put a deposit on a design order: the buyer's EXISTING checkout link then collects `deposit_pct` of the total now, and the rest is raised later as the balance with request_order_balance. Sensitive: requires confirm:true.",
+      "Put a deposit on a design order: the buyer's EXISTING checkout link then collects `deposit_pct` of the total — or a fixed `deposit_amount` — now, and the rest is raised later as the balance with request_order_balance. Sensitive: requires confirm:true.",
+      "",
+      "Give `deposit_pct` OR `deposit_amount`, never both. A percentage follows the live total (tax included); a fixed amount does not. `replace: true` replaces an UNPAID manual deposit already on the order.",
       "",
       "🔑 Set the price FIRST. The deposit fixes the order's total, and reprice_design_order refuses once a deposit is set.",
       "",
       "`balance_trigger` decides when the balance is asked for: 'manual' (default — only when an admin calls request_order_balance) or 'dispatch' (raised automatically when the order ships).",
       "",
-      "If the buyer already opened checkout, their unpaid payment request for the full total is cleared so checkout makes the deposit one. Refuses with 409 when a payment was already taken, when a deposit is already set, or when the order is converted or cancelled. Nothing is emailed.",
+      "If the buyer already opened checkout, their unpaid payment request for the full total is cleared so checkout makes the deposit one. Refuses with 409 when a payment was already taken, when a deposit is already set (unless `replace: true` on an unpaid manual one), or when the order is converted or cancelled. Nothing is emailed.",
     ].join("\n"),
     method: "POST",
     path: "/admin/designs/orders/:lineItemId/deposit",
     pathParams: ["lineItemId"],
     write: true,
     sensitive: true,
-    bodyParams: ["deposit_pct", "balance_trigger"],
+    bodyParams: ["deposit_pct", "deposit_amount", "balance_trigger", "replace"],
     inputSchema: obj(
       {
         lineItemId: STR("The design order's cart line item id (`cali_...`)."),
@@ -6582,11 +6584,21 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           description:
             "Percentage of the total collected now, greater than 0 and less than 100 (e.g. 10).",
         },
+        deposit_amount: {
+          type: "number",
+          description:
+            "A fixed deposit in the order's currency, above 0 and below the total (e.g. 800). Instead of deposit_pct.",
+        },
         balance_trigger: STR(
           "'manual' (default) or 'dispatch' — when the balance is asked for."
         ),
+        replace: {
+          type: "boolean",
+          description:
+            "Replace the order's existing deposit. Only an UNPAID manual deposit can be replaced.",
+        },
       },
-      ["lineItemId", "deposit_pct"]
+      ["lineItemId"]
     ),
     sideEffects:
       "Creates a payment schedule on the design order's cart, so its checkout charges the deposit instead of the total; may clear an unpaid payment collection. Sends nothing.",

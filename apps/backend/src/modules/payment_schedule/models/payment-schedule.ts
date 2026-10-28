@@ -80,7 +80,8 @@ const PaymentSchedule = model.define("payment_schedule", {
    * payment asks, and a percentage recomputed from two rounded amounts answers
    * it wrong.
    */
-  deposit_pct: model.number(),
+  // Null for a fixed-amount deposit: there is no percentage to follow the total.
+  deposit_pct: model.number().nullable(),
   deposit_amount: model.bigNumber(),
   /**
    * `waived` is deliberate and distinct from `paid`: a partner may take a

@@ -183,6 +183,18 @@ describe("planCartCollection — a manual deposit follows the live cart total", 
     expect(plan.amount).toBe(800)
   })
 
+  // Cherry, 2026-10-28: a fixed ₹800 agreed on the taxed ₹8,400.
+  it("charges a FIXED manual deposit (no percentage) as stored, whatever the total", () => {
+    const plan = planCartCollection({
+      cartTotal: 8400,
+      cartCurrency: "inr",
+      schedule: { ...manual, deposit_pct: null, total_due: 8400 },
+    })
+    expect(plan.basis).toBe("deposit")
+    expect(plan.amount).toBe(800)
+    expect(plan.reason).toContain("7600")
+  })
+
   it("rounds to the paisa", () => {
     expect(manualDepositAmount({ source_type: "manual", deposit_pct: 10 }, 293.69)).toBe(29.37)
   })
