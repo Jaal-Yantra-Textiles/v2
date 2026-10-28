@@ -8,6 +8,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import { DESIGN_MODULE } from "../../modules/designs"
 import { readHouseStore } from "../production-runs/house-store"
 import { resolveMintSalesChannel } from "./lib/mint-sales-channel"
+import { refreshDesignCartTax } from "./lib/refresh-design-cart-tax"
 import { applyRate, fetchExchangeRate } from "../../lib/fx/exchange-rate"
 import {
   estimateDesignCostWorkflow,
@@ -451,6 +452,11 @@ const createDesignCartStep = createStep(
         },
       }))
     )
+
+    // The module calls above write no tax lines, and checkout only recomputes
+    // them if the buyer changes a tax-relevant address field. A buyer who
+    // picks up in person changes nothing and paid with no GST (#148).
+    await refreshDesignCartTax(container, cart.id)
 
     return new StepResponse(
       { cart, lineItems },

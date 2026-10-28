@@ -6,6 +6,7 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
 import { PAYMENT_SCHEDULE_MODULE } from "../../../../../../modules/payment_schedule"
+import { refreshDesignCartTax } from "../../../../../../workflows/designs/lib/refresh-design-cart-tax"
 import { hasLinkedSaleOrder } from "../../linked-sale-order"
 import { decideReprice } from "../../mutate-design-order"
 
@@ -104,6 +105,9 @@ export async function POST(
       { id: lineItemId },
       { unit_price: decision.unit_price, is_custom_price: true }
     )
+    // A cart minted before tax was computed at mint has no tax lines to carry
+    // the new price; recompute so the buyer is charged GST on it.
+    await refreshDesignCartTax(req.scope, cart!.id)
 
     logger?.info?.(
       `[admin] design order line ${lineItemId} repriced ${decision.previous} -> ` +
