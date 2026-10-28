@@ -189,7 +189,7 @@ setupSharedTestSuite(() => {
 
       const applied = await api.post(
         RUN,
-        { dry_run: false, params: { order_id: order.id, record_received: true } },
+        { dry_run: false, params: { order_id: order.id, record_received: true, quantity: 2 } },
         adminHeaders
       )
       expect(applied.data.result.applied).toBe(true)
@@ -197,10 +197,14 @@ setupSharedTestSuite(() => {
       const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
       const { data } = await query.graph({
         entity: "order",
-        fields: ["id", "total", "tax_total", "summary", "payment_status"],
+        fields: ["id", "total", "tax_total", "summary", "payment_status", "items.quantity", "items.unit_price", "items.detail.quantity"],
         filters: { id: order.id },
       })
       const after = data[0]
+      // Founder 2026-10-28: 2 samples, not 1 — same ₹2,400.
+      expect(Number(after.items[0].quantity)).toBe(2)
+      expect(Number(after.items[0].detail.quantity)).toBe(2)
+      expect(Number(after.items[0].unit_price)).toBeCloseTo(1142.855, 3)
       expect(Number(after.tax_total)).toBeCloseTo(114.29, 2)
       expect(Number(after.total)).toBeCloseTo(2400, 2)
       expect(Number(after.summary.paid_total)).toBeCloseTo(2400, 2)
