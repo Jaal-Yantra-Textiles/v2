@@ -8553,7 +8553,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "",
       "Photos default to the image media attached to the order's production runs; pass `photo_urls` to choose others. Refused when there are no photos at all.",
       "",
-      "A new request SUPERSEDES any still-open one for the order — its link stops working. On the customer's answer we get an admin feed alert (and an email to ADMIN_NOTIFY_EMAIL). A rejection sends nothing to the partner. An approval on an order with a PAID deposit raises the balance and emails the customer the pay link.",
+      "A new request SUPERSEDES any still-open one for the order — its link stops working. On the customer's answer we get an admin feed alert (and an email to b2borders@jaalyantra.com). A rejection sends nothing to the partner. An approval on an order with a PAID deposit raises the balance and emails the customer the pay link.",
       "",
       "Returns `approval_url` too, so it can be shared by hand if the email did not send (`emailed: false`).",
     ].join("\n"),

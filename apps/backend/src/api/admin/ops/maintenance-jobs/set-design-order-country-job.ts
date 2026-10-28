@@ -10,6 +10,7 @@ import type {
   MaintenanceJob,
   MaintenanceJobResult,
 } from "./registry"
+import { refreshDesignCartTax } from "../../../../workflows/designs/lib/refresh-design-cart-tax"
 
 /**
  * Name the country a design-order cart is being bought from.
@@ -222,6 +223,8 @@ export const setDesignOrderCountryJob: MaintenanceJob = {
       await cartService.updateCarts(cart_id, {
         shipping_address: { country_code },
       })
+      // A module write does not recompute tax; the new country decides GST.
+      await refreshDesignCartTax(container, cart_id)
     }
 
     return {
