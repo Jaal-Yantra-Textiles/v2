@@ -4,9 +4,12 @@ import type { StoreProductSpec } from "@lib/data/product-spec"
 import {
   hasAnySpecChoice,
   initialSpecChoices,
+  offeredChoices,
+  specForVariant,
   unansweredRequired,
   unansweredRequiredGroups,
 } from "../spec-choices-util"
+import { choicePriceLine } from "../spec-choices"
 
 /**
  * #1970 — who decides a required choice, us or the customer.
@@ -292,5 +295,49 @@ describe("unansweredRequired — colour", () => {
     expect(
       unansweredRequired(noneOrderable, empty, { madeToSpec: true })
     ).toEqual([])
+  })
+})
+
+describe("#2456 priced and variant-scoped choices", () => {
+  const logo = {
+    key: "logo",
+    label: "Logo",
+    required: true,
+    variant_ids: ["variant_apron"],
+    values: [
+      {
+        label: "My logo embroidered",
+        price_per_piece: 150,
+        setup_fee: 500,
+        price_currency_code: "inr",
+      },
+    ],
+  }
+  const withLogo = spec({
+    options: [logo, { key: "fit", label: "Fit", required: false, values: [{ label: "Loose" }] }],
+  })
+
+  it("drops a choice scoped to another variant, keeps the unscoped ones", () => {
+    expect(specForVariant(withLogo, "variant_kids")?.options?.map((o) => o.key)).toEqual(["fit"])
+    expect(specForVariant(withLogo, "variant_apron")?.options?.map((o) => o.key)).toEqual(["logo", "fit"])
+  })
+
+  it("shows everything until a variant is chosen", () => {
+    expect(specForVariant(withLogo, undefined)).toBe(withLogo)
+  })
+
+  it("does not demand a required choice the variant is not offered", () => {
+    const kids = specForVariant(withLogo, "variant_kids")
+    expect(unansweredRequired(kids, initialSpecChoices(kids), { madeToSpec: true })).toEqual([])
+  })
+
+  it("does not send a choice left behind by a variant switch", () => {
+    const kids = specForVariant(withLogo, "variant_kids")
+    expect(offeredChoices(kids, { logo: "My logo embroidered", fit: "Loose" })).toEqual({ fit: "Loose" })
+  })
+
+  it("says what a priced choice costs, and nothing for a free one", () => {
+    expect(choicePriceLine(logo.values[0])).toBe("+₹150 per piece · ₹500 one-time setup")
+    expect(choicePriceLine({ label: "Loose" })).toBeNull()
   })
 })

@@ -81,8 +81,29 @@ export const PartnerProductSpecOptionValueReq = z
     note: z.string().trim().max(500).nullable().optional(),
     order: z.number().int().min(0).max(999).optional(),
     available: z.boolean().optional(),
+    // #2456 — what choosing this value adds, GST-inclusive. Both null = free.
+    price_per_piece: z.number().min(0).max(1_000_000).nullable().optional(),
+    setup_fee: z.number().min(0).max(1_000_000).nullable().optional(),
+    price_currency_code: z
+      .string()
+      .trim()
+      .regex(/^[a-zA-Z]{3}$/, "Use a 3-letter currency code, e.g. inr.")
+      .nullable()
+      .optional(),
   })
   .strict()
+  // A bare 500 is ₹500 on one storefront and €500 on another. Refused here
+  // rather than guessed at the till.
+  .refine(
+    (v) =>
+      !(Number(v.price_per_piece) > 0 || Number(v.setup_fee) > 0) ||
+      !!v.price_currency_code,
+    {
+      message:
+        "A priced choice needs price_currency_code (e.g. inr) — say which currency the surcharge is in.",
+      path: ["price_currency_code"],
+    }
+  )
 
 export const PartnerProductSpecOptionReq = z
   .object({
@@ -91,6 +112,8 @@ export const PartnerProductSpecOptionReq = z
     help_text: z.string().trim().max(500).nullable().optional(),
     required: z.boolean().optional(),
     order: z.number().int().min(0).max(999).optional(),
+    // Offered only on these variants of the product; omit or null for all.
+    variant_ids: z.array(z.string().trim().min(1)).max(100).nullable().optional(),
     // A group with no values is not "no choice offered", it is a broken choice
     // the customer cannot satisfy — and if it is `required` too, the product
     // becomes unorderable. Rejected at the door rather than at add-to-cart.

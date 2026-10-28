@@ -1,5 +1,6 @@
 import {
   buildMadeToSpecSnapshot,
+  madeToSpecCharges,
   MADE_TO_SPEC_METADATA_KEY,
   type ProductSpecRecord,
 } from "../[id]/made-to-spec/lib"
@@ -419,5 +420,117 @@ describe("POST /store/carts/:id/made-to-spec — error payloads", () => {
     expect(r.status_).toBe(404)
     expect(r.body_.message).toBe("Variant variant_nope was not found.")
     expect(r.body_.error).toBe("Variant variant_nope was not found.")
+  })
+})
+
+describe("made-to-spec priced choices (#2456)", () => {
+  const logoSpec = (over: Record<string, unknown> = {}) =>
+    spec({
+      colors: [],
+      options: [
+        {
+          key: "logo",
+          label: "Logo",
+          values: [
+            { label: "No logo" },
+            {
+              label: "My logo embroidered",
+              price_per_piece: "150",
+              setup_fee: 500,
+              price_currency_code: "INR",
+            },
+          ],
+          ...over,
+        },
+      ],
+    })
+
+  it("snapshots what a priced choice cost, in its own currency", () => {
+    const snapshot = buildMadeToSpecSnapshot({
+      spec: logoSpec(),
+      selection: { options: { logo: "My logo embroidered" } },
+      now: NOW,
+      variantId: "variant_apron",
+    })
+
+    expect(snapshot.options).toEqual([
+      {
+        key: "logo",
+        label: "Logo",
+        value: "My logo embroidered",
+        price_per_piece: 150,
+        setup_fee: 500,
+        price_currency_code: "inr",
+      },
+    ])
+    expect(madeToSpecCharges(snapshot)).toEqual({
+      per_piece: [
+        { key: "logo", label: "Logo", value: "My logo embroidered", amount: 150, currency_code: "inr" },
+      ],
+      setup: [
+        { key: "logo", label: "Logo", value: "My logo embroidered", amount: 500, currency_code: "inr" },
+      ],
+    })
+  })
+
+  it("charges nothing for a free choice", () => {
+    const snapshot = buildMadeToSpecSnapshot({
+      spec: logoSpec(),
+      selection: { options: { logo: "No logo" } },
+      now: NOW,
+    })
+
+    expect(snapshot.options).toEqual([{ key: "logo", label: "Logo", value: "No logo" }])
+    expect(madeToSpecCharges(snapshot)).toEqual({ per_piece: [], setup: [] })
+  })
+
+  it("refuses a priced value that has no currency rather than guessing one", () => {
+    const noCurrency = spec({
+      colors: [],
+      options: [
+        { key: "logo", label: "Logo", values: [{ label: "Yes", price_per_piece: 150 }] },
+      ],
+    })
+    expect(() =>
+      buildMadeToSpecSnapshot({
+        spec: noCurrency,
+        selection: { options: { logo: "Yes" } },
+        now: NOW,
+      })
+    ).toThrow(/no currency/)
+  })
+
+  it("offers a variant-scoped choice only on its variants", () => {
+    const scoped = logoSpec({ variant_ids: ["variant_apron"] })
+
+    expect(
+      buildMadeToSpecSnapshot({
+        spec: scoped,
+        selection: { options: { logo: "My logo embroidered" } },
+        now: NOW,
+        variantId: "variant_apron",
+      }).options?.[0]?.value
+    ).toBe("My logo embroidered")
+
+    expect(() =>
+      buildMadeToSpecSnapshot({
+        spec: scoped,
+        selection: { options: { logo: "My logo embroidered" } },
+        now: NOW,
+        variantId: "variant_towel",
+      })
+    ).toThrow("Logo is not offered on this variant.")
+  })
+
+  it("does not demand a required choice on a variant it is not offered on", () => {
+    const scoped = logoSpec({ variant_ids: ["variant_apron"], required: true })
+
+    const snapshot = buildMadeToSpecSnapshot({
+      spec: scoped,
+      selection: {},
+      now: NOW,
+      variantId: "variant_towel",
+    })
+    expect(snapshot.options).toBeUndefined()
   })
 })

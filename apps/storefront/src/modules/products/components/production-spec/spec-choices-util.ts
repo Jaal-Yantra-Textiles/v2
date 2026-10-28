@@ -16,6 +16,39 @@ export type SpecChoiceState = {
 }
 
 /**
+ * #2456 — the spec as it applies to ONE variant: a choice the partner scoped to
+ * other variants is dropped. With no variant chosen yet everything is shown,
+ * so the customer can see the choice exists before picking a size.
+ */
+export const specForVariant = <T extends StoreProductSpec | null>(
+  spec: T,
+  variantId: string | null | undefined
+): T => {
+  if (!spec || !variantId || !spec.options?.length) return spec
+  return {
+    ...spec,
+    options: spec.options.filter(
+      (o) => !o.variant_ids?.length || o.variant_ids.includes(variantId)
+    ),
+  }
+}
+
+/**
+ * Only the choices the spec still offers. A choice made on one variant and
+ * left behind when the customer switched to another would be refused by the
+ * cart ("not offered on this variant"), so it is dropped before submitting.
+ */
+export const offeredChoices = (
+  spec: StoreProductSpec | null,
+  options: Record<string, string>
+): Record<string, string> => {
+  const keys = new Set((spec?.options ?? []).map((o) => o.key))
+  return Object.fromEntries(
+    Object.entries(options).filter(([key]) => keys.has(key))
+  )
+}
+
+/**
  * A group the customer actually chooses between. Colours are ONE group however
  * many swatches the partner offers — the founder's rule, and it matches how the
  * page reads: a row of swatches is one decision, not eight.

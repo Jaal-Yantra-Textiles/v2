@@ -19,6 +19,13 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PRODUCT_SPEC_MODULE } from "../../../../../modules/product-spec"
 import { WEAVE_TECHNIQUES } from "../../../../../modules/product-spec/weaving-techniques"
 
+/** A bigNumber column reads back as a number, a string or null. */
+const toAmount = (v: unknown): number | null => {
+  if (v === null || v === undefined || v === "") return null
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const idOrHandle = req.params.id
@@ -84,6 +91,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       label: o.label ?? o.key,
       help_text: o.help_text ?? null,
       required: !!o.required,
+      // Null = offered on every variant. The cart route enforces it; this is
+      // so the page can hide the choice on a variant it does not apply to.
+      variant_ids: Array.isArray(o.variant_ids) && o.variant_ids.length ? o.variant_ids : null,
       values: (o.values ?? [])
         .filter((v: any) => v.available !== false)
         .slice()
@@ -92,6 +102,11 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
           id: v.id,
           label: v.label,
           note: v.note ?? null,
+          // #2456 — published so the page can say "+ ₹150 per piece" BEFORE
+          // the customer finds it on the cart. GST-inclusive.
+          price_per_piece: toAmount(v.price_per_piece),
+          setup_fee: toAmount(v.setup_fee),
+          price_currency_code: v.price_currency_code ?? null,
         })),
     }))
     .filter((o: any) => o.required || o.values.length)

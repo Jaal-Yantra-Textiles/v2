@@ -43,6 +43,15 @@ const ProductSpecOption = model.define("product_spec_option", {
 
   order: model.number().default(0),
 
+  /*
+   * The variants this choice is offered on, or null for the whole product
+   * (#2456). Logo embroidery may be offered on the apron but not the
+   * tea towel sold under the same product. Ids rather than a link because the
+   * spec is replaced wholesale on every save; a link table would be rewritten
+   * with it for no gain.
+   */
+  variant_ids: model.json().nullable(),
+
   values: model.hasMany(() => ProductSpecOptionValue, { mappedBy: "option" }),
   spec: model.belongsTo(() => ProductSpec, { mappedBy: "options" }),
 })

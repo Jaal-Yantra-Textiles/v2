@@ -2,7 +2,11 @@
 
 import { Text, clx } from "@medusajs/ui"
 
-import type { StoreProductSpec } from "@lib/data/product-spec"
+import type {
+  StoreProductSpec,
+  StoreSpecOptionValue,
+} from "@lib/data/product-spec"
+import { convertToLocale } from "@lib/util/money"
 
 import type { SpecChoiceState } from "./spec-choices-util"
 
@@ -18,6 +22,24 @@ import type { SpecChoiceState } from "./spec-choices-util"
  * the backend re-checks the choice on submit, so a stale page cannot place an
  * order for a colour the partner has since withdrawn.
  */
+
+/**
+ * #2456 — "+₹150 per piece · ₹500 one-time setup", or null for a free choice.
+ * Said on the button so the customer is not surprised by it at the cart.
+ */
+export const choicePriceLine = (v: StoreSpecOptionValue): string | null => {
+  if (!v.price_currency_code) return null
+  const fmt = (amount: number) =>
+    convertToLocale({
+      amount,
+      currency_code: v.price_currency_code!,
+      maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+    })
+  const parts: string[] = []
+  if (v.price_per_piece) parts.push(`+${fmt(v.price_per_piece)} per piece`)
+  if (v.setup_fee) parts.push(`${fmt(v.setup_fee)} one-time setup`)
+  return parts.length ? parts.join(" · ") : null
+}
 
 type Props = {
   spec: StoreProductSpec
@@ -157,6 +179,9 @@ const SpecChoices = ({
                   ]
               ).map((optionValue) => {
                 const isClear = optionValue.label === ""
+                const priceLine = isClear
+                  ? null
+                  : choicePriceLine(optionValue as StoreSpecOptionValue)
                 const isSelected = isClear
                   ? !value.options[option.key]
                   : value.options[option.key] === optionValue.label
@@ -183,6 +208,15 @@ const SpecChoices = ({
                     {optionValue.note && (
                       <Text size="xsmall" className="text-ui-fg-muted">
                         {optionValue.note}
+                      </Text>
+                    )}
+                    {priceLine && (
+                      <Text
+                        size="xsmall"
+                        className="text-ui-fg-subtle"
+                        data-testid="spec-choice-price"
+                      >
+                        {priceLine}
                       </Text>
                     )}
                   </button>
