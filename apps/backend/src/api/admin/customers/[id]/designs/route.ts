@@ -69,6 +69,37 @@ export const POST = async (
 
   await remoteLink.create(links)
 
+  /*
+   * Welcome letter (`design-assigned`) for each design this customer is NEWLY
+   * associated with — the same event creating a design with a customer emits.
+   * A design already linked to this customer is a re-link, not a welcome.
+   */
+  const alreadyMine = new Set(
+    (existing as any[])
+      .filter((l) => l?.customer_id === customer_id)
+      .map((l) => l.design_id)
+  )
+  const fresh = design_ids.filter((id) => !alreadyMine.has(id))
+  if (fresh.length) {
+    const { data: designs = [] } = await query.graph({
+      entity: "design",
+      filters: { id: fresh },
+      fields: ["id", "name", "status"],
+    })
+    const eventBus = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventBus.emit(
+      (designs as any[]).map((d) => ({
+        name: "design.assigned",
+        data: {
+          design_id: d.id,
+          customer_id,
+          design_name: d.name,
+          design_status: d.status,
+        },
+      }))
+    )
+  }
+
   res.json({ linked: design_ids.length, replaced: stale.length })
 }
 
