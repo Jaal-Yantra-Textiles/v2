@@ -110,6 +110,55 @@ export const patchClassifyCode = (code: unknown): PatchOutcome => {
   return { ok: true, code: patched }
 }
 
+export type CanvasPatchOutcome =
+  | {
+      ok: true
+      node_id: string
+      before: string
+      after: string
+      canvas_state: Record<string, any>
+    }
+  | {
+      ok: false
+      reason: "no_canvas_node" | "already_patched" | "anchor_missing" | "no_code"
+    }
+
+/**
+ * PURE: the same patch, applied to the classify node on the flow's canvas —
+ * the copy the executor actually runs (see `extractGraph`: canvas options win
+ * over the operation row). Returns a NEW canvas_state; the input is untouched.
+ */
+export const patchCanvasClassify = (canvasState: unknown): CanvasPatchOutcome => {
+  const canvas = (canvasState && typeof canvasState === "object" ? canvasState : {}) as any
+  const nodes: any[] = Array.isArray(canvas.nodes) ? canvas.nodes : []
+  const index = nodes.findIndex(
+    (n) => (n?.data?.operationKey || n?.id) === CLASSIFY_OPERATION_KEY
+  )
+  const node = index === -1 ? null : nodes[index]
+  const code = node?.data?.options?.code
+  // No canvas copy (or one with no options) means the executor falls back to
+  // the operation row, which the first half of the job already handled.
+  if (!node || code === undefined) return { ok: false, reason: "no_canvas_node" }
+
+  const outcome = patchClassifyCode(code)
+  if (!outcome.ok) return { ok: false, reason: outcome.reason }
+
+  const patchedNode = {
+    ...node,
+    data: { ...node.data, options: { ...node.data.options, code: outcome.code } },
+  }
+  return {
+    ok: true,
+    node_id: String(node.id),
+    before: String(code),
+    after: outcome.code,
+    canvas_state: {
+      ...canvas,
+      nodes: nodes.map((n, i) => (i === index ? patchedNode : n)),
+    },
+  }
+}
+
 /** Operator-facing sentence. Exported so the wording is testable. */
 export const summarizePatch = (
   dryRun: boolean,
@@ -218,11 +267,49 @@ export const patchCartRecoveryCancelledGateJob: MaintenanceJob = {
       }
     }
 
+    /*
+     * 🔴 The operation row is NOT what runs. The executor (and the compiler,
+     * `extractGraph`) prefer the CANVAS node's options whenever the canvas has
+     * nodes, and fall back to the operation row only when it is empty. The
+     * first version of this job patched the operation row alone: on prod it
+     * reported success on 2026-09-20, the row read correctly, and the live
+     * canvas copy kept the old body — so Cherry's cancelled design order was
+     * still mailed on 2026-10-28. Patch the canvas node too.
+     */
+    const canvasResult = patchCanvasClassify(flow.canvas_state)
+    if (canvasResult.ok) {
+      changes.push({
+        entity: "visual_flow",
+        id: flow.id,
+        field: `canvas_state.nodes[${canvasResult.node_id}].data.options.code`,
+        before: canvasResult.before,
+        after: canvasResult.after,
+        note: `Flow "${flow_name}": the canvas copy of the classify node is what the executor runs, and it does not read metadata.cancelled_at.`,
+      })
+      if (!dry_run) {
+        await service.updateVisualFlows({
+          id: flow.id,
+          canvas_state: canvasResult.canvas_state,
+        })
+      }
+    }
+
+    const applied = outcome.ok || canvasResult.ok
     return {
       job_id: "patch-cart-recovery-cancelled-gate",
       dry_run,
-      applied: !dry_run && outcome.ok,
-      summary: summarizePatch(dry_run, outcome),
+      applied: !dry_run && applied,
+      summary:
+        summarizePatch(dry_run, outcome) +
+        (canvasResult.ok
+          ? dry_run
+            ? " Would also patch the canvas copy of the node, which is the one that runs."
+            : " Also patched the canvas copy of the node, which is the one that runs."
+          : canvasResult.reason === "already_patched"
+            ? " The canvas copy already has the gate."
+            : canvasResult.reason === "no_canvas_node"
+              ? " The flow has no canvas copy of the node; the operation row is what runs."
+              : ` REFUSED on the canvas copy (${canvasResult.reason}) — inspect it by hand.`),
       changes,
     }
   },

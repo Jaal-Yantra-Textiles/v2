@@ -1,6 +1,7 @@
 import {
   CANCELLED_GATE,
   hasCancelledGate,
+  patchCanvasClassify,
   patchClassifyCode,
   summarizePatch,
 } from "../patch-cart-recovery-cancelled-gate-job"
@@ -149,5 +150,56 @@ describe("summarizePatch", () => {
     expect(
       summarizePatch(true, { ok: false, reason: "already_patched" })
     ).toMatch(/Already patched/)
+  })
+})
+
+/**
+ * 🔴 2026-10-28: the operation row was patched, the canvas copy was not, and
+ * the canvas copy is what the executor runs — Cherry's cancelled design order
+ * was mailed anyway. The canvas node must be patched too.
+ */
+describe("patchCanvasClassify", () => {
+  const canvas = (code: string | undefined) => ({
+    viewport: { x: 0, y: 0, zoom: 1 },
+    edges: [{ source: "read_carts", target: "classify" }],
+    nodes: [
+      { id: "trigger", data: {} },
+      { id: "read_carts", data: { options: { entity: "cart" } } },
+      {
+        id: "classify",
+        data: { operationKey: "classify", options: { code, timeout: 5000 } },
+      },
+    ],
+  })
+
+  it("patches the canvas classify node and leaves every other node and key alone", () => {
+    const before = canvas(CLASSIFY)
+    const out = patchCanvasClassify(before)
+    if (!out.ok) throw new Error(`expected ok, got ${out.reason}`)
+
+    expect(out.node_id).toBe("classify")
+    expect(hasCancelledGate(out.after)).toBe(true)
+    const node = out.canvas_state.nodes.find((n: any) => n.id === "classify")
+    expect(node.data.options).toEqual({ code: out.after, timeout: 5000 })
+    expect(out.canvas_state.nodes[1]).toEqual(before.nodes[1])
+    expect(out.canvas_state.edges).toEqual(before.edges)
+    expect(out.canvas_state.viewport).toEqual(before.viewport)
+    // The input is not mutated.
+    expect(hasCancelledGate(String(before.nodes[2].data.options?.code))).toBe(false)
+  })
+
+  it("is idempotent on a canvas that already carries the gate", () => {
+    const patched = patchClassifyCode(CLASSIFY)
+    if (!patched.ok) throw new Error("setup")
+    expect(patchCanvasClassify(canvas(patched.code))).toEqual({
+      ok: false,
+      reason: "already_patched",
+    })
+  })
+
+  it("reports no canvas node when the flow runs from its operation rows", () => {
+    expect(patchCanvasClassify({ nodes: [] })).toEqual({ ok: false, reason: "no_canvas_node" })
+    expect(patchCanvasClassify(null)).toEqual({ ok: false, reason: "no_canvas_node" })
+    expect(patchCanvasClassify(canvas(undefined))).toEqual({ ok: false, reason: "no_canvas_node" })
   })
 })
