@@ -41,6 +41,7 @@ import type {
 
 const paramsSchema = z.object({
   order_id: z.string().trim().min(1),
+  quantity: z.coerce.number().int().min(1).optional(),
   record_received: z
     .union([z.boolean(), z.enum(["true", "false"])])
     .optional()
@@ -62,6 +63,13 @@ export const addMissingDesignOrderTaxJob: MaintenanceJob = {
       description: "The design order (`order_...`)",
     },
     {
+      name: "quantity",
+      type: "number",
+      required: false,
+      description:
+        "Re-state the order's single untaxed line as this many units at the SAME line total (e.g. 2 samples entered as 1).",
+    },
+    {
       name: "record_received",
       type: "boolean",
       required: false,
@@ -77,7 +85,7 @@ export const addMissingDesignOrderTaxJob: MaintenanceJob = {
         parsed.error.issues.map((i) => i.message).join("; ")
       )
     }
-    const { order_id, record_received } = parsed.data
+    const { order_id, record_received, quantity } = parsed.data
     const job_id = "add-missing-design-order-tax"
 
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
@@ -101,7 +109,9 @@ export const addMissingDesignOrderTaxJob: MaintenanceJob = {
             "items.id",
             "items.product_id",
             "items.product_type_id",
+            "version",
             "items.quantity",
+            "items.detail.fulfilled_quantity",
             "items.unit_price",
             "items.tax_lines.id",
           ],
@@ -138,6 +148,42 @@ export const addMissingDesignOrderTaxJob: MaintenanceJob = {
       return refuse("Every line on this order already carries tax.")
     }
 
+    /**
+     * `quantity` re-states a single line as N units at the SAME line total —
+     * #148 was 2 samples entered as 1 at ₹2,285.71 (founder, 2026-10-28). The
+     * order-edit flow refuses a line with no variant (#1937), so it is set
+     * here, before tax is computed on it.
+     */
+    let requantified: {
+      id: string
+      from: number
+      from_unit_price: number
+      to: number
+      unit_price: number
+    } | null = null
+    if (quantity !== undefined) {
+      if (untaxed.length !== 1) {
+        return refuse("`quantity` applies to an order with exactly one untaxed line.")
+      }
+      const line = untaxed[0]
+      if (Number(line.detail?.fulfilled_quantity ?? 0) > 0) {
+        return refuse("That line is already fulfilled; its quantity is a shipment's record now.")
+      }
+      const lineTotal = Number(line.unit_price) * Number(line.quantity)
+      if (quantity !== Number(line.quantity)) {
+        requantified = {
+          id: line.id,
+          from: Number(line.quantity),
+          from_unit_price: Number(line.unit_price),
+          to: quantity,
+          // Unrounded on purpose: the line total must not move by a paisa.
+          unit_price: lineTotal / quantity,
+        }
+        line.quantity = quantity
+        line.unit_price = requantified.unit_price
+      }
+    }
+
     const computed: any[] = await taxModule.getTaxLines(
       untaxed.map((i: any) => ({
         id: i.id,
@@ -165,6 +211,18 @@ export const addMissingDesignOrderTaxJob: MaintenanceJob = {
     const paid = Number(order.summary?.transaction_total ?? order.summary?.paid_total ?? 0)
 
     const changes: MaintenanceChange[] = [
+      ...(requantified
+        ? [
+            {
+              entity: "order_line_item",
+              id: requantified.id,
+              field: "quantity × unit_price",
+              before: `${requantified.from} × ${requantified.from_unit_price}`,
+              after: `${requantified.to} × ${requantified.unit_price}`,
+              note: "Same line total, re-stated as more units.",
+            },
+          ]
+        : []),
       ...itemLines.map((l: any) => ({
         entity: "order_line_item",
         id: l.line_item_id,
@@ -193,6 +251,17 @@ export const addMissingDesignOrderTaxJob: MaintenanceJob = {
           (record_received ? `, then record ${round2(totalAfter - paid)} as received.` : "."),
         changes,
       }
+    }
+
+    if (requantified) {
+      // Price on the line, quantity on the order item (its versioned detail).
+      await orderModule.updateOrderLineItems(requantified.id, {
+        unit_price: requantified.unit_price,
+      })
+      await orderModule.updateOrderItem(
+        { item_id: requantified.id, version: order.version },
+        { quantity: requantified.to }
+      )
     }
 
     await orderModule.createOrderLineItemTaxLines(
