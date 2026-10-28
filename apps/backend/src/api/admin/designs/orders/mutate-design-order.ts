@@ -384,6 +384,8 @@ export type DepositRefusal =
   | "cancelled"
   | "already_has_deposit"
   | "not_a_pct"
+  | "not_an_amount"
+  | "pct_and_amount"
   | "bad_balance_trigger"
   | "no_total"
 
@@ -392,10 +394,15 @@ export type DepositBalanceTrigger = "manual" | "dispatch"
 export type DepositDecision =
   | {
       ok: true
-      deposit_pct: number
+      /** Null when the deposit is a fixed amount. */
+      deposit_pct: number | null
+      /** Set only for a fixed deposit — it does not follow the total. */
+      deposit_amount: number | null
       balance_trigger: DepositBalanceTrigger
       /** The cart total the schedule is written against — tax included. */
       total_due: number
+      /** True when an unpaid manual deposit is being replaced in place. */
+      replaces_schedule: boolean
     }
   | { ok: false; reason: DepositRefusal; message: string }
 
@@ -420,6 +427,9 @@ export type DepositDecision =
  * - a CANCELLED one: its link is dead, so there is nothing to collect against.
  * - a cart that already HAS a schedule: one schedule per cart, and silently
  *   replacing one could change a figure a buyer was already shown — or paid.
+ *   `replace: true` replaces an UNPAID MANUAL deposit only (the founder agreed
+ *   a new figure with the buyer — Cherry's ₹800, 2026-10-28).
+ * - a fixed `deposit_amount` that is not above 0 and below the total.
  * - a percentage that is not strictly between 0 and 100. 0 would mint a free
  *   checkout (a completed order having paid nothing), and 100 is no deposit at
  *   all — just leave the order as it is.
@@ -432,12 +442,20 @@ export function decideDeposit(input: {
       })
     | null
     | undefined
-  depositPct: unknown
+  depositPct?: unknown
   balanceTrigger?: unknown
   /** Does an order already exist for this design? See `isConverted`. */
   hasLinkedOrder?: boolean
   /** Does the cart already carry a payment schedule? */
   hasSchedule?: boolean
+  /** A fixed deposit, in the cart's currency — instead of `depositPct`. */
+  depositAmount?: unknown
+  /**
+   * Replace the cart's existing schedule. Only an unpaid MANUAL deposit can
+   * be replaced: a quote's schedule is the deal the buyer accepted.
+   */
+  replace?: boolean
+  existingSchedule?: { source_type?: string | null; deposit_status?: string | null } | null
 }): DepositDecision {
   const { cart } = input
 
@@ -463,26 +481,55 @@ export function decideDeposit(input: {
     }
   }
 
-  if (input.hasSchedule) {
+  const existing = input.existingSchedule
+  const replaceable =
+    input.replace === true &&
+    existing?.source_type === "manual" &&
+    existing?.deposit_status === "pending"
+  if (input.hasSchedule && !replaceable) {
     return {
       ok: false,
       reason: "already_has_deposit",
       message:
         "This design order already has a payment schedule. One schedule per cart — " +
-        "replacing it could change a figure the buyer was already shown.",
+        "replacing it could change a figure the buyer was already shown. An unpaid " +
+        "manual deposit can be replaced with `replace: true`.",
     }
   }
 
-  // `typeof` first: Number(null) and Number("") are both 0, and a missing field
-  // must not arrive looking like a deliberate 0%.
-  const pct = typeof input.depositPct === "number" ? input.depositPct : NaN
-  if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+  const hasPct = input.depositPct !== undefined && input.depositPct !== null
+  const hasAmount = input.depositAmount !== undefined && input.depositAmount !== null
+  if (hasPct && hasAmount) {
     return {
       ok: false,
-      reason: "not_a_pct",
-      message:
-        "deposit_pct must be a number greater than 0 and less than 100 — 0 would let " +
-        "the buyer check out paying nothing, and 100 is no deposit at all.",
+      reason: "pct_and_amount",
+      message: "Give deposit_pct OR deposit_amount, not both.",
+    }
+  }
+
+  let pct: number | null = null
+  let amount: number | null = null
+  if (hasAmount) {
+    amount = typeof input.depositAmount === "number" ? input.depositAmount : NaN
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return {
+        ok: false,
+        reason: "not_an_amount",
+        message: "deposit_amount must be a number greater than 0.",
+      }
+    }
+  } else {
+    // `typeof` first: Number(null) and Number("") are both 0, and a missing field
+    // must not arrive looking like a deliberate 0%.
+    pct = typeof input.depositPct === "number" ? input.depositPct : NaN
+    if (!Number.isFinite(pct) || pct <= 0 || pct >= 100) {
+      return {
+        ok: false,
+        reason: "not_a_pct",
+        message:
+          "deposit_pct must be a number greater than 0 and less than 100 — 0 would let " +
+          "the buyer check out paying nothing, and 100 is no deposit at all.",
+      }
     }
   }
 
@@ -504,5 +551,20 @@ export function decideDeposit(input: {
     }
   }
 
-  return { ok: true, deposit_pct: pct, balance_trigger: trigger, total_due: total }
+  if (amount !== null && amount >= total) {
+    return {
+      ok: false,
+      reason: "not_an_amount",
+      message: `deposit_amount ${amount} must be less than the order total ${total}; the whole total is no deposit at all.`,
+    }
+  }
+
+  return {
+    ok: true,
+    deposit_pct: pct,
+    deposit_amount: amount,
+    balance_trigger: trigger,
+    total_due: total,
+    replaces_schedule: Boolean(input.hasSchedule),
+  }
 }

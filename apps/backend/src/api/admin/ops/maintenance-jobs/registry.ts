@@ -110,6 +110,7 @@ import { auditMoodboardBackfillJob } from "./audit-moodboard-backfill-job"
 import { patchCartRecoveryCancelledGateJob } from "./patch-cart-recovery-cancelled-gate-job"
 import { setDesignOrderCountryJob } from "./set-design-order-country-job"
 import { refreshDesignOrderCartTaxJob } from "./refresh-design-order-cart-tax-job"
+import { addMissingDesignOrderTaxJob } from "./add-missing-design-order-tax-job"
 import { setOrderCountryJob } from "./set-order-country-job"
 import { purgeAbandonedCartsJob } from "./purge-abandoned-carts-job"
 import { cloneAiPlatformRoleJob } from "./clone-ai-platform-role-job"
@@ -6678,6 +6679,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   patchCartRecoveryCancelledGateJob,
   setDesignOrderCountryJob,
   refreshDesignOrderCartTaxJob,
+  addMissingDesignOrderTaxJob,
   setOrderCountryJob,
   purgeAbandonedCartsJob,
   cloneAiPlatformRoleJob,

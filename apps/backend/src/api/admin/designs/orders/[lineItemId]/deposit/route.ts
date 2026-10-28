@@ -33,7 +33,12 @@ export async function POST(
 
   try {
     const { lineItemId } = req.params
-    const body = (req.body ?? {}) as { deposit_pct?: unknown; balance_trigger?: unknown }
+    const body = (req.body ?? {}) as {
+      deposit_pct?: unknown
+      deposit_amount?: unknown
+      balance_trigger?: unknown
+      replace?: unknown
+    }
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
     const cartService = req.scope.resolve(Modules.CART) as any
     const schedules: any = req.scope.resolve(PAYMENT_SCHEDULE_MODULE)
@@ -76,9 +81,12 @@ export async function POST(
     const decision = decideDeposit({
       cart,
       depositPct: body.deposit_pct,
+      depositAmount: body.deposit_amount,
       balanceTrigger: body.balance_trigger,
       hasLinkedOrder: await hasLinkedSaleOrder(query, linkRows[0].design_id),
       hasSchedule: Boolean(existing),
+      replace: body.replace === true,
+      existingSchedule: existing,
     })
 
     if (!decision.ok) {
@@ -86,6 +94,8 @@ export async function POST(
         decision.reason === "no_cart"
           ? 404
           : decision.reason === "not_a_pct" ||
+              decision.reason === "not_an_amount" ||
+              decision.reason === "pct_and_amount" ||
               decision.reason === "bad_balance_trigger" ||
               decision.reason === "no_total"
             ? 400
@@ -119,24 +129,41 @@ export async function POST(
       clearedCollectionId = collection.id
     }
 
-    const schedule = await schedules.openForCart({
-      cart_id: cart.id,
-      currency_code: cart.currency_code,
-      total_due: decision.total_due,
-      source_type: "manual",
-      source_id: lineItemId,
-      // Same rail rule as accept-quote: PayU is INR-only.
-      rail: String(cart.currency_code).toLowerCase() === "inr" ? "payu" : "stripe",
-      quote_deposit_pct: decision.deposit_pct,
-      balance_trigger: decision.balance_trigger,
-      metadata: {
-        design_id: linkRows[0].design_id,
-        set_by: (req as any).auth_context?.actor_id ?? null,
-      },
-    })
+    const setBy = (req as any).auth_context?.actor_id ?? null
+    const schedule = decision.replaces_schedule
+      ? await schedules.replaceManualDeposit(existing.id, {
+          total_due: decision.total_due,
+          quote_deposit_pct: decision.deposit_pct,
+          fixed_deposit_amount: decision.deposit_amount,
+          balance_trigger: decision.balance_trigger,
+          metadata: {
+            set_by: setBy,
+            replaced: {
+              deposit_pct: existing.deposit_pct ?? null,
+              deposit_amount: Number(existing.deposit_amount),
+            },
+          },
+        })
+      : await schedules.openForCart({
+          cart_id: cart.id,
+          currency_code: cart.currency_code,
+          total_due: decision.total_due,
+          source_type: "manual",
+          source_id: lineItemId,
+          // Same rail rule as accept-quote: PayU is INR-only.
+          rail: String(cart.currency_code).toLowerCase() === "inr" ? "payu" : "stripe",
+          quote_deposit_pct: decision.deposit_pct,
+          fixed_deposit_amount: decision.deposit_amount,
+          balance_trigger: decision.balance_trigger,
+          metadata: {
+            design_id: linkRows[0].design_id,
+            set_by: setBy,
+          },
+        })
 
     logger?.info?.(
-      `[deposit] design order ${lineItemId} (cart ${cart.id}): ${schedule.deposit_pct}% = ` +
+      `[deposit] design order ${lineItemId} (cart ${cart.id}): ` +
+        `${schedule.deposit_pct == null ? "fixed" : `${schedule.deposit_pct}%`} = ` +
         `${schedule.deposit_amount} of ${decision.total_due} ${String(cart.currency_code).toUpperCase()}` +
         (clearedCollectionId ? `; cleared unpaid collection ${clearedCollectionId}` : "")
     )
@@ -148,11 +175,12 @@ export async function POST(
         schedule_id: schedule.id,
         currency_code: cart.currency_code,
         total_due: decision.total_due,
-        deposit_pct: Number(schedule.deposit_pct),
+        deposit_pct: schedule.deposit_pct == null ? null : Number(schedule.deposit_pct),
         deposit_amount: Number(schedule.deposit_amount),
         balance_amount: Number(schedule.balance_amount),
         balance_trigger: schedule.balance_trigger,
         cleared_payment_collection_id: clearedCollectionId,
+        replaced_schedule: decision.replaces_schedule,
       },
     })
   } catch (e: any) {

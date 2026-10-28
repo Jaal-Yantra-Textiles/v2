@@ -443,9 +443,62 @@ describe("decideDeposit — a part payment through the same checkout link", () =
     expect(decideDeposit({ cart, depositPct: 10 })).toEqual({
       ok: true,
       deposit_pct: 10,
+      deposit_amount: null,
       balance_trigger: "manual",
       total_due: 8400,
+      replaces_schedule: false,
     })
+  })
+
+  // Cherry, 2026-10-28: ₹800 agreed against an ₹8,400 total — not 10%.
+  it("takes a fixed deposit_amount with no percentage", () => {
+    expect(decideDeposit({ cart, depositAmount: 800 })).toEqual({
+      ok: true,
+      deposit_pct: null,
+      deposit_amount: 800,
+      balance_trigger: "manual",
+      total_due: 8400,
+      replaces_schedule: false,
+    })
+  })
+
+  it.each([0, -1, 8400, 9000, "800", NaN])("refuses a deposit_amount of %p", (amt) => {
+    expect(decideDeposit({ cart, depositAmount: amt })).toMatchObject({
+      ok: false,
+      reason: "not_an_amount",
+    })
+  })
+
+  it("refuses a percentage and an amount together", () => {
+    expect(decideDeposit({ cart, depositPct: 10, depositAmount: 800 })).toMatchObject({
+      ok: false,
+      reason: "pct_and_amount",
+    })
+  })
+
+  it("replaces an unpaid manual deposit only when asked", () => {
+    const unpaidManual = { source_type: "manual", deposit_status: "pending" }
+    expect(
+      decideDeposit({ cart, depositAmount: 800, hasSchedule: true, existingSchedule: unpaidManual })
+    ).toMatchObject({ ok: false, reason: "already_has_deposit" })
+    expect(
+      decideDeposit({
+        cart,
+        depositAmount: 800,
+        hasSchedule: true,
+        replace: true,
+        existingSchedule: unpaidManual,
+      })
+    ).toMatchObject({ ok: true, deposit_amount: 800, replaces_schedule: true })
+  })
+
+  it.each([
+    { source_type: "manual", deposit_status: "paid" },
+    { source_type: "quote", deposit_status: "pending" },
+  ])("never replaces %p", (existingSchedule) => {
+    expect(
+      decideDeposit({ cart, depositAmount: 800, hasSchedule: true, replace: true, existingSchedule })
+    ).toMatchObject({ ok: false, reason: "already_has_deposit" })
   })
 
   it("accepts a dispatch-triggered balance", () => {
