@@ -6,7 +6,7 @@
  *   approval raised the deposit balance. Nothing else emails on
  *   `order.balance_due`, so without this the buyer is asked for money with no
  *   way to pay it.
- * - `order-approval-decided`: to our admin inbox (ADMIN_NOTIFY_EMAIL) on either
+ * - `order-approval-decided`: to our order desk (b2borders@jaalyantra.com) on either
  *   decision. Best-effort; the admin feed alert is the source of truth.
  *
  * Idempotent, like the other seeds. Prefer the maintenance job:

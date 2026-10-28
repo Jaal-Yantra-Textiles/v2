@@ -14,6 +14,9 @@ import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import { sendNotificationEmailWorkflow } from "../../workflows/email/workflows/send-notification-email"
 import { requestOrderBalanceWorkflow } from "../../workflows/payments/request-order-balance"
 
+/** Where the "customer approved / rejected" email goes. */
+export const ORDER_DESK_EMAIL = "b2borders@jaalyantra.com"
+
 /**
  * The customer's finished-goods approval (#2463).
  *
@@ -368,7 +371,9 @@ export async function decideOrderApproval(
     logger?.warn?.(`[order-approval] feed alert failed for ${approval.id}: ${e?.message ?? e}`)
   }
 
-  const adminTo = process.env.ADMIN_NOTIFY_EMAIL
+  // Our order desk. An env override exists for other deployments; prod sets
+  // none, which left this email going nowhere (2026-10-28).
+  const adminTo = process.env.ADMIN_NOTIFY_EMAIL || ORDER_DESK_EMAIL
   if (adminTo) {
     const backendUrl = process.env.MEDUSA_ADMIN_BACKEND_URL || process.env.BACKEND_URL || ""
     await trySend(container, adminTo, "order-approval-decided", {
