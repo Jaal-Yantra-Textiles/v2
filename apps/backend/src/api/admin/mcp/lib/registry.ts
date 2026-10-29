@@ -2172,6 +2172,27 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_inventory_order", "receive_inventory_order"],
   },
   {
+    name: "cancel_inventory_order",
+    description:
+      "Cancel a whole inventory order (a raw-material purchase or stock movement) that will not go ahead. Sets it Cancelled with your reason, cancels its open tasks, and REVERSES any stock already received on it from the location it was posted to. " +
+      "Refuses with 409 an order that is already Cancelled. No message goes to the supplier — tell them yourself — and carrier shipments are NOT voided: cancel each live AWB first with cancel_inventory_order_shipment. " +
+      "🔴 A production run waiting on this order (depends_on_inventory_order_ids) will then never be released by it: re-point or cancel that run. Money already paid is not refunded by this. " +
+      "PLATFORM-DESTRUCTIVE: requires confirm:true AND a human reason, which is stored on the order. Always dry_run first.",
+    method: "POST",
+    path: "/admin/inventory-orders/:id/cancel",
+    pathParams: ["id"],
+    previewPath: "/admin/inventory-orders/:id",
+    write: true,
+    dangerous: true,
+    // The dangerous rail's `reason` doubles as the route's cancellation
+    // reason, same as cancel_production_run.
+    bodyParams: ["reason"],
+    inputSchema: obj({ id: STR("Inventory order id, e.g. 'inv_order_...'.") }, ["id"]),
+    sideEffects:
+      "Sets the order Cancelled (cancelled_at, cancellation_reason, cancelled_by), cancels its open tasks, reverses received stock, mirrors the cancel to the core order. Sends nothing; does not void shipments or refund payments.",
+    nextSteps: ["get_inventory_order", "list_production_runs"],
+  },
+  {
     name: "cancel_inventory_order_shipment",
     description:
       "Void one carrier shipment (AWB) on an inventory order when it cannot go out as booked: a supplier pickup that failed, a date the supplier cannot make, a wrong box. Cancels at the CARRIER first, then marks the shipment cancelled and logs it on the order's timeline. The order and its lines are untouched. " +
@@ -6634,6 +6655,35 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects:
       "Creates a real order from the cart and marks it paid when prepaid. Does NOT create production runs.",
     nextSteps: ["list_order_designs", "produce_order_designs"],
+  },
+  {
+    name: "cancel_design_order",
+    description: [
+      "Cancel a design order that should never be paid. Sensitive: requires confirm:true and a `reason` in your own words, which is stored on the order.",
+      "",
+      "🔑 SOFT: it stamps the order's cart as cancelled and deletes nothing. The buyer's checkout link stops working (it redirects to the shop and checkout refuses), and reprice, convert, attaching a buyer and setting a deposit all refuse afterwards. The price, buyer and links stay as the record of what was offered.",
+      "",
+      "Refuses with 409 a CONVERTED design order (cancel the order itself with cancel_order) and one already cancelled (the original reason and date are kept). Nothing is emailed; tell the buyer yourself if they had the link. To replace it, cancel this one and create a new design order.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/orders/:lineItemId/cancel",
+    pathParams: ["lineItemId"],
+    previewPath: "/admin/designs/orders/:lineItemId",
+    write: true,
+    sensitive: true,
+    bodyParams: ["reason"],
+    inputSchema: obj(
+      {
+        lineItemId: STR("The design order's cart line item id (`cali_...`)."),
+        reason: STR(
+          "Why it is cancelled, in the admin's words (e.g. 'wrong currency, re-issued as cart_...'). Required — never invent one."
+        ),
+      },
+      ["lineItemId", "reason"]
+    ),
+    sideEffects:
+      "Stamps cancelled_at / cancelled_reason / cancelled_by on the design order's cart. The checkout link stops working. Sends nothing; the payment collection, if any, is left as it was.",
+    nextSteps: ["get_design_order", "create_design_order"],
   },
 
   // ===== Designs (#1166): the design -> production pipeline ==============

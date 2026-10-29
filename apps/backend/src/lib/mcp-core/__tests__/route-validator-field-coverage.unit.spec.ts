@@ -118,6 +118,17 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:reprice_design_order",
   "admin:convert_design_order",
   /**
+   * `orders/[lineItemId]/cancel/route.ts` hands `reason` to `decideCancel`,
+   * which refuses a missing or blank one (unit-tested in
+   * mutate-design-order.unit.spec.ts).
+   */
+  "admin:cancel_design_order",
+  /**
+   * `inventory-orders/[id]/cancel/route.ts` parses its body with an inline zod
+   * `cancelBodySchema` (reason: trimmed string, max 1000).
+   */
+  "admin:cancel_inventory_order",
+  /**
    * `orders/[lineItemId]/deposit/route.ts` validates in the handler through
    * `decideDeposit` (deposit_pct a number strictly between 0 and 100,
    * balance_trigger "manual" | "dispatch"), unit-tested in

@@ -58,7 +58,7 @@ export async function POST(
     const cart = lineItem?.cart_id
       ? await cartService
           .retrieveCart(lineItem.cart_id, {
-            select: ["id", "currency_code", "completed_at"],
+            select: ["id", "currency_code", "completed_at", "metadata"],
           })
           .catch(() => null)
       : null
@@ -80,7 +80,7 @@ export async function POST(
 
     if (!decision.ok) {
       const status =
-        decision.reason === "cart_completed"
+        decision.reason === "cart_completed" || decision.reason === "cancelled"
           ? 409
           : decision.reason === "no_cart"
             ? 404
