@@ -23,6 +23,9 @@ import { MedusaError } from "@medusajs/framework/utils"
 /** Namespaced so it cannot collide with metadata another feature writes. */
 export const MADE_TO_SPEC_METADATA_KEY = "made_to_spec"
 
+/** On a one-time setup-fee line that a priced choice added (#2456). */
+export const MADE_TO_SPEC_SETUP_METADATA_KEY = "made_to_spec_setup_fee"
+
 export type SpecColor = {
   id?: string
   name: string
@@ -43,6 +46,11 @@ export type SpecOptionValue = {
   note?: string | null
   available?: boolean
   order?: number
+  /** #2456 — GST-inclusive surcharge per unit; null/0 = free. */
+  price_per_piece?: number | string | null
+  /** #2456 — GST-inclusive one-time fee per new design; null/0 = none. */
+  setup_fee?: number | string | null
+  price_currency_code?: string | null
 }
 
 export type SpecOption = {
@@ -52,6 +60,8 @@ export type SpecOption = {
   help_text?: string | null
   required?: boolean
   order?: number
+  /** Offered only on these variants; null/empty = the whole product. */
+  variant_ids?: string[] | null
   values?: SpecOptionValue[]
 }
 
@@ -100,11 +110,99 @@ export type MadeToSpecSnapshot = {
    * may rename "Kashida — cuff only" next month, and the order must still read
    * the way it was agreed.
    */
-  options?: { key: string; label: string; value: string; note?: string | null }[]
+  /** #2456 — how a priced line's custom unit price was built. */
+  pricing?: {
+    base_unit_price: number
+    surcharge_per_piece: number
+    currency_code: string
+    per_piece: {
+      key: string
+      value: string
+      amount: number
+      original_amount: number
+      original_currency: string
+    }[]
+  }
+  options?: {
+    key: string
+    label: string
+    value: string
+    note?: string | null
+    /**
+     * #2456 — what the choice cost AT THE TIME, in its own currency. Copied
+     * like the label: a partner raising the embroidery price next month must
+     * not rewrite what this customer was charged.
+     */
+    price_per_piece?: number
+    setup_fee?: number
+    price_currency_code?: string
+  }[]
   captured_at: string
 }
 
 const normalize = (value: string) => value.trim().toLowerCase()
+
+/** A bigNumber column reads back as a number, a string or null. */
+const toAmount = (v: unknown): number => {
+  if (v === null || v === undefined || v === "") return 0
+  const n = Number(v)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+/**
+ * The price half of a chosen value, or nothing for a free choice. A priced
+ * value with no currency is refused rather than guessed — the validator
+ * already blocks it on write, so reaching here means a row written around it.
+ */
+const pricedFields = (value: SpecOptionValue, groupLabel: string) => {
+  const perPiece = toAmount(value.price_per_piece)
+  const setup = toAmount(value.setup_fee)
+  if (!perPiece && !setup) return {}
+  const currency = value.price_currency_code?.trim().toLowerCase()
+  if (!currency) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `${groupLabel}: "${value.label}" has a price but no currency, so it cannot be charged. Please contact us.`
+    )
+  }
+  return {
+    ...(perPiece ? { price_per_piece: perPiece } : {}),
+    ...(setup ? { setup_fee: setup } : {}),
+    price_currency_code: currency,
+  }
+}
+
+export type MadeToSpecCharge = {
+  key: string
+  label: string
+  value: string
+  amount: number
+  currency_code: string
+}
+
+/**
+ * PURE. What the chosen values add: per-piece surcharges (folded into the
+ * line's unit price) and one-time setup fees (each its own cart line).
+ * Amounts stay in each value's own currency; the route converts.
+ */
+export const madeToSpecCharges = (
+  snapshot: Pick<MadeToSpecSnapshot, "options">
+): { per_piece: MadeToSpecCharge[]; setup: MadeToSpecCharge[] } => {
+  const per_piece: MadeToSpecCharge[] = []
+  const setup: MadeToSpecCharge[] = []
+  for (const o of snapshot.options ?? []) {
+    if (!o.price_currency_code) continue
+    const base = {
+      key: o.key,
+      label: o.label,
+      value: o.value,
+      currency_code: o.price_currency_code,
+    }
+    if (o.price_per_piece) per_piece.push({ ...base, amount: o.price_per_piece })
+    if (o.setup_fee) setup.push({ ...base, amount: o.setup_fee })
+  }
+  return { per_piece, setup }
+}
 
 /**
  * Resolve the partner-defined option groups against what the customer picked.
@@ -124,16 +222,30 @@ const normalize = (value: string) => value.trim().toLowerCase()
  */
 const resolveOptionSelections = (
   specOptions: SpecOption[],
-  selected: Record<string, string> | null | undefined
+  selected: Record<string, string> | null | undefined,
+  variantId?: string | null
 ): MadeToSpecSnapshot["options"] => {
-  const groups = (specOptions ?? [])
+  const all = (specOptions ?? [])
     .slice()
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+
+  // #2456 — a group scoped to other variants is not on offer for this one.
+  // Without a variant to check against (an old caller), nothing is scoped out.
+  const offeredHere = (o: SpecOption) =>
+    !variantId || !o.variant_ids?.length || o.variant_ids.includes(variantId)
+  const groups = all.filter(offeredHere)
 
   const byKey = new Map(groups.map((o) => [normalize(o.key), o]))
 
   for (const key of Object.keys(selected ?? {})) {
     if (!byKey.has(normalize(key))) {
+      const elsewhere = all.find((o) => normalize(o.key) === normalize(key))
+      if (elsewhere) {
+        throw new MedusaError(
+          MedusaError.Types.INVALID_DATA,
+          `${(elsewhere.label ?? elsewhere.key).trim()} is not offered on this variant.`
+        )
+      }
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
         groups.length
@@ -199,6 +311,7 @@ const resolveOptionSelections = (
       label,
       value: match.label,
       ...(match.note ? { note: match.note } : {}),
+      ...pricedFields(match, label),
     })
   }
 
@@ -215,10 +328,13 @@ export const buildMadeToSpecSnapshot = ({
   spec,
   selection,
   now,
+  variantId,
 }: {
   spec: ProductSpecRecord
   selection: MadeToSpecSelection
   now: Date
+  /** The variant being ordered, so variant-scoped choices apply (#2456). */
+  variantId?: string | null
 }): MadeToSpecSnapshot => {
   if (!spec) {
     throw new MedusaError(
@@ -268,7 +384,11 @@ export const buildMadeToSpecSnapshot = ({
     )
   }
 
-  const chosenOptions = resolveOptionSelections(spec.options ?? [], selection.options)
+  const chosenOptions = resolveOptionSelections(
+    spec.options ?? [],
+    selection.options,
+    variantId
+  )
 
   const specFields = (spec.fields ?? [])
     .filter((f) => (f.value ?? "").trim())

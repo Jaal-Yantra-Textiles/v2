@@ -16,6 +16,8 @@ import {
   initialSpecChoices,
   leadTimePhrase,
   unansweredRequired,
+  offeredChoices,
+  specForVariant,
   type SpecChoiceState,
 } from "@modules/products/components/production-spec/spec-choices-util"
 
@@ -50,7 +52,12 @@ const CustomiseForm = ({ product, spec, images }: Props) => {
   const [isAdding, setIsAdding] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const specBlocked = useMemo(() => blockedGroups(spec), [spec])
+  // #2456 — choices scoped to other variants are not on offer for this one.
+  const variantSpec = useMemo(
+    () => specForVariant(spec, variantId),
+    [spec, variantId]
+  )
+  const specBlocked = useMemo(() => blockedGroups(variantSpec), [variantSpec])
   /**
    * This page IS the second step, so it always asks — and must therefore hold
    * its own button. Nothing is preselected any more (#1970), so without this
@@ -61,8 +68,8 @@ const CustomiseForm = ({ product, spec, images }: Props) => {
   const specUnanswered = useMemo(
     // This page IS the second step: every submission here goes through
     // `addMadeToSpecToCart`, so the colour is always one of the questions.
-    () => unansweredRequired(spec, choices, { madeToSpec: true }),
-    [spec, choices]
+    () => unansweredRequired(variantSpec, choices, { madeToSpec: true }),
+    [variantSpec, choices]
   )
   const leadTime = leadTimePhrase(spec)
 
@@ -76,7 +83,7 @@ const CustomiseForm = ({ product, spec, images }: Props) => {
         quantity: 1,
         color: choices.color,
         note: choices.note,
-        options: choices.options,
+        options: offeredChoices(variantSpec, choices.options),
         countryCode,
       })
       // Back to the product, where the cart drawer lives. Pushing to the cart
@@ -174,7 +181,7 @@ const CustomiseForm = ({ product, spec, images }: Props) => {
         )}
 
         <SpecChoices
-          spec={spec}
+          spec={variantSpec}
           value={choices}
           onChange={setChoices}
           disabled={isAdding}

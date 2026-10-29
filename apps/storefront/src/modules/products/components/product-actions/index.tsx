@@ -21,6 +21,8 @@ import {
   initialSpecChoices,
   leadTimePhrase,
   needsSecondStep,
+  offeredChoices,
+  specForVariant,
   summariseChoices,
   type SpecChoiceState,
   unansweredRequired,
@@ -53,7 +55,7 @@ const optionsAsKeymap = (
 export default function ProductActions({
   product,
   disabled,
-  spec = null,
+  spec: fullSpec = null,
 }: ProductActionsProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -62,6 +64,21 @@ export default function ProductActions({
   const [options, setOptions] = useState<Record<string, string | undefined>>({})
   const [isAdding, setIsAdding] = useState(false)
   const countryCode = useParams().countryCode as string
+
+  // #2456 — the spec as it applies to the chosen variant: a choice scoped to
+  // other variants (logo embroidery on the apron, not the kids' size) is not
+  // offered, not required and not sent.
+  const chosenVariantId = useMemo(
+    () =>
+      product.variants?.find((v) =>
+        isEqual(optionsAsKeymap(v.options), options)
+      )?.id,
+    [product.variants, options]
+  )
+  const spec = useMemo(
+    () => specForVariant(fullSpec, chosenVariantId),
+    [fullSpec, chosenVariantId]
+  )
 
   // #1365 — made-to-order selection lives HERE, beside the variant options,
   // because one button now decides between an ordinary purchase and a woven-to
@@ -204,7 +221,7 @@ export default function ProductActions({
           quantity: 1,
           color: specChoices.color,
           note: specChoices.note,
-          options: specChoices.options,
+          options: offeredChoices(spec, specChoices.options),
           countryCode,
         })
       } else {

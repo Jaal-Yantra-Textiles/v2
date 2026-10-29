@@ -144,6 +144,12 @@ export const productSpecSchemaProps = () => ({
             "Whether the customer must choose before adding to cart. If true and no value is available, the piece cannot be ordered at all.",
         },
         order: { type: "integer", description: "Display order (0–999)." },
+        variant_ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Offer this choice only on these variant ids of the product. Omit for the whole product.",
+        },
         values: {
           type: "array",
           minItems: 1,
@@ -174,6 +180,22 @@ export const productSpecSchemaProps = () => ({
                 type: "boolean",
                 description:
                   "Orderable right now. Switch off rather than deleting, so orders that already named it still resolve.",
+              },
+              price_per_piece: {
+                type: "number",
+                minimum: 0,
+                description:
+                  "What this choice ADDS per piece, GST-inclusive (e.g. 150 for ₹150/apron of logo embroidery). Omit for a free choice. Needs price_currency_code.",
+              },
+              setup_fee: {
+                type: "number",
+                minimum: 0,
+                description:
+                  "One-time fee per new design, GST-inclusive (e.g. 500 to digitise a logo). Charged once as its own cart line, not per piece. Needs price_currency_code.",
+              },
+              price_currency_code: {
+                type: "string",
+                description: "Currency of price_per_piece / setup_fee, e.g. 'inr'.",
               },
             },
             required: ["label"],

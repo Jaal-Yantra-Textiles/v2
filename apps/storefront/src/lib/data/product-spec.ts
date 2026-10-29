@@ -34,6 +34,15 @@ export type StoreSpecOptionValue = {
   id?: string
   label: string
   note?: string | null
+  /**
+   * #2456 — what choosing this value ADDS, GST-inclusive, in
+   * `price_currency_code`. The cart route charges it; these are for saying so
+   * before the customer reaches the cart.
+   */
+  price_per_piece?: number | null
+  /** Charged once per new design (a logo's digitising), its own cart line. */
+  setup_fee?: number | null
+  price_currency_code?: string | null
 }
 
 /**
@@ -50,6 +59,8 @@ export type StoreSpecOption = {
   label: string
   help_text?: string | null
   required: boolean
+  /** Offered only on these variants; null = the whole product (#2456). */
+  variant_ids?: string[] | null
   values: StoreSpecOptionValue[]
 }
 

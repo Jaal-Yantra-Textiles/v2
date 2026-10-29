@@ -33,6 +33,11 @@ export type ProductSpecOptionValueInput = {
   note?: string | null
   order?: number
   available?: boolean
+  /** GST-inclusive surcharge per unit, in `price_currency_code` (#2456). */
+  price_per_piece?: number | null
+  /** GST-inclusive one-time fee per new design, in `price_currency_code`. */
+  setup_fee?: number | null
+  price_currency_code?: string | null
 }
 
 export type ProductSpecOptionInput = {
@@ -41,6 +46,8 @@ export type ProductSpecOptionInput = {
   help_text?: string | null
   required?: boolean
   order?: number
+  /** Offered only on these variants; null/omitted = the whole product. */
+  variant_ids?: string[] | null
   values: ProductSpecOptionValueInput[]
 }
 
@@ -217,6 +224,7 @@ const upsertProductSpecStep = createStep(
           help_text: o.help_text ?? null,
           required: o.required ?? false,
           order: o.order ?? i,
+          variant_ids: o.variant_ids?.length ? o.variant_ids : null,
           spec_id: spec.id,
         })
         // `createX` returns one row for an object input and an array for an
@@ -229,6 +237,9 @@ const upsertProductSpecStep = createStep(
             note: v.note ?? null,
             order: v.order ?? vi,
             available: v.available ?? true,
+            price_per_piece: v.price_per_piece ?? null,
+            setup_fee: v.setup_fee ?? null,
+            price_currency_code: v.price_currency_code?.toLowerCase() ?? null,
             option_id: optionRow.id,
           }))
         )
@@ -357,6 +368,7 @@ const upsertProductSpecStep = createStep(
           help_text: o.help_text,
           required: o.required,
           order: o.order,
+          variant_ids: o.variant_ids ?? null,
           spec_id: compensation.id,
         })
         const optionRow = Array.isArray(restored) ? restored[0] : restored
@@ -367,6 +379,9 @@ const upsertProductSpecStep = createStep(
               note: v.note,
               order: v.order,
               available: v.available,
+              price_per_piece: v.price_per_piece ?? null,
+              setup_fee: v.setup_fee ?? null,
+              price_currency_code: v.price_currency_code ?? null,
               option_id: optionRow.id,
             }))
           )

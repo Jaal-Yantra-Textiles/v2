@@ -3706,7 +3706,8 @@
       "required",
       "spec",
       "updated_at",
-      "values"
+      "values",
+      "variant_ids"
     ]
   },
   "ProductSpecOptionValue (modules/product-spec/models/product-spec-option-value.ts)": {
@@ -3720,6 +3721,11 @@
       "note",
       "option",
       "order",
+      "price_currency_code",
+      "price_per_piece",
+      "raw_price_per_piece",
+      "raw_setup_fee",
+      "setup_fee",
       "updated_at"
     ]
   },
