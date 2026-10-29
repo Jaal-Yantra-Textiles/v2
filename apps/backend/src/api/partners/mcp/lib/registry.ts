@@ -3672,20 +3672,32 @@ export const PARTNER_MCP_TOOLS: PartnerMcpToolDef[] = [
   {
     name: "revoke_quote",
     description:
-      "Withdraw a quote the partner should not have sent: delete its frozen price list and make the buyer's link 404. Use it to CORRECT a mistake — a wrong price, a wrong buyer, a wrong lane — rather than re-minting, because re-minting emails the buyer a second number they never asked for. Not needed merely to re-quote the same buyer: minting already supersedes their previous quote. Sensitive.",
+      "Withdraw a quote the partner should not have sent: delete its frozen price list and make the buyer's link 404. Use it to CORRECT a mistake — a wrong price, a wrong buyer, a wrong lane — rather than re-minting, because re-minting emails the buyer a second number they never asked for. Not needed merely to re-quote the same buyer: minting already supersedes their previous quote. The buyer is emailed that it was withdrawn unless notify_buyer: false. Sensitive.",
     method: "POST",
     path: "/partners/quotes/:id/revoke",
     pathParams: ["id"],
     write: true,
     sensitive: true,
     /**
-     * 🔴 No `bodyParams`, and no `reason` field — the route reads no body at
-     * all. Advertising one would be the #1348 defect exactly: the dispatcher's
-     * body assembly is an allowlist walk, so the model would supply a reason,
-     * get `ok: true`, and the reason would reach nothing. Better to offer
-     * nothing than to offer something that goes nowhere.
+     * The route reads exactly these two body fields (the buyer notice) and
+     * nothing else. Still no `reason`: nothing stores one, and advertising it
+     * would be the #1348 defect — accepted, `ok: true`, dropped.
      */
-    inputSchema: obj({ id: STR("Quote id, e.g. 'quo_...' / '01M0...'.") }, ["id"]),
+    bodyParams: ["notify_buyer", "buyer_message"],
+    inputSchema: obj(
+      {
+        id: STR("Quote id, e.g. 'quo_...' / '01M0...'."),
+        notify_buyer: {
+          type: "boolean",
+          description:
+            "Email the buyer that the quote was withdrawn (default true). Send false only when you are telling them another way.",
+        },
+        buyer_message: STR(
+          "Optional short note to the buyer, shown in the withdrawal email (e.g. 'a corrected quote follows'). The only text of yours they see."
+        ),
+      },
+      ["id"]
+    ),
     sideEffects:
       "Deletes the price list this quote froze, so the buyer stops getting the quoted prices in any cart, and their link 404s from then on. Not reversible: re-offering the same terms means minting a new quote, which emails them again. An ALREADY-ACCEPTED quote is refused here — the accepted cart is priced from it, so unwinding a live deal is an operator's call, not this tool's.",
     nextSteps: ["get_quote", "list_quotes"],

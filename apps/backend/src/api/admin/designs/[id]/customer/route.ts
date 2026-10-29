@@ -52,7 +52,7 @@ export async function POST(
   const { data: designs } = await query.graph({
     entity: "design",
     filters: { id: designId },
-    fields: ["id", "name"],
+    fields: ["id", "name", "status"],
   })
   if (!designs?.length) {
     res.status(404).json({ message: `Design ${designId} was not found` })
@@ -116,6 +116,28 @@ export async function POST(
         [Modules.CUSTOMER]: { customer_id: customerId },
       },
     ])
+
+    /*
+     * Welcome the customer the moment they are associated with a design: the
+     * `design-assigned` template explains the whole process (design, order and
+     * deposit, cloth and maker, approval, balance and delivery).
+     *
+     * Creating a design WITH a customer already emitted this; attaching one to
+     * an existing design did not, so a client added afterwards (Lucie Blank,
+     * 2026-10-28) heard nothing until someone pressed "notify". Only on a NEW
+     * association — the no-op early return above means re-attaching the same
+     * customer never mails them twice.
+     */
+    const eventBus = req.scope.resolve(Modules.EVENT_BUS) as any
+    await eventBus.emit({
+      name: "design.assigned",
+      data: {
+        design_id: designId,
+        customer_id: customerId,
+        design_name: designs[0].name,
+        design_status: designs[0].status,
+      },
+    })
   }
 
   res.status(200).json({

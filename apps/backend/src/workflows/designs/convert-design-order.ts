@@ -158,6 +158,16 @@ export async function convertDesignOrderToOrder(
     )
   }
 
+  // A cancelled design order is retired: converting it would create a real
+  // (and, prepaid, paid) order for something we told the buyer is off.
+  const cancelledAt = (cart.metadata as any)?.cancelled_at
+  if (typeof cancelledAt === "string" && cancelledAt.trim()) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Design order (cart ${cartId}) was cancelled on ${cancelledAt} and cannot be converted`
+    )
+  }
+
   const lineItems: any[] = cart.items || []
   if (!lineItems.length) {
     throw new MedusaError(

@@ -136,3 +136,110 @@ describe("resolveUnmetDependencies", () => {
     expect(hasUnmet(unmet)).toBe(false)
   })
 })
+
+/**
+ * A supplier who is not on the platform has no tracked shipment, so its order
+ * never reaches `Delivered`; the goods arrive as a RECEIPT. Cherry's aprons sat
+ * on exactly this (2026-10-29): Woven Fabric Studio cloth → Prince's run.
+ */
+describe("resolveUnmetDependencies — goods arrived by receipt", () => {
+  const receiptContainer = (order: {
+    status: string
+    metadata?: Record<string, any> | null
+    lines: Array<{ quantity: number; received: number[] }>
+  } | Error) => ({
+    resolve: (key: string) => {
+      if (key === "inventory_orders") {
+        return {
+          retrieveInventoryOrder: async (id: string) => {
+            if (order instanceof Error) throw order
+            return { id, status: order.status }
+          },
+        }
+      }
+      if (key === "query") {
+        return {
+          graph: async ({ filters }: any) => {
+            if (order instanceof Error) throw order
+            return {
+              data: [
+                {
+                  id: filters.id,
+                  status: order.status,
+                  metadata: order.metadata ?? null,
+                  orderlines: order.lines.map((l, i) => ({
+                    id: `line_${i}`,
+                    quantity: l.quantity,
+                    line_fulfillments: l.received.map((q) => ({
+                      quantity_delta: q,
+                      event_type: "received",
+                    })),
+                  })),
+                },
+              ],
+            }
+          },
+        }
+      }
+      if (key === "__pg_connection__") {
+        return { raw: async () => ({ rows: [] }) }
+      }
+      throw new Error(`unexpected module ${key}`)
+    },
+  })
+
+  it("counts an order whose every line is fully received as met, whatever its status", async () => {
+    const unmet = await resolveUnmetDependencies(
+      receiptContainer({ status: "Pending", lines: [{ quantity: 11, received: [11] }] }),
+      { depends_on_inventory_order_ids: ["inv_a"] }
+    )
+
+    expect(unmet.inventoryOrders).toEqual([])
+  })
+
+  it("holds a stage on a PARTIAL receipt", async () => {
+    const unmet = await resolveUnmetDependencies(
+      receiptContainer({
+        status: "Shipped",
+        lines: [
+          { quantity: 11, received: [11] },
+          { quantity: 4, received: [2] },
+        ],
+      }),
+      { depends_on_inventory_order_ids: ["inv_a"] }
+    )
+
+    expect(unmet.inventoryOrders).toEqual(["inv_a"])
+  })
+
+  it("counts an order the close job marked closed_as_received as met", async () => {
+    const unmet = await resolveUnmetDependencies(
+      receiptContainer({
+        status: "Shipped",
+        metadata: { closed_as_received: true },
+        lines: [{ quantity: 5, received: [] }],
+      }),
+      { depends_on_inventory_order_ids: ["inv_a"] }
+    )
+
+    expect(unmet.inventoryOrders).toEqual([])
+  })
+
+  it("holds a stage when the receipt evidence cannot be read", async () => {
+    const container = receiptContainer({ status: "Pending", lines: [{ quantity: 11, received: [11] }] })
+    const broken = {
+      resolve: (key: string) => {
+        if (key === "query") {
+          return { graph: async () => { throw new Error("db down") } }
+        }
+        return container.resolve(key)
+      },
+    }
+
+    const unmet = await resolveUnmetDependencies(broken, {
+      depends_on_inventory_order_ids: ["inv_a"],
+    })
+
+    expect(unmet.inventoryOrders).toEqual(["inv_a"])
+  })
+})

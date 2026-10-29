@@ -1,3 +1,16 @@
+# [13.183.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.182.0...v13.183.0) (2026-10-28)
+
+
+### Bug Fixes
+
+* **design-orders:** add-missing-design-order-tax can re-state a line's quantity ([#2469](https://github.com/Jaal-Yantra-Textiles/v2/issues/2469)) ([8612308](https://github.com/Jaal-Yantra-Textiles/v2/commit/8612308106a4bc7c740d43a83471cdf67a0622dc)), closes [#148](https://github.com/Jaal-Yantra-Textiles/v2/issues/148) [#1937](https://github.com/Jaal-Yantra-Textiles/v2/issues/1937)
+* **design-orders:** GST on pickup design orders + approval email to the order desk ([#2467](https://github.com/Jaal-Yantra-Textiles/v2/issues/2467)) ([7d0b6e6](https://github.com/Jaal-Yantra-Textiles/v2/commit/7d0b6e602166500d748ff23d75f48147d1063758)), closes [#148](https://github.com/Jaal-Yantra-Textiles/v2/issues/148)
+
+
+### Features
+
+* **deposits:** fixed-amount design-order deposit + repair a placed order's missing GST ([#2468](https://github.com/Jaal-Yantra-Textiles/v2/issues/2468)) ([3fd2bb7](https://github.com/Jaal-Yantra-Textiles/v2/commit/3fd2bb7b38d2e8939a0c4ee3fc846d171679680c)), closes [#148](https://github.com/Jaal-Yantra-Textiles/v2/issues/148) [#2467](https://github.com/Jaal-Yantra-Textiles/v2/issues/2467)
+
 # [13.182.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.181.0...v13.182.0) (2026-10-27)
 
 

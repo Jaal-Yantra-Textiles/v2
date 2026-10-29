@@ -5,6 +5,10 @@ import {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
+import {
+  DESIGN_ORDER_CANCELLED_TEMPLATE,
+  notifyBuyerOfWithdrawal,
+} from "../../../../../../lib/notify-buyer-of-withdrawal"
 import { hasLinkedSaleOrder } from "../../linked-sale-order"
 import { decideCancel } from "../../mutate-design-order"
 
@@ -22,7 +26,10 @@ import { decideCancel } from "../../mutate-design-order"
  * and its price and links are the evidence of what was offered. The checkout
  * link stops working; the record stays. Nothing is deleted.
  *
- * Body: `{ reason: string }` — required. See `decideCancel` for why.
+ * Body: `{ reason: string, notify_buyer?: boolean, buyer_message?: string }`.
+ * `reason` is required and internal — see `decideCancel` for why. The buyer is
+ * emailed unless `notify_buyer` is false (the re-issue case); `buyer_message`
+ * is the only text of ours they see, so the internal reason never leaks.
  */
 export async function POST(
   req: AuthenticatedMedusaRequest,
@@ -52,7 +59,7 @@ export async function POST(
     const cart = lineItem?.cart_id
       ? await cartService
           .retrieveCart(lineItem.cart_id, {
-            select: ["id", "currency_code", "completed_at", "metadata"],
+            select: ["id", "currency_code", "completed_at", "metadata", "email"],
           })
           .catch(() => null)
       : null
@@ -100,6 +107,22 @@ export async function POST(
       `[admin] design order line ${lineItemId} (cart ${cart!.id}) cancelled: ${decision.cancelled_reason}`
     )
 
+    const body = (req.body ?? {}) as { notify_buyer?: unknown; buyer_message?: unknown }
+    const buyerMessage =
+      typeof body.buyer_message === "string" && body.buyer_message.trim()
+        ? body.buyer_message.trim()
+        : null
+    const buyerNotification = await notifyBuyerOfWithdrawal(req.scope, {
+      notify: body.notify_buyer,
+      to: (cart as any)?.email,
+      template: DESIGN_ORDER_CANCELLED_TEMPLATE,
+      data: {
+        cart_id: cart!.id,
+        currency_code: cart!.currency_code ?? null,
+        buyer_message: buyerMessage,
+      },
+    })
+
     res.status(200).json({
       design_order_cancel: {
         line_item_id: lineItemId,
@@ -107,6 +130,7 @@ export async function POST(
         cart_id: cart!.id,
         cancelled_at: decision.cancelled_at,
         cancelled_reason: decision.cancelled_reason,
+        buyer_notification: buyerNotification,
       },
     })
   } catch (e: any) {

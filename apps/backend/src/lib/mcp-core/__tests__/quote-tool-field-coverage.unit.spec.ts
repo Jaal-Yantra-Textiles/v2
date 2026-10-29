@@ -224,16 +224,19 @@ describe("quote MCP tools — the body vocabulary matches its validators (#1439)
       expect(tool.write).toBe(true)
       // The buyer has already been told a number by the time anyone revokes.
       expect(tool.sensitive).toBe(true)
-      // 🔴 No body on either. The dispatcher's body assembly is an allowlist
-      // walk, so a `reason` field the route never reads would be accepted,
-      // reported `ok: true`, and dropped in silence (#1348).
-      expect(tool.bodyParams).toBeUndefined()
+      // Exactly the buyer-notice fields the route reads. Still no `reason`:
+      // nothing stores one, so it would be accepted and dropped (#1348).
+      expect(tool.bodyParams).toEqual(["notify_buyer", "buyer_message"])
     }
   })
 
   it("the partner's revoke names no partner_id — it is scoped by the caller", () => {
     // The single field that would let a partner reach another partner's quote.
     const tool = find(PARTNER_MCP_TOOLS as McpToolDef[], "revoke_quote")
-    expect(Object.keys((tool.inputSchema as any).properties)).toEqual(["id"])
+    expect(Object.keys((tool.inputSchema as any).properties)).toEqual([
+      "id",
+      "notify_buyer",
+      "buyer_message",
+    ])
   })
 })
