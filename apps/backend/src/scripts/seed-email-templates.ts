@@ -804,37 +804,48 @@ export const emailTemplatesData = [
      * supplies (customer_name, design_name, design_url, design_status). A
      * fifth would render empty.
      */
-    subject: "We have your design: {{design_name}}",
+    /*
+     * 2026-10-28: now the WELCOME LETTER — sent whenever a customer is
+     * associated with a design (create-with-customer, or attach afterwards),
+     * walking through the whole process. The internal status line was dropped:
+     * "Status: Conceptual" means nothing to a client. Mirrors the live row.
+     */
+    subject: "Welcome to Jaal Yantra: how {{design_name}} gets made",
     html_content: `
       <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b">
-        <h1 style="font-size:18px;margin:0 0 12px">We have your design</h1>
+        <h1 style="font-size:18px;margin:0 0 12px">Welcome to Jaal Yantra</h1>
         <p style="font-size:14px;line-height:1.6;color:#3f3f46">
-          Hi {{customer_name}}, <strong>{{design_name}}</strong> is with us now and we have started work on it.
+          Hi {{customer_name}}, thank you for choosing to have <strong>{{design_name}}</strong> made with us. It is with us now, and this is how it will come to life.
         </p>
         <div style="background:#f4f4f5;padding:16px 18px;border-radius:10px;margin:16px 0">
-          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 10px"><strong>What happens next</strong></p>
+          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 10px"><strong>How it works</strong></p>
           <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 8px">
-            First we source the cloth your piece needs, from the mills and weavers who make it.
+            <strong>1. Your design.</strong> We confirm the shape, the cloth and your measurements with you.
+          </p>
+          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 8px">
+            <strong>2. Your order.</strong> We send you a secure link with the price. A deposit is what starts the work.
+          </p>
+          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 8px">
+            <strong>3. Cloth and maker.</strong> We source the cloth from the mills and weavers who make it, and place your piece with the artisan who will cut and stitch it by hand.
+          </p>
+          <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0 0 8px">
+            <strong>4. You approve it.</strong> When it is finished we email you photos and a link. You approve it, or tell us what to change.
           </p>
           <p style="font-size:13px;line-height:1.7;color:#3f3f46;margin:0">
-            Then we place it with the maker who will work it.
+            <strong>5. Balance and delivery.</strong> Once you approve, you pay the balance and we send the piece to you.
           </p>
         </div>
         <p style="font-size:14px;line-height:1.6;color:#3f3f46">
-          We will write to you at each of those steps — once when the material reaches the maker, and again when work actually begins. Both can take a little time, and we would rather tell you when it is true than guess at a date now.
+          We will write to you as each step happens. Some of them take a little time, and we would rather tell you when something is true than guess at a date now.
         </p>
-        <p style="font-size:14px;line-height:1.6;color:#3f3f46">Nothing is needed from you in the meantime.</p>
         {{#if design_url}}
         <p style="font-size:13px;margin:18px 0 0"><a href="{{design_url}}" style="color:#18181b">View your design</a></p>
         {{/if}}
-        {{#if design_status}}
-        <p style="font-size:12px;color:#a1a1aa;margin:14px 0 0">Status: {{design_status}}</p>
-        {{/if}}
         <p style="font-size:12px;color:#a1a1aa;margin-top:24px">
-          If anything here looks wrong, just reply to this email.<br/>Jaal Yantra Textiles
+          If you have a question at any point, just reply to this email.<br/>Jaal Yantra Textiles
         </p>
       </div>
-    `,
+`,
     variables: {
       customer_name: "Customer's first name",
       design_name: "Name of the assigned design",

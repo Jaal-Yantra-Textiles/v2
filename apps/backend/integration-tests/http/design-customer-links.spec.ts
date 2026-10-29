@@ -264,5 +264,86 @@ setupSharedTestSuite(() => {
         expect(designIds).toContain(newDesignId)
       })
     })
+
+    /**
+     * The welcome letter (`design-assigned`) goes out when a customer is
+     * ASSOCIATED with a design — not only when a design is created with one.
+     * Attaching a customer to an existing design used to send nothing.
+     */
+    describe("welcome letter on association", () => {
+      const watchAssigned = () => {
+        const { Modules } = require("@medusajs/framework/utils")
+        const eventBus: any = getContainer().resolve(Modules.EVENT_BUS)
+        const seen: any[] = []
+        const handler = async (payload: any) => {
+          seen.push(payload?.data ?? payload)
+        }
+        eventBus.subscribe("design.assigned", handler)
+        return {
+          seen,
+          settle: async (n: number) => {
+            for (let i = 0; i < 25 && seen.length < n; i++) {
+              await new Promise((r) => setTimeout(r, 200))
+            }
+            // Give a stray duplicate the chance to arrive before asserting.
+            await new Promise((r) => setTimeout(r, 400))
+          },
+          stop: () => eventBus.unsubscribe?.("design.assigned", handler),
+        }
+      }
+
+      it("POST /admin/designs/:id/customer welcomes a new customer once", async () => {
+        const watch = watchAssigned()
+        try {
+          const first = await api.post(
+            `/admin/designs/${designId}/customer`,
+            { customer_id: customerId },
+            headers
+          )
+          expect(first.status).toBe(200)
+          await watch.settle(1)
+          expect(watch.seen.filter((d) => d.design_id === designId)).toEqual([
+            expect.objectContaining({
+              design_id: designId,
+              customer_id: customerId,
+              design_name: testDesign.name,
+            }),
+          ])
+
+          // Same customer again: a no-op, and no second letter.
+          const again = await api.post(
+            `/admin/designs/${designId}/customer`,
+            { customer_id: customerId },
+            headers
+          )
+          expect(again.data.design_customer.changed).toBe(false)
+          await watch.settle(2)
+          expect(watch.seen.filter((d) => d.design_id === designId)).toHaveLength(1)
+        } finally {
+          watch.stop()
+        }
+      })
+
+      it("POST /admin/customers/:id/designs welcomes only newly linked designs", async () => {
+        await api.post(
+          `/admin/customers/${customerId}/designs`,
+          { design_ids: [designId] },
+          headers
+        )
+
+        const watch = watchAssigned()
+        try {
+          await api.post(
+            `/admin/customers/${customerId}/designs`,
+            { design_ids: [designId, designId2] },
+            headers
+          )
+          await watch.settle(1)
+          expect(watch.seen.map((d) => d.design_id)).toEqual([designId2])
+        } finally {
+          watch.stop()
+        }
+      })
+    })
   })
 })
