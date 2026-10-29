@@ -209,6 +209,13 @@ export const AdminRunApprovalsReq = z
      * and the preview is the point of this endpoint, not a courtesy.
      */
     preview: z.boolean().optional(),
+    /**
+     * #2477 — where a design with no product yet is minted. Omit it and a
+     * partner-owned design goes to the partner's own store, but only while
+     * that store is live; a disabled store refuses that design. Naming a
+     * channel is the admin choosing the destination.
+     */
+    sales_channel_id: z.string().trim().min(1).nullish(),
   })
   .refine(
     // A PREVIEW is not a decision, so it does not need the reason a decision

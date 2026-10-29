@@ -38,6 +38,7 @@ export const POST = async (
     // `dry_run: false` beside `preview: true` must still preview, and a
     // nullish check would let the false win.
     dryRun: Boolean(body.dry_run) || Boolean(body.preview),
+    salesChannelId: body.sales_channel_id ?? null,
   })
 
   res.status(200).json({ run_approvals: result })

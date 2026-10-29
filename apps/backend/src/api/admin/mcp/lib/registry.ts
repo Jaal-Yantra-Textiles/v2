@@ -3274,13 +3274,14 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Approve creates the catalogue product ONCE PER DESIGN however many of its runs are selected, and reuses the design's existing product if it has one — so a design whose product is mispriced is blessed, not corrected. Check list_design_products first.",
       "Reject records the refusal and creates nothing. A rejected run STAYS `completed`: the partner made the goods and is still owed for `produced_quantity`. A reason is required to reject.",
       "Runs with no `design_id` can only be rejected, never approved — they come back `skipped`.",
+      "🔴 A partner-owned design whose partner's store is DISABLED is not minted (#2477): it comes back `failed` saying so. Choose the destination with `sales_channel_id` to approve it anyway.",
       "Answers with a PER-RUN report, not a bare success: read it rather than assuming the whole batch landed.",
     ].join("\n"),
     method: "POST",
     path: "/admin/production-runs/approvals",
     write: true,
     sensitive: true,
-    bodyParams: ["run_ids", "decision", "reason", "preview"],
+    bodyParams: ["run_ids", "decision", "reason", "preview", "sales_channel_id"],
     inputSchema: obj(
       {
         run_ids: {
@@ -3294,6 +3295,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         ),
         preview: BOOL(
           "Resolve and report what the decision would do, changing nothing. Do this first."
+        ),
+        sales_channel_id: STR(
+          "Where a design with NO product yet is minted (sc_...). Omit it and a partner-owned design goes to the partner's own store — but only while that store is live; a disabled store comes back `failed` (#2477) rather than minting a draft nobody can sell. Pass a channel (e.g. the house store's) to choose the destination yourself. Ignored for designs that already have a product."
         ),
       },
       ["run_ids", "decision"]

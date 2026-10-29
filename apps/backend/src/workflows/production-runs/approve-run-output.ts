@@ -14,6 +14,7 @@ import {
   resolveRunsSizeLabel,
 } from "../designs/create-product-from-design"
 import { applyDesignProductPlan } from "../designs/design-product-plan"
+import { resolveMintSalesChannel } from "../designs/lib/mint-sales-channel"
 import {
   buildLineBindingPayload,
   planOrderLineBindings,
@@ -166,6 +167,14 @@ export async function applyRunApprovals(
     reason?: string | null
     actorId?: string | null
     dryRun?: boolean
+    /**
+     * #2477 — where a NEWLY minted product is sold, chosen by the admin.
+     * Omitted, a partner-owned design is minted into the partner's own store
+     * only while that store is live; a disabled store refuses the design
+     * (outcome `failed`, with the reason) instead of minting a draft nobody
+     * can sell. Ignored for designs that already have a product.
+     */
+    salesChannelId?: string | null
   }
 ): Promise<RunApprovalResult> {
   const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
@@ -357,6 +366,7 @@ export async function applyRunApprovals(
           "name",
           "estimated_cost",
           "cost_currency",
+          "owner_partner_id",
           "products.id",
           "products.variants.id",
           // What is ALREADY listed, so a re-approval can say whether the price
@@ -520,11 +530,36 @@ export async function applyRunApprovals(
           targetNote = describeApprovalTarget(designId, target)
           logger?.warn?.(`[approve-run-output] ${targetNote}`)
         }
+      } else if (
+        input.dryRun &&
+        (design as any)?.owner_partner_id &&
+        !input.salesChannelId
+      ) {
+        /**
+         * #2477 — the preview must say a refusal is coming, not report an
+         * approval the real call will then fail. Same resolver the minter
+         * runs, and thrown into the same per-design catch below, so the
+         * preview's `failed` line reads exactly like the real one. Scoped to
+         * partner-owned designs with no channel chosen: that is the only
+         * refusal #2477 added, and the house path is unchanged.
+         */
+        const channel = await resolveMintSalesChannel(container, {
+          explicitSalesChannelId: input.salesChannelId ?? null,
+          ownerPartnerId: (design as any)?.owner_partner_id ?? null,
+        })
+        if (!channel.sales_channel_id) {
+          throw new Error(
+            channel.reason === "partner_store_not_live"
+              ? `Not minting a product for design ${designId}: the owning partner's store is not live (its sales channel is disabled). Choose where it should be sold and pass that sales_channel_id — e.g. the house store's channel.`
+              : `Cannot mint a product for design ${designId}: no sales channel could be resolved (${channel.reason}).`
+          )
+        }
       } else if (!input.dryRun) {
         const result = await applyDesignProductPlan(container, {
             design_id: designId,
             estimated_cost: price,
             currency_code: currency,
+            sales_channel_id: input.salesChannelId ?? null,
             /**
              * 🔑 #2030 item 3 — the RUNS' size, which beats the design's.
              *

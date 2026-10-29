@@ -20,6 +20,7 @@ import { readHouseStore } from "../../production-runs/house-store"
 export type MintSalesChannelFailure =
   | "partner_has_no_store"
   | "partner_store_has_no_channel"
+  | "partner_store_not_live"
   | "ambiguous_partner_stores"
   | "no_house_store"
   | "house_store_has_no_channel"
@@ -48,9 +49,13 @@ export function pickPartnerStore<T extends { id?: string | null }>(
 /**
  * Resolve the sales channel a design's product should be minted into.
  *
- * Order: the caller's explicit channel → the owning partner's store → the house
- * store. Never `stores[0]`. Returns a `reason` instead of a bare undefined so
- * the caller can say which rule ran out.
+ * Order: the caller's explicit channel → the owning partner's store (only while
+ * it is live, #2477) → the house store. Never `stores[0]`. Returns a `reason`
+ * instead of a bare undefined so the caller can say which rule ran out.
+ *
+ * The explicit channel is NOT checked for `is_disabled`: it is the admin's
+ * deliberate choice of destination, which is exactly the decision #2477 hands
+ * them when the partner's store is off.
  */
 export async function resolveMintSalesChannel(
   container: any,
@@ -85,6 +90,29 @@ export async function resolveMintSalesChannel(
     const store = pickPartnerStore(stores)
     const channelId = store?.default_sales_channel_id
     if (!channelId) return { reason: "partner_store_has_no_channel" }
+
+    /**
+     * 🔴 #2477 — a partner whose store is switched off gets no product.
+     *
+     * `is_disabled` is the flag `disable_store` / `enable_store` flip. Nothing
+     * on the mint path read it, so Sharlho's design was minted into Sharlho's
+     * disabled channel (2026-10-12): a draft nobody could sell, needing photos
+     * and copy nobody was going to write. Founder rule (2026-10-29): when the
+     * partner's store is not live, nothing is minted automatically — the admin
+     * decides where the product goes by passing `sales_channel_id`, which takes
+     * the explicit branch above.
+     *
+     * A channel row we cannot read counts as not live: minting into a channel
+     * nobody can see is the defect, so the unknown answer is the refusal.
+     */
+    const { data: channels } = await query.graph({
+      entity: "sales_channel",
+      fields: ["id", "is_disabled"],
+      filters: { id: String(channelId) },
+    })
+    const channel = (channels ?? [])[0] as { is_disabled?: boolean } | undefined
+    if (!channel || channel.is_disabled) return { reason: "partner_store_not_live" }
+
     return { sales_channel_id: String(channelId), source: "owner_partner" }
   }
 
