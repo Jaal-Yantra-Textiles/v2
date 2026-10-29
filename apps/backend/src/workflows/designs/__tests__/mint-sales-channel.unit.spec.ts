@@ -47,6 +47,12 @@ describe("mint sales channel resolution (#2059)", () => {
       partners?: any[]
       houseChannel?: string | null
       graphThrows?: boolean
+      /**
+       * #2477 — sales channel rows by id. Absent: every channel reads as live,
+       * the prod shape for every store but a disabled one. `null` for an id
+       * means the row cannot be found.
+       */
+      channels?: Record<string, { is_disabled: boolean } | null>
     }) => ({
       resolve: (key: string) => {
         const k = String(key).toLowerCase()
@@ -76,6 +82,14 @@ describe("mint sales channel resolution (#2059)", () => {
             }
             if (args.entity === "store") {
               return { data: opts.stores ?? [HOUSE, PARTNER_STORE] }
+            }
+            if (args.entity === "sales_channel") {
+              const id = args.filters?.id
+              if (opts.channels && id in opts.channels) {
+                const row = opts.channels[id]
+                return { data: row ? [{ id, ...row }] : [] }
+              }
+              return { data: [{ id, is_disabled: false }] }
             }
             return { data: [] }
           },
@@ -154,6 +168,44 @@ describe("mint sales channel resolution (#2059)", () => {
       await expect(
         resolveMintSalesChannel(container, { ownerPartnerId: "p_1" })
       ).resolves.toEqual({ reason: "partner_store_has_no_channel" })
+    })
+
+    /**
+     * #2477 — Sharlho, 2026-10-12: a design minted into a store that was
+     * switched off. Not live means no product, and NOT a fallback to the
+     * house store either — where it goes is the admin's call (explicit).
+     */
+    it("refuses when the partner's store is switched off", async () => {
+      const container = makeContainer({
+        partnerStores: [{ id: "store_partner", default_sales_channel_id: "sc_partner" }],
+        channels: { sc_partner: { is_disabled: true } },
+      })
+      await expect(
+        resolveMintSalesChannel(container, { ownerPartnerId: "p_1" })
+      ).resolves.toEqual({ reason: "partner_store_not_live" })
+    })
+
+    it("treats a partner channel it cannot read as not live", async () => {
+      const container = makeContainer({
+        partnerStores: [{ id: "store_partner", default_sales_channel_id: "sc_partner" }],
+        channels: { sc_partner: null },
+      })
+      await expect(
+        resolveMintSalesChannel(container, { ownerPartnerId: "p_1" })
+      ).resolves.toEqual({ reason: "partner_store_not_live" })
+    })
+
+    it("lets the admin choose the destination for a partner whose store is off", async () => {
+      const container = makeContainer({
+        partnerStores: [{ id: "store_partner", default_sales_channel_id: "sc_partner" }],
+        channels: { sc_partner: { is_disabled: true } },
+      })
+      await expect(
+        resolveMintSalesChannel(container, {
+          explicitSalesChannelId: "sc_house",
+          ownerPartnerId: "p_1",
+        })
+      ).resolves.toEqual({ sales_channel_id: "sc_house", source: "explicit" })
     })
 
     /** Two house stores is not a house store — readHouseStore returns null. */

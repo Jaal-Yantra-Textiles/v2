@@ -594,6 +594,15 @@ const createProductAndVariantStep = createStep(
       });
 
       const salesChannelId = channel.sales_channel_id;
+      if (!salesChannelId && channel.reason === "partner_store_not_live") {
+        // #2477 — said in words the operator can act on: nothing is wrong
+        // with the design, the decision of where it is sold is theirs.
+        throw new Error(
+          `Not minting a product for design ${design.id}: the owning partner's store ` +
+            `is not live (its sales channel is disabled). Choose where it should be ` +
+            `sold and pass that sales_channel_id — e.g. the house store's channel.`
+        );
+      }
       if (!salesChannelId) {
         throw new Error(
           `Cannot mint a product for design ${design.id}: no sales channel could be ` +

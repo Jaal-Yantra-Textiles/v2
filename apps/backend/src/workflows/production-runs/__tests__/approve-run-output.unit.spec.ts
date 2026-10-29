@@ -1035,4 +1035,60 @@ describe("applyRunApprovals — dry run", () => {
     expect(result.runs.map((r) => r.product_existed)).toEqual([false, false, true])
     expect(result.design_ids).toEqual(["des_1", "des_2"])
   })
+
+  /**
+   * #2477 — Sharlho's "Ivory wool" (2026-10-12) was minted into a store that
+   * was switched off. The preview must say so BEFORE the operator approves,
+   * as the same `failed` line the real call returns — not report an approval.
+   */
+  it("fails a partner-owned design whose store is switched off, and says why", async () => {
+    listProductionRuns.mockResolvedValue([
+      completedRun("run_1", "des_p"),
+      completedRun("run_2", "des_h"),
+    ])
+    stubGraph({
+      des_p: design("des_p", { owner_partner_id: "p_sharlho" }),
+      des_h: design("des_h"),
+    })
+    const base = graph.getMockImplementation()!
+    graph.mockImplementation(async (args: any) => {
+      if (args.entity === "partners") {
+        return {
+          data: [{ id: "p_sharlho", stores: [{ id: "st_s", default_sales_channel_id: "sc_s" }] }],
+        }
+      }
+      if (args.entity === "sales_channel") {
+        return { data: [{ id: "sc_s", is_disabled: true }] }
+      }
+      return base(args)
+    })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1", "run_2"],
+      decision: "approve",
+      dryRun: true,
+    })
+
+    expect(result.failed).toEqual(["run_1"])
+    expect(result.approved).toEqual(["run_2"])
+    expect(result.runs.find((r) => r.run_id === "run_1")?.reason).toMatch(
+      /store is not live/
+    )
+    expect(createProductRun).not.toHaveBeenCalled()
+  })
+
+  it("previews an approval when the admin chooses where the product goes", async () => {
+    listProductionRuns.mockResolvedValue([completedRun("run_1", "des_p")])
+    stubGraph({ des_p: design("des_p", { owner_partner_id: "p_sharlho" }) })
+
+    const result = await applyRunApprovals(container, {
+      runIds: ["run_1"],
+      decision: "approve",
+      dryRun: true,
+      salesChannelId: "sc_house",
+    })
+
+    expect(result.approved).toEqual(["run_1"])
+    expect(result.failed).toEqual([])
+  })
 })
