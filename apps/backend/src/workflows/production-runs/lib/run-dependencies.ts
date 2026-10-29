@@ -2,6 +2,10 @@ import { PRODUCTION_RUNS_MODULE } from "../../../modules/production_runs"
 import type ProductionRunService from "../../../modules/production_runs/service"
 import { ORDER_INVENTORY_MODULE } from "../../../modules/inventory_orders"
 import type InventoryOrderService from "../../../modules/inventory_orders/service"
+import {
+  areGoodsFinished,
+  loadInventoryOrderFinishEvidence,
+} from "../../inventory_orders/lib/order-finished"
 
 /**
  * What a production run is waiting on before it may be dispatched (#1529).
@@ -20,8 +24,38 @@ import type InventoryOrderService from "../../../modules/inventory_orders/servic
  * happened, from the outside.
  */
 
-/** An inventory order is a met dependency only once the goods have ARRIVED. */
+/**
+ * An inventory order is a met dependency only once the goods have ARRIVED.
+ *
+ * `Delivered` is one way to know that. A RECEIPT is the other: an order from a
+ * supplier who is not on the platform has no tracked shipment, so nothing ever
+ * sets `Delivered`, and the goods arrive as a count — admin receive (#2115) or
+ * the receiving partner's confirmation (#2286). Every line fully received counts
+ * as arrived; a partial receipt does not. See `isInventoryOrderArrived`.
+ */
 export const INVENTORY_DEPENDENCY_MET_STATUS = "Delivered"
+
+/**
+ * Has this inventory order's goods arrived? `Delivered`, or the receipt
+ * evidence `areGoodsFinished` reads (every line fully received, or closed as
+ * received). Unreadable is NOT arrived.
+ *
+ * The cheap status read decides the common case; the receipt evidence is only
+ * loaded for an order that is not `Delivered`.
+ */
+export const isInventoryOrderArrived = async (
+  container: any,
+  order: { id: string; status?: string | null } | null
+): Promise<boolean> => {
+  if (!order) return false
+  if (String(order.status) === INVENTORY_DEPENDENCY_MET_STATUS) return true
+  try {
+    const evidence = await loadInventoryOrderFinishEvidence(container, order.id)
+    return evidence ? areGoodsFinished(evidence) : false
+  } catch {
+    return false
+  }
+}
 
 /** A production run is a met dependency only once it is completed. */
 export const RUN_DEPENDENCY_MET_STATUS = "completed"
@@ -110,7 +144,7 @@ export const resolveUnmetDependencies = async (
     )
     for (let i = 0; i < inventoryOrderIds.length; i++) {
       const dep = depOrders[i] as any
-      if (!dep || String(dep.status) !== INVENTORY_DEPENDENCY_MET_STATUS) {
+      if (!(await isInventoryOrderArrived(container, dep))) {
         unmet.inventoryOrders.push(inventoryOrderIds[i])
       }
     }

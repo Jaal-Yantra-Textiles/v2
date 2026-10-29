@@ -33,6 +33,7 @@ import {
 import { signalPartnerWorkflowFinished } from "./lib/signal-partner-workflow"
 import { planShortfalls, sumDispatchedByLine } from "./lib/dispatch-ledger"
 import { createTasksFromTemplatesWorkflow } from "./create-tasks-from-templates"
+import { releaseRunsAwaitingInventoryOrder } from "../production-runs/lib/release-dependent-runs"
 
 /**
  * ADMIN RECEIPT — record that goods actually turned up, and put them on the
@@ -316,6 +317,43 @@ const signalPartnerWorkflowAfterReceiptStep = createStep(
 
 
 /**
+ * A receipt releases the runs that were waiting on these goods.
+ *
+ * The release used to hang only off `status-changed → Delivered`. An order
+ * from a supplier who is not on the platform never reaches `Delivered` — no
+ * tracked shipment — so its goods arrive as a count here, the stock posts, and
+ * the waiting run stayed parked with nothing having errored (Cherry's aprons:
+ * Woven Fabric Studio cloth → Prince's stitching run, 2026-10-29).
+ *
+ * Only on a FULL receipt, the same rule `resolveUnmetDependencies` applies, so
+ * the release and the dispatch guard cannot disagree. A partial receipt leaves
+ * the run waiting for the rest.
+ *
+ * 🔴 Last step, and it never throws: the receipt is a fact already recorded,
+ * and dispatch messages a partner, which cannot be recalled — nothing after it
+ * may roll back.
+ */
+const releaseWaitingRunsAfterReceiptStep = createStep(
+  "receive-inventory-order-release-waiting-runs",
+  async (input: { orderId: string }, { container }) => {
+    const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+    try {
+      const evidence = await loadInventoryOrderFinishEvidence(container, input.orderId)
+      if (!evidence || !isFullyReceived(evidence.lines)) {
+        return new StepResponse({ outcomes: [], reason: "not fully received" })
+      }
+      const outcomes = await releaseRunsAwaitingInventoryOrder(container, input.orderId)
+      return new StepResponse({ outcomes, reason: null })
+    } catch (e: any) {
+      logger?.error?.(
+        `[receive-inventory-order] failed to release runs waiting on ${input.orderId}: ${e?.message ?? String(e)}`
+      )
+      return new StepResponse({ outcomes: [], reason: e?.message ?? String(e) })
+    }
+  }
+)
+
+/**
  * #2289 S3 — the receiver's count against what the supplier dispatched.
  *
  * A counted line that is still below its dispatch is SHORT: the receiver
@@ -575,6 +613,8 @@ export const receiveInventoryOrderWorkflow = createWorkflow(
     })
 
     signalPartnerWorkflowAfterReceiptStep({ orderId: input.orderId })
+
+    releaseWaitingRunsAfterReceiptStep({ orderId: input.orderId })
 
     return new WorkflowResponse({
       order_id: input.orderId,
