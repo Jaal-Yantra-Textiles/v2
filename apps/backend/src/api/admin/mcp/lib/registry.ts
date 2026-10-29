@@ -6663,7 +6663,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "",
       "🔑 SOFT: it stamps the order's cart as cancelled and deletes nothing. The buyer's checkout link stops working (it redirects to the shop and checkout refuses), and reprice, convert, attaching a buyer and setting a deposit all refuse afterwards. The price, buyer and links stay as the record of what was offered.",
       "",
-      "Refuses with 409 a CONVERTED design order (cancel the order itself with cancel_order) and one already cancelled (the original reason and date are kept). Nothing is emailed; tell the buyer yourself if they had the link. To replace it, cancel this one and create a new design order.",
+      "Refuses with 409 a CONVERTED design order (cancel the order itself with cancel_order) and one already cancelled (the original reason and date are kept). The buyer IS emailed that it was cancelled unless notify_buyer: false (use false when re-issuing). The result's buyer_notification says whether it went. To replace it, cancel this one and create a new design order.",
     ].join("\n"),
     method: "POST",
     path: "/admin/designs/orders/:lineItemId/cancel",
@@ -6671,18 +6671,26 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     previewPath: "/admin/designs/orders/:lineItemId",
     write: true,
     sensitive: true,
-    bodyParams: ["reason"],
+    bodyParams: ["reason", "notify_buyer", "buyer_message"],
     inputSchema: obj(
       {
         lineItemId: STR("The design order's cart line item id (`cali_...`)."),
         reason: STR(
-          "Why it is cancelled, in the admin's words (e.g. 'wrong currency, re-issued as cart_...'). Required — never invent one."
+          "Why it is cancelled, in the admin's words (e.g. 'wrong currency, re-issued as cart_...'). Internal — never shown to the buyer. Required — never invent one."
+        ),
+        notify_buyer: {
+          type: "boolean",
+          description:
+            "Email the buyer that the order was cancelled (default true). Pass false when re-issuing a corrected design order, so they get only the new link.",
+        },
+        buyer_message: STR(
+          "Optional short note to the buyer, shown in the cancellation email. The only text of yours they see."
         ),
       },
       ["lineItemId", "reason"]
     ),
     sideEffects:
-      "Stamps cancelled_at / cancelled_reason / cancelled_by on the design order's cart. The checkout link stops working. Sends nothing; the payment collection, if any, is left as it was.",
+      "Stamps cancelled_at / cancelled_reason / cancelled_by on the design order's cart. The checkout link stops working. Emails the buyer (unless notify_buyer: false). No money moves: an unconverted design order has taken none.",
     nextSteps: ["get_design_order", "create_design_order"],
   },
 
@@ -8318,22 +8326,34 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "revoke_quote",
     description:
-      "Revoke a quote: delete its frozen price list and make the buyer's link 404. Use it to WITHDRAW a quote that should not stand — a wrong price, a wrong buyer, a wrong lane. It is no longer needed before re-quoting the same buyer: the mint supersedes their previous quote itself, which is what #1435 fixed. Re-minting to kill a quote emails the buyer a second number they never asked for; revoking does not.",
+      "Revoke a quote: delete its frozen price list and make the buyer's link 404. Use it to WITHDRAW a quote that should not stand — a wrong price, a wrong buyer, a wrong lane. It is no longer needed before re-quoting the same buyer: the mint supersedes their previous quote itself, which is what #1435 fixed. Re-minting to kill a quote emails the buyer a second number they never asked for; revoking does not. The buyer IS emailed that it was withdrawn unless you pass notify_buyer: false; the result's buyer_notification says whether it went.",
     method: "POST",
     path: "/admin/quotes/:id/revoke",
     pathParams: ["id"],
     write: true,
     sensitive: true,
     /**
-     * 🔴 No `bodyParams`, and no `reason` field — the route reads no body at
-     * all. Advertising one would be the #1348 defect exactly: the dispatcher's
-     * body assembly is an allowlist walk, so the model would supply a reason,
-     * get `ok: true`, and the reason would reach nothing. Better to offer
-     * nothing than to offer something that goes nowhere.
+     * The route reads exactly these two body fields (the buyer notice) and
+     * nothing else. Still no `reason`: nothing stores one, and advertising it
+     * would be the #1348 defect — accepted, `ok: true`, dropped.
      */
-    inputSchema: obj({ id: STR("Quote to revoke.") }, ["id"]),
+    bodyParams: ["notify_buyer", "buyer_message"],
+    inputSchema: obj(
+      {
+        id: STR("Quote to revoke."),
+        notify_buyer: {
+          type: "boolean",
+          description:
+            "Email the buyer that the quote was withdrawn (default true). Send false only when you are telling them another way.",
+        },
+        buyer_message: STR(
+          "Optional short note to the buyer, shown in the withdrawal email (e.g. 'a corrected quote follows'). The only text of yours they see."
+        ),
+      },
+      ["id"]
+    ),
     sideEffects:
-      "The buyer's link stops working immediately and is indistinguishable from an unknown token — they are NOT told. Tell them yourself if they have already been sent it. An already-accepted quote keeps its cart.",
+      "The buyer's link stops working immediately and the buyer is emailed that the quote was withdrawn (unless notify_buyer: false). An already-accepted quote keeps its cart.",
   },
 
   // ===== Stats dashboards + panels =========================================
