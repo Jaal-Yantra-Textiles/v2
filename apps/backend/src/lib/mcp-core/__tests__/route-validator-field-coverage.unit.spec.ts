@@ -118,6 +118,17 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:reprice_design_order",
   "admin:convert_design_order",
   /**
+   * `orders/[lineItemId]/cancel/route.ts` hands `reason` to `decideCancel`,
+   * which refuses a missing or blank one (unit-tested in
+   * mutate-design-order.unit.spec.ts).
+   */
+  "admin:cancel_design_order",
+  /**
+   * `inventory-orders/[id]/cancel/route.ts` parses its body with an inline zod
+   * `cancelBodySchema` (reason: trimmed string, max 1000).
+   */
+  "admin:cancel_inventory_order",
+  /**
    * `orders/[lineItemId]/deposit/route.ts` validates in the handler through
    * `decideDeposit` (deposit_pct a number strictly between 0 and 100,
    * balance_trigger "manual" | "dispatch"), unit-tested in
@@ -193,11 +204,10 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:schedule_order_pickup",
   /**
-   * The revoke route takes NO body — it works entirely off the `:id` in the
-   * path. Nothing to bind, and nothing advertised: the tool declares no
-   * `bodyParams`, because a field the route never reads would be accepted,
-   * reported `ok: true` and dropped (#1348). Verified by reading the handler,
-   * not inferred from the absence of a matcher.
+   * The revoke route reads only `notify_buyer` and `buyer_message`, and
+   * `notifyQuoteRevoked` / `decideBuyerNotice` treat anything but an explicit
+   * `false` as "notify" and anything but a non-blank string as "no message" —
+   * the handler is the validator. Verified by reading the handler.
    */
   /**
    * Wraps the CORE link route, whose body validator is core's generic
@@ -209,7 +219,7 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:revoke_quote",
   /**
    * The partner twin (#1517), for the same reason and verified the same way:
-   * the handler reads `req.params.id` and nothing else. Its ownership check is
+   * the handler reads `req.params.id` plus the same two buyer-notice fields. Its ownership check is
    * on the auth context rather than the body, so there is no body contract to
    * bind here — `partner-mcp-quotes.spec.ts` proves the tool reaches the route,
    * and `partner-quote-revoke.spec.ts` proves another partner's id 404s.

@@ -39,6 +39,8 @@ export type DesignOrderCart = {
    * that gap. Kept as one signal, never as the only one. See `isConverted`.
    */
   completed_at?: string | Date | null
+  /** Carries `cancelled_at` once the order is cancelled. See `isCancelled`. */
+  metadata?: Record<string, unknown> | null
 }
 
 /**
@@ -117,6 +119,7 @@ export type AttachCustomerRefusal =
   | "cart_completed"
   | "no_cart"
   | "customer_not_found"
+  | "cancelled"
 
 export type AttachCustomerDecision =
   | {
@@ -175,6 +178,18 @@ export function decideCustomerAttach(input: {
     }
   }
 
+  /**
+   * A cancelled design order is retired: attaching a buyer would put a live
+   * customer on an order whose checkout link no longer works.
+   */
+  if (isCancelled(cart)) {
+    return {
+      ok: false,
+      reason: "cancelled",
+      message: "This design order is cancelled. Create a new design order for this buyer.",
+    }
+  }
+
   const targetId = customer?.id ?? null
   // `?? null`, not `|| null`: preserved so an empty-string email is normalised
   // to null rather than written as a present-but-unreachable address.
@@ -194,7 +209,12 @@ export function decideCustomerAttach(input: {
   }
 }
 
-export type RepriceRefusal = "cart_completed" | "no_cart" | "not_a_price" | "unchanged"
+export type RepriceRefusal =
+  | "cart_completed"
+  | "no_cart"
+  | "not_a_price"
+  | "unchanged"
+  | "cancelled"
 
 export type RepriceDecision =
   | { ok: true; unit_price: number; previous: number | null }
@@ -226,6 +246,13 @@ export function decideReprice(input: {
       message:
         "This design order has already been converted to an order. Reprice it " +
         "through an order edit, not the cart.",
+    }
+  }
+  if (isCancelled(cart)) {
+    return {
+      ok: false,
+      reason: "cancelled",
+      message: "This design order is cancelled. Create a new design order at the new price.",
     }
   }
 

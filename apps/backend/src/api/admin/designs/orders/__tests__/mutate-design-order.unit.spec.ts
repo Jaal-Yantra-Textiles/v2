@@ -558,3 +558,38 @@ describe("decideDeposit — a part payment through the same checkout link", () =
     })
   })
 })
+
+describe("a cancelled design order refuses every mutation", () => {
+  const cancelledCart = {
+    ...openCart,
+    metadata: { cancelled_at: "2026-10-29T03:00:00.000Z", cancelled_reason: "re-issued" },
+  }
+
+  it("refuses a reprice", () => {
+    const d = decideReprice({ cart: cancelledCart, currentUnitPrice: 60, unitPrice: 70 })
+    expect(d.ok).toBe(false)
+    if (d.ok) return
+    expect(d.reason).toBe("cancelled")
+  })
+
+  it("refuses attaching a buyer", () => {
+    const d = decideCustomerAttach({
+      designId: "des_1",
+      cart: cancelledCart,
+      linkedCustomerIds: [],
+      customer: buyer,
+    })
+    expect(d.ok).toBe(false)
+    if (d.ok) return
+    expect(d.reason).toBe("cancelled")
+  })
+
+  it("still reprices an open cart whose metadata carries no cancel stamp", () => {
+    const d = decideReprice({
+      cart: { ...openCart, metadata: { source: "admin" } },
+      currentUnitPrice: 60,
+      unitPrice: 70,
+    })
+    expect(d.ok).toBe(true)
+  })
+})
