@@ -7,7 +7,7 @@ import { Migration } from "@medusajs/framework/mikro-orm/migrations";
  * All nullable, so every existing spec keeps reading as free choices on the
  * whole product. Idempotent, safe to re-run.
  */
-export class Migration20261028120000 extends Migration {
+export class Migration20261029100000 extends Migration {
 
   override async up(): Promise<void> {
     this.addSql(`alter table if exists "product_spec_option_value" add column if not exists "price_per_piece" numeric null, add column if not exists "raw_price_per_piece" jsonb null, add column if not exists "setup_fee" numeric null, add column if not exists "raw_setup_fee" jsonb null, add column if not exists "price_currency_code" text null;`);
