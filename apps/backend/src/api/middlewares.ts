@@ -161,7 +161,7 @@ import { tagSchema, deleteTagSchema } from "./admin/persons/[id]/tags/validators
 import { rawMaterialSchema, UpdateRawMaterialSchema } from "./admin/inventory-items/[id]/rawmaterials/validators";
 import { splitInventorySchema } from "./admin/inventory-items/[id]/split/validators";
 import { CreateMaterialTypeSchema, ReadRawMaterialCategoriesSchema } from "./admin/categories/rawmaterials/validators";
-import { AttachDesignCustomerSchema, AttachDesignInventoryOrderSchema, CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, UpdateDesignSchema } from "./admin/designs/validators";
+import { AttachDesignCustomerSchema, AttachDesignInventoryOrderSchema, CreateDesignLLMSchema, designSchema, LinkDesignPartnerSchema, ReadDesignsQuerySchema, RelinkDesignProductSchema, UpdateDesignSchema } from "./admin/designs/validators";
 import { DesignBriefSchema, UpdateDesignBriefSchema } from "./admin/designs/[id]/brief/validators";
 import { SegmentImageSchema } from "./admin/designs/[id]/segment/validators";
 import { DepthImageSchema } from "./partners/designs/[designId]/segment/depth/validators";
@@ -5292,6 +5292,12 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/customer",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AttachDesignCustomerSchema))],
+    },
+    {
+      // #2477 part 2 — re-point a design at an existing product.
+      matcher: "/admin/designs/:id/products/relink",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(RelinkDesignProductSchema))],
     },
     {
       matcher: "/admin/designs/:id/inventory-orders",

@@ -3266,6 +3266,45 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_product", "get_design", "list_production_runs"],
   },
   {
+    name: "relink_design_product",
+    description: [
+      "Point a design at an EXISTING product — the repair for a design minted onto the wrong product (#2477). Sensitive: requires confirm:true.",
+      "Approval REUSES whatever product a design links to, so fix the link BEFORE approving that design's runs, or they are approved onto the wrong product.",
+      "Moves three things together: the design↔product link (other linked products are unlinked), the design↔variant links, and the design's runs (`product_id`, and `approved_product_id` on runs already decided; a run `variant_id` that no longer fits is cleared).",
+      "`variant_ids` REPLACES the design's variant links (all must be on `product_id`). Omit it to keep only the links already on `product_id`.",
+      "🔴 A variant has ONE design. A variant another design already backs is refused unless `move_variants_from_other_designs: true` — that takes it away from the other design.",
+      "Never deletes the old product, never changes prices or stock. Delete the old product yourself afterwards if it is unwanted.",
+      "🔑 Pass `preview: true` first (NOT `dry_run`, which never reaches the route): it returns the plan and writes nothing.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/:id/products/relink",
+    pathParams: ["id"],
+    previewPath: "/admin/designs/:id/products",
+    write: true,
+    sensitive: true,
+    bodyParams: ["product_id", "variant_ids", "move_variants_from_other_designs", "preview"],
+    inputSchema: obj(
+      {
+        id: STR("Design id."),
+        product_id: STR("The existing product the design should point at (prod_...)."),
+        variant_ids: {
+          type: "array",
+          description:
+            "Variants of product_id this design backs. REPLACES the design's variant links. Omit to keep the ones already on product_id.",
+          items: { type: "string" },
+        },
+        move_variants_from_other_designs: BOOL(
+          "Allow taking a variant that another design backs today. Default false (refused)."
+        ),
+        preview: BOOL("Return the plan, write nothing. Do this first."),
+      },
+      ["id", "product_id"]
+    ),
+    sideEffects:
+      "Rewrites the design's product and variant link rows and updates its runs' product/variant fields. No product, price or stock is created, changed or deleted.",
+    nextSteps: ["list_design_products", "review_production_run_output", "delete_product"],
+  },
+  {
     name: "review_production_run_output",
     description: [
       "Decide whether what a COMPLETED production run produced is acceptable — the output review queue (#1805). Sensitive: requires confirm:true.",
