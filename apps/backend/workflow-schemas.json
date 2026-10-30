@@ -2745,6 +2745,42 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/designs/partner/link-design-to-partner.ts"
   },
+  "relink-design-product": {
+    "fields": [
+      {
+        "name": "design_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.design_id }}"
+      },
+      {
+        "name": "product_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.product_id }}"
+      },
+      {
+        "name": "variant_ids",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.variant_ids }}"
+      },
+      {
+        "name": "move_variants_from_other_designs",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      },
+      {
+        "name": "preview",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/designs/relink-design-product.ts"
+  },
   "revise-design": {
     "fields": [
       {

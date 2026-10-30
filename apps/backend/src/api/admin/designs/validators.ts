@@ -188,6 +188,28 @@ export const AttachDesignInventoryOrderSchema = z.object({
   note: z.string().max(500).optional().nullable(),
 })
 
+/** MCP sends booleans as strings; same coercion as `notify_customer` above. */
+const looseBool = z.preprocess(
+  (v) => (v === "false" ? false : v === "true" ? true : v),
+  z.boolean().optional()
+)
+
+/**
+ * Re-point a design at an EXISTING product (#2477 part 2).
+ *
+ * `variant_ids` omitted keeps the design's variant links on the target product
+ * as they are; given, it REPLACES the design's variant links outright — the
+ * list is the whole answer, not an addition.
+ */
+export const RelinkDesignProductSchema = z.object({
+  product_id: z.string().min(1),
+  variant_ids: z.array(z.string().min(1)).max(100).optional(),
+  move_variants_from_other_designs: looseBool,
+  preview: looseBool,
+})
+
+export type RelinkDesignProduct = z.infer<typeof RelinkDesignProductSchema>
+
 export type AttachDesignCustomer = z.infer<typeof AttachDesignCustomerSchema>
 export type AttachDesignInventoryOrder = z.infer<
   typeof AttachDesignInventoryOrderSchema
