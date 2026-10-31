@@ -226,6 +226,98 @@ setupSharedTestSuite(() => {
       ])
     })
 
+    it("lets an admin correct a completed run's split, checked and audited", async () => {
+      const designId = await createSizedDesign()
+      const { partnerId, headers } = await registerPartner("fix-split")
+
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 3 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+
+      // Not completed yet: the split is not a correction, it is the completion's.
+      const early = await api
+        .post(
+          `/admin/production-runs/${runId}`,
+          { produced_output: [{ size_label: "S", quantity: 3 }] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(early.status).toBe(400)
+
+      await walkToFinished(runId, headers)
+      const done = await api
+        .post(
+          `/partners/production-runs/${runId}/complete`,
+          {
+            produced_quantity: 3,
+            produced_output: [
+              { size_label: "S", quantity: 2 },
+              { size_label: "M", quantity: 1 },
+            ],
+          },
+          { headers }
+        )
+        .catch((e: any) => e.response)
+      expect(done.status).toBe(200)
+
+      const unknownSize = await api
+        .post(
+          `/admin/production-runs/${runId}`,
+          { produced_output: [{ size_label: "XL", quantity: 3 }] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(unknownSize.status).toBe(400)
+      expect(JSON.stringify(unknownSize.data)).toContain("XL")
+
+      const short = await api
+        .post(
+          `/admin/production-runs/${runId}`,
+          { produced_output: [{ size_label: "M", quantity: 2 }] },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(short.status).toBe(400)
+
+      const fixed = await api
+        .post(
+          `/admin/production-runs/${runId}`,
+          {
+            produced_output: [
+              { size_label: "S", quantity: 1 },
+              { size_label: "M", quantity: 2 },
+            ],
+            correction_reason: "Recorded as 2 S + 1 M; it was 1 S + 2 M",
+          },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      if (fixed.status !== 200) {
+        throw new Error(`Correction failed ${fixed.status}: ${JSON.stringify(fixed.data)}`)
+      }
+
+      const run = await readRun(runId)
+      expect(run.produced_output).toEqual([
+        { size_label: "S", color: null, quantity: 1 },
+        { size_label: "M", color: null, quantity: 2 },
+      ])
+      expect(run.produced_quantity).toBe(3)
+
+      const activities = await api.get(`/admin/production-runs/${runId}/activities`, adminHeaders)
+      const correction = activities.data.activities.find(
+        (a: any) => a.kind === "output_corrected"
+      )
+      expect(correction.payload.previous.produced_output).toEqual([
+        { size_label: "S", color: null, quantity: 2 },
+        { size_label: "M", color: null, quantity: 1 },
+      ])
+      expect(correction.payload.corrected.produced_output).toEqual(run.produced_output)
+      expect(correction.payload.reason).toBe("Recorded as 2 S + 1 M; it was 1 S + 2 M")
+    })
+
     it("takes the plan when the partner confirms nothing and the plan adds up", async () => {
       const designId = await createSizedDesign()
       const { partnerId, headers } = await registerPartner("planned")
