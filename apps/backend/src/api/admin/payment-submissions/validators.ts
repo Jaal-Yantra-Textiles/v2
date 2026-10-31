@@ -41,6 +41,14 @@ export const AdminPayableRunsQuerySchema = z.object({
   partner_id: z.string().min(1, "partner_id is required"),
 })
 
+/**
+ * "Who to pay" (#2480). Cross-partner on purpose — the one payment-submission
+ * read that takes no `partner_id`, because its question is which partner.
+ */
+export const AdminPartnersOwedQuerySchema = z.object({
+  include_settled: z.enum(["true", "false"]).optional(),
+})
+
 export const AdminReviewPaymentSubmissionSchema = z.object({
   action: z.enum(["approve", "reject"]),
   rejection_reason: z.string().optional(),

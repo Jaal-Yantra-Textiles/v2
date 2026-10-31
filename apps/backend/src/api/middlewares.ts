@@ -297,6 +297,7 @@ import {
 import {
   AdminListPaymentSubmissionsQuerySchema,
   AdminPayableRunsQuerySchema,
+  AdminPartnersOwedQuerySchema,
   AdminReviewPaymentSubmissionSchema,
   CreateAdminPaymentSubmissionSchema,
   SubmitPaymentSubmissionSchema as AdminSubmitPaymentSubmissionSchema,
@@ -4182,6 +4183,12 @@ export default defineMiddlewares({
       matcher: "/admin/payment-submissions/payable-inventory-orders",
       method: "GET",
       middlewares: [validateAndTransformQuery(wrapSchema(AdminPayableRunsQuerySchema), {})],
+    },
+    {
+      // "Who to pay" (#2480). Before the ":id" entries: first match wins.
+      matcher: "/admin/payment-submissions/partners-owed",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminPartnersOwedQuerySchema), {})],
     },
     {
       matcher: "/admin/payment-submissions/:id/review",

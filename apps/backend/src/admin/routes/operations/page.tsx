@@ -93,6 +93,11 @@ export default function OperationsHub() {
           description="Submissions queue + reconciliation workflow."
           to="/payment-submissions"
         />
+        <QuickLinkCard
+          title="Who to pay"
+          description="Partners we owe, most first, with a payout one click away."
+          to="/payment-submissions?tab=who-to-pay"
+        />
       </Section>
 
       <Section

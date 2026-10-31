@@ -12,7 +12,7 @@ import {
   toast,
 } from "@medusajs/ui"
 import { useCallback, useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useSearchParams } from "react-router-dom"
 
 import { RouteFocusModal } from "../modal/route-focus-modal"
 import { useDesigns, type AdminDesign } from "../../hooks/api/designs"
@@ -28,10 +28,12 @@ import {
 import { PayableRunsGrid } from "./payable-runs-grid"
 import { PayableInventoryOrdersGrid } from "./payable-inventory-orders-grid"
 import {
+  defaultRunQuantity,
+  defaultRunRate,
   runBillsVerbatimTotal as billsVerbatimTotal,
   runNeedsTypedPrice,
   runLineAmount,
-} from "./lib/run-line-pricing"
+} from "../../../workflows/payment_submissions/lib/run-line-pricing"
 /**
  * 🔴 From `rate-breakdown-display`, NOT `rate-breakdown`. This is a Vite
  * BROWSER bundle: the latter imports `MedusaError`, and pulling it in here
@@ -84,7 +86,14 @@ const getTaskCost = (t: AdminPartnerTask): number => {
 export const CreatePaymentSubmissionComponent = () => {
   const navigate = useNavigate()
 
-  const [partnerId, setPartnerId] = useState<string>("")
+  /**
+   * `?partner_id=` opens the screen on that partner's items — the "Create
+   * payout" button on "Who to pay" (#2480) links here with it. The picker step
+   * is skipped because the partner is already decided; Back still reaches it.
+   */
+  const [searchParams] = useSearchParams()
+  const prefilledPartnerId = searchParams.get("partner_id") || ""
+  const [partnerId, setPartnerId] = useState<string>(prefilledPartnerId)
   /**
    * Two steps, because they are two different jobs.
    *
@@ -94,7 +103,9 @@ export const CreatePaymentSubmissionComponent = () => {
    * and half the width for a decision already made — and the grid, which is the
    * whole point of the screen, was squeezed into a 720px column beside them.
    */
-  const [step, setStep] = useState<"partner" | "items">("partner")
+  const [step, setStep] = useState<"partner" | "items">(
+    prefilledPartnerId ? "items" : "partner"
+  )
 
   const [activeTab, setActiveTab] = useState<
     "runs" | "inventory" | "designs" | "tasks"
@@ -256,24 +267,18 @@ export const CreatePaymentSubmissionComponent = () => {
    * claim took the run whole, or (since #1676) the run has no agreed quantity
    * and therefore no ceiling to subtract from. Neither is a remainder of zero,
    * so both fall back to the offered figure rather than to nothing.
+   *
+   * 🔑 The untouched default is `defaultRunQuantity`, shared with "Who to pay"
+   * (#2480) so the summary's total is the total this screen writes.
    */
   const getRunQuantity = useCallback(
     (run: PayableRun): number => {
       if (runQuantityOverrides[run.run_id] != null) {
         return runQuantityOverrides[run.run_id]
       }
-      const remaining = run.billable_remaining
-      if (
-        runAlreadyPartlyBilled(run) &&
-        remaining != null &&
-        remaining > 0 &&
-        remaining < run.payable_quantity
-      ) {
-        return remaining
-      }
-      return run.payable_quantity
+      return defaultRunQuantity(run)
     },
-    [runQuantityOverrides, runAlreadyPartlyBilled]
+    [runQuantityOverrides]
   )
 
   /**
@@ -290,15 +295,9 @@ export const CreatePaymentSubmissionComponent = () => {
       if (runRateOverrides[run.run_id] != null) {
         return runRateOverrides[run.run_id]
       }
-      return runNeedsTypedPrice({
-        unit_is_derived: run.unit_is_derived,
-        hasTypedRate: false,
-        alreadyPartlyBilled: runAlreadyPartlyBilled(run),
-      })
-        ? 0
-        : run.unit_amount
+      return defaultRunRate(run)
     },
-    [runRateOverrides, runAlreadyPartlyBilled]
+    [runRateOverrides]
   )
 
   /**

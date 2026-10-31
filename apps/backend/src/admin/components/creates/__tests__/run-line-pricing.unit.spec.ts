@@ -1,8 +1,10 @@
 import {
+  defaultRunLineAmount,
+  defaultRunQuantity,
   runBillsVerbatimTotal,
   runLineAmount,
   runNeedsTypedPrice,
-} from "../lib/run-line-pricing"
+} from "../../../../workflows/payment_submissions/lib/run-line-pricing"
 
 /**
  * #1596 / #1616 — the screen must bill what was agreed, and send it on a
@@ -238,5 +240,43 @@ describe("a partly-billed run's remainder (#1676)", () => {
         alreadyPartlyBilled: false,
       })
     ).toBe(false)
+  })
+})
+
+describe("an untouched row's default quantity (#2480)", () => {
+  const run = (over: Record<string, any> = {}) => ({
+    billing_status: "partly_billed",
+    payable_quantity: 4,
+    billable_remaining: 5,
+    unit_amount: 1200,
+    unit_is_derived: false,
+    amount: 4800,
+    billed: { claimed_quantity: 4 },
+    ...over,
+  })
+
+  it("does not offer units already billed again — 9 ordered, 4 made, 4 billed is 0", () => {
+    // The ordered ceiling says "5 left"; none of those 5 has been made.
+    expect(defaultRunQuantity(run())).toBe(0)
+    expect(defaultRunLineAmount(run())).toBe(0)
+  })
+
+  it("offers the newly made units once more output is recorded", () => {
+    expect(defaultRunQuantity(run({ payable_quantity: 7 }))).toBe(3)
+    expect(defaultRunLineAmount(run({ payable_quantity: 7 }))).toBe(3600)
+  })
+
+  it("never offers past the guard's remainder", () => {
+    expect(
+      defaultRunQuantity(run({ payable_quantity: 10, billable_remaining: 2, billed: { claimed_quantity: 1 } }))
+    ).toBe(2)
+  })
+
+  it("an open-ended run (no remainder) is bounded only by what was made", () => {
+    expect(defaultRunQuantity(run({ payable_quantity: 40, billable_remaining: null, billed: { claimed_quantity: 10 } }))).toBe(30)
+  })
+
+  it("a run nobody has billed offers everything made", () => {
+    expect(defaultRunQuantity(run({ billing_status: "clear", billed: null }))).toBe(4)
   })
 })
