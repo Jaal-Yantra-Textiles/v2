@@ -119,3 +119,81 @@ export const runLineAmount = (input: RunLinePricingInput): number => {
   }
   return Math.round(quantity * rate * 100) / 100
 }
+
+/**
+ * The fields of a `payable-runs` row that decide its UNTOUCHED line.
+ *
+ * Structural rather than the route's type, so the dashboard (a Vite bundle) and
+ * the server can both call it without either importing the other's types.
+ */
+export type PayableRunLike = {
+  billing_status: string
+  payable_quantity: number
+  billable_remaining: number | null
+  unit_amount: number
+  unit_is_derived?: boolean | null
+  amount: number
+  /** The live claim on this run, when one exists. */
+  billed?: { claimed_quantity?: number | null } | null
+}
+
+/**
+ * PURE. Units an untouched row bills.
+ *
+ * On a partly-billed run that is the units MADE and not yet billed, capped by
+ * what the write guard has left (`billable_remaining`).
+ *
+ * 🔴 #2480. This used to offer `payable_quantity` whenever the remainder was
+ * not smaller than it — and the remainder is measured against the ORDERED
+ * ceiling. A run ordered 9, made 4 and billed for those 4 reads "5 left", and
+ * the screen offered the 4 made units AGAIN: ₹4,800 more for garments already
+ * billed. Founder rule: a partner is paid for what they made, so the default
+ * is made − already billed, which is 0 until more output is recorded.
+ *
+ * `billable_remaining` is null when there is no arithmetic behind it (a claim
+ * took the run whole, or the run has no agreed quantity, #1676). That is not a
+ * remainder of zero, so only the made-but-unbilled bound applies then.
+ */
+export const defaultRunQuantity = (run: PayableRunLike): number => {
+  if (run.billing_status !== "partly_billed") return run.payable_quantity
+
+  const claimed = Number(run.billed?.claimed_quantity)
+  const unbilledMade = Number.isFinite(claimed)
+    ? Math.max(0, run.payable_quantity - claimed)
+    : run.payable_quantity
+
+  const remaining = run.billable_remaining
+  return remaining != null && remaining >= 0
+    ? Math.min(unbilledMade, remaining)
+    : unbilledMade
+}
+
+/**
+ * PURE. The rate an untouched row shows — none on a partly-billed TOTAL run,
+ * whose `unit_amount` is display-only arithmetic (#1679).
+ */
+export const defaultRunRate = (run: PayableRunLike): number =>
+  runNeedsTypedPrice({
+    unit_is_derived: run.unit_is_derived,
+    hasTypedRate: false,
+    alreadyPartlyBilled: run.billing_status === "partly_billed",
+  })
+    ? 0
+    : run.unit_amount
+
+/**
+ * PURE. What the create screen bills for this run if nobody types anything.
+ *
+ * 🔑 The one figure "Who to pay" (#2480) sums per partner. It goes through the
+ * same `runLineAmount` the create screen does, so the total a founder reads on
+ * the summary is the total the payout is written with.
+ */
+export const defaultRunLineAmount = (run: PayableRunLike): number =>
+  runLineAmount({
+    quantity: defaultRunQuantity(run),
+    rate: defaultRunRate(run),
+    amount: run.amount,
+    unit_is_derived: run.unit_is_derived,
+    hasTypedRate: false,
+    alreadyPartlyBilled: run.billing_status === "partly_billed",
+  })

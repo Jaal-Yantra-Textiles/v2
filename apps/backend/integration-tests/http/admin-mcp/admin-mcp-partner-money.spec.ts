@@ -82,6 +82,7 @@ setupSharedTestSuite(() => {
         "list_payable_runs",
         "list_payable_inventory_orders",
         "get_partner_credits",
+        "list_partners_owed",
         "link_payment_to_payout",
         "unlink_payment_from_payout",
       ]) {
@@ -114,6 +115,24 @@ setupSharedTestSuite(() => {
       )
       expect(orders.ok).toBe(true)
       expect(orders.data.count).toBe(0)
+    })
+
+    it("list_partners_owed answers across partners and leaves out one owed nothing (#2480)", async () => {
+      const res = parse(await callTool("list_partners_owed", {}))
+      expect(res.ok).toBe(true)
+      expect(res.data.failed_count).toBe(0)
+      expect(
+        res.data.partners_owed.find((r: any) => r.partner_id === partnerId)
+      ).toBeUndefined()
+
+      const all = parse(
+        await callTool("list_partners_owed", { include_settled: "true" })
+      )
+      const row = all.data.partners_owed.find(
+        (r: any) => r.partner_id === partnerId
+      )
+      expect(row).toBeDefined()
+      expect(row.total_owed).toBe(0)
     })
 
     /**

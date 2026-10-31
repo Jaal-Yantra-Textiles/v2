@@ -376,6 +376,65 @@ export const usePaymentSubmissions = (
 }
 
 /**
+ * One partner's row on "Who to pay" (#2480). Mirrors `PartnerOwedRow` in
+ * `api/admin/payment-submissions/partners-owed/summarize.ts`.
+ */
+export type PartnerOwedRow = {
+  partner_id: string
+  partner_name: string | null
+  partner_handle: string | null
+  partner_status: string | null
+  total_owed: number
+  unbilled_work: number
+  unbilled_work_count: number
+  unbilled_goods: number
+  unbilled_goods_count: number
+  goods_possibly_prepaid_count: number
+  billed_unpaid: number
+  unpaid_payout_count: number
+  recorded_against_open: number
+  check_first_count: number
+  check_first_amount: number
+  needs_price_count: number
+  oldest_unpaid_at: string | null
+  mixed_currency: boolean
+}
+
+export type PartnersOwedResponse = {
+  partners_owed: PartnerOwedRow[]
+  count: number
+  total_owed: number
+  settled_count: number
+  failed: Array<{ partner_id: string; partner_name: string | null; error: string }>
+  failed_count: number
+}
+
+/** "Who to pay" (#2480): every partner we owe, most owed first. */
+export const usePartnersOwed = (
+  options?: Omit<
+    UseQueryOptions<PartnersOwedResponse, FetchError, PartnersOwedResponse, QueryKey>,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryFn: async () =>
+      sdk.client.fetch<PartnersOwedResponse>(
+        `/admin/payment-submissions/partners-owed`,
+        { method: "GET" }
+      ) as Promise<PartnersOwedResponse>,
+    queryKey: paymentSubmissionQueryKeys.list({ partners_owed: true }),
+    ...options,
+  })
+  return {
+    partners_owed: data?.partners_owed ?? [],
+    total_owed: data?.total_owed ?? 0,
+    settled_count: data?.settled_count ?? 0,
+    failed: data?.failed ?? [],
+    ...rest,
+  }
+}
+
+/**
  * The completed runs a partner can be paid for.
  *
  * Disabled until a partner is chosen — the endpoint REQUIRES `partner_id`

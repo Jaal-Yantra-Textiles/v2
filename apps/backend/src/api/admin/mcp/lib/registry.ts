@@ -1853,6 +1853,25 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ],
   },
   {
+    name: "list_partners_owed",
+    description:
+      "Who to pay: one row per partner we owe money to, MOST OWED FIRST — the question to ask before list_payable_runs, which needs a partner already chosen. `total_owed` = `unbilled_work` (completed runs no payout claims, priced exactly as create_payment_submission would bill them untouched) + `unbilled_goods` (inventory-order receipts/advances not yet claimed) + `billed_unpaid` (the ledger's `outstanding`: payouts raised and not yet settled). `oldest_unpaid_at` is how long the oldest of those has waited. " +
+      "⚠️ NOT in `total_owed`, reported beside it: `check_first_*` (runs whose billing history cannot be verified — an older payout for the design never named its runs; billing them is how garments get paid for twice) and `needs_price_count` (work with no agreed figure, including order-backed runs). `goods_possibly_prepaid_count` flags orders where money already recorded meets the offer. `failed` lists partners whose numbers could not be read — never read a missing partner as owed nothing. " +
+      "Slow-ish: it reads every partner's payout screens. Pass include_settled=true to also list partners owed nothing.",
+    method: "GET",
+    path: "/admin/payment-submissions/partners-owed",
+    queryParams: ["include_settled"],
+    inputSchema: obj({
+      include_settled: STR("'true' to also return partners owed nothing. Default: only partners with money owed or work to check."),
+    }),
+    nextSteps: [
+      "list_payable_runs",
+      "list_payable_inventory_orders",
+      "get_partner_ledger",
+      "create_payment_submission",
+    ],
+  },
+  {
     name: "list_payable_runs",
     description:
       "The completed production runs this partner can still be billed for — WORK, as opposed to goods. One row per run, carrying its billing status (`clear` / `partly_billed` / `billed` / `unknown`), produced vs ordered quantity, the agreed rate and how much of the run a prior payout already claimed. ⚠️ `unknown` means the run's billing history could not be verified, NOT that it is unbilled: billing it is how the same garments get paid for twice.",

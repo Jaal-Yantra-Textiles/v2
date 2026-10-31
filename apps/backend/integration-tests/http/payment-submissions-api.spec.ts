@@ -811,6 +811,58 @@ setupSharedTestSuite(() => {
     })
   })
 
+  // ─── Who to pay (#2480) ───────────────────────────────────────────────────
+  describe("GET /admin/payment-submissions/partners-owed", () => {
+    const owedRow = async () => {
+      const res = await api.get(
+        "/admin/payment-submissions/partners-owed",
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.failed_count).toBe(0)
+      return res.data.partners_owed.find((r: any) => r.partner_id === partnerId)
+    }
+
+    it("leaves out a partner owed nothing", async () => {
+      expect(await owedRow()).toBeUndefined()
+    })
+
+    it("owes an unbilled run at the payable-runs figure, then moves it to billed-unpaid", async () => {
+      const d1 = await createDesign("Owed Run Design", { estimated_cost: 5000 })
+      await linkDesignToPartner(d1, partnerId)
+      const runId = await createCompletedRun(d1, "Owed Run Design")
+
+      // 4 produced × 1200 — the same figure payable-runs offers.
+      const before = await owedRow()
+      expect(before).toBeDefined()
+      expect(before.unbilled_work).toBe(4800)
+      expect(before.unbilled_work_count).toBe(1)
+      expect(before.billed_unpaid).toBe(0)
+      expect(before.total_owed).toBe(4800)
+      expect(before.oldest_unpaid_at).not.toBeNull()
+
+      const created = await api.post(
+        "/admin/payment-submissions",
+        {
+          partner_id: partnerId,
+          design_ids: [d1],
+          quantities: { [d1]: 4 },
+          unit_amounts: { [d1]: 1200 },
+          production_run_ids: { [d1]: [runId] },
+        },
+        adminHeaders
+      )
+      expect(created.status).toBe(201)
+
+      // Billed now, not paid: the money moves column, the total does not.
+      const after = await owedRow()
+      expect(after.unbilled_work).toBe(0)
+      expect(after.billed_unpaid).toBe(4800)
+      expect(after.unpaid_payout_count).toBe(1)
+      expect(after.total_owed).toBe(4800)
+    })
+  })
+
   describe("GET /admin/payment-submissions/payable-runs", () => {
     it("requires partner_id rather than listing every completed run", async () => {
       // An unfiltered variant would return every partner's runs. That exact

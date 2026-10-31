@@ -46,6 +46,7 @@ describe("admin: the partner money reads", () => {
       "/admin/payment-submissions/payable-inventory-orders",
     ],
     ["get_partner_credits", "/admin/partners/:id/credits"],
+    ["list_partners_owed", "/admin/payment-submissions/partners-owed"],
   ])("%s wraps %s as a plain read", (name, path) => {
     const def = adminTool(name)!
     expect(def).toBeTruthy()
@@ -88,6 +89,25 @@ describe("admin: the partner money reads", () => {
     expect(res.plan?.query).toEqual({ partner_id: "partner_1" })
     // Nothing silently dropped: a dropped argument is the failure mode this
     // whole surface is exposed to.
+    expect(res.plan?.dropped_arguments).toBeUndefined()
+  })
+})
+
+describe("admin: who to pay (#2480)", () => {
+  it("asks across every partner — it takes no partner_id and needs none", async () => {
+    const res = await dispatchAdminTool(CTX, "list_partners_owed", {
+      dry_run: true,
+    })
+    expect(res.ok).toBe(true)
+    expect(res.plan?.path).toBe("/admin/payment-submissions/partners-owed")
+  })
+
+  it("forwards include_settled as a query param the route reads", async () => {
+    const res = await dispatchAdminTool(CTX, "list_partners_owed", {
+      include_settled: "true",
+      dry_run: true,
+    })
+    expect(res.plan?.query).toEqual({ include_settled: "true" })
     expect(res.plan?.dropped_arguments).toBeUndefined()
   })
 })

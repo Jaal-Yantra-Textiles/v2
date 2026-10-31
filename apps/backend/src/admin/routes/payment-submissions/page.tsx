@@ -3,6 +3,7 @@ import { Fragment } from "react"
 import { useSearchParams, Outlet } from "react-router-dom"
 import { SubmissionsTab } from "./_components/submissions-tab"
 import { ReconciliationTab } from "./_components/reconciliation-tab"
+import { WhoToPayTab } from "./_components/who-to-pay-tab"
 
 const TAB_PARAM = "tab"
 const DEFAULT_TAB = "submissions"
@@ -10,6 +11,8 @@ const DEFAULT_TAB = "submissions"
 const TABS = [
   { value: "submissions", label: "Submissions" },
   { value: "reconciliation", label: "Reconciliation" },
+  // #2480 — which partners are owed, before picking one to pay.
+  { value: "who-to-pay", label: "Who to pay" },
 ]
 
 const PaymentSubmissionsPage = () => {
@@ -58,6 +61,7 @@ const PaymentSubmissionsPage = () => {
       <div>
         {activeTab === "submissions" && <SubmissionsTab />}
         {activeTab === "reconciliation" && <ReconciliationTab />}
+        {activeTab === "who-to-pay" && <WhoToPayTab />}
       </div>
 
       <Outlet />
