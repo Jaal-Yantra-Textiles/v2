@@ -16,6 +16,10 @@ export const AdminNotificationsQueryParams = z.object({
     z.enum(["pending", "success", "failure"]).optional()
   ),
   id: z.union([z.string(), z.array(z.string())]).optional(),
+  /** Only this recipient's rows (a partner id), e.g. to see what a partner was told. */
+  receiver_id: z.string().optional(),
+  /** With channel=feed, include partner-scoped rows (hidden by default). */
+  include_partner: z.preprocess((v) => (v === "true" || v === true ? "true" : undefined), z.string().optional()),
   // IMPORTANT: keep as string. Medusa's internal query config builder expects a string and calls fields.split(",").
   fields: z.string().optional(),
 })
