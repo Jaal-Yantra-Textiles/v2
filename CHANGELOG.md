@@ -1,3 +1,11 @@
+## [13.184.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.184.0...v13.184.1) (2026-10-31)
+
+
+### Bug Fixes
+
+* **storefront:** long variant names no longer overflow their buttons ([#2484](https://github.com/Jaal-Yantra-Textiles/v2/issues/2484)) ([a820406](https://github.com/Jaal-Yantra-Textiles/v2/commit/a820406e6ec375373079e08468b3eba7fc6e767c))
+* **admin:** the admin feed no longer lists partners' bell notifications ([#2485](https://github.com/Jaal-Yantra-Textiles/v2/issues/2485)) ([05d1f1d](https://github.com/Jaal-Yantra-Textiles/v2/commit/05d1f1ddfe19530cee493467633969201d6b97f3))
+
 # [13.184.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.183.0...v13.184.0) (2026-10-31)
 
 
