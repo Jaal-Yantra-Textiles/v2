@@ -138,6 +138,36 @@ export const GET = async (
     filters.id = id
   }
 
+  /**
+   * The admin feed is the admin's, not every partner's.
+   *
+   * Partner bell rows share the `feed` channel and are told apart only by
+   * `receiver_id = partner.id` (`createPartnerNotification`); the partner route
+   * filters on it, this one never did. So every dispatch showed twice in the
+   * admin timeline — our "Production Run Dispatched" next to the partner's
+   * "Open it to accept the work" — plus every partner reminder (83 of the
+   * latest 200 admin feed rows on 2026-10-31).
+   *
+   * Scoped to `channel=feed` on purpose: the failed-notifications page lists
+   * email/WhatsApp sends through this same route, and a partner's failed email
+   * must stay visible there. `receiver_id=<partner>` or `include_partner=true`
+   * opts back in to see what a partner was told.
+   */
+  const rawQuery = (req.query || {}) as Record<string, unknown>
+  const receiverId = (req.validatedQuery as any)?.receiver_id ?? rawQuery.receiver_id
+  const includePartner =
+    String((req.validatedQuery as any)?.include_partner ?? rawQuery.include_partner ?? "") ===
+    "true"
+  const feedOnly = Array.isArray(channel)
+    ? channel.length === 1 && channel[0] === "feed"
+    : channel === "feed"
+
+  if (typeof receiverId === "string" && receiverId.trim()) {
+    filters.receiver_id = receiverId.trim()
+  } else if (feedOnly && !includePartner) {
+    filters.receiver_id = null
+  }
+
   const { data, metadata } = await query.graph({
     entity: "notifications",
     fields: selectedFields,
