@@ -1,3 +1,10 @@
+# [13.185.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.184.1...v13.185.0) (2026-10-31)
+
+
+### Features
+
+* **payouts:** "Who to pay" — every partner we owe, most first ([#2480](https://github.com/Jaal-Yantra-Textiles/v2/issues/2480) S1) ([#2486](https://github.com/Jaal-Yantra-Textiles/v2/issues/2486)) ([6682e8c](https://github.com/Jaal-Yantra-Textiles/v2/commit/6682e8c2add3c9c90360d41ec82e7883c3f0f24d))
+
 ## [13.184.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.184.0...v13.184.1) (2026-10-31)
 
 
