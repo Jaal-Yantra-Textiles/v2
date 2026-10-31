@@ -97,6 +97,11 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
   "admin:request_order_balance",
   "admin:approve_order_sample",
   /**
+   * The invoice route reads `preview` and `confirm` straight off the body and
+   * refuses a send without `confirm: true`; nothing else is accepted.
+   */
+  "admin:send_order_invoice",
+  /**
    * #1970 PR10 — the three design-order mutations validate INSIDE the handler,
    * so `middlewares.ts` binds nothing for this file to match against. Read, not
    * inferred:
