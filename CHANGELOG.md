@@ -1,3 +1,23 @@
+# [13.184.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.183.0...v13.184.0) (2026-10-31)
+
+
+### Bug Fixes
+
+* **storefront:** broken product photos from a doubled Cloudflare image prefix ([#2481](https://github.com/Jaal-Yantra-Textiles/v2/issues/2481)) ([ad9606a](https://github.com/Jaal-Yantra-Textiles/v2/commit/ad9606a83fd19c9759c88637b60d06c881e0e406))
+* **cart-recovery:** patch the canvas copy of the classify node, the one that runs ([#2472](https://github.com/Jaal-Yantra-Textiles/v2/issues/2472)) ([8261048](https://github.com/Jaal-Yantra-Textiles/v2/commit/8261048872247b2e75f3aeb0d03494c82b771e53)), closes [#2185](https://github.com/Jaal-Yantra-Textiles/v2/issues/2185)
+
+
+### Features
+
+* **production-runs:** a full receipt releases the runs waiting on those goods ([#2474](https://github.com/Jaal-Yantra-Textiles/v2/issues/2474)) ([d0b3852](https://github.com/Jaal-Yantra-Textiles/v2/commit/d0b385233e1c5938fe26f478e1c529c61e8c87c8)), closes [#2115](https://github.com/Jaal-Yantra-Textiles/v2/issues/2115) [#2286](https://github.com/Jaal-Yantra-Textiles/v2/issues/2286)
+* **production-runs:** admins can correct a completed run's per-size/colour split ([#2482](https://github.com/Jaal-Yantra-Textiles/v2/issues/2482)) ([6704bf6](https://github.com/Jaal-Yantra-Textiles/v2/commit/6704bf6094382861caf375370dc86c9d1e0b765b))
+* **design-orders:** cancelled design orders locked everywhere, MCP cancel tools, buyer told on cancel/revoke ([#2475](https://github.com/Jaal-Yantra-Textiles/v2/issues/2475)) ([d335573](https://github.com/Jaal-Yantra-Textiles/v2/commit/d33557387e32a8f87722c022cd968de0725cd959))
+* **orders:** email the buyer an itemised invoice with the balance pay link ([#2483](https://github.com/Jaal-Yantra-Textiles/v2/issues/2483)) ([b1778ca](https://github.com/Jaal-Yantra-Textiles/v2/commit/b1778ca1c5a66dc7614fcad2fde0abe3a50f1888)), closes [#101](https://github.com/Jaal-Yantra-Textiles/v2/issues/101)
+* **designs:** no product for a partner's design while their store is off ([#2477](https://github.com/Jaal-Yantra-Textiles/v2/issues/2477)) ([#2478](https://github.com/Jaal-Yantra-Textiles/v2/issues/2478)) ([6f6e30a](https://github.com/Jaal-Yantra-Textiles/v2/commit/6f6e30a0629fcff1d1457a9d6ca50cff007ed829))
+* **product-spec:** priced spec choices — logo embroidery setup fee + per-piece ([#2456](https://github.com/Jaal-Yantra-Textiles/v2/issues/2456)) ([#2470](https://github.com/Jaal-Yantra-Textiles/v2/issues/2470)) ([c7a5599](https://github.com/Jaal-Yantra-Textiles/v2/commit/c7a559977317a7aa8c3bd83c502e5855043a7114))
+* **designs:** re-point a design at an existing product ([#2477](https://github.com/Jaal-Yantra-Textiles/v2/issues/2477) part 2) ([#2479](https://github.com/Jaal-Yantra-Textiles/v2/issues/2479)) ([5e1f466](https://github.com/Jaal-Yantra-Textiles/v2/commit/5e1f466c4dd9f8c31643d54a96a3f1fd5472ce70))
+* **designs:** welcome letter when a customer is associated with a design ([#2471](https://github.com/Jaal-Yantra-Textiles/v2/issues/2471)) ([9ca3975](https://github.com/Jaal-Yantra-Textiles/v2/commit/9ca3975c9cd6b601b2a222d472ff4d8afc763d86))
+
 # [13.183.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.182.0...v13.183.0) (2026-10-28)
 
 
