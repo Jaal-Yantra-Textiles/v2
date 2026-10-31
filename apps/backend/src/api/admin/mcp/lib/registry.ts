@@ -3224,7 +3224,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         images: {
           type: "array",
           description:
-            "🔴 The product's WHOLE image gallery, in order: the list REPLACES what is stored, so resend every image you mean to keep. Pass as [{ url }]. Omit to leave images alone. To serve a HEIC browsers cannot show, pass its Cloudflare JPEG URL: https://automatic.jaalyantra.com/cdn-cgi/image/format=jpeg,width=1600/<path>.",
+            "🔴 The product's WHOLE image gallery, in order: the list REPLACES what is stored, so resend every image you mean to keep. Pass as [{ url }]. Omit to leave images alone. Store the RAW image URL, HEIC included: the storefront converts it through Cloudflare. NEVER store a /cdn-cgi/image/ URL; the storefront wraps it again and Cloudflare 404s the nested transform (7 products broke on 2026-10-31).",
           items: { type: "object", properties: { url: STR("Image URL.") }, required: ["url"] },
         },
         categories: {
