@@ -2260,6 +2260,80 @@ async function seedPartnerLedgerFixture(container: any): Promise<{
 }
 
 /**
+ * #2480 — "Who to pay". A partner of its OWN, so the row this spec reads is not
+ * moved by any other spec billing the #1556 runs.
+ *
+ *   - 4 made of 9 ordered at ₹1,100/unit → ₹4,400 owed, not yet billed. The
+ *     ordered figure (9 × 1,100 = ₹9,900) would be the wrong answer, so a
+ *     screen that summed ordered instead of produced is visibly wrong.
+ *   - a second run with NO rate → "1 need a price", and NOT in the total.
+ *
+ * Nothing here is ever billed by a spec, so it survives re-runs.
+ */
+async function seedWhoToPay(container: any): Promise<{
+  partnerId: string
+  partnerName: string
+  pricedRunId: string
+}> {
+  const partnerModule: any = container.resolve("partner")
+  const designService: any = container.resolve("design")
+  const runService: any = container.resolve("production_runs")
+  const remoteLink: any = container.resolve(ContainerRegistrationKeys.LINK)
+
+  const stamp = Date.now()
+  const created = await partnerModule.createPartners({
+    name: `E2E Who To Pay ${stamp}`,
+    handle: `e2e-who-to-pay-${stamp}`,
+    status: "active",
+    is_verified: true,
+  })
+  const partner = Array.isArray(created) ? created[0] : created
+
+  const designName = `Who To Pay Fixture (e2e ${stamp})`
+  const design = await designService.createDesigns({
+    name: designName,
+    description: "e2e #2480 who-to-pay fixture",
+    design_type: "Original",
+    status: "Technical_Review",
+    priority: "Medium",
+    estimated_cost: 5000,
+  })
+  const designId = (Array.isArray(design) ? design[0] : design).id as string
+  await remoteLink.create({
+    design: { design_id: designId },
+    partner: { partner_id: partner.id },
+  })
+
+  const mkRun = async (overrides: Record<string, any>) => {
+    const run = await runService.createProductionRuns({
+      design_id: designId,
+      partner_id: partner.id,
+      run_type: "production",
+      status: "completed",
+      completed_at: new Date(),
+      snapshot: { design: { id: designId, name: designName } },
+      captured_at: new Date(),
+      ...overrides,
+    })
+    return (Array.isArray(run) ? run[0] : run).id as string
+  }
+
+  const pricedRunId = await mkRun({
+    quantity: 9,
+    produced_quantity: 4,
+    partner_cost_estimate: 1100,
+    cost_type: "per_unit",
+  })
+  await mkRun({ quantity: 2, produced_quantity: 2, partner_cost_estimate: null })
+
+  return {
+    partnerId: partner.id as string,
+    partnerName: partner.name as string,
+    pricedRunId,
+  }
+}
+
+/**
  * #1596 — a submission carrying a mixed-price line beside an ordinary one, so
  * the Rate cell can be driven in a browser.
  *
@@ -3564,6 +3638,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: rate-breakdown submission fixture (#1596)...")
   const rateBreakdown = await seedRateBreakdownSubmission(container)
 
+  logger.info("E2E seed: who-to-pay fixture (#2480)...")
+  const whoToPay = await seedWhoToPay(container)
+
   logger.info("E2E seed: partner ledger fixture (#1612)...")
   const partnerLedger = await seedPartnerLedgerFixture(container)
 
@@ -3747,6 +3824,10 @@ export default async function e2eSeed({ container }: ExecArgs) {
     zeroDepositQuoteCompany: adminQuotes.zeroDepositQuoteCompany,
     // #1596 per-piece prices — consumed by submission-rate-breakdown.spec.ts
     // (admin, CI). NOT single-use: the spec only reads and cancels.
+    // #2480 — who-to-pay.spec.ts. Never billed; survives re-runs.
+    whoToPayPartnerId: whoToPay.partnerId,
+    whoToPayPartnerName: whoToPay.partnerName,
+    whoToPayRunId: whoToPay.pricedRunId,
     rateSubmissionId: rateBreakdown.submissionId,
     rateMixedDesignName: rateBreakdown.mixedDesignName,
     rateFlatDesignName: rateBreakdown.flatDesignName,

@@ -156,7 +156,11 @@ export const WhoToPayTab = () => {
                         : null,
                     ].filter(Boolean)
                     return (
-                      <Table.Row key={row.partner_id}>
+                      <Table.Row
+                        key={row.partner_id}
+                        data-testid="who-to-pay-row"
+                        data-partner-id={row.partner_id}
+                      >
                         <Table.Cell>
                           <Link
                             to={`/partners/${row.partner_id}`}
@@ -165,7 +169,10 @@ export const WhoToPayTab = () => {
                             {row.partner_name || row.partner_id}
                           </Link>
                         </Table.Cell>
-                        <Table.Cell className="text-right font-medium">
+                        <Table.Cell
+                          className="text-right font-medium"
+                          data-testid="who-to-pay-total"
+                        >
                           {row.total_owed > 0 ? inr(row.total_owed) : "—"}
                         </Table.Cell>
                         <Table.Cell>
