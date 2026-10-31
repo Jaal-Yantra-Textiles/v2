@@ -14,6 +14,20 @@ const CF_RESIZE_HOSTS = new Set(["automatic.jaalyantra.com"])
 
 type LoaderArgs = { src: string; width: number; quality?: number }
 
+// A stored URL can already be a transform URL (e.g. HEIC wrapped as
+// `/cdn-cgi/image/format=jpeg,width=1600/automatica/x.heic`). Cloudflare
+// 404s a transform nested inside another, so drop any existing prefixes and
+// re-wrap the source path once. `format=auto` still converts HEIC.
+const TRANSFORM_PREFIX = /^\/cdn-cgi\/image\/[^/]+(?=\/)/
+
+function stripTransformPrefix(pathname: string): string {
+  let path = pathname
+  while (TRANSFORM_PREFIX.test(path)) {
+    path = path.replace(TRANSFORM_PREFIX, "")
+  }
+  return path
+}
+
 export default function imageLoader({ src, width, quality }: LoaderArgs): string {
   const q = quality ?? 85
 
@@ -34,7 +48,7 @@ export default function imageLoader({ src, width, quality }: LoaderArgs): string
     //   https://<host>/cdn-cgi/image/<options>/<source-path>
     // `format=auto` lets CF serve AVIF/WebP based on Accept header.
     const opts = `width=${width},quality=${q},format=auto`
-    return `${parsed.origin}/cdn-cgi/image/${opts}${parsed.pathname}${parsed.search}`
+    return `${parsed.origin}/cdn-cgi/image/${opts}${stripTransformPrefix(parsed.pathname)}${parsed.search}`
   }
 
   // Default path: route through Vercel's image optimizer the way <Image>
