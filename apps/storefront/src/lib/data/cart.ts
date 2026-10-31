@@ -44,12 +44,28 @@ export async function retrieveCart(cartId?: string, fields?: string) {
     .fetch<HttpTypes.StoreCartResponse>(`/store/carts/${id}`, {
       method: "GET",
       query: {
-        fields,
+        // `+`, not a plain field: a plain name would replace the defaults.
+        fields: `${fields},+completed_at`,
       },
       headers,
       next,
     })
-    .then(({ cart }: { cart: HttpTypes.StoreCart }) => cart)
+    /**
+     * 🔴 A completed cart is an ORDER now, not a cart — report "no cart".
+     *
+     * The store API still returns a cart after checkout, and the cookie can
+     * outlive it: the abandoned-cart link (`/checkout/cart/[cartId]`) writes the
+     * cookie for 7 days, and a design-order cart is completed by the ADMIN, so
+     * the buyer's browser never runs `placeOrder`'s `removeCartId()`. Order #149
+     * (2026-10-28): the buyer came back 3 days later, saw the paid apron in the
+     * bag, and every remove hit "Cart … is already completed" — a 500 page.
+     *
+     * Returning null shows an empty bag, and the next add-to-cart creates a new
+     * cart and overwrites the stale cookie (`getOrSetCart`).
+     */
+    .then(({ cart }: { cart: HttpTypes.StoreCart }) =>
+      cart?.completed_at ? null : cart
+    )
     .catch(() => null)
 }
 
