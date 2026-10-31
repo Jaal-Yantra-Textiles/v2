@@ -290,10 +290,17 @@ test.describe("Payment submission from production runs (#1556)", () => {
     await row.getByRole("checkbox").click()
 
     /**
-     * The quantity box opens on the REMAINDER, not on the produced quantity —
-     * offering 4 again on a run with 2 left is how a double-bill starts.
+     * #2480 — the box opens on what was MADE and not yet billed, never on the
+     * ordered remainder. The run still records 4 made and 7 are billed (the
+     * previous case typed 7), so nothing made is unbilled: it opens on 0.
+     * Opening on the 2 still ORDERED is how a run billed for everything made
+     * kept being offered again (9 ordered / 4 made / 4 billed re-offered ₹4,800).
      */
-    await expect(qtyBox(row)).toHaveValue("2", { timeout: 10000 })
+    await expect(qtyBox(row)).toHaveValue("0", { timeout: 10000 })
+
+    // Billing the last 2 is still possible — but only by typing it.
+    await qtyBox(row).fill("2")
+    await qtyBox(row).blur()
 
     const total = page.getByTestId("submission-total")
     await expect(total).toHaveText("INR 2,400", { timeout: 10000 })
