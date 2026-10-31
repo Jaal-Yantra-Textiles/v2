@@ -122,6 +122,19 @@ import {
 import { checkRunDependencyAttach } from "../../../../workflows/production-runs/lib/attach-run-dependencies"
 import { TASKS_MODULE } from "../../../../modules/tasks"
 import { cleanIds } from "../../../../workflows/production-runs/lib/run-dependencies"
+import {
+  checkOutputLines,
+  runGoodQuantity,
+  runOutputAxes,
+  type OutputLine,
+} from "../../../../workflows/production-runs/lib/run-output"
+
+const describeOutput = (lines: OutputLine[] | null | undefined): string =>
+  lines?.length
+    ? lines
+        .map((l) => `${l.quantity}× ${[l.color, l.size_label].filter(Boolean).join(" ") || "unspecified"}`)
+        .join(", ")
+    : "—"
 
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const id = req.params.id
@@ -394,6 +407,43 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   if (producedCorrection !== undefined) update.produced_quantity = producedCorrection
   if (rejectedCorrection !== undefined) update.rejected_quantity = rejectedCorrection
+
+  /**
+   * The per-size/colour split of what was made, corrected after the fact. The
+   * Oshen stock robes were recorded as one Kala cotton RED when the piece is
+   * GREEN, and nothing could say so short of a DB write. Same rule as the
+   * completion route: lines must name the run's own sizes/colours and add up
+   * to the good units (`runGoodQuantity`, after any produced_quantity
+   * correction in this same request). `null` clears it.
+   *
+   * It does NOT re-post stock: a run already banked stays banked as it was.
+   */
+  let producedOutputCorrection: OutputLine[] | null | undefined
+  if (body.produced_output !== undefined) {
+    if (run.status !== "completed") {
+      throw new MedusaError(
+        MedusaError.Types.NOT_ALLOWED,
+        "produced_output can only be corrected on a completed run"
+      )
+    }
+    if (body.produced_output === null) {
+      producedOutputCorrection = null
+    } else {
+      const total = runGoodQuantity({
+        produced_quantity:
+          producedCorrection !== undefined ? producedCorrection : run.produced_quantity,
+        rejected_quantity:
+          rejectedCorrection !== undefined ? rejectedCorrection : run.rejected_quantity,
+        quantity: run.quantity,
+      })
+      const check = checkOutputLines(body.produced_output, runOutputAxes(run.snapshot), total)
+      if (!check.ok) {
+        throw new MedusaError(MedusaError.Types.INVALID_DATA, `produced_output: ${check.reason}`)
+      }
+      producedOutputCorrection = check.lines
+    }
+    update.produced_output = producedOutputCorrection
+  }
 
   /**
    * #1529 / #2111 S1 — attach (or clear) the goods this run is waiting on.
@@ -774,13 +824,22 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   // Audit the output correction. Best-effort: the correction itself is already
   // persisted and must not be rolled back because the timeline write failed.
-  if (producedCorrection !== undefined || rejectedCorrection !== undefined) {
+  if (
+    producedCorrection !== undefined ||
+    rejectedCorrection !== undefined ||
+    producedOutputCorrection !== undefined
+  ) {
     const changes: string[] = []
     if (producedCorrection !== undefined) {
       changes.push(`produced ${run.produced_quantity ?? "—"} → ${producedCorrection ?? "—"}`)
     }
     if (rejectedCorrection !== undefined) {
       changes.push(`rejected ${run.rejected_quantity ?? "—"} → ${rejectedCorrection ?? "—"}`)
+    }
+    if (producedOutputCorrection !== undefined) {
+      changes.push(
+        `split ${describeOutput(run.produced_output)} → ${describeOutput(producedOutputCorrection)}`
+      )
     }
     const reason =
       typeof body.correction_reason === "string" && body.correction_reason.trim()
@@ -806,6 +865,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
           previous: {
             produced_quantity: run.produced_quantity ?? null,
             rejected_quantity: run.rejected_quantity ?? null,
+            produced_output: run.produced_output ?? null,
           },
           corrected: {
             produced_quantity:
@@ -816,6 +876,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
               rejectedCorrection !== undefined
                 ? rejectedCorrection
                 : run.rejected_quantity ?? null,
+            produced_output:
+              producedOutputCorrection !== undefined
+                ? producedOutputCorrection
+                : run.produced_output ?? null,
           },
         },
         occurred_at: new Date(),

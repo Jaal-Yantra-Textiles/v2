@@ -5969,6 +5969,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "cost_type",
       "produced_quantity",
       "rejected_quantity",
+      "produced_output",
       "correction_reason",
       "materials",
       "depends_on_inventory_order_ids",
@@ -5993,6 +5994,20 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         rejected_quantity: {
           type: "number",
           description: "Correct the number of rejected pieces the partner reported.",
+        },
+        produced_output: {
+          type: "array",
+          description:
+            "Correct the per-size/colour split of what a COMPLETED run made, e.g. a piece recorded as Kala Cotton Red that is really Kala Cotton Greens Light. REPLACES the whole split. Lines must use the run's own size/colour names (see its snapshot) and add up to its good units (produced_quantity). Does NOT re-post stock. Pass correction_reason.",
+          items: {
+            type: "object",
+            properties: {
+              size_label: { type: "string", description: "One of the run's sizes, or omit if it has none." },
+              color: { type: "string", description: "One of the run's colour names, or omit if it has none." },
+              quantity: { type: "number", description: "Pieces of this combination." },
+            },
+            required: ["quantity"],
+          },
         },
         correction_reason: STR(
           "Why the reported output is being corrected (e.g. 'physical count was 3'). Recorded on the run's activity timeline alongside the before/after values."
