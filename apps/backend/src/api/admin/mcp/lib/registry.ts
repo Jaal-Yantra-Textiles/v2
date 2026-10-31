@@ -8653,6 +8653,38 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_order_balance"],
   },
   {
+    name: "send_order_invoice",
+    description:
+      "Email the buyer an itemised invoice for an order: every line at the price on the order (a zero-priced replacement shows as 'No charge'), shipping, total, what is paid, and the balance with its pay link. Sensitive: requires confirm:true. " +
+      "🔑 Run with preview:true FIRST: it returns the invoice and any payment-schedule change and writes nothing. " +
+      "When an order edit moved the total after the deposit, the deposit schedule's balance is moved to the order's pending difference before the link is raised, so the link charges the edited amount; an already-raised balance keeps the SAME link. Refuses (and sends nothing) when what the order shows as paid is not the deposit.",
+    method: "POST",
+    path: "/admin/orders/:id/invoice",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    // The route refuses a send without confirm:true, so the rail's confirm is
+    // forwarded rather than consumed.
+    bodyParams: ["preview", "confirm"],
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        preview: {
+          type: "boolean",
+          description: "Return the invoice and the schedule change without writing or sending. Do this first.",
+        },
+        confirm: {
+          type: "boolean",
+          description: "Must be true to send: it emails the buyer and can rebill the balance. Forwarded to the route.",
+        },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "May move the payment schedule's total and balance to the edited order, raises or updates the balance payment collection, and emails the buyer the invoice with a live pay link.",
+    nextSteps: ["get_order_balance", "get_order"],
+  },
+  {
     name: "approve_order_sample",
     description:
       "Record the buyer's verdict on the first SAMPLE of a made-to-order deal. On a deal minted with balance_trigger 'sample_approved', decision 'approved' raises the balance and returns the buyer's pay link; 'rejected' is recorded and asks for nothing. Sensitive: requires confirm:true. " +

@@ -1866,6 +1866,63 @@ export const emailTemplatesData = [
     is_active: true,
   },
 
+  {
+    name: "Order Invoice",
+    template_key: "order-invoice",
+    from: "orders@jaalyantra.com",
+    subject: "Invoice for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Invoice</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">Order #{{order_display_id}}</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0 20px;">Here is the invoice for your order, with everything on it as it stands today.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tr style="border-bottom:1px solid #E4E4E7;">
+        <th style="text-align:left;padding:8px 0;color:#71717A;font-weight:500;">Item</th>
+        <th style="text-align:center;padding:8px 0;color:#71717A;font-weight:500;">Qty</th>
+        <th style="text-align:right;padding:8px 0;color:#71717A;font-weight:500;">Price</th>
+        <th style="text-align:right;padding:8px 0;color:#71717A;font-weight:500;">Total</th>
+      </tr>
+      {{#each lines}}
+      <tr style="border-bottom:1px solid #F4F4F5;">
+        <td style="padding:10px 0;color:#18181B;">{{title}}{{#if variant}}<br><span style="color:#71717A;font-size:12px;">{{variant}}</span>{{/if}}{{#if note}}<br><span style="color:#3B82F6;font-size:12px;">{{note}}</span>{{/if}}</td>
+        <td style="padding:10px 0;text-align:center;color:#18181B;">{{quantity}}</td>
+        <td style="padding:10px 0;text-align:right;color:#52525B;">{{unit_price}}</td>
+        <td style="padding:10px 0;text-align:right;color:#18181B;">{{line_total}}</td>
+      </tr>
+      {{/each}}
+    </table>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:16px;">
+      <tr><td style="padding:4px 0;color:#71717A;">Items</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{subtotal}}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717A;">Shipping</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{shipping}}</td></tr>
+      <tr><td style="padding:6px 0;color:#18181B;font-weight:600;">Order total</td><td style="padding:6px 0;text-align:right;color:#18181B;font-weight:600;">{{order_total}}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717A;">Paid</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{paid}}</td></tr>
+    </table>
+    {{#if balance_due}}
+    <div style="margin:24px 0 8px;padding:16px;background:#F4F4F5;border-radius:8px;text-align:center;">
+      <p style="color:#52525B;font-size:13px;margin:0;">Balance due</p>
+      <p style="color:#18181B;font-size:22px;font-weight:600;margin:6px 0 14px;">{{balance_due}}</p>
+      {{#if pay_url}}<a href="{{pay_url}}" style="display:inline-block;background:#27272A;color:#FFFFFF;text-decoration:none;font-size:14px;font-weight:500;padding:12px 28px;border-radius:8px;">Pay the balance</a>{{/if}}
+    </div>
+    {{else}}
+    <p style="color:#16A34A;font-size:14px;margin:24px 0 0;">This order is fully paid. Thank you.</p>
+    {{/if}}
+    <p style="color:#71717A;font-size:13px;margin-top:20px;">Questions about anything on this invoice? Just reply to this email.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", lines: "Invoice lines (title, variant, quantity, unit_price, line_total, note)", subtotal: "Items total", shipping: "Shipping total", order_total: "Order total", paid: "Amount paid", balance_due: "Balance still owed (empty when fully paid)", pay_url: "Link to pay the balance", current_year: "Current year" },
+    template_type: "order_invoice",
+    is_active: true,
+  },
+
   // =========================================================================
   // DELIVERY & PARTNER EVENTS
   // =========================================================================
