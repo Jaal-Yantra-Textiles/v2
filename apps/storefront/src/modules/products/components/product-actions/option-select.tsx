@@ -26,6 +26,15 @@ const hexOf = (value: unknown): string | null => {
   return typeof hex === "string" && /^#([0-9a-fA-F]{6})$/.test(hex) ? hex : null
 }
 
+/**
+ * Option values are admin-entered and can be long ("Small Tunic — Kala Cotton
+ * & Linen / Kala Cotton Red"). A fixed-height, equal-width button let that
+ * spill out of its border. Long values take a full row, the label wraps to at
+ * most two lines, and the full text stays available on hover and to screen
+ * readers.
+ */
+const LONG_VALUE = 18
+
 const OptionSelect: React.FC<OptionSelectProps> = ({
   option,
   current,
@@ -43,7 +52,7 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
     <div className="flex flex-col gap-y-3">
       <span className="text-sm">Select {title}</span>
       <div
-        className="flex flex-wrap justify-between gap-2"
+        className="flex flex-wrap gap-2"
         data-testid={dataTestId}
       >
         {filteredOptions.map((v) => {
@@ -51,14 +60,16 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
             <button
               onClick={() => updateOption(option.id, v.value)}
               key={v.value}
+              title={v.value}
+              aria-label={v.value}
               className={clx(
-                "border-ui-border-base bg-ui-bg-subtle border text-small-regular h-10 rounded-rounded p-2 flex-1 ",
+                "border-ui-border-base bg-ui-bg-subtle border text-small-regular min-h-10 rounded-rounded px-3 py-2 flex-1 min-w-[4.5rem] max-w-full flex items-center justify-center gap-x-2 text-center leading-tight",
                 {
+                  "basis-full": v.value.length > LONG_VALUE,
                   "border-ui-border-interactive": v.value === current,
                   "hover:shadow-elevation-card-rest transition-shadow ease-in-out duration-150":
                     v.value !== current,
-                },
-                v.hex && "flex items-center justify-center gap-x-2"
+                }
               )}
               disabled={disabled}
               data-testid="option-button"
@@ -70,7 +81,7 @@ const OptionSelect: React.FC<OptionSelectProps> = ({
                   style={{ backgroundColor: v.hex }}
                 />
               )}
-              {v.value}
+              <span className="min-w-0 break-words line-clamp-2">{v.value}</span>
             </button>
           )
         })}
