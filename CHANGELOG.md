@@ -1,3 +1,11 @@
+## [13.185.1](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.185.0...v13.185.1) (2026-11-01)
+
+
+### Bug Fixes
+
+* **storefront:** a completed cart reads as no cart ([#2489](https://github.com/Jaal-Yantra-Textiles/v2/issues/2489)) ([80a6275](https://github.com/Jaal-Yantra-Textiles/v2/commit/80a62755acf4f59d17fd8e2501f26d85797d9e1d)), closes [#149](https://github.com/Jaal-Yantra-Textiles/v2/issues/149)
+* **payouts:** partner screen stops re-offering billed units; ledger ignores cancelled payments; person MCP tools ([#2480](https://github.com/Jaal-Yantra-Textiles/v2/issues/2480)) ([#2491](https://github.com/Jaal-Yantra-Textiles/v2/issues/2491)) ([1d03dac](https://github.com/Jaal-Yantra-Textiles/v2/commit/1d03daca84a4680a89df12f1fcdba895d370c867)), closes [#2486](https://github.com/Jaal-Yantra-Textiles/v2/issues/2486)
+
 # [13.185.0](https://github.com/Jaal-Yantra-Textiles/v2/compare/v13.184.1...v13.185.0) (2026-10-31)
 
 
