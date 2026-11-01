@@ -12,6 +12,7 @@ import {
   describeAmbiguousProfilePick,
   pickPartnerProfileId,
   pickTargetProfileId,
+  productsMissingShippingProfile,
   shippingSideForLocation,
   shippingSideForProduct,
 } from "../shipping-profile-selection"
@@ -119,5 +120,45 @@ describe("#1983 strict split — the partner profile and each row's side", () =>
     expect(shippingSideForLocation("sloc_dharamshala", core)).toBe("house")
     expect(shippingSideForLocation("sloc_partner", core)).toBe("partner")
     expect(shippingSideForLocation(null, core)).toBe("house")
+  })
+})
+
+describe("#1982 productsMissingShippingProfile", () => {
+  const HOUSE = "sc_house"
+
+  it("skips a product that already has a profile", () => {
+    expect(
+      productsMissingShippingProfile(
+        [{ id: "prod_1", shipping_profile: { id: "sp_default" }, sales_channels: [] }],
+        HOUSE
+      )
+    ).toEqual([])
+  })
+
+  it("puts a product in no channel on the house side", () => {
+    expect(
+      productsMissingShippingProfile([{ id: "prod_1", shipping_profile: null, sales_channels: [] }], HOUSE)
+    ).toEqual([{ product_id: "prod_1", side: "house" }])
+  })
+
+  it("decides by channel: house channel → house, partner-only → partner", () => {
+    expect(
+      productsMissingShippingProfile(
+        [
+          { id: "prod_h", sales_channels: [{ id: "sc_partner" }, { id: HOUSE }] },
+          { id: "prod_p", sales_channels: [{ id: "sc_partner" }] },
+        ],
+        HOUSE
+      )
+    ).toEqual([
+      { product_id: "prod_h", side: "house" },
+      { product_id: "prod_p", side: "partner" },
+    ])
+  })
+
+  it("falls back to partner when the house channel is unknown and the product is in a channel", () => {
+    expect(
+      productsMissingShippingProfile([{ id: "prod_1", sales_channels: [{ id: "sc_x" }] }], null)
+    ).toEqual([{ product_id: "prod_1", side: "partner" }])
   })
 })
