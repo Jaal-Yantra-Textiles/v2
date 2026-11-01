@@ -137,3 +137,40 @@ export function shippingSideForLocation(
   if (!locationId) return "house"
   return coreLocationIds.has(locationId) ? "house" : "partner"
 }
+
+/**
+ * #1982 — PURE: which freshly created products came out with NO shipping
+ * profile, and which side each belongs on.
+ *
+ * Core `createProductsWorkflow` writes the profile link only when the caller
+ * passes a `shipping_profile_id`; there is no default. A product without one
+ * fails `product.shipping_profile.id === option.shipping_profile_id` at both
+ * checkout and fulfillment — it can never be sold or shipped.
+ *
+ * Side: no sales channel at all → house (an admin-created product that is not
+ * in anyone's shop yet is ours). Otherwise `shippingSideForProduct`, falling
+ * back to partner when the house channel is unknown — the same fallback
+ * `resolveProductShippingProfileId` takes, and repairable by
+ * `split-partner-shipping-profile`.
+ */
+export function productsMissingShippingProfile(
+  products: Array<{
+    id: string
+    shipping_profile?: { id?: string | null } | null
+    sales_channels?: Array<{ id?: string | null } | null> | null
+  }>,
+  houseChannelId: string | null | undefined
+): Array<{ product_id: string; side: ShippingSide }> {
+  return products
+    .filter((p) => !p?.shipping_profile?.id)
+    .map((p) => {
+      const channelIds = (p.sales_channels || [])
+        .map((c) => c?.id)
+        .filter((id): id is string => !!id)
+      const side: ShippingSide =
+        channelIds.length === 0
+          ? "house"
+          : shippingSideForProduct(channelIds, houseChannelId) ?? "partner"
+      return { product_id: p.id, side }
+    })
+}
