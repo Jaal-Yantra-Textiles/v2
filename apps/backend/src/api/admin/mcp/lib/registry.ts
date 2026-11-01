@@ -4303,6 +4303,73 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects: "Links the given persons to the partner as contacts.",
   },
   {
+    /**
+     * #2480 follow-up. `link_partner_people` links EXISTING persons and nothing
+     * could create one — adding Sharlho's 11 tailors on 2026-11-01 had to go
+     * round the agent surface to the raw API.
+     */
+    name: "create_person",
+    description:
+      "Create a person (an artisan, tailor, weaver or contact in the people directory). first_name, last_name and email are REQUIRED by the route — for an artisan with no surname or email the convention is last_name '-' and a placeholder email such as '<first>.<partner>@jaalyantra.com', with metadata.email_is_placeholder: true. Email must be unique. Sensitive: requires confirm:true.\nUsually followed by: link_partner_people (to put them under a partner), add_person_types (to give them a role).",
+    method: "POST",
+    path: "/admin/persons",
+    write: true,
+    sensitive: true,
+    bodyParams: ["first_name", "last_name", "email", "date_of_birth", "state", "metadata"],
+    inputSchema: obj(
+      {
+        first_name: STR("First name (required)."),
+        last_name: STR("Last name (required). '-' when there is none."),
+        email: STR("Email (required, unique). A placeholder is allowed — flag it in metadata."),
+        date_of_birth: STR("Optional date of birth, YYYY-MM-DD."),
+        state: {
+          type: "string",
+          enum: ["Onboarding", "Onboarding Finished", "Stalled", "Conflicted"],
+          description: "Lifecycle state. Defaults to Onboarding.",
+        },
+        metadata: { type: "object", description: "Optional key/value metadata (e.g. email_is_placeholder, work)." },
+      },
+      ["first_name", "last_name", "email"]
+    ),
+    sideEffects: "Creates a person row. Links it to nothing and sends no message.",
+  },
+  {
+    name: "list_person_types",
+    description:
+      "List the person types (roles) that exist platform-wide — Tailor, Embroidery, Self Help Group Weaver, Designer… — with their ids, for add_person_types.",
+    method: "GET",
+    path: "/admin/persontypes",
+    queryParams: ["limit", "offset", "q"],
+    inputSchema: obj({
+      limit: { type: "integer", description: "Max results (default 20)." },
+      offset: { type: "integer", description: "Pagination offset." },
+      q: STR("Free-text search filter."),
+    }),
+  },
+  {
+    name: "add_person_types",
+    description:
+      "Give a person one or more roles (person types), by id from list_person_types. ADDS to the roles they already have; it does not replace them. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/persons/:id/types",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["personTypeIds"],
+    inputSchema: obj(
+      {
+        id: STR("Person id."),
+        personTypeIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Person type ids to add (required, non-empty).",
+        },
+      },
+      ["id", "personTypeIds"]
+    ),
+    sideEffects: "Links the person to the given person types. Existing roles are kept.",
+  },
+  {
     name: "create_partner_subscription",
     description:
       "Assign a subscription plan to a partner (admin can comp/trial via skip_payment). Sensitive: requires confirm:true.",

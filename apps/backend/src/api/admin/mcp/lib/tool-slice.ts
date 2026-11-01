@@ -224,6 +224,11 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
    * weaver to the partner" — not `customers`, which is the storefront buyer.
    */
   ["/admin/people", "partners"],
+  // `create_person` / `add_person_types` / `list_person_types` (#2480): the
+  // same directory under its other two route prefixes — "add these tailors
+  // under Sharlho" is a partner ask.
+  ["/admin/persons", "partners"],
+  ["/admin/persontypes", "partners"],
   /**
    * The entity graph (#2111 S2) — one entity's neighbours and, more to the
    * point, the edges the model EXPECTS and that are missing.

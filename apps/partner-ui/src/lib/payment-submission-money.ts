@@ -263,6 +263,42 @@ export const runLineAmount = (input: RunLinePricingInput): number => {
 }
 
 /**
+ * PURE. Units an untouched run row bills.
+ *
+ * 🔴 TWO HOMES — the partner-side copy of `defaultRunQuantity` in
+ * `apps/backend/src/workflows/payment_submissions/lib/run-line-pricing.ts`.
+ *
+ * #2480. On a partly-billed run this screen offered `payable_quantity` — the
+ * units MADE — even when those units were already billed. A run ordered 9,
+ * made 4 and billed for those 4 offered the 4 again: ₹4,800 for garments
+ * already paid for. A partner is paid for what they made, so the default is
+ * made − already billed, capped by what the write guard has left
+ * (`billable_remaining`, measured against the ORDERED ceiling).
+ *
+ * A null `billable_remaining` is "no arithmetic behind it" (#1676), not zero,
+ * so only the made-but-unbilled bound applies then.
+ */
+export const defaultRunQuantity = (run: {
+  billing_status: string
+  payable_quantity: number
+  billable_remaining: number | null
+  billed?: { claimed_quantity?: number | null } | null
+}): number => {
+  if (run.billing_status !== "partly_billed") return run.payable_quantity
+
+  const claimed = Number(run.billed?.claimed_quantity)
+  const unbilledMade =
+    run.billed?.claimed_quantity != null && Number.isFinite(claimed)
+      ? Math.max(0, run.payable_quantity - claimed)
+      : run.payable_quantity
+
+  const remaining = run.billable_remaining
+  return remaining != null && remaining >= 0
+    ? Math.min(unbilledMade, remaining)
+    : unbilledMade
+}
+
+/**
  * How to label ONE submission line, whatever it is sourced from (#1710).
  *
  * 🔑 The `default` branch is load-bearing: a source type this build has never

@@ -34,6 +34,8 @@ export interface PayableRun {
     submission_id: string
     status: string
     quantity: number
+    /** Units live lines already claimed on this run (#1596). */
+    claimed_quantity?: number | null
   } | null
   unrecorded_claims: Array<{
     submission_id: string

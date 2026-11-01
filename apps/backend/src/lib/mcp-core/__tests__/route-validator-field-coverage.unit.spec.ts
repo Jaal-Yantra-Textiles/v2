@@ -89,6 +89,11 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:attach_inventory_order_awb",
   /**
+   * `persons/[id]/types/route.ts` parses `AdminPostPersonTypesReq` (zod,
+   * `personTypeIds: string[]`, deduped) inside the handler. No matcher binds it.
+   */
+  "admin:add_person_types",
+  /**
    * The balance route reads `confirm` straight off the body and refuses
    * without it; the sample-approval route validates its own zod in the
    * handler (production_run_id, decision, notes, confirm). Neither binds a
@@ -410,6 +415,11 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
  *     come back, not a claim that the omission is correct.
  */
 const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
+  "admin:create_person": {
+    addresses: "set from the person page or the ID-card tool; an agent creating a roster entry from a list of names has no address to give",
+    avatar: "an uploaded image URL — the agent has no upload path for one",
+    public_metadata: "storefront-facing; a new roster entry has nothing public to say yet",
+  },
   "admin:set_inventory_order_ship_from": {
     order_lines: "a NARROW tool on the broad order edit (#2315): it sets one thing, and offering the whole edit invites a status or line change riding along",
     quantity: "as order_lines",

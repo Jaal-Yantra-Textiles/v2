@@ -58,6 +58,19 @@ describe("foldPartnerLedger", () => {
     expect(totals.billed).toBe(0)
   })
 
+  it("keeps a Cancelled or Failed payment visible but OUT of recorded (#2480)", () => {
+    const { entries, totals } = fold({
+      payments: [
+        payment({ id: "pay_dup", amount: 28000, status: "Cancelled" }),
+        payment({ id: "pay_bounced", amount: 500, status: "Failed" }),
+        payment({ id: "pay_real", amount: 10000 }),
+      ],
+    })
+
+    expect(entries).toHaveLength(3)
+    expect(totals.recorded).toBe(10000)
+  })
+
   it("attaches a submission-derived payment to its payout instead of listing it twice", () => {
     const { entries, totals } = fold({
       submissions: [submission({ status: "Paid", paid_at: "2026-08-28T08:49:00.000Z" })],
