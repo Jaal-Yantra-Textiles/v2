@@ -29,6 +29,7 @@ import {
   type PayableInventoryOrder,
 } from "../../../hooks/api/partner-payable-inventory-orders"
 import {
+  defaultRunQuantity,
   groupIntoRateBands,
   runBillsVerbatimTotal,
   runLineAmount,
@@ -323,7 +324,9 @@ export const PaymentSubmissionCreate = () => {
     (run: PayableRun): number => {
       if (runQuantities[run.run_id] != null)
         return runQuantities[run.run_id]
-      return run.payable_quantity
+      // #2480 — made − already billed on a partly-billed run, not the units
+      // made: those may be the very units a prior payout already paid for.
+      return defaultRunQuantity(run)
     },
     [runQuantities]
   )
@@ -1192,8 +1195,8 @@ const RunRow = ({
       <Table.Cell className="text-right">
         <NumberCell
           label={`Quantity for ${run.design_name || run.run_id}`}
-          placeholder={String(run.payable_quantity)}
-          value={quantity !== run.payable_quantity ? quantity : undefined}
+          placeholder={String(defaultRunQuantity(run))}
+          value={quantity !== defaultRunQuantity(run) ? quantity : undefined}
           disabled={blocked}
           onChange={(v) => onQuantityChange(run.run_id, v)}
         />

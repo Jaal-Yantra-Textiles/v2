@@ -387,6 +387,9 @@ const iso = (v: unknown): string | null => {
  */
 const PAID_STATUSES = new Set(["Paid"])
 
+/** Payment statuses that never moved money (#2480). */
+const DID_NOT_MOVE = new Set(["Failed", "Cancelled"])
+
 /**
  * Only a `Completed` payment settles anything.
  *
@@ -761,7 +764,15 @@ export const foldPartnerLedger = (input: {
       paid,
       credited,
       outstanding: billed - paid - credited,
-      recorded: paymentEntries.reduce((acc, e) => acc + e.amount, 0),
+      /**
+       * 🔑 `Failed` and `Cancelled` never moved money — the same rule
+       * `sumRecordedPayments` applies on the order. A duplicate ₹28,000 entry
+       * on Bhagalpur's ledger, marked Cancelled 2026-11-01, still read as
+       * money recorded. The row stays in `entries` so the history is visible.
+       */
+      recorded: paymentEntries
+        .filter((e) => !DID_NOT_MOVE.has(String(e.status ?? "")))
+        .reduce((acc, e) => acc + e.amount, 0),
       /**
        * Counted once per PAYMENT, not once per payout that mentions it — two
        * open payouts billing the same order must not double the warning.

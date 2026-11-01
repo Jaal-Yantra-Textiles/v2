@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  defaultRunQuantity,
   describeLine,
   groupIntoRateBands,
   money,
@@ -454,5 +455,71 @@ describe("summariseItems", () => {
 
   it("is empty for no items, so the caller can print its own zero", () => {
     expect(summariseItems([])).toBe("")
+  })
+})
+
+describe("defaultRunQuantity — made minus already billed (#2480)", () => {
+  const run = (over: Partial<Parameters<typeof defaultRunQuantity>[0]>) => ({
+    billing_status: "clear",
+    payable_quantity: 4,
+    billable_remaining: null,
+    billed: null,
+    ...over,
+  })
+
+  it("offers what was made on an unbilled run", () => {
+    expect(defaultRunQuantity(run({}))).toBe(4)
+  })
+
+  it("offers nothing more when every unit made is already billed (9 ordered, 4 made, 4 billed)", () => {
+    // The case that offered ₹4,800 again: the ordered remainder said 5 left.
+    expect(
+      defaultRunQuantity(
+        run({
+          billing_status: "partly_billed",
+          billable_remaining: 5,
+          billed: { claimed_quantity: 4 },
+        })
+      )
+    ).toBe(0)
+  })
+
+  it("offers the newly made units once more output is recorded", () => {
+    expect(
+      defaultRunQuantity(
+        run({
+          billing_status: "partly_billed",
+          payable_quantity: 7,
+          billable_remaining: 5,
+          billed: { claimed_quantity: 4 },
+        })
+      )
+    ).toBe(3)
+  })
+
+  it("never offers more than the write guard has left", () => {
+    expect(
+      defaultRunQuantity(
+        run({
+          billing_status: "partly_billed",
+          payable_quantity: 9,
+          billable_remaining: 2,
+          billed: { claimed_quantity: 4 },
+        })
+      )
+    ).toBe(2)
+  })
+
+  it("treats a null remainder as no ceiling, not zero", () => {
+    expect(
+      defaultRunQuantity(
+        run({
+          billing_status: "partly_billed",
+          payable_quantity: 6,
+          billable_remaining: null,
+          billed: { claimed_quantity: 2 },
+        })
+      )
+    ).toBe(4)
   })
 })
