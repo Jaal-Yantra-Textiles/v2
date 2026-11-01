@@ -3065,7 +3065,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "create_product",
     description:
-      "Create a new product. Sensitive: requires confirm:true. Prefer dry_run first to review the payload.",
+      "Create a new product. Medusa refuses a product with no `options` (#1982): pass at least one, e.g. [{ title: 'Size', values: ['One Size'] }], plus `variants` that pick a value for each. Sensitive: requires confirm:true. Prefer dry_run first to review the payload.",
     method: "POST",
     path: "/admin/products",
     write: true,
@@ -3078,6 +3078,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "handle",
       "thumbnail",
       "images",
+      "options",
+      "variants",
       "categories",
       "collection_id",
       "type_id",
@@ -3104,6 +3106,25 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           description:
             "Category ids to assign this product to. Pass as [{ id: 'pcat_...' }]. A product can belong to multiple categories. Use create_product_category / list_product_categories to manage categories first.",
           items: { type: "object", properties: { id: STR("Category id.") }, required: ["id"] },
+        },
+        options: {
+          type: "array",
+          description:
+            "REQUIRED by Medusa — at least one. PRODUCT options (the variant axes, e.g. Size). NOT the made-to-order choices — those are spec option groups, set with set_product_spec.",
+          items: {
+            type: "object",
+            properties: {
+              title: { type: "string" },
+              values: { type: "array", items: { type: "string" } },
+            },
+            required: ["title", "values"],
+          },
+        },
+        variants: {
+          type: "array",
+          description:
+            "Variants with prices, e.g. [{ title, options: { Size: 'M' }, prices: [{ amount, currency_code }] }]. A product with no variant cannot be bought.",
+          items: { type: "object", additionalProperties: true },
         },
         collection_id: STR("Optional collection id. A product belongs to at most ONE collection."),
         type_id: STR("Optional product type id."),
