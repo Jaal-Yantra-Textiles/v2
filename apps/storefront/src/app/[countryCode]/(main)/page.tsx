@@ -14,6 +14,8 @@ import {
 import { getBaseURL } from "@lib/util/env"
 import { Suspense } from "react"
 
+const LATEST_COLLECTION_HANDLE = "latest"
+
 export async function generateMetadata(props: {
   params: Promise<{ countryCode: string }>
 }): Promise<Metadata> {
@@ -71,6 +73,13 @@ export default async function Home(props: {
     return null
   }
 
+  // "Latest" leads the home page; the rest keep the order the API returns.
+  // Without this the rail order was whatever the database happened to return.
+  const orderedCollections = [
+    ...collections.filter((c) => c.handle === LATEST_COLLECTION_HANDLE),
+    ...collections.filter((c) => c.handle !== LATEST_COLLECTION_HANDLE),
+  ]
+
   // Cookie-gated hero: first-time visitors see neither the hero nor the
   // holiday section — they land directly on the featured products below.
   // Returning visitors (cookie set) see the holiday section above products.
@@ -85,7 +94,7 @@ export default async function Home(props: {
       <HeroSeenMarker />
       <div id="shop" className="py-12">
         <ul className="flex flex-col gap-x-6">
-          <FeaturedProducts collections={collections} region={region} />
+          <FeaturedProducts collections={orderedCollections} region={region} />
         </ul>
       </div>
       <Suspense fallback={null}>
