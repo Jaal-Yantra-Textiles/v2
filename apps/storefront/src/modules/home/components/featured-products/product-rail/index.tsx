@@ -18,6 +18,9 @@ export default async function ProductRail({
     queryParams: {
       collection_id: collection.id,
       fields: "*variants.calculated_price",
+      // Newest first, so a rail shows what was just added rather than the
+      // oldest 12.
+      order: "-created_at",
     },
   })
 
