@@ -22,6 +22,20 @@ describe("composeWorkOrderMessage (#2500)", () => {
     expect(text).toMatch(/accept/)
   })
 
+  it("shows each sized design's pieces per size (#2500)", () => {
+    const text = composeWorkOrderMessage({
+      greet_name: "Shramdaan",
+      order_ref: "152",
+      lines: [
+        { design_name: "Jacket No 1", quantity: 2, sizes: "38×1, 40×1" },
+        { design_name: "Bag for Paris", quantity: 10, sizes: null },
+      ],
+      language: "hinglish",
+    })
+    expect(text).toContain("1. Jacket No 1 — 2 pcs (38×1, 40×1)")
+    expect(text).toContain("2. Bag for Paris — 10 pcs\n")
+  })
+
   it("speaks English to an English partner", () => {
     const text = composeWorkOrderMessage({
       greet_name: "Asha",

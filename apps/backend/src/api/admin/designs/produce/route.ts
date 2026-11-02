@@ -4,6 +4,7 @@ import {
 } from "@medusajs/framework/http"
 import { z } from "zod"
 import { produceDesignsAsWorkOrder } from "../../../../workflows/designs/produce-designs-as-work-order"
+import { OutputLinesSchema } from "../../production-runs/output-schema"
 
 /**
  * POST /admin/designs/produce
@@ -37,6 +38,12 @@ const ProduceBody = z
           design_id: z.string().min(1),
           template_ids: z.array(z.string().min(1)).optional(),
           quantity: z.number().int().positive().optional(),
+          /**
+           * #2500 — this design's own split per size (and colour). Without it
+           * the pieces are split across the design's sizes, and a garment
+           * with no sizes is refused.
+           */
+          planned_output: OutputLinesSchema.optional(),
         })
       )
       .min(1)

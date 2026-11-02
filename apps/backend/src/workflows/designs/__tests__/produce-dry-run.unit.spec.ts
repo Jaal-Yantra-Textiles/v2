@@ -110,7 +110,8 @@ describe("produceDesignsAsWorkOrder — dry run (#1803)", () => {
 
     expect(result.work_order_id).toBeNull()
     expect(result.work_order_joined).toBe(false)
-    expect(graph).not.toHaveBeenCalled()
+    // The only read is the designs' sizes (#2500), never an open order.
+    expect(graph.mock.calls.map((c: any[]) => c[0].entity)).toEqual(["designs"])
   })
 
   it("does not look for an open order when the batch must be billed on its own", async () => {
@@ -125,7 +126,7 @@ describe("produceDesignsAsWorkOrder — dry run (#1803)", () => {
 
     expect(result.work_order_id).toBeNull()
     expect(result.work_order_joined).toBe(false)
-    expect(graph).not.toHaveBeenCalled()
+    expect(graph.mock.calls.map((c: any[]) => c[0].entity)).toEqual(["designs"])
   })
 
   it("creates nothing", async () => {

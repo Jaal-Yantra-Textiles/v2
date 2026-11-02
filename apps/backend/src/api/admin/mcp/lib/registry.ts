@@ -7243,7 +7243,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         designs: {
           type: "array",
           description:
-            "Preferred. Per design: { design_id, template_ids?, quantity? }. Templates are per design — a batch rarely shares one process.",
+            "Preferred. Per design: { design_id, template_ids?, quantity?, planned_output? }. Templates are per design — a batch rarely shares one process. Sizes (#2500): without planned_output the pieces are split evenly across the design's own sizes; a garment design with NO sizes is refused (not_dispatched, with missing_sizes) until sizes with measurements are added to it. dry_run shows each design's size_split.",
           items: obj(
             {
               design_id: STR("Design to produce."),
@@ -7254,6 +7254,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
                   "Task template IDS (not names — an ambiguous name is refused at dispatch).",
               },
               quantity: { type: "number", description: "Defaults to 1." },
+              planned_output: RUN_PLANNED_OUTPUT_PARAM,
             },
             ["design_id"]
           ),

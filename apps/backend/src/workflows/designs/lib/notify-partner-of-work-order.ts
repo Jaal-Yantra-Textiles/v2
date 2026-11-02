@@ -5,6 +5,8 @@ import { PRODUCTION_RUNS_MODULE } from "../../../modules/production_runs"
 import type ProductionRunService from "../../../modules/production_runs/service"
 import { sendPartnerText, type PartnerTextOutcome } from "../../whatsapp/send-partner-text"
 import { reminderPauseOf } from "../../production-runs/lib/reminder-pause"
+import type { OutputLine } from "../../production-runs/lib/run-output"
+import { evenSplit, formatSizeSplit, type SizeSplitLine } from "./bundle-size-split"
 import {
   classifyPartnerReminderKind,
   findRunBundle,
@@ -42,7 +44,7 @@ export async function notifyPartnerOfWorkOrder(
 
   const runs: any[] = await runService.listProductionRuns(
     { id: runIds } as any,
-    { select: ["id", "design_id", "quantity", "created_at"] }
+    { select: ["id", "design_id", "quantity", "created_at", "planned_output", "snapshot"] }
   )
   if (!runs.length) {
     return { sent: false, reason: "runs_not_found" }
@@ -56,6 +58,7 @@ export async function notifyPartnerOfWorkOrder(
     .map((r) => ({
       design_name: nameById.get(String(r.design_id)) || "Design",
       quantity: Number(r.quantity) || 1,
+      sizes: runSizeSplitText(r),
     }))
 
   const orderRef = await orderRefOf(query, input.work_order_id)
@@ -67,6 +70,36 @@ export async function notifyPartnerOfWorkOrder(
     compose: ({ greet_name, language }) =>
       composeWorkOrderMessage({ greet_name, order_ref: orderRef, lines, language }),
   })
+}
+
+/**
+ * #2500 — "38×1, 40×1" for one run: its stored plan, else the same even split
+ * over its snapshot's sizes that produce planned (a design with several
+ * colours has a split but no stored plan). A single size reads as its name.
+ */
+export function runSizeSplitText(run: {
+  quantity?: number | null
+  planned_output?: OutputLine[] | null
+  snapshot?: any
+}): string | null {
+  const sizes = ((run.snapshot?.size_sets ?? []) as any[])
+    .map((s) => String(s?.size_label ?? "").trim())
+    .filter(Boolean)
+  if (!sizes.length) return null
+  const planned = (run.planned_output ?? []).filter((l) => l?.size_label)
+  let split: SizeSplitLine[]
+  if (planned.length) {
+    const bySize = new Map<string, number>()
+    for (const l of planned) {
+      const key = String(l.size_label)
+      bySize.set(key, (bySize.get(key) ?? 0) + Number(l.quantity || 0))
+    }
+    split = [...bySize].map(([size_label, quantity]) => ({ size_label, quantity }))
+  } else {
+    split = evenSplit([...new Set(sizes)], Number(run.quantity) || 1)
+  }
+  if (split.length === 1) return split[0].size_label
+  return formatSizeSplit(split)
 }
 
 const designNames = async (query: any, runs: any[]): Promise<Map<string, string>> => {

@@ -14,6 +14,10 @@ import designPartnerLink from "../../src/links/design-partners-link"
 
 jest.setTimeout(90 * 1000)
 
+// #2500 — a garment design with no sizes is refused by produce; the fixtures
+// that are not about sizes state one.
+const ONE_SIZE = [{ size_label: "M", measurements: { chest: 40 } }]
+
 /**
  * #826 — produceDesignsAsWorkOrder is the "Send to Production" path from the
  * designs list: pick N designs + a partner → one production run per design (born
@@ -70,6 +74,7 @@ setupSharedTestSuite(() => {
             status: "Approved",
             priority: "Medium",
             estimated_cost: 100 + i * 40,
+            size_sets: ONE_SIZE,
           },
           adminHeaders
         )
@@ -191,6 +196,7 @@ setupSharedTestSuite(() => {
             design_type: "Original",
             status: "Approved",
             priority: "Medium",
+            size_sets: ONE_SIZE,
           },
           adminHeaders
         )
@@ -369,6 +375,110 @@ setupSharedTestSuite(() => {
         expect(await findRunBundle(container, lone.run_ids[0], partnerId)).toBeNull()
       })
 
+      it("splits each design's pieces across its own sizes, and refuses a garment with none (#2500)", async () => {
+        const container = getContainer()
+        const template = await createTemplate("sizes", "Production")
+        const sized = await api.post(
+          "/admin/designs",
+          {
+            name: `Produce Sized ${Date.now()}`,
+            description: "two sizes",
+            design_type: "Original",
+            status: "Approved",
+            priority: "Medium",
+            product_type: "jacket",
+            size_sets: [
+              { size_label: "38", measurements: { chest: 38 } },
+              { size_label: "40", measurements: { chest: 40 } },
+            ],
+          },
+          adminHeaders
+        )
+        const unsized = await api.post(
+          "/admin/designs",
+          {
+            name: `Produce Unsized ${Date.now()}`,
+            description: "no sizes",
+            design_type: "Original",
+            status: "Approved",
+            priority: "Medium",
+            product_type: "jacket",
+          },
+          adminHeaders
+        )
+        // Jacket No 1's shape: two sizes AND two colours that are parts of one
+        // piece (a natural base, contrast embroidery), not colourways.
+        const twoColour = await api.post(
+          "/admin/designs",
+          {
+            name: `Produce TwoColour ${Date.now()}`,
+            description: "two sizes, two colours",
+            design_type: "Original",
+            status: "Approved",
+            priority: "Medium",
+            product_type: "jacket",
+            size_sets: [
+              { size_label: "38", measurements: { chest: 38 } },
+              { size_label: "40", measurements: { chest: 40 } },
+            ],
+            colors: [
+              { name: "Natural base", hex_code: "#E3D7C3" },
+              { name: "Contrast embroidery", hex_code: "#8E2A2A" },
+            ],
+          },
+          adminHeaders
+        )
+        const sizedId = sized.data.design.id as string
+        const unsizedId = unsized.data.design.id as string
+        const twoColourId = twoColour.data.design.id as string
+
+        const result = await produceDesignsAsWorkOrder(
+          container,
+          [sizedId, unsizedId, twoColourId],
+          partnerId,
+          {
+            selections: [
+              { design_id: sizedId, template_ids: [template], quantity: 3 },
+              { design_id: unsizedId, template_ids: [template], quantity: 3 },
+              { design_id: twoColourId, template_ids: [template], quantity: 2 },
+            ],
+          }
+        )
+
+        // The sized designs go, each split across its own sizes and stored on
+        // the run — the two-colour one with no colour on its lines.
+        expect([...result.dispatched].sort()).toEqual([sizedId, twoColourId].sort())
+        const runService: any = container.resolve(PRODUCTION_RUNS_MODULE)
+        const runs = await runService.listProductionRuns(
+          { id: result.run_ids },
+          { select: ["id", "design_id", "quantity", "planned_output"] }
+        )
+        const run = runs.find((r: any) => r.design_id === sizedId)
+        expect(run.quantity).toBe(3)
+        expect(run.planned_output).toEqual([
+          { size_label: "38", color: null, quantity: 2 },
+          { size_label: "40", color: null, quantity: 1 },
+        ])
+        const twoColourRun = runs.find((r: any) => r.design_id === twoColourId)
+        expect(twoColourRun.quantity).toBe(2)
+        expect(twoColourRun.planned_output).toEqual([
+          { size_label: "38", color: null, quantity: 1 },
+          { size_label: "40", color: null, quantity: 1 },
+        ])
+
+        // The garment with no sizes is refused, naming the sizes it needs, and
+        // no run is created for it.
+        expect(result.not_dispatched).toHaveLength(1)
+        expect(result.not_dispatched[0]).toMatchObject({
+          design_id: unsizedId,
+          run_id: null,
+          dispatched: false,
+          missing_sizes: ["M", "L", "XL"],
+        })
+        expect(result.not_dispatched[0].reason).toMatch(/states no sizes/)
+        expect(result.run_ids).toHaveLength(2)
+      })
+
       it("previews the design → templates plan without creating anything", async () => {
         const container = getContainer()
         const templateA = await createTemplate("dry", "Production")
@@ -454,6 +564,7 @@ setupSharedTestSuite(() => {
             status: "Approved",
             priority: "Medium",
             estimated_cost: 500,
+            size_sets: ONE_SIZE,
           },
           adminHeaders
         )

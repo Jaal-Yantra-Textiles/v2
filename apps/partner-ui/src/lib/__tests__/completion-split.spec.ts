@@ -59,6 +59,26 @@ describe("completion split (#2271)", () => {
     expect(initialSplit(run, axes, 2)[comboKey("M", null)]).toBe("")
   })
 
+  it("a size-only plan on a multi-colour run leaves the colour rows blank, not guessed (#2500)", () => {
+    const run = {
+      snapshot: {
+        size_sets: [{ size_label: "38" }, { size_label: "40" }],
+        colors: [{ name: "Natural" }, { name: "Red" }],
+      },
+      planned_output: [
+        { size_label: "38", color: null, quantity: 1 },
+        { size_label: "40", color: null, quantity: 1 },
+      ],
+    }
+    const axes = splitAxes(run)
+    const values = initialSplit(run, axes, 2)
+    // Exactly the four size × colour rows, all blank — no stray size-only row.
+    expect(Object.keys(values).sort()).toEqual(
+      splitCombos(axes).map((c) => comboKey(c.size_label, c.color)).sort()
+    )
+    expect(Object.values(values).every((v) => v === "")).toBe(true)
+  })
+
   it("starts blank with no plan — never guesses a size", () => {
     const axes = splitAxes(LUONG)
     const values = initialSplit(LUONG, axes, 3)

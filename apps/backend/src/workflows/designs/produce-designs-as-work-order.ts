@@ -10,6 +10,13 @@ import {
 } from "../production-runs/dual-write-unified-run-order"
 import { PRODUCTION_RUNS_MODULE } from "../../modules/production_runs"
 import type ProductionRunService from "../../modules/production_runs/service"
+import type { OutputLine } from "../production-runs/lib/run-output"
+import {
+  planDesignSizeSplit,
+  type DesignSizeFacts,
+  type PlannedSizeSplit,
+  type SizeSplitLine,
+} from "./lib/bundle-size-split"
 
 /**
  * #1263 — the template selection for ONE design.
@@ -25,6 +32,11 @@ export type ProduceDesignSelection = {
   design_id: string
   template_ids?: string[]
   quantity?: number
+  /**
+   * #2500 — the sender's own split per size (and colour). Wins over the
+   * default split; the quantity is its total. See `planDesignSizeSplit`.
+   */
+  planned_output?: OutputLine[] | null
 }
 
 export type ProduceDesignReport = {
@@ -40,6 +52,12 @@ export type ProduceDesignReport = {
   quantity?: number
   /** Why this design was not dispatched, when it was not. */
   reason?: string
+  /** #2500 — pieces per size this design's run makes (null = not sized). */
+  size_split?: SizeSplitLine[] | null
+  /** #2500 — the split stored on the run as its plan, when one is. */
+  planned_output?: OutputLine[] | null
+  /** #2500 — sizes a garment design must state before it can go. */
+  missing_sizes?: string[]
 }
 
 /**
@@ -144,8 +162,35 @@ export async function produceDesignsAsWorkOrder(
         design_id: String(designId),
         template_ids: [...new Set(templateIds)],
         quantity: selection?.quantity ?? 1,
+        planned_output: selection?.planned_output ?? null,
+        split: null as PlannedSizeSplit | null,
       }
     })
+
+  // #2500 — pieces per size, per design, decided before anything is created
+  // so the preview shows exactly what the real send does.
+  const facts = await loadDesignSizeFacts(
+    container,
+    plan.map((r) => r.design_id)
+  )
+  for (const row of plan) {
+    const f = facts.get(row.design_id)
+    // An unknown design gets no split here; run creation reports it missing.
+    if (!f) continue
+    row.split = planDesignSizeSplit(f, {
+      quantity: row.planned_output ? (selectionsById.get(row.design_id)?.quantity ?? null) : row.quantity,
+      planned_output: row.planned_output,
+    })
+    if (row.split.ok) row.quantity = row.split.quantity
+  }
+  const sizeFields = (row: (typeof plan)[number]) =>
+    row.split?.ok
+      ? {
+          size_split: row.split.size_split,
+          planned_output: row.split.planned_output,        }
+      : row.split && !row.split.ok && row.split.missing_sizes
+        ? { missing_sizes: row.split.missing_sizes }
+        : {}
 
   // A dry run answers "which design gets which templates" — the question the
   // operator actually needs answered before messaging a partner.
@@ -156,9 +201,13 @@ export async function produceDesignsAsWorkOrder(
       template_ids: row.template_ids,
       dispatched: false,
       quantity: row.quantity,
-      reason: row.template_ids.length
-        ? "dry run — nothing was created"
-        : "no templates selected for this design",
+      ...sizeFields(row),
+      reason:
+        row.split && !row.split.ok
+          ? row.split.reason
+          : row.template_ids.length
+            ? "dry run — nothing was created"
+            : "no templates selected for this design",
     }))
 
     /**
@@ -193,11 +242,28 @@ export async function produceDesignsAsWorkOrder(
 
   for (const row of plan) {
     const designId = row.design_id
+    // #2500 — a garment with no sizes, or a split that does not add up, is
+    // refused here; the rest of the batch still goes.
+    if (row.split && !row.split.ok) {
+      reports.push({
+        design_id: designId,
+        run_id: null,
+        template_ids: row.template_ids,
+        quantity: row.quantity,
+        dispatched: false,
+        reason: row.split.reason,
+        ...sizeFields(row),
+      })
+      continue
+    }
     try {
       const { result } = await createProductionRunWorkflow(container).run({
         input: {
           design_id: designId,
           quantity: row.quantity,
+          ...(row.split?.ok && row.split.planned_output
+            ? { planned_output: row.split.planned_output }
+            : {}),
           partner_id: partnerId,
           // #1263 — a run being dispatched is born `approved`, because
           // dispatch REFUSES anything else ("must be approved before
@@ -268,6 +334,7 @@ export async function produceDesignsAsWorkOrder(
           template_ids: row.template_ids,
           quantity: row.quantity,
           dispatched: true,
+          ...sizeFields(row),
         })
       } catch (e: any) {
         logger.warn(
@@ -389,6 +456,38 @@ export async function produceDesignsAsWorkOrder(
     work_order_joined: joined,
     work_order_problem: workOrderProblem,
   }
+}
+
+/** #2500 — the size and colour facts each design's split is planned from. */
+const loadDesignSizeFacts = async (
+  container: MedusaContainer,
+  designIds: string[]
+): Promise<Map<string, DesignSizeFacts>> => {
+  const out = new Map<string, DesignSizeFacts>()
+  const ids = [...new Set(designIds.filter(Boolean))]
+  if (!ids.length) return out
+  const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data } = await query.graph({
+    entity: "designs",
+    fields: ["id", "product_type", "size_sets.size_label", "colors.name"],
+    filters: { id: ids },
+  })
+  const labels = (rows: any[] | null | undefined, key: string) => {
+    const seen = new Set<string>()
+    for (const r of rows ?? []) {
+      const v = String(r?.[key] ?? "").trim()
+      if (v) seen.add(v)
+    }
+    return [...seen]
+  }
+  for (const d of (data ?? []) as any[]) {
+    out.set(String(d.id), {
+      size_labels: labels(d.size_sets, "size_label"),
+      colors: labels(d.colors, "name"),
+      product_type: d.product_type ?? null,
+    })
+  }
+  return out
 }
 
 /**
