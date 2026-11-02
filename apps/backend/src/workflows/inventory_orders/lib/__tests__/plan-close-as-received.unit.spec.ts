@@ -53,7 +53,30 @@ describe("planCloseAsReceived", () => {
     expect(!plan.ok && plan.reason).toContain("reversed by hand")
   })
 
-  it.each(["Pending", "Processing", "Ready for Delivery", "Delivered", "Cancelled", null])(
+  it("closes a Processing order whose receipts cover every line (HR Handloom bill 573, 2026-11-02)", () => {
+    const plan = planCloseAsReceived({
+      ...base,
+      status: "Processing",
+      lines: [
+        { id: "l1", quantity: 10, received: 10 },
+        { id: "l2", quantity: 14.5, received: 14.5 },
+      ],
+    })
+    expect(plan).toEqual({ ok: true, mode: "covered", short_lines: [] })
+  })
+
+  it("never closes a short Processing order, even when the operator confirms it", () => {
+    const plan = planCloseAsReceived({
+      ...base,
+      status: "Processing",
+      confirmed_on_books: true,
+      lines: [{ id: "l1", quantity: 10, received: 4 }],
+    })
+    expect(plan.ok).toBe(false)
+    expect(!plan.ok && plan.reason).toContain("confirmed_on_books does not apply")
+  })
+
+  it.each(["Pending", "Ready for Delivery", "Delivered", "Cancelled", null])(
     "refuses status %s",
     (status) => {
       const plan = planCloseAsReceived({
