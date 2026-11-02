@@ -5,6 +5,7 @@ import { mintBody, setupQuoteFixture, type QuoteFixture } from "../helpers/setup
 import { pickTestPaymentProvider } from "../helpers/pick-payment-provider"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { PAYMENT_SCHEDULE_MODULE } from "../../src/modules/payment_schedule"
+import { reconcileBalanceForSchedule } from "../../src/lib/payments/reconcile-balance"
 
 jest.setTimeout(300 * 1000)
 
@@ -200,6 +201,115 @@ setupSharedTestSuite(() => {
       const notifications: any = container().resolve(Modules.NOTIFICATION)
       const sentMail = await notifications.listNotifications({ template: "order-invoice" })
       expect(sentMail.length).toBeGreaterThan(0)
+    })
+
+    /**
+     * Order #101 again, 2026-11-02: the balance collection asked for 347.36 but
+     * its session was minted for the pre-edit 220.34, so the buyer paid 220.34.
+     * Reproduced here with a session minted for less than its collection.
+     */
+    it("bills only the remainder of a part-paid balance and never closes it on the part", async () => {
+      const { api } = getSharedTestEnv()
+      const orderId = await placedDepositOrder()
+      const query: any = container().resolve(ContainerRegistrationKeys.QUERY)
+      const payment: any = container().resolve(Modules.PAYMENT)
+
+      await api.post(`/admin/orders/${orderId}/balance`, { confirm: true }, adminHeaders)
+      await api.post("/admin/order-edits", { order_id: orderId }, adminHeaders)
+      await api.post(
+        `/admin/order-edits/${orderId}/items`,
+        { items: [{ variant_id: seed.variantA.id, quantity: 1, unit_price: 100 }] },
+        adminHeaders
+      )
+      await api.post(`/admin/order-edits/${orderId}/request`, {}, adminHeaders)
+      await api.post(`/admin/order-edits/${orderId}/confirm`, {}, adminHeaders)
+      await api.post(`/admin/orders/${orderId}/invoice`, { confirm: true }, adminHeaders)
+
+      const sched = await schedules().findByOrderId(orderId)
+      const fullBalance = Number(sched.balance_amount)
+      const link = sched.balance_link_ref
+
+      const outstandingCollections = async () => {
+        const { data } = await query.graph({
+          entity: "order",
+          fields: [
+            "id",
+            "payment_collections.id",
+            "payment_collections.amount",
+            "payment_collections.status",
+            "payment_collections.currency_code",
+          ],
+          filters: { id: orderId },
+        })
+        return ((data[0].payment_collections ?? []) as any[]).filter((c) => c.status !== "completed")
+      }
+      const balanceCollection = (await outstandingCollections()).find(
+        (c) => Math.abs(Number(c.amount) - fullBalance) < 0.01
+      )
+      expect(balanceCollection).toBeTruthy()
+
+      // The buyer pays a session minted for LESS than the collection asks.
+      const part = Math.round(fullBalance * 0.6 * 100) / 100
+      const session = await payment.createPaymentSession(balanceCollection.id, {
+        provider_id: "pp_system_default",
+        amount: part,
+        currency_code: balanceCollection.currency_code,
+        data: {},
+      })
+      const authorised = await payment.authorizePaymentSession(session.id, {})
+      const captured = await api.post(
+        `/admin/payments/${authorised.id}/capture`,
+        { amount: part },
+        adminHeaders
+      )
+      expect(captured.status).toBe(200)
+
+      // A part payment never closes the balance.
+      const early = await reconcileBalanceForSchedule(container(), sched.id)
+      expect(early.marked_paid).toBe(false)
+
+      const { pending: remainder } = await pendingOf(orderId)
+      expect(remainder).toBeCloseTo(fullBalance - part, 2)
+
+      // The window the reconcile guard exists for: the schedule already says
+      // "remainder" but no collection of that amount exists yet, so the only
+      // outstanding one is the part-paid collection whose capture exceeds it.
+      await schedules().updatePaymentSchedules({ id: sched.id, balance_amount: remainder })
+      const inTheGap = await reconcileBalanceForSchedule(container(), sched.id)
+      expect(inTheGap.marked_paid).toBe(false)
+      await schedules().updatePaymentSchedules({ id: sched.id, balance_amount: fullBalance })
+
+      const preview = await api.post(`/admin/orders/${orderId}/invoice`, { preview: true }, adminHeaders)
+      expect(preview.data.resync.action).toBe("resync")
+      expect(preview.data.resync.balance_amount).toBeCloseTo(remainder, 2)
+
+      const sent = await api.post(`/admin/orders/${orderId}/invoice`, { confirm: true }, adminHeaders)
+      expect(sent.data.sent).toBe(true)
+
+      const after = await schedules().findByOrderId(orderId)
+      expect(Number(after.balance_amount)).toBeCloseTo(remainder, 2)
+      expect(after.balance_status).toBe("due")
+      expect(after.balance_link_ref).toBe(link)
+
+      // A fresh collection asks for the remainder; the part-paid one is closed out.
+      const now = await outstandingCollections()
+      const fresh = now.find((c) => Math.abs(Number(c.amount) - remainder) < 0.01)
+      expect(fresh).toBeTruthy()
+      expect(fresh.id).not.toBe(balanceCollection.id)
+
+      // The part-paid collection's capture (> remainder) must not settle it.
+      const stillOwed = await reconcileBalanceForSchedule(container(), sched.id)
+      expect(stillOwed.marked_paid).toBe(false)
+
+      // Paying the remainder does.
+      await api.post(
+        `/admin/payment-collections/${fresh.id}/mark-as-paid`,
+        { order_id: orderId },
+        adminHeaders
+      )
+      const settled = await reconcileBalanceForSchedule(container(), sched.id)
+      expect(settled.marked_paid).toBe(true)
+      expect((await pendingOf(orderId)).pending).toBeCloseTo(0, 2)
     })
   })
 })

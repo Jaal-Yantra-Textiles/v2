@@ -58,6 +58,45 @@ export const pickOutstandingBalanceCollection = (
       Math.round(Number(c.amount) * 100) === Math.round(expected * 100)
   ) ?? collections.find((c) => c?.status !== "completed")
 
+/**
+ * The balance's collection by amount, INCLUDING one already `completed`.
+ *
+ * 🔴 Core marks a collection `completed` the moment its captures reach its
+ * amount — so a balance paid in full looks, by status alone, exactly like the
+ * deposit's, and `pickOutstandingBalanceCollection` skips it. Reconcile then
+ * never saw the payment it exists to record (found by the #101 integration test,
+ * 2026-11-03). The deposit is told apart by what it IS — the checkout's
+ * collection, linked to the cart — not by its status.
+ *
+ * Returns undefined when no cart link is found: without knowing which
+ * collection is the deposit, a completed one of the same amount (a 50% deposit)
+ * cannot safely be called the balance.
+ */
+async function pickBalanceCollectionByAmount(
+  container: any,
+  collections: any[],
+  expected: number
+): Promise<any | undefined> {
+  if (!Number.isFinite(expected) || !collections.length) return undefined
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: cartLinks } = await query
+    .graph({
+      entity: "cart_payment_collection",
+      fields: ["payment_collection_id"],
+      filters: { payment_collection_id: collections.map((c) => c.id) },
+    })
+    .catch(() => ({ data: [] }))
+  const depositIds = new Set(((cartLinks ?? []) as any[]).map((l) => l.payment_collection_id))
+  if (!depositIds.size) return undefined
+  return collections.find(
+    (c) =>
+      !depositIds.has(c.id) &&
+      c?.status !== "canceled" &&
+      Number.isFinite(Number(c?.amount)) &&
+      Math.round(Number(c.amount) * 100) === Math.round(expected * 100)
+  )
+}
+
 export async function reconcileBalanceForSchedule(
   container: any,
   scheduleId: string
@@ -130,7 +169,9 @@ export async function reconcileBalanceForSchedule(
    * collections could in principle share a status — and matching on money is
    * what makes "this is the balance" defensible.
    */
-  const candidate = pickOutstandingBalanceCollection(collections, expected)
+  const candidate =
+    (await pickBalanceCollectionByAmount(container, collections, expected)) ??
+    pickOutstandingBalanceCollection(collections, expected)
 
   if (!candidate) {
     return {
