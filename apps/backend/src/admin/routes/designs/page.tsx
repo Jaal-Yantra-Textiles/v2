@@ -26,6 +26,7 @@ import { BulkUpdateStatusDrawer } from "../../components/designs/bulk-update-sta
 import { BulkAssignTagsDrawer } from "../../components/designs/bulk-assign-tags-drawer";
 import { BulkDeleteDialog } from "../../components/designs/bulk-delete-dialog";
 import { CollateDesignsWizard } from "../../components/designs/collate-designs-wizard";
+import { DesignBundles } from "../../components/designs/design-bundles";
 import { useMemo, useState, useCallback, useEffect, Fragment } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
 import { AdminDesign, useDesigns } from "../../hooks/api/designs";
@@ -133,7 +134,39 @@ export const useColumns = () => {
 
 const DesignsPage = () => {
   const navigate = useNavigate();
-  const [, setSearchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // "Bundles" shows designs grouped by the collated design work order they
+  // were sent in (Collate / produce_designs), as a collapsible tree
+  // (components/designs/design-bundles.tsx). Kept in the URL so a shared
+  // link opens the same view.
+  const layoutMode: "list" | "bundles" =
+    searchParams.get("layout") === "bundles" ? "bundles" : "list";
+  const setLayoutMode = (mode: "list" | "bundles") =>
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (mode === "bundles") next.set("layout", "bundles");
+      else next.delete("layout");
+      return next;
+    });
+  const layoutToggle = (
+    <div className="flex items-center gap-1 rounded-full border border-ui-border-base p-0.5">
+      {(["list", "bundles"] as const).map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          onClick={() => setLayoutMode(mode)}
+          aria-pressed={layoutMode === mode}
+          className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+            layoutMode === mode
+              ? "bg-ui-bg-subtle text-ui-fg-base"
+              : "text-ui-fg-subtle hover:text-ui-fg-base"
+          }`}
+        >
+          {mode === "list" ? "List" : "Bundles"}
+        </button>
+      ))}
+    </div>
+  );
 
   const [pagination, setPagination] = useState<DataTablePaginationState>({
     pageSize: 10,
@@ -741,6 +774,31 @@ const DesignsPage = () => {
     throw error;
   }
 
+  if (layoutMode === "bundles") {
+    return (
+      <div>
+        <Container className="divide-y p-0">
+          <div className="flex flex-col md:flex-row justify-between gap-y-4 px-6 py-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div>
+                <Heading>Designs</Heading>
+                <Text className="text-ui-fg-subtle" size="small">
+                  Designs grouped by the order they were sent to a partner in (use Collate to make a bundle)
+                </Text>
+              </div>
+              {layoutToggle}
+            </div>
+            <div className="flex items-center gap-x-2">
+              <CreateButton />
+            </div>
+          </div>
+          <DesignBundles />
+        </Container>
+        <Outlet />
+      </div>
+    );
+  }
+
   return (
     <div>
     <Container className="divide-y p-0">
@@ -756,6 +814,7 @@ const DesignsPage = () => {
                 Manage all your designs from here
               </Text>
             </div>
+            {layoutToggle}
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"

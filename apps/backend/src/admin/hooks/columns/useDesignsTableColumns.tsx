@@ -4,7 +4,7 @@ import { Badge, createDataTableColumnHelper } from "@medusajs/ui";
 
 const columnHelper = createDataTableColumnHelper<AdminDesign>();
 
-const getStatusColor = (status: string) => {
+export const getStatusColor = (status: string) => {
   switch (status) {
     case "Conceptual":
       return "blue";
