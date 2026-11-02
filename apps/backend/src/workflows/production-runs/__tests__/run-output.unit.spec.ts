@@ -305,3 +305,51 @@ describe("a PLAN may leave the colour out; what was MADE may not (#2500)", () =>
     expect(childPlannedOutput({ assignment: sizesOnly, snapshot: SIZED_AND_COLOURED, quantity: 2 })).toHaveLength(2)
   })
 })
+
+describe("colours that are parts of one piece are not an axis (#2500)", () => {
+  const JACKET = {
+    size_sets: [{ size_label: "38" }, { size_label: "40" }],
+    colors: [{ name: "Natural" }, { name: "Contrast" }],
+  }
+
+  it("parts → sizes only; variants or missing → sizes and colours, as before", () => {
+    expect(runOutputAxes({ ...JACKET, color_mode: "parts" })).toEqual({
+      sizes: ["38", "40"],
+      colors: [],
+    })
+    expect(runOutputAxes({ ...JACKET, color_mode: "variants" }).colors).toEqual([
+      "Natural",
+      "Contrast",
+    ])
+    expect(runOutputAxes(JACKET).colors).toEqual(["Natural", "Contrast"])
+  })
+
+  it("what was made is accepted by size alone, and a colour is refused", () => {
+    const axes = runOutputAxes({ ...JACKET, color_mode: "parts" })
+    expect(
+      checkOutputLines(
+        [
+          { size_label: "38", quantity: 1 },
+          { size_label: "40", quantity: 1 },
+        ],
+        axes,
+        2
+      ).ok
+    ).toBe(true)
+    expect(
+      checkOutputLines([{ size_label: "38", color: "Natural", quantity: 2 }], axes, 2).ok
+    ).toBe(false)
+  })
+
+  it("one size and parts colours needs no split", () => {
+    expect(
+      soleCombination(
+        runOutputAxes({
+          size_sets: [{ size_label: "M" }],
+          colors: [{ name: "Natural" }, { name: "Contrast" }],
+          color_mode: "parts",
+        })
+      )
+    ).toEqual({ size_label: "M", color: null })
+  })
+})

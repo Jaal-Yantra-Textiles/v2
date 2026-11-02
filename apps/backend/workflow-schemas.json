@@ -2264,6 +2264,13 @@
         "placeholder": "{}"
       },
       {
+        "name": "color_mode",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.color_mode }}",
+        "description": "#2500 — colourways (`variants`, default) or parts of one piece (`parts`)."
+      },
+      {
         "name": "tags",
         "type": "object",
         "required": false,
@@ -2328,7 +2335,7 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.product_type }}",
-        "description": "The garment this design is (#938) — \"trousers\", \"saree\". Normalised on write. When omitted, the workflow infers it; when given, it is treated as MANUAL and no model may overwrite it."
+        "description": "#2500 — colourways (`variants`, default) or parts of one piece (`parts`). */ color_mode?: \"variants\" | \"parts\"; tags?: Record<string, any>; estimated_cost?: number; cost_currency?: string; designer_notes?: string; feedback_history?: Record<string, any>; metadata?: Record<string, any>; media_files?: Array<{ id?: string; url: string; isThumbnail?: boolean }>; moodboard?: Record<string, any>; // New structured fields (optional) colors?: Array<{ name: string; hex_code: string; usage_notes?: string; order?: number }>; size_sets?: Array<{ size_label: string; measurements: Record<string, number> }>; /** The garment this design is (#938) — \"trousers\", \"saree\". Normalised on write. When omitted, the workflow infers it; when given, it is treated as MANUAL and no model may overwrite it."
       },
       {
         "name": "concept_theme",
@@ -2904,6 +2911,13 @@
         "placeholder": "{}"
       },
       {
+        "name": "color_mode",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.color_mode }}",
+        "description": "#2500 — colourways (`variants`) or parts of one piece (`parts`)."
+      },
+      {
         "name": "tags",
         "type": "object",
         "required": false,
@@ -2962,7 +2976,7 @@
         "type": "string",
         "required": false,
         "placeholder": "{{ $last.product_type }}",
-        "description": "#938. Setting this through the API is a HUMAN naming the garment, so it is stamped `manual` and inference will not overwrite it afterwards. Pass null to clear the type and hand it back to inference."
+        "description": "#2500 — colourways (`variants`) or parts of one piece (`parts`). */ color_mode?: \"variants\" | \"parts\"; tags?: Record<string, any>; estimated_cost?: number; cost_currency?: string; designer_notes?: string; feedback_history?: Record<string, any>; metadata?: Record<string, any>; moodboard?: Record<string, any>; // New structured fields (optional) colors?: Array<{ name: string; hex_code: string; usage_notes?: string; order?: number }>; size_sets?: Array<{ size_label: string; measurements: Record<string, number> }>; /** #938. Setting this through the API is a HUMAN naming the garment, so it is stamped `manual` and inference will not overwrite it afterwards. Pass null to clear the type and hand it back to inference."
       }
     ],
     "source": "custom_ts",

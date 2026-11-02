@@ -53,15 +53,25 @@ const dedupe = (values: string[]): string[] => {
  *
  * Colours are read by NAME: `design_colors.name` is what a partner and a
  * customer call it; the hex code is a swatch, not an identity.
+ *
+ * #2500 — when the design's colours are parts of ONE piece
+ * (`snapshot.color_mode === "parts"`: base fabric + contrast embroidery),
+ * colour is not an axis at all: a run is planned and completed by size only,
+ * and no line may name a colour. A snapshot without `color_mode` (every run
+ * created before it existed) keeps colours as an axis, exactly as before.
  */
 export function runOutputAxes(snapshot: unknown): RunOutputAxes {
   const s = (snapshot ?? {}) as {
     size_sets?: Array<{ size_label?: string | null } | null> | null
     colors?: Array<{ name?: string | null } | null> | null
+    color_mode?: string | null
   }
   return {
     sizes: dedupe((s.size_sets ?? []).map((r) => clean(r?.size_label))),
-    colors: dedupe((s.colors ?? []).map((r) => clean(r?.name))),
+    colors:
+      s.color_mode === "parts"
+        ? []
+        : dedupe((s.colors ?? []).map((r) => clean(r?.name))),
   }
 }
 

@@ -27,6 +27,17 @@ class CompletionSplitTest {
     }
 
     @Test
+    fun `colours that are parts of one piece are not asked for (#2500)`() {
+        val parts = run(
+            """"snapshot":{"color_mode":"parts","size_sets":[{"size_label":"38"},{"size_label":"40"}],"colors":[{"name":"Natural"},{"name":"Contrast"}]}"""
+        )
+        val axes = CompletionSplit.axes(parts)
+        assertEquals(listOf("38", "40"), axes.sizes)
+        assertEquals(emptyList<String>(), axes.colors)
+        assertEquals(listOf("38", "40"), CompletionSplit.combos(axes).map { it.label })
+    }
+
+    @Test
     fun `a run with one size and one colour needs no split`() {
         val single = run(""""snapshot":{"size_sets":[{"size_label":"M"}],"colors":[{"name":"Black"}]}""")
         assertEquals(SplitPlan.NotNeeded, CompletionSplit.plan(CompletionSplit.axes(single), emptyMap(), 3.0))

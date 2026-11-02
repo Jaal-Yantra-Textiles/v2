@@ -36,6 +36,8 @@ type UpdateDesignStepInput = {
   thumbnail_url?: string;
   custom_sizes?: Record<string, any>;
   color_palette?: Record<string, any>;
+  /** #2500 — colourways (`variants`) or parts of one piece (`parts`). */
+  color_mode?: "variants" | "parts";
   tags?: Record<string, any>;
   estimated_cost?: number;
   cost_currency?: string;

@@ -55,6 +55,9 @@ export const designSchema = z.object({
     "Superseded"
   ]).optional(),
   priority: z.enum(["Low", "Medium", "High", "Urgent"]).optional(),
+  // #2500 — `parts`: the colours are parts of one piece, so a run is planned
+  // and completed by size only. `variants` (default): one variant per colour.
+  color_mode: z.enum(["variants", "parts"]).optional(),
   target_completion_date: z.union([z.date(), z.string().datetime()]).optional().transform((val) => {
     if (!val) return null;
     return val instanceof Date ? val : new Date(val);

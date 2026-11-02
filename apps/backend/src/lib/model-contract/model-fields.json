@@ -974,6 +974,7 @@
     "file": "modules/designs/models/design.ts",
     "fields": [
       "aesthetic_keywords",
+      "color_mode",
       "color_palette",
       "colors",
       "competitors",

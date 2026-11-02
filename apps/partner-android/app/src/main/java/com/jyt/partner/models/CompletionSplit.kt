@@ -52,10 +52,17 @@ object CompletionSplit {
     private fun names(snapshot: JsonElement?, list: String, key: String): List<String> =
         snapshot.field(list).list().map { clean(it.field(key).text()) }.filter { it.isNotEmpty() }.distinct()
 
-    /** The sizes and colour names the run's snapshot states, in stated order. */
+    /**
+     * The sizes and colour names the run's snapshot states, in stated order.
+     *
+     * #2500 — a design whose colours are parts of one piece
+     * (`snapshot.color_mode == "parts"`) has no colour axis: the sheet asks by
+     * size only, and the backend refuses a colour on such a line.
+     */
     fun axes(run: ProductionRun?): SplitAxes = SplitAxes(
         sizes = names(run?.snapshot, "size_sets", "size_label"),
-        colors = names(run?.snapshot, "colors", "name"),
+        colors = if (run?.snapshot.field("color_mode").text() == "parts") emptyList()
+        else names(run?.snapshot, "colors", "name"),
     )
 
     /** The run's planned_output lines, skipping anything malformed. */

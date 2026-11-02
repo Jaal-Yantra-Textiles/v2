@@ -514,6 +514,9 @@ export const createProductionRunWorkflow = createWorkflow(
             : null,
           specifications: designData?.specifications || [],
           colors: designData?.colors || [],
+          // #2500 — whether those colours are colourways or parts of one piece;
+          // runOutputAxes reads it. Absent on runs created before it existed.
+          color_mode: designData?.color_mode ?? null,
           size_sets: designData?.size_sets || [],
           inventory_links: data.inventory?.inventory_links || [],
           provenance: {
