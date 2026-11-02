@@ -38,8 +38,16 @@ export type ScheduleResyncPlan =
  *
  * Only the BALANCE moves. The deposit is money already taken for an agreed
  * amount, so the resync is refused unless what the order says was paid is
- * exactly that deposit — anything else (a part-paid balance, an extra capture,
- * a refund) is a state this does not reason about.
+ * exactly that deposit plus whatever was captured on the BALANCE's own
+ * collection — anything else (an extra capture elsewhere, a refund) is a state
+ * this does not reason about.
+ *
+ * A part-paid balance is the one extra case it does: order #101 (2026-11-02)
+ * paid 220.34 of a 347.36 balance because the Stripe session still carried the
+ * pre-edit amount. The schedule's balance then moves to what is still owed, so
+ * the next charge is the remainder and nothing already received is asked for
+ * twice. `balance_captured` is what the caller measured on the order's
+ * non-deposit collections; leaving it out keeps the old, stricter rule.
  */
 export function planScheduleResync(input: {
   schedule: (BalanceSchedule & { deposit_status?: string | null }) | null | undefined
@@ -48,8 +56,11 @@ export function planScheduleResync(input: {
     total?: unknown
     summary?: { pending_difference?: unknown; paid_total?: unknown } | null
   }
+  /** Money already captured on the balance's collection(s), not the deposit's. */
+  balance_captured?: number | null
 }): ScheduleResyncPlan {
   const { schedule, order } = input
+  const balanceCaptured = Number(input.balance_captured) > 0 ? Number(input.balance_captured) : 0
   if (!schedule) {
     return { action: "noop", reason: "No payment schedule on this order." }
   }
@@ -94,16 +105,18 @@ export function planScheduleResync(input: {
   ) {
     return { action: "noop", reason: "The schedule already matches the order." }
   }
-  if (cents(paid) !== cents(deposit)) {
+  if (cents(paid) !== cents(deposit + balanceCaptured)) {
     return {
       action: "refuse",
-      reason: `The order shows ${paid} paid but the deposit was ${deposit}; reconcile payments before rebilling the balance.`,
+      reason: balanceCaptured
+        ? `The order shows ${paid} paid but the deposit ${deposit} + balance received ${balanceCaptured} is ${deposit + balanceCaptured}; reconcile payments before rebilling the balance.`
+        : `The order shows ${paid} paid but the deposit was ${deposit}; reconcile payments before rebilling the balance.`,
     }
   }
-  if (cents(deposit + pending) !== cents(total)) {
+  if (cents(paid + pending) !== cents(total)) {
     return {
       action: "refuse",
-      reason: `Deposit ${deposit} + outstanding ${pending} does not make the order total ${total}.`,
+      reason: `Paid ${paid} + outstanding ${pending} does not make the order total ${total}.`,
     }
   }
 
@@ -113,8 +126,26 @@ export function planScheduleResync(input: {
     total_due: total,
     balance_amount: pending,
     previous: { total_due: scheduledTotal, balance_amount: scheduledBalance },
-    reason: `Balance ${scheduledBalance ?? "—"} → ${pending} to match the edited order (total ${total}).`,
+    reason: balanceCaptured
+      ? `Balance ${scheduledBalance ?? "—"} → ${pending}: ${balanceCaptured} of it already received, ${pending} still owed (total ${total}).`
+      : `Balance ${scheduledBalance ?? "—"} → ${pending} to match the edited order (total ${total}).`,
   }
+}
+
+/**
+ * Money captured on the order's NON-deposit collections — a balance part-paid
+ * before the order was edited again. The deposit's collection is the
+ * `completed` one (the same rule `pickOutstandingBalanceCollection` uses).
+ */
+export function capturedOnBalanceCollections(order: any): number {
+  let total = 0
+  for (const c of (order?.payment_collections ?? []) as any[]) {
+    if (c?.status === "completed") continue
+    for (const p of (c?.payments ?? []) as any[]) {
+      if (p?.captured_at && !p?.canceled_at) total += Number(p.amount) || 0
+    }
+  }
+  return Math.round(total * 100) / 100
 }
 
 export type OrderInvoiceLine = {

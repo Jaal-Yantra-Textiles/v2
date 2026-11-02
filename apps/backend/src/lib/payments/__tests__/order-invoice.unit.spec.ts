@@ -1,4 +1,8 @@
-import { buildOrderInvoiceVars, planScheduleResync } from "../order-invoice"
+import {
+  buildOrderInvoiceVars,
+  capturedOnBalanceCollections,
+  planScheduleResync,
+} from "../order-invoice"
 
 // Order #101 (Oshen) on 2026-10-31: deposit 94.43 paid on a 314.77 deal, then
 // an edit raised the order to 441.79 and left the schedule at 220.34.
@@ -105,5 +109,59 @@ describe("buildOrderInvoiceVars", () => {
     })
     expect(vars.balance_due).toBe("")
     expect(vars.pay_url).toBe("")
+  })
+})
+
+// Order #101 again, 2026-11-02: the hosted page charged the stale session's
+// 220.34 against a 347.36 balance, leaving 127.02 owed.
+describe("planScheduleResync — a part-paid balance", () => {
+  const partPaid = {
+    currency_code: "aud",
+    total: 441.79,
+    summary: { pending_difference: 127.02, paid_total: 314.77 },
+  }
+  const movedSchedule = { ...schedule, total_due: 441.79, balance_amount: 347.36 }
+
+  it("moves the balance to what is still owed when the extra was paid on the balance", () => {
+    const plan = planScheduleResync({ schedule: movedSchedule, order: partPaid, balance_captured: 220.34 })
+    expect(plan).toMatchObject({
+      action: "resync",
+      total_due: 441.79,
+      balance_amount: 127.02,
+      previous: { total_due: 441.79, balance_amount: 347.36 },
+    })
+  })
+
+  it("still refuses when nobody says where the extra money came from", () => {
+    expect(planScheduleResync({ schedule: movedSchedule, order: partPaid }).action).toBe("refuse")
+  })
+
+  it("refuses when the balance captures do not explain what was paid", () => {
+    expect(
+      planScheduleResync({ schedule: movedSchedule, order: partPaid, balance_captured: 200 }).action
+    ).toBe("refuse")
+  })
+})
+
+describe("capturedOnBalanceCollections", () => {
+  it("counts captures on the balance's collection and ignores the deposit's", () => {
+    const order = {
+      payment_collections: [
+        { status: "completed", payments: [{ amount: 94.43, captured_at: "2026-09-04" }] },
+        {
+          status: "partially_authorized",
+          payments: [
+            { amount: 220.34, captured_at: "2026-11-02" },
+            { amount: 50, captured_at: null },
+            { amount: 10, captured_at: "2026-11-02", canceled_at: "2026-11-02" },
+          ],
+        },
+      ],
+    }
+    expect(capturedOnBalanceCollections(order)).toBe(220.34)
+  })
+
+  it("is 0 for an order with no collections", () => {
+    expect(capturedOnBalanceCollections({})).toBe(0)
   })
 })

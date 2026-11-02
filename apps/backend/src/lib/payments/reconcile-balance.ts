@@ -146,6 +146,26 @@ export async function reconcileBalanceForSchedule(
   }
 
   const state = summariseBalancePayments(candidate)
+
+  /**
+   * 🔴 Settle only against a collection raised for THIS balance. The fallback
+   * pick above can land on an older balance collection of a different amount —
+   * order #101 (2026-11-02) part-paid 220.34 on a 347.36 collection, and once
+   * its schedule moved to the 127.02 still owed, that 220.34 would otherwise
+   * read as "captured ≥ expected" and close a debt nobody had paid.
+   */
+  if (Math.round(Number(candidate.amount) * 100) !== Math.round(expected * 100)) {
+    return {
+      schedule_id: scheduleId,
+      marked_paid: false,
+      already_paid: false,
+      expected: Number.isFinite(expected) ? expected : null,
+      state,
+      payment_collection_id: candidate.id,
+      reason: `The outstanding collection is for ${candidate.amount} but the balance is ${expected}; not settling on a collection raised for another amount.`,
+    }
+  }
+
   const verdict = settleBalance(schedule.balance_amount, state)
 
   if (!verdict.settled) {

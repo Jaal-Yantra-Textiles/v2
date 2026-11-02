@@ -3,6 +3,7 @@ import {
   pickStripeProviderId,
   stripeProviderCandidates,
   pickStripeSession,
+  isStaleStripeSession,
 } from "../ensure-stripe-session"
 import { collectionPayPath } from "../../../api/payment-collection/[id]/route"
 
@@ -243,5 +244,31 @@ describe("collectionPayPath", () => {
     expect(collectionPayPath("a".repeat(128))).toBe(
       `/stripe/pay/collection/${"a".repeat(128)}`
     )
+  })
+})
+
+// Order #101 (2026-11-02): the balance collection moved 220.34 → 347.36 after an
+// edit, its session stayed at 220.34, and the buyer was charged 220.34.
+describe("isStaleStripeSession", () => {
+  const collection = { amount: 347.36 }
+
+  it("flags an unpaid session minted for the collection's old amount", () => {
+    expect(isStaleStripeSession(collection, { status: "pending", amount: 220.34 })).toBe(true)
+    expect(isStaleStripeSession(collection, { status: "requires_more", amount: 220.34 })).toBe(true)
+  })
+
+  it("keeps an unpaid session whose amount matches to the cent", () => {
+    expect(isStaleStripeSession(collection, { status: "pending", amount: "347.36" })).toBe(false)
+  })
+
+  it("never flags a session that already holds money", () => {
+    expect(isStaleStripeSession(collection, { status: "authorized", amount: 220.34 })).toBe(false)
+    expect(isStaleStripeSession(collection, { status: "captured", amount: 220.34 })).toBe(false)
+  })
+
+  it("leaves a session with no readable amount alone", () => {
+    expect(isStaleStripeSession(collection, { status: "pending" })).toBe(false)
+    expect(isStaleStripeSession(collection, { status: "pending", amount: null })).toBe(false)
+    expect(isStaleStripeSession(collection, null)).toBe(false)
   })
 })
