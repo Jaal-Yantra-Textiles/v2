@@ -9,6 +9,8 @@
 export type WorkOrderMessageLine = {
   design_name: string
   quantity: number
+  /** #2500 — pieces per size, e.g. "38×1, 40×1"; omitted when not sized. */
+  sizes?: string | null
 }
 
 export type WorkOrderMessageFacts = {
@@ -27,7 +29,8 @@ const formatQty = (q: number): string => {
 
 export function composeWorkOrderMessage(facts: WorkOrderMessageFacts): string {
   const lines = facts.lines.map(
-    (l, i) => `${i + 1}. ${l.design_name} — ${formatQty(l.quantity)} pcs`
+    (l, i) =>
+      `${i + 1}. ${l.design_name} — ${formatQty(l.quantity)} pcs${l.sizes ? ` (${l.sizes})` : ""}`
   )
   const pieces = facts.lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0)
   const designs = facts.lines.length
