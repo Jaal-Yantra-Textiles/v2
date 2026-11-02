@@ -2,6 +2,7 @@ import { Text } from "@medusajs/ui"
 import { listProducts } from "@lib/data/products"
 import { getProductPrice } from "@lib/util/get-product-price"
 import { HttpTypes } from "@medusajs/types"
+import { hasProductPhotos } from "@lib/util/product-photos"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import Thumbnail from "../thumbnail"
 import PreviewPrice from "./price"
@@ -37,6 +38,7 @@ export default async function ProductPreview({
           size="full"
           isFeatured={isFeatured}
           alt={product.title}
+          photoshootPending={!hasProductPhotos(product)}
         />
         <div className="flex flex-col gap-y-1 justify-between">
           <Text className="text-md font-medium text-ui-fg-base group-hover:text-violet-600 transition-colors" data-testid="product-title">
