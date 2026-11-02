@@ -2753,8 +2753,12 @@ async function seedCollatedActionsFixture(container: any): Promise<{
     })
     designIds.push((Array.isArray(d) ? d[0] : d).id)
   }
+  // #2505 — the robe is a garment with no sizes, so it is sent explicitly as
+  // one size (a planned line with no size); the apron has no sizes by type.
+  await designService.updateDesigns({ id: designIds[1], product_type: "apron" })
   const produced: any = await produceDesignsAsWorkOrder(container, designIds, partnerId, {
     collate: "new",
+    selections: [{ design_id: designIds[0], planned_output: [{ quantity: 1 }] }],
   })
   if (!produced.work_order_id || produced.run_ids?.length !== designIds.length) {
     throw new Error(`#2357 fixture: expected one work order with both runs — ${JSON.stringify(produced)}`)
@@ -3158,10 +3162,14 @@ async function seedWorkOrdersFixture(container: any): Promise<{
 
   // ── DESIGN, collated: two designs sent to partner B as ONE work order ───────
   const collatedDesignNames = [`E2E WO Shawl ${stamp}`, `E2E WO Scarf ${stamp}`]
+  // #2505 — a design with no sizes is held back unless its product type has
+  // no sizes. A shawl and a scarf don't, so they go as one quantity.
+  const collatedProductTypes = ["shawl", "scarf"]
   const batch: string[] = []
-  for (const name of collatedDesignNames) {
+  for (const [i, name] of collatedDesignNames.entries()) {
     const d = await designService.createDesigns({
       name,
+      product_type: collatedProductTypes[i],
       description: "e2e #2264 collated fixture",
       design_type: "Original",
       status: "Approved",
