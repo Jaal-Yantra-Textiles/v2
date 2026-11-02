@@ -111,6 +111,7 @@ export const COLLECTION_PAGE_FIELDS = [
   "payment_sessions.id",
   "payment_sessions.provider_id",
   "payment_sessions.status",
+  "payment_sessions.amount",
   "payment_sessions.data",
   "payments.id",
   "payments.amount",
@@ -130,6 +131,36 @@ export function pickStripeSession(collection: any): any | null {
   return (
     sessions.find((s) => String(s?.provider_id ?? "").includes("stripe")) ?? null
   )
+}
+
+/** Session states that hold no money yet, so the session can be replaced. */
+const UNPAID_SESSION_STATUSES = new Set(["pending", "requires_more", "error"])
+
+/**
+ * PURE: was this unpaid Stripe session minted for a DIFFERENT amount than the
+ * collection now asks for?
+ *
+ * 🔴 A session's PaymentIntent keeps the amount it was created with. Core's
+ * `createOrUpdateOrderPaymentCollectionWorkflow` moves a collection's amount
+ * after an order edit but never touches its sessions, so the page showed the
+ * new figure and Stripe charged the old one: order #101 (2026-11-02) was
+ * labelled A$347.36 and charged A$220.34. A stale session must be replaced
+ * before anyone is asked to pay against it.
+ *
+ * Only an UNPAID session counts — an authorised or captured one is money, and
+ * core refuses to replace it anyway. A session with no amount is left alone.
+ * Exported for unit testing.
+ */
+export function isStaleStripeSession(collection: any, session: any): boolean {
+  if (!session || !UNPAID_SESSION_STATUSES.has(String(session.status ?? ""))) {
+    return false
+  }
+  // `Number(null)` is 0 — a missing amount must not read as "minted for 0".
+  if (session.amount == null || collection?.amount == null) return false
+  const want = Number(collection.amount)
+  const have = Number(session.amount)
+  if (!Number.isFinite(want) || !Number.isFinite(have)) return false
+  return Math.round(want * 100) !== Math.round(have * 100)
 }
 
 /**
@@ -275,7 +306,8 @@ export async function resolveCollectionOrderRouting(
  *
  * Idempotent by construction: an existing Stripe session short-circuits, so
  * reopening the link does not mint a second PaymentIntent and does not replace
- * the one the buyer may already be part-way through.
+ * the one the buyer may already be part-way through — unless that session is
+ * unpaid and was minted for a different amount (`isStaleStripeSession`).
  *
  * 🔴 Never throws. A failure here must degrade to "this link cannot be opened
  * just now" — a page that 500s tells the buyer nothing and tells us nothing
@@ -293,8 +325,16 @@ export async function ensureStripeSessionForCollection(
   }
 
   const existing = pickStripeSession(collection)
-  if (existing) {
+  if (existing && !isStaleStripeSession(collection, existing)) {
     return { collection, session: existing, created: false }
+  }
+  if (existing) {
+    // Falls through to a fresh mint: core's create deletes the unpaid session
+    // first, so the buyer is only ever shown a PaymentIntent for today's amount.
+    logger?.warn?.(
+      `[pay-collection] session ${existing.id} on ${collectionId} is for ${existing.amount} ` +
+        `but the collection is ${collection.amount}; replacing it`
+    )
   }
 
   // Settled collections never get a session — minting one would create a

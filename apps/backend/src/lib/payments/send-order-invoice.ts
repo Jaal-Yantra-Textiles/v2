@@ -7,6 +7,7 @@ import { sendNotificationEmailWorkflow } from "../../workflows/email/workflows/s
 import { buildBalancePayUrl } from "./balance-collection"
 import {
   buildOrderInvoiceVars,
+  capturedOnBalanceCollections,
   planScheduleResync,
   type OrderInvoiceVars,
   type ScheduleResyncPlan,
@@ -63,6 +64,10 @@ export async function sendOrderInvoice(
         "shipping_address.*",
         "billing_address.*",
         "customer.first_name",
+        "payment_collections.status",
+        "payment_collections.payments.amount",
+        "payment_collections.payments.captured_at",
+        "payment_collections.payments.canceled_at",
       ],
       filters: { id: input.order_id },
     })
@@ -75,7 +80,11 @@ export async function sendOrderInvoice(
 
   let order = await readOrder()
   let schedule: any = await schedules.findByOrderId(input.order_id)
-  const resync = planScheduleResync({ schedule, order })
+  const resync = planScheduleResync({
+    schedule,
+    order,
+    balance_captured: capturedOnBalanceCollections(order),
+  })
 
   if (resync.action === "refuse" && !input.preview) {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, resync.reason)

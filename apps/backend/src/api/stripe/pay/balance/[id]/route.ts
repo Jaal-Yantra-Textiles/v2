@@ -29,6 +29,7 @@ import {
 } from "../../../lib/payment-page"
 import { PAYMENT_SCHEDULE_MODULE } from "../../../../../modules/payment_schedule"
 import { reconcileBalanceForSchedule } from "../../../../../lib/payments/reconcile-balance"
+import { ensureStripeSessionForCollection } from "../../../../../lib/payments/ensure-stripe-session"
 
 const STRIPE_CSP = [
   "default-src 'self'",
@@ -181,9 +182,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
     logger?.warn?.(`[balance-page] collection lookup failed: ${e?.message ?? e}`)
   }
 
-  const session = (collection?.payment_sessions ?? []).find((s: any) =>
-    String(s?.provider_id ?? "").includes("stripe")
-  )
+  /**
+   * 🔴 The session's PaymentIntent, not the collection, decides what Stripe
+   * charges. An edit moves the collection's amount and leaves the session at the
+   * old one — order #101 was labelled A$347.36 here and charged A$220.34. The
+   * helper replaces an unpaid session minted for another amount, and mints one
+   * when the collection has none.
+   */
+  let session: any = null
+  if (collection?.id) {
+    const ensured = await ensureStripeSessionForCollection(req.scope, collection.id)
+    collection = ensured.collection ?? collection
+    session = ensured.session
+  }
   const clientSecret = clientSecretOf(session)
   const publishableKey =
     process.env.STRIPE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_STRIPE_KEY || null

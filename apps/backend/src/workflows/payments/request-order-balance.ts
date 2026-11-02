@@ -17,6 +17,7 @@ import {
   type BalancePlan,
 } from "../../lib/payments/balance-collection"
 import { createPayuBalanceLink } from "../../lib/payments/payu-balance"
+import { isStaleStripeSession, pickStripeSession } from "../../lib/payments/ensure-stripe-session"
 
 /**
  * Raise the balance on an order and mint the link that collects it.
@@ -173,12 +174,22 @@ const ensureBalanceSessionStep = createStep(
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
     const { data: collections } = await query.graph({
       entity: "payment_collection",
-      fields: ["id", "payment_sessions.id", "payment_sessions.provider_id"],
+      fields: [
+        "id",
+        "amount",
+        "payment_sessions.id",
+        "payment_sessions.provider_id",
+        "payment_sessions.status",
+        "payment_sessions.amount",
+      ],
       filters: { id: input.payment_collection_id },
     })
 
-    const sessions = (collections?.[0] as any)?.payment_sessions ?? []
-    if (sessions.some((s: any) => String(s?.provider_id ?? "").includes("stripe"))) {
+    // A session minted for the collection's OLD amount (before an edit moved it)
+    // would charge that old amount — so it is replaced, not reused.
+    const collection = collections?.[0] as any
+    const stripeSession = pickStripeSession(collection)
+    if (stripeSession && !isStaleStripeSession(collection, stripeSession)) {
       return new StepResponse({ ok: true })
     }
 
