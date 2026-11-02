@@ -32,6 +32,7 @@ import {
   type StoreProductSpec,
 } from "@lib/data/product-spec"
 import { useRouter } from "next/navigation"
+import { hasProductPhotos } from "@lib/util/product-photos"
 
 type ProductActionsProps = {
   product: HttpTypes.StoreProduct
@@ -186,13 +187,18 @@ export default function ProductActions({
     return false
   }, [selectedVariant])
 
+  // A product with no photos is not for sale yet: nobody should pay for a
+  // piece they cannot see. Read from the product itself, so the button comes
+  // back on its own as soon as a photo is uploaded.
+  const photosReady = hasProductPhotos(product)
+
   const actionsRef = useRef<HTMLDivElement>(null)
 
   const inView = useIntersection(actionsRef, "0px")
 
   // add the selected variant to the cart
   const handleAddToCart = async () => {
-    if (!selectedVariant?.id) return null
+    if (!selectedVariant?.id || !photosReady) return null
 
     setIsAdding(true)
     setSpecError(null)
@@ -311,6 +317,7 @@ export default function ProductActions({
             <Button
               onClick={handleAddToCart}
               disabled={
+                !photosReady ||
                 !inStock ||
                 !selectedVariant ||
                 !!disabled ||
@@ -324,7 +331,9 @@ export default function ProductActions({
               isLoading={isAdding}
               data-testid="add-product-button"
             >
-              {!selectedVariant && !(product.options || []).every((opt) => options[opt.id])
+              {!photosReady
+                ? "Photos coming soon"
+                : !selectedVariant && !(product.options || []).every((opt) => options[opt.id])
                 ? "Select variant"
                 : !inStock || !isValidVariant
                   ? "Out of stock"
@@ -376,6 +385,7 @@ export default function ProductActions({
           options={options}
           updateOptions={setOptionValue}
           inStock={inStock}
+          photosReady={photosReady}
           handleAddToCart={handleAddToCart}
           isAdding={isAdding}
           show={!inView}

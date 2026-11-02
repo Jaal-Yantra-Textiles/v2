@@ -15,6 +15,11 @@ type ThumbnailProps = {
   isFeatured?: boolean
   className?: string
   alt?: string
+  /**
+   * The product has no photos yet (`hasProductPhotos()` is false): show a
+   * calm placeholder labelled "Photoshoot in progress" instead of an image.
+   */
+  photoshootPending?: boolean
   "data-testid"?: string
 }
 
@@ -25,6 +30,7 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
   isFeatured,
   className,
   alt = "Product image",
+  photoshootPending = false,
   "data-testid": dataTestid,
 }) => {
   const initialImage = thumbnail || images?.[0]?.url
@@ -48,42 +54,65 @@ const Thumbnail: React.FC<ThumbnailProps> = ({
       data-testid={dataTestid}
     >
       <div className="absolute inset-0 overflow-hidden rounded-lg bg-gray-100">
-        <ImageOrPlaceholder
-          image={initialImage}
-          size={size}
-          alt={alt}
-          className={clx(
-            "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform",
-            // Scale up on hover
-            "group-hover:scale-105",
-            // Fade out if secondary image exists
-            secondaryImage && "group-hover:opacity-0"
-          )}
-        />
+        {photoshootPending ? (
+          <PhotoshootPlaceholder size={size} />
+        ) : (
+          <>
+            <ImageOrPlaceholder
+              image={initialImage}
+              size={size}
+              alt={alt}
+              className={clx(
+                "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform",
+                // Scale up on hover
+                "group-hover:scale-105",
+                // Fade out if secondary image exists
+                secondaryImage && "group-hover:opacity-0"
+              )}
+            />
 
-        {secondaryImage && (
-          <ImageOrPlaceholder
-            image={secondaryImage}
-            size={size}
-            alt={alt}
-            className={clx(
-              "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform scale-105 opacity-0",
-              // Fade in on hover
-              "group-hover:opacity-100"
+            {secondaryImage && (
+              <ImageOrPlaceholder
+                image={secondaryImage}
+                size={size}
+                alt={alt}
+                className={clx(
+                  "absolute inset-0 object-cover object-center transition-all duration-500 ease-in-out transform scale-105 opacity-0",
+                  // Fade in on hover
+                  "group-hover:opacity-100"
+                )}
+              />
             )}
-          />
+          </>
         )}
       </div>
     </Container>
   )
 }
 
+/** Placeholder for a product whose photos are not taken yet. */
+const PhotoshootPlaceholder = ({ size }: Pick<ThumbnailProps, "size">) => (
+  <div
+    className="absolute inset-0 flex flex-col items-center justify-center gap-y-3 bg-ui-bg-subtle p-4 text-center"
+    data-testid="photoshoot-placeholder"
+  >
+    <PlaceholderImage size={size === "small" ? 16 : 24} />
+    <span className="rounded-full border border-ui-border-base bg-ui-bg-base px-3 py-1 txt-compact-xsmall-plus text-ui-fg-subtle">
+      Photoshoot in progress
+    </span>
+  </div>
+)
+
 const ImageOrPlaceholder = ({
   image,
   size,
   alt = "Product image",
   className,
-}: Pick<ThumbnailProps, "size"> & { image?: string; alt?: string; className?: string }) => {
+}: Pick<ThumbnailProps, "size"> & {
+  image?: string
+  alt?: string
+  className?: string
+}) => {
   const [isLoaded, setIsLoaded] = React.useState(false)
 
   return image ? (
