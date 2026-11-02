@@ -155,6 +155,7 @@ import { deduplicateTaskTemplateNamesJob } from "./deduplicate-task-template-nam
 import { recordManualInventoryCorrectionJob } from "./record-manual-inventory-correction-job"
 import { bankUnstockedRunJob } from "./bank-unstocked-run-job"
 import { closeReceivedInventoryOrdersJob } from "./close-received-inventory-orders-job"
+import { refreshOpenRunSizePlanJob } from "./refresh-open-run-size-plan-job"
 import { relinkRolledBackInventoryOrderPartnersJob } from "./relink-rolled-back-inventory-order-partners-job"
 import { collateCustomerOrderRunsJob } from "./collate-customer-order-runs-job"
 import { applyCommittedConsumptionJob } from "./apply-committed-consumption-job"
@@ -6650,6 +6651,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   recordManualInventoryCorrectionJob,
   bankUnstockedRunJob,
   closeReceivedInventoryOrdersJob,
+  refreshOpenRunSizePlanJob,
   relinkRolledBackInventoryOrderPartnersJob,
   collateCustomerOrderRunsJob,
   applyCommittedConsumptionJob,
