@@ -15,6 +15,7 @@ import { useAcceptPartnerProductionRun, useCompletePartnerProductionRun, useFini
 import { useMe } from "../../hooks/api/users"
 import { extractErrorMessage } from "../../lib/extract-error-message"
 import { getReassignmentNotice } from "../../lib/reassignment-notice"
+import { formatPlannedOutput } from "../../lib/planned-sizes"
 import { GoodsTransferSection } from "./goods-transfer-section"
 import { RunNextAction } from "./run-next-action"
 import type { RunActionKey } from "../../lib/run-phase"
@@ -64,6 +65,8 @@ export const ProductionRunCard = ({
   const status = String(run.status || "")
   const tasks = run.tasks || []
   const isSample = run.run_type === "sample"
+  // #2500 — the sizes this run is planned in, shown before completion.
+  const plannedSizes = formatPlannedOutput(run.planned_output)
   const prompt = usePrompt()
 
   // #1228 — how this run got here. Needs the viewer's own partner id to tell
@@ -244,6 +247,7 @@ export const ProductionRunCard = ({
           </div>
           <Text size="xsmall" className="text-ui-fg-subtle mt-1">
             Qty: {run.quantity ?? "-"}
+            {plannedSizes ? ` · Sizes: ${plannedSizes}` : ""}
             {run.role ? ` · ${run.role}` : ""}
             {totalTasks > 0 ? ` · ${completedTasks}/${totalTasks} tasks` : ""}
             {consumptionCount > 0 ? ` · ${consumptionCount} material${consumptionCount !== 1 ? "s" : ""} logged` : ""}
