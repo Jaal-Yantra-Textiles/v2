@@ -99,8 +99,8 @@ export function planRunSizeRefresh(input: RunSizeRefreshInput): RunSizeRefreshPl
   // A snapshot with no colour_mode reads as "variants" (runOutputAxes), so
   // writing "variants" onto it would change nothing but the record.
   const colorChanges = (before ?? "variants") !== after
-  const nextSnapshot = colorChanges ? { ...snap, color_mode: after } : null
-  const effective = nextSnapshot ?? snap
+  const nextSnapshot: Record<string, any> | null = colorChanges ? { ...snap, color_mode: after } : null
+  const effective: Record<string, any> = nextSnapshot ?? snap
 
   let planned: OutputLine[] | null = null
   let sizeNote: string | null = null
