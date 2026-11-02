@@ -20,6 +20,21 @@ describe("completion split (#2271)", () => {
     expect(planSplit(splitAxes({}), {}, 3)).toEqual({ needed: false })
   })
 
+  it("asks by size only when the colours are parts of one piece (#2500)", () => {
+    const axes = splitAxes({
+      snapshot: {
+        color_mode: "parts",
+        size_sets: [{ size_label: "38" }, { size_label: "40" }],
+        colors: [{ name: "Natural" }, { name: "Contrast" }],
+      },
+    })
+    expect(axes).toEqual({ sizes: ["38", "40"], colors: [] })
+    expect(splitCombos(axes)).toEqual([
+      { size_label: "38", color: null },
+      { size_label: "40", color: null },
+    ])
+  })
+
   it("offers every size × colour combination", () => {
     const axes = splitAxes({
       snapshot: {

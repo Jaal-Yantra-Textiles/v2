@@ -6959,6 +6959,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "estimated_cost",
       "cost_currency",
       "colors",
+      "color_mode",
       "size_sets",
       "inspiration_sources",
       "thumbnail_url",
@@ -6993,6 +6994,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         ),
         estimated_cost: { type: "number", description: "Estimated cost." },
         cost_currency: STR("Currency code for estimated_cost."),
+        color_mode: STR(
+          "What the colours MEAN for production: 'variants' (default) — each colour is a separate colourway, so a run is completed per size × colour; 'parts' — the colours are parts of ONE piece (base fabric + contrast embroidery), so a run is planned and completed by size only. Copied into each NEW run; existing runs keep what they had."
+        ),
         colors: {
           type: "array",
           description: "Colourway. Each: { name, hex_code, usage_notes?, order? }.",
@@ -7046,6 +7050,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "estimated_cost",
       "cost_currency",
       "colors",
+      "color_mode",
       "size_sets",
       "inspiration_sources",
       "thumbnail_url",
@@ -7076,6 +7081,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         thumbnail_url: STR("Url of the reference/hero image for this design."),
         estimated_cost: { type: "number", description: "New estimated cost." },
         cost_currency: STR("Currency code for estimated_cost."),
+        color_mode: STR(
+          "What the colours MEAN for production: 'variants' (default) — each colour is a separate colourway, so a run is completed per size × colour; 'parts' — the colours are parts of ONE piece (base fabric + contrast embroidery), so a run is planned and completed by size only. Copied into each NEW run; existing runs keep what they had."
+        ),
         colors: {
           type: "array",
           description: "Replacement colourway. Each: { name, hex_code, usage_notes?, order? }.",

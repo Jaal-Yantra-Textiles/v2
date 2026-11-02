@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import {
   Button,
   Input,
+  Label,
+  Switch,
   Text,
   Badge,
   Heading,
@@ -71,6 +73,12 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
 
   const [colors, setColors] = useState<ColorEntry[]>(() =>
     getInitialColors(design)
+  );
+
+  // #2500 — colours that are parts of ONE piece (base + contrast embroidery)
+  // are not separate colourways: a run of this design is completed by size only.
+  const [colorsAreParts, setColorsAreParts] = useState(
+    design.color_mode === "parts"
   );
 
   const [newColor, setNewColor] = useState<{ hex_code: string; name: string }>({
@@ -166,6 +174,7 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
           usage_notes: c.usage_notes,
           order: i,
         })),
+        color_mode: colorsAreParts ? "parts" : "variants",
       });
       toast.success(`Color palette saved with ${colors.length} colors`);
       Chrome.onDone();
@@ -238,6 +247,25 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
             </Text>
           </div>
         )}
+
+        {/* #2500 — what these colours mean for production */}
+        <div className="flex items-start justify-between gap-x-4 rounded-md border border-ui-border-base p-3">
+          <div className="flex flex-col gap-y-1">
+            <Label htmlFor="colors-are-parts" size="small" weight="plus">
+              These colours are parts of one piece
+            </Label>
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              On for a base fabric with contrast embroidery: partners report
+              pieces by size only. Off when each colour is its own version.
+              Applies to production runs created from now on.
+            </Text>
+          </div>
+          <Switch
+            id="colors-are-parts"
+            checked={colorsAreParts}
+            onCheckedChange={setColorsAreParts}
+          />
+        </div>
 
         {/* Add / Edit color form */}
         <div className="border-t border-ui-border-base pt-4 flex flex-col gap-y-4">

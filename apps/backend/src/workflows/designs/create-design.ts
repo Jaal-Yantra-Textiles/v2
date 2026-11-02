@@ -34,6 +34,8 @@ type CreateDesignStepInput = {
   thumbnail_url?: string;
   custom_sizes?: Record<string, any>;
   color_palette?: Record<string, any>;
+  /** #2500 — colourways (`variants`, default) or parts of one piece (`parts`). */
+  color_mode?: "variants" | "parts";
   tags?: Record<string, any>;
   estimated_cost?: number;
   cost_currency?: string;
@@ -88,6 +90,7 @@ export const createDesignStep = createStep(
       thumbnail_url: input.thumbnail_url,
       custom_sizes: normalizedSizeSets ? null : input.custom_sizes,
       color_palette: normalizedColors ? null : input.color_palette,
+      ...(input.color_mode ? { color_mode: input.color_mode } : {}),
       tags: input.tags,
       estimated_cost: input.estimated_cost,
       cost_currency: input.cost_currency,

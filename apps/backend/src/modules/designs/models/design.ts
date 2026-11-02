@@ -81,6 +81,20 @@ const Design = model.define("design", {
   thumbnail_url: model.text().nullable(),
   custom_sizes: model.json().nullable(), // Custom size specifications
   color_palette: model.json().nullable(), // Color codes and names
+  /**
+   * #2500 — what the design's colours MEAN for a run's output.
+   *
+   * - `variants` (default): each colour is a separate colourway. A run is
+   *   planned and completed per size × colour, and each combination becomes
+   *   its own variant.
+   * - `parts`: the colours are parts of ONE piece (base fabric + contrast
+   *   embroidery, e.g. Jacket & Trouser No 1). Colour is not an output axis,
+   *   so completion asks by size only.
+   *
+   * Copied into each run's snapshot at creation; a run created before this
+   * field existed reads as `variants`, i.e. unchanged.
+   */
+  color_mode: model.enum(["variants", "parts"]).default("variants"),
   tags: model.json().nullable(), // For categorization and searching
   estimated_cost: model.bigNumber().nullable(),
   material_cost: model.bigNumber().nullable(),

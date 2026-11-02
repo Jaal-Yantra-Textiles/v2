@@ -421,7 +421,7 @@ struct RunSnapshot: Codable, Hashable {
   var sizes: [String] = []
   var colors: [String] = []
 
-  private enum Keys: String, CodingKey { case size_sets, colors }
+  private enum Keys: String, CodingKey { case size_sets, colors, color_mode }
   private struct Named: Decodable {
     var size_label: String?
     var name: String?
@@ -436,8 +436,11 @@ struct RunSnapshot: Codable, Hashable {
     guard let c = try? decoder.container(keyedBy: Keys.self) else { return }
     let sizeRows = (try? c.decodeIfPresent([Named].self, forKey: .size_sets)) ?? nil
     let colorRows = (try? c.decodeIfPresent([Named].self, forKey: .colors)) ?? nil
+    // #2500 — colours that are parts of one piece are not a colour axis: the
+    // sheet asks by size only, and the backend refuses a colour on such a line.
+    let colorMode = (try? c.decodeIfPresent(String.self, forKey: .color_mode)) ?? nil
     sizes = CompletionSplit.dedupe((sizeRows ?? []).map { $0.size_label ?? "" })
-    colors = CompletionSplit.dedupe((colorRows ?? []).map { $0.name ?? "" })
+    colors = colorMode == "parts" ? [] : CompletionSplit.dedupe((colorRows ?? []).map { $0.name ?? "" })
   }
 
   func encode(to encoder: Encoder) throws {}

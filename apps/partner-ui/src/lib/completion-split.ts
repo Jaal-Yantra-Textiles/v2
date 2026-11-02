@@ -27,12 +27,21 @@ const dedupe = (values: string[]): string[] => {
   return out
 }
 
-/** The sizes and colour names the run's snapshot states, in stated order. */
+/**
+ * The sizes and colour names the run's snapshot states, in stated order.
+ *
+ * #2500 — a design whose colours are parts of one piece
+ * (`snapshot.color_mode === "parts"`) has no colour axis, so the form asks by
+ * size only. Same rule as the backend's `runOutputAxes`.
+ */
 export function splitAxes(run: any): SplitAxes {
   const snapshot = run?.snapshot ?? {}
   return {
     sizes: dedupe((snapshot.size_sets ?? []).map((s: any) => clean(s?.size_label))),
-    colors: dedupe((snapshot.colors ?? []).map((c: any) => clean(c?.name))),
+    colors:
+      snapshot.color_mode === "parts"
+        ? []
+        : dedupe((snapshot.colors ?? []).map((c: any) => clean(c?.name))),
   }
 }
 

@@ -226,6 +226,78 @@ setupSharedTestSuite(() => {
       ])
     })
 
+    it("a design whose colours are parts of one piece completes by size only (#2500)", async () => {
+      const created = await api.post(
+        "/admin/designs",
+        {
+          name: `Jacket-like ${Date.now()}`,
+          design_type: "Original",
+          status: "In_Development",
+          priority: "Medium",
+          estimated_cost: 400,
+          color_mode: "parts",
+          size_sets: [
+            { size_label: "38", measurements: { chest: 38 } },
+            { size_label: "40", measurements: { chest: 40 } },
+          ],
+          colors: [
+            { name: "Natural", hex_code: "#E3D7C3" },
+            { name: "Contrast", hex_code: "#8E2A2A" },
+          ],
+        },
+        adminHeaders
+      )
+      expect(created.status).toBe(201)
+      expect(created.data.design.color_mode).toBe("parts")
+      const designId = created.data.design.id as string
+      const { partnerId, headers } = await registerPartner("parts")
+
+      const runRes = await api.post(
+        "/admin/production-runs",
+        { design_id: designId, partner_id: partnerId, quantity: 2 },
+        adminHeaders
+      )
+      const runId = runRes.data.production_run.id
+      expect((await readRun(runId)).snapshot.color_mode).toBe("parts")
+      await walkToFinished(runId, headers)
+
+      // A colour on a line is refused: colour is not an axis of this run.
+      const coloured = await api
+        .post(
+          `/partners/production-runs/${runId}/complete`,
+          {
+            produced_quantity: 2,
+            produced_output: [{ size_label: "38", color: "Natural", quantity: 2 }],
+          },
+          { headers }
+        )
+        .catch((e: any) => e.response)
+      expect(coloured.status).toBe(400)
+
+      const ok = await api
+        .post(
+          `/partners/production-runs/${runId}/complete`,
+          {
+            produced_quantity: 2,
+            produced_output: [
+              { size_label: "38", quantity: 1 },
+              { size_label: "40", quantity: 1 },
+            ],
+          },
+          { headers }
+        )
+        .catch((e: any) => e.response)
+      if (ok.status !== 200) {
+        throw new Error(`Complete failed ${ok.status}: ${JSON.stringify(ok.data)}`)
+      }
+      const run = await readRun(runId)
+      expect(run.status).toBe("completed")
+      expect(run.produced_output).toEqual([
+        { size_label: "38", color: null, quantity: 1 },
+        { size_label: "40", color: null, quantity: 1 },
+      ])
+    })
+
     it("lets an admin correct a completed run's split, checked and audited", async () => {
       const designId = await createSizedDesign()
       const { partnerId, headers } = await registerPartner("fix-split")

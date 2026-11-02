@@ -69,6 +69,8 @@ export interface AdminDesign {
   thumbnail_url?: string;
   custom_sizes?: CustomSize;
   color_palette?: ColorPalette[];
+  /** #2500 — colourways (`variants`) or parts of one piece (`parts`). */
+  color_mode?: "variants" | "parts";
   tags?: string[];
   estimated_cost?: number;
   material_cost?: number | null;
