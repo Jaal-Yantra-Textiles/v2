@@ -55,3 +55,30 @@ describe("productionRunActivityRecorder — bundles (#2500)", () => {
     expect(row).toBeUndefined()
   })
 })
+
+describe("productionRunActivityRecorder — bundled reminders (#2500)", () => {
+  beforeEach(() => (createPartnerNotification as jest.Mock).mockClear())
+
+  it("records a bundled design's reminder under its own kind, without a push of its own", async () => {
+    const row = await run("production_run.reminder_in_bundle", {
+      production_run_id: "prod_run_x",
+      partner_id: "partner_x",
+      reminder_kind: "assignment_pending",
+      work_order_id: "order_152",
+    })
+    expect(row.activity_type).toBe("reminder_sent")
+    expect(row.kind).toBe("assignment_pending")
+    expect(row.template_name).toBeNull()
+    expect(row.payload).toMatchObject({ in_bundle: true, work_order_id: "order_152" })
+    expect(createPartnerNotification).not.toHaveBeenCalled()
+  })
+
+  it("does not record the per-design fallback reminder a second time", async () => {
+    const row = await run("production_run.reminder_assignment_pending", {
+      production_run_id: "prod_run_x",
+      partner_id: "partner_x",
+      bundle_fallback: true,
+    })
+    expect(row).toBeUndefined()
+  })
+})

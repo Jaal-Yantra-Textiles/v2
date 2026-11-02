@@ -34,6 +34,7 @@ type EventName =
   | "production_run.reminder_assignment_pending"
   | "production_run.reminder_not_started"
   | "production_run.reminder_idle"
+  | "production_run.reminder_in_bundle"
 
 type ReminderKind = "assignment_pending" | "not_started" | "idle"
 
@@ -126,17 +127,26 @@ export default async function productionRunActivityRecorder({
       reason: eventData.reason ?? null,
     }
   } else if (eventName.startsWith("production_run.reminder_")) {
-    const reminderKind = eventName.replace("production_run.reminder_", "") as ReminderKind
+    // #2500 — a bundled design's reminder carries its kind in the payload; the
+    // bundle sends one WhatsApp and one push, so this row pushes nothing.
+    const reminderKind = (
+      eventName === "production_run.reminder_in_bundle"
+        ? eventData.reminder_kind
+        : eventName.replace("production_run.reminder_", "")
+    ) as ReminderKind
     if (!REMINDER_TEMPLATE_BY_KIND[reminderKind]) {
       return
     }
     activityType = "reminder_sent"
     kind = reminderKind
     summary = REMINDER_SUMMARY_BY_KIND[reminderKind]
-    templateName = REMINDER_TEMPLATE_BY_KIND[reminderKind]
+    const inBundle = eventName === "production_run.reminder_in_bundle"
+    // A bundled reminder goes out as the bundle's one message, not this template.
+    templateName = inBundle ? null : REMINDER_TEMPLATE_BY_KIND[reminderKind]
     payload = {
       reminder_kind: reminderKind,
       design_id: eventData.design_id ?? null,
+      ...(inBundle ? { in_bundle: true, work_order_id: eventData.work_order_id ?? null } : {}),
     }
   } else {
     // #2500 — a design dispatched as part of a bundle is still "sent to
@@ -180,7 +190,7 @@ export default async function productionRunActivityRecorder({
     // nudge, so a partner without WhatsApp open still hears it. Escalations
     // and reassignment events are admin-facing — partnerId is null there,
     // and createPartnerNotification refuses a null partner anyway.
-    if (activityType === "reminder_sent" && partnerId) {
+    if (activityType === "reminder_sent" && partnerId && eventName !== "production_run.reminder_in_bundle") {
       await createPartnerNotification(container, {
         partner_id: partnerId,
         title: REMINDER_PUSH_TITLE_BY_KIND[kind as ReminderKind] ?? summary,
@@ -234,6 +244,7 @@ export const config: SubscriberConfig = {
     "production_run.reminder_assignment_pending",
     "production_run.reminder_not_started",
     "production_run.reminder_idle",
+    "production_run.reminder_in_bundle",
     // #1093 — reminder cap escalations.
     "production_run.reassignment_needed",
     "production_run.reminder_escalated",

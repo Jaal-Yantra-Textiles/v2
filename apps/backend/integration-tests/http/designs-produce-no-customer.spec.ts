@@ -5,6 +5,8 @@ import { setupSharedTestSuite, getSharedTestEnv } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { ensureHouseStoreRegion } from "../helpers/ensure-house-store-region"
 import { produceDesignsAsWorkOrder } from "../../src/workflows/designs/produce-designs-as-work-order"
+import { emitProductionRunReminderWorkflow } from "../../src/workflows/production-runs/emit-production-run-reminder"
+import { findRunBundle } from "../../src/workflows/production-runs/lib/run-bundle"
 import { PRODUCTION_RUNS_MODULE } from "../../src/modules/production_runs"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 import partnerOrderLink from "../../src/links/partner-order"
@@ -310,6 +312,61 @@ setupSharedTestSuite(() => {
         expect([...announced[0].data.production_run_ids].sort()).toEqual(
           [...result.run_ids].sort()
         )
+      })
+
+      it("reminds a bundle's design through the bundle, and a lone design on its own (#2500)", async () => {
+        const container = getContainer()
+        const template = await createTemplate("remind", "Production")
+        const bundleDesigns = [await createDesign("Remind A"), await createDesign("Remind B")]
+        const loneDesign = await createDesign("Remind Lone")
+
+        const bundle = await produceDesignsAsWorkOrder(container, bundleDesigns, partnerId, {
+          selections: bundleDesigns.map((id) => ({ design_id: id, template_ids: [template] })),
+        })
+        const lone = await produceDesignsAsWorkOrder(container, [loneDesign], partnerId, {
+          selections: [{ design_id: loneDesign, template_ids: [template] }],
+        })
+        expect(bundle.dispatched).toHaveLength(2)
+        expect(lone.dispatched).toHaveLength(1)
+
+        const eventBus: any = container.resolve(Modules.EVENT_BUS)
+        const seen: { name: string; data: any }[] = []
+        const originalEmit = eventBus.emit.bind(eventBus)
+        const spy = jest.spyOn(eventBus, "emit").mockImplementation(async (...args: any[]) => {
+          const list = Array.isArray(args[0]) ? args[0] : [args[0]]
+          for (const e of list) {
+            if (e?.name) seen.push({ name: e.name, data: e.data })
+          }
+          return originalEmit(...args)
+        })
+        const remindRun = (runId: string) =>
+          emitProductionRunReminderWorkflow(container).run({
+            input: { production_run_id: runId, partner_id: partnerId, reminder_kind: "assignment_pending" },
+          })
+        try {
+          await remindRun(bundle.run_ids[0])
+          await remindRun(lone.run_ids[0])
+        } finally {
+          spy.mockRestore()
+        }
+
+        const bundled = seen.filter((e) => e.name === "production_run.reminder_in_bundle")
+        expect(bundled).toHaveLength(1)
+        expect(bundled[0].data).toMatchObject({
+          production_run_id: bundle.run_ids[0],
+          reminder_kind: "assignment_pending",
+          work_order_id: bundle.work_order_id,
+        })
+        const own = seen.filter(
+          (e) => e.name === "production_run.reminder_assignment_pending" && e.data?.bundle_fallback !== true
+        )
+        expect(own.map((e) => e.data.production_run_id)).toEqual([lone.run_ids[0]])
+
+        // The bundle reads back from the database: both designs, one work order.
+        const found = await findRunBundle(container, bundle.run_ids[1], partnerId)
+        expect(found?.work_order_id).toBe(bundle.work_order_id)
+        expect(found?.runs.map((r) => r.id).sort()).toEqual([...bundle.run_ids].sort())
+        expect(await findRunBundle(container, lone.run_ids[0], partnerId)).toBeNull()
       })
 
       it("previews the design → templates plan without creating anything", async () => {

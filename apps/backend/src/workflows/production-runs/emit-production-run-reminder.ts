@@ -17,6 +17,7 @@ import { reassignProductionRunWorkflow } from "./reassign-production-run"
 import { acceptProductionRunWorkflow } from "./accept-production-run"
 import { loadReminderState, persistReminderState } from "./reminder-state"
 import { reminderPauseOf } from "./lib/reminder-pause"
+import { findRunBundle } from "./lib/run-bundle"
 
 export type { ReminderState } from "./reminder-state"
 export { resolveReminderState } from "./reminder-state"
@@ -50,6 +51,13 @@ const REMINDER_EVENT_BY_KIND: Record<ReminderKind, string> = {
   idle: "production_run.reminder_idle",
   awaiting_reassignment: "production_run.reminder_awaiting_reassignment",
 }
+
+/**
+ * #2500 — a reminder for one design of a bundle. Not in the visual-flow
+ * allowlist, so it sends no per-design template; the bundle subscriber
+ * (`work-order-reminder-whatsapp.ts`) sends one message for the bundle.
+ */
+export const BUNDLED_REMINDER_EVENT = "production_run.reminder_in_bundle"
 
 /**
  * #1279 — how long a parked run waits between admin escalations.
@@ -390,15 +398,22 @@ const processReminderStep = createStep(
     }
 
     if (action === "reminded") {
+      // #2500 — one design of a bundle: its reminder goes to the bundle, which
+      // sends ONE message a day for every design due it. Counting, the cap and
+      // reassignment below stay per run. A failed lookup reminds per run.
+      const bundle = await findRunBundle(container, input.production_run_id, partnerId).catch(
+        () => null
+      )
       await eventService.emit([
         {
-          name: eventName,
+          name: bundle ? BUNDLED_REMINDER_EVENT : eventName,
           data: {
             production_run_id: input.production_run_id,
             partner_id: partnerId,
             design_id: input.design_id ?? null,
             reminder_kind: input.reminder_kind,
             reminder_count: nextCount,
+            ...(bundle ? { work_order_id: bundle.work_order_id } : {}),
           },
         },
       ])
