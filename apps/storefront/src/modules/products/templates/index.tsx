@@ -22,7 +22,12 @@ import { StoreDesign } from "../../../types/product-design"
 import { buildProductJsonLd } from "./product-jsonld"
 import { buildBreadcrumbJsonLd } from "@lib/util/breadcrumb-jsonld"
 import { getProductionStory } from "@lib/data/designs"
-import { publicTimeline } from "@modules/products/components/production-story/lib"
+import {
+  craftedBy,
+  publicTimeline,
+} from "@modules/products/components/production-story/lib"
+import ListingInProgress from "@modules/products/components/listing-in-progress"
+import { hasProductPhotos } from "@lib/util/product-photos"
 
 type ProductTemplateProps = {
   product: HttpTypes.StoreProduct & { designs?: StoreDesign[] } // Extend product type to include designs
@@ -48,6 +53,11 @@ const ProductTemplate = async ({
   // v1-only designs, which keep their task-based timeline.
   const story = design?.id ? await getProductionStory(design.id) : null
   const timeline = publicTimeline(story)
+
+  // No photos yet: the gallery would be empty, so the page shows how the
+  // piece is made instead, ending on "Being photographed". Pure function of
+  // the product, so it goes away the moment a photo is uploaded.
+  const photosReady = hasProductPhotos(product)
 
   const jsonLd = buildProductJsonLd(product, { countryCode })
 
@@ -98,7 +108,13 @@ const ProductTemplate = async ({
           </div>
         </div>
         <div className="block w-full relative">
-          <ImageGallery images={images} />
+          {photosReady ? (
+            <ImageGallery images={images} />
+          ) : (
+            <ListingInProgress
+              crafted={design ? craftedBy(story, design.partners ?? []) : null}
+            />
+          )}
         </div>
         <div className="w-full py-8 small:hidden">
           <DesignInfo

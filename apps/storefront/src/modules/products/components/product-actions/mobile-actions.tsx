@@ -17,6 +17,8 @@ type MobileActionsProps = {
   options: Record<string, string | undefined>
   updateOptions: (title: string, value: string) => void
   inStock?: boolean
+  /** False while the product has no photos: the button holds the sale. */
+  photosReady?: boolean
   handleAddToCart: () => void
   isAdding?: boolean
   show: boolean
@@ -29,6 +31,7 @@ const MobileActions: React.FC<MobileActionsProps> = ({
   options,
   updateOptions,
   inStock,
+  photosReady = true,
   handleAddToCart,
   isAdding,
   show,
@@ -118,12 +121,14 @@ const MobileActions: React.FC<MobileActionsProps> = ({
               </Button>}
               <Button
                 onClick={handleAddToCart}
-                disabled={!inStock || !variant}
+                disabled={!photosReady || !inStock || !variant}
                 className="w-full"
                 isLoading={isAdding}
                 data-testid="mobile-cart-button"
               >
-                {!variant
+                {!photosReady
+                  ? "Photos coming soon"
+                  : !variant
                   ? "Select variant"
                   : !inStock
                   ? "Out of stock"

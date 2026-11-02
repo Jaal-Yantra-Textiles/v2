@@ -69,6 +69,33 @@ describe("default-product-shipping-profile hook", () => {
     ])
   })
 
+  it("never blocks the create when a side's profile cannot be decided", async () => {
+    // A fresh DB with two `default` profiles makes the house lookup refuse to
+    // guess. The product must still be created — just left unlinked, as before #1982.
+    resolveShippingProfileIdForSide.mockImplementation(async (_c: any, side: string) => {
+      if (side === "house") throw new Error("Could not pick a shipping profile unambiguously")
+      return "sp_partner"
+    })
+    const { container, link } = makeContainer([
+      { id: "prod_house", shipping_profile: null, sales_channels: [] },
+      { id: "prod_p", shipping_profile: null, sales_channels: [{ id: "sc_partner" }] },
+    ])
+    const res = await handler({ products: [{ id: "prod_house" }, { id: "prod_p" }] }, { container })
+    expect(link.create).toHaveBeenCalledWith([
+      { product: { product_id: "prod_p" }, fulfillment: { shipping_profile_id: "sp_partner" } },
+    ])
+    expect(res.compensateInput).toHaveLength(1)
+  })
+
+  it("writes nothing and does not throw when no side can be decided", async () => {
+    resolveShippingProfileIdForSide.mockRejectedValue(new Error("ambiguous"))
+    const { container, link } = makeContainer([
+      { id: "prod_1", shipping_profile: null, sales_channels: [] },
+    ])
+    await expect(handler({ products: [{ id: "prod_1" }] }, { container })).resolves.toBeTruthy()
+    expect(link.create).not.toHaveBeenCalled()
+  })
+
   it("writes nothing when every product already has a profile", async () => {
     const { container, link } = makeContainer([
       { id: "prod_1", shipping_profile: { id: "sp_default" }, sales_channels: [] },

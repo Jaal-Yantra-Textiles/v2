@@ -21,6 +21,12 @@ import { productsMissingShippingProfile } from "../../lib/shipping-profile-selec
  *
  * This runs after core's own link step, so a caller that DID pass a profile
  * (the partner, design, WhatsApp and media creators) is left alone.
+ *
+ * It must never BLOCK a product: when the profile for a side cannot be
+ * decided (e.g. a fresh database with two `default` profiles, where
+ * `resolveHouseShippingProfileId` refuses to guess), those products are left
+ * unlinked — exactly the pre-#1982 behaviour — and a warning is logged. The
+ * e2e seed hit this on 2026-11-02 and every product create failed.
  */
 createProductsWorkflow.hooks.productsCreated(
   async ({ products }, { container }) => {
@@ -38,20 +44,28 @@ createProductsWorkflow.hooks.productsCreated(
     const missing = productsMissingShippingProfile(data || [], houseChannelId)
     if (!missing.length) return new StepResponse([], [])
 
-    const profileBySide = new Map<string, string>()
+    const profileBySide = new Map<string, string | null>()
     const links: any[] = []
     for (const { product_id, side } of missing) {
       if (!profileBySide.has(side)) {
-        profileBySide.set(
-          side,
-          await resolveShippingProfileIdForSide(container, side)
-        )
+        try {
+          profileBySide.set(side, await resolveShippingProfileIdForSide(container, side))
+        } catch (e: any) {
+          profileBySide.set(side, null)
+          const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+          logger?.warn?.(
+            `[#1982] no ${side} shipping profile linked to new product(s): ${e?.message ?? e}`
+          )
+        }
       }
+      const shippingProfileId = profileBySide.get(side)
+      if (!shippingProfileId) continue
       links.push({
         [Modules.PRODUCT]: { product_id },
-        [Modules.FULFILLMENT]: { shipping_profile_id: profileBySide.get(side) },
+        [Modules.FULFILLMENT]: { shipping_profile_id: shippingProfileId },
       })
     }
+    if (!links.length) return new StepResponse([], [])
 
     const link: any = container.resolve(ContainerRegistrationKeys.LINK)
     await link.create(links)
