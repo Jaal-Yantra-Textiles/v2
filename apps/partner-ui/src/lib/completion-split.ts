@@ -60,15 +60,18 @@ export function splitCombos(axes: SplitAxes): Array<{ size_label: string | null;
 export function initialSplit(run: any, axes: SplitAxes, target: number): Record<string, string> {
   const planned: any[] = Array.isArray(run?.planned_output) ? run.planned_output : []
   const sum = planned.reduce((acc, l) => acc + (Number(l?.quantity) || 0), 0)
+  const combos = new Set(splitCombos(axes).map((c) => comboKey(c.size_label, c.color)))
   const values: Record<string, string> = {}
   if (planned.length && sum === target) {
     for (const l of planned) {
       const key = comboKey(clean(l?.size_label) || null, clean(l?.color) || null)
-      values[key] = String(Number(l?.quantity) || 0)
+      // #2500 — a plan may be sizes alone on a multi-colour design ("38 × 1"),
+      // and a size alone is not a size × colour row. Which colour each piece
+      // is stays the partner's to fill, so that row starts blank, never guessed.
+      if (combos.has(key)) values[key] = String(Number(l?.quantity) || 0)
     }
   }
-  for (const c of splitCombos(axes)) {
-    const key = comboKey(c.size_label, c.color)
+  for (const key of combos) {
     if (!(key in values)) values[key] = ""
   }
   return values

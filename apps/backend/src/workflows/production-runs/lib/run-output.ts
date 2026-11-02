@@ -85,11 +85,21 @@ export type OutputLinesCheck =
  *   colours names a variant nothing can be traced to.
  * - Two lines for the same combination are merged.
  * - When `total` is given, the lines must add up to it exactly.
+ *
+ * `mode: "planned"` (#2500) — a PLAN may leave the colour out even when the
+ * run states colours. On many designs the colours are parts of one piece
+ * (a natural base with contrast embroidery), not separate colourways, so a
+ * size split is the whole plan. A colour that IS given must still be one of
+ * the run's. `produced_output` stays strict: it decides which variant each
+ * piece is stocked as, and a colourless line there names no variant.
  */
+export type OutputLinesMode = "produced" | "planned"
+
 export function checkOutputLines(
   input: unknown,
   axes: RunOutputAxes,
-  total?: number | null
+  total?: number | null,
+  mode: OutputLinesMode = "produced"
 ): OutputLinesCheck {
   if (!Array.isArray(input)) {
     return { ok: false, reason: "output must be a list of { size_label, color, quantity } lines" }
@@ -119,10 +129,10 @@ export function checkOutputLines(
     }
 
     if (axes.colors.length) {
-      if (!color) {
+      if (!color && mode !== "planned") {
         return { ok: false, reason: `every line needs a colour — this run is for ${axes.colors.join(", ")}` }
       }
-      if (!axes.colors.includes(color)) {
+      if (color && !axes.colors.includes(color)) {
         return { ok: false, reason: `colour "${color}" is not one this run is for (${axes.colors.join(", ")})` }
       }
     } else if (color) {
@@ -277,7 +287,7 @@ export function childPlannedOutput(input: {
   const axes = runOutputAxes(input.snapshot)
 
   if (input.assignment != null) {
-    const check = checkOutputLines(input.assignment, axes, input.quantity)
+    const check = checkOutputLines(input.assignment, axes, input.quantity, "planned")
     if (!check.ok) {
       throw new MedusaError(
         MedusaError.Types.INVALID_DATA,
@@ -288,7 +298,7 @@ export function childPlannedOutput(input: {
   }
 
   if (input.parent == null || input.quantity == null) return null
-  const inherited = checkOutputLines(input.parent, axes, input.quantity)
+  const inherited = checkOutputLines(input.parent, axes, input.quantity, "planned")
   return inherited.ok && inherited.lines.length ? inherited.lines : null
 }
 

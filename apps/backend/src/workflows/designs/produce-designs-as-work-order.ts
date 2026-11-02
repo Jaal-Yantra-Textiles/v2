@@ -56,8 +56,6 @@ export type ProduceDesignReport = {
   size_split?: SizeSplitLine[] | null
   /** #2500 — the split stored on the run as its plan, when one is. */
   planned_output?: OutputLine[] | null
-  /** #2500 — why the size split is shown but not stored on the run. */
-  size_note?: string
   /** #2500 — sizes a garment design must state before it can go. */
   missing_sizes?: string[]
 }
@@ -189,9 +187,7 @@ export async function produceDesignsAsWorkOrder(
     row.split?.ok
       ? {
           size_split: row.split.size_split,
-          planned_output: row.split.planned_output,
-          ...(row.split.note ? { size_note: row.split.note } : {}),
-        }
+          planned_output: row.split.planned_output,        }
       : row.split && !row.split.ok && row.split.missing_sizes
         ? { missing_sizes: row.split.missing_sizes }
         : {}

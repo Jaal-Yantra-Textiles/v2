@@ -263,3 +263,45 @@ describe("run output per size/colour (#2271)", () => {
     })
   })
 })
+
+describe("a PLAN may leave the colour out; what was MADE may not (#2500)", () => {
+  const axes = runOutputAxes(SIZED_AND_COLOURED)
+  const sizesOnly = [
+    { size_label: "S", quantity: 1 },
+    { size_label: "M", quantity: 1 },
+  ]
+
+  it("planned: a size split alone is a whole plan on a multi-colour run", () => {
+    expect(checkOutputLines(sizesOnly, axes, 2, "planned")).toEqual({
+      ok: true,
+      lines: [
+        { size_label: "S", color: null, quantity: 1 },
+        { size_label: "M", color: null, quantity: 1 },
+      ],
+    })
+  })
+
+  it("planned: a given colour must still be the run's, the size is still required, the total must match", () => {
+    expect(
+      checkOutputLines([{ size_label: "S", color: "Green", quantity: 2 }], axes, 2, "planned")
+    ).toMatchObject({ ok: false })
+    expect(checkOutputLines([{ quantity: 2 }], axes, 2, "planned")).toMatchObject({ ok: false })
+    expect(checkOutputLines(sizesOnly, axes, 3, "planned")).toMatchObject({ ok: false })
+  })
+
+  it("produced (the default): still needs a colour on every line", () => {
+    expect(checkOutputLines(sizesOnly, axes, 2)).toMatchObject({ ok: false })
+    expect(checkOutputLines(sizesOnly, axes, 2, "produced")).toMatchObject({ ok: false })
+  })
+
+  it("a colourless plan is never taken as what was made — completion asks", () => {
+    expect(
+      resolveProducedOutput({ planned_output: sizesOnly, snapshot: SIZED_AND_COLOURED, good_quantity: 2 })
+    ).toMatchObject({ ok: false, code: "split_required" })
+  })
+
+  it("a child takes a colourless plan, assigned or inherited", () => {
+    expect(childPlannedOutput({ parent: sizesOnly, snapshot: SIZED_AND_COLOURED, quantity: 2 })).toHaveLength(2)
+    expect(childPlannedOutput({ assignment: sizesOnly, snapshot: SIZED_AND_COLOURED, quantity: 2 })).toHaveLength(2)
+  })
+})

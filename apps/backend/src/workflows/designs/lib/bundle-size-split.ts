@@ -46,8 +46,6 @@ export type PlannedSizeSplit =
       size_split: SizeSplitLine[] | null
       /** What is stored on the run as its plan. Null = nothing to store. */
       planned_output: OutputLine[] | null
-      /** Why the split is shown but not stored, when it is not. */
-      note?: string
     }
   | { ok: false; reason: string; missing_sizes?: string[] }
 
@@ -122,7 +120,7 @@ export function planDesignSizeSplit(
         reason: `the size split adds up to ${total} pcs but the quantity says ${input.quantity}`,
       }
     }
-    const check = checkOutputLines(input.planned_output, axes, total)
+    const check = checkOutputLines(input.planned_output, axes, total, "planned")
     if (!check.ok) {
       return { ok: false, reason: `size split: ${check.reason}` }
     }
@@ -155,19 +153,12 @@ export function planDesignSizeSplit(
     }
   }
 
-  // The plan names a colour on every line when the design states colours. One
-  // colour is that colour; with several, which piece is which is the sender's
-  // call, so the size split is shown but not stored as the run's plan.
-  if (design.colors.length > 1) {
-    return {
-      ok: true,
-      quantity,
-      size_split: split,
-      planned_output: null,
-      note: `the design has ${design.colors.length} colours, so the split is not stored as the run's plan; send a split with a colour per line to store it`,
-    }
-  }
-  const color = design.colors[0] ?? null
+  // One colour is every piece's colour. With several, the colours are parts of
+  // one piece (a base and its contrast embroidery), not colourways (founder,
+  // 2026-11-02), so the plan is the size split alone. A plan may leave the
+  // colour out (`checkOutputLines` "planned" mode); the partner's completion
+  // still names it.
+  const color = design.colors.length === 1 ? design.colors[0] : null
   return {
     ok: true,
     quantity,

@@ -47,13 +47,12 @@ describe("bundle size split (#2500)", () => {
       ])
     })
 
-    it("with several colours, shows the split but does not store it as the plan", () => {
+    it("with several colours (parts of one piece), stores the size split with no colour", () => {
       const r = planDesignSizeSplit({ ...jacket, colors: ["Natural", "Red"] }, { quantity: 2 })
-      expect(r.ok).toBe(true)
-      if (!r.ok) return
-      expect(r.size_split).toHaveLength(2)
-      expect(r.planned_output).toBeNull()
-      expect(r.note).toMatch(/2 colours/)
+      expect(r.ok && r.planned_output).toEqual([
+        { size_label: "38", color: null, quantity: 1 },
+        { size_label: "40", color: null, quantity: 1 },
+      ])
     })
   })
 

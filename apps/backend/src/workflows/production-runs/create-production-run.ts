@@ -353,7 +353,9 @@ const createProductionRunStep = createStep(
       const check = checkOutputLines(
         input.payload.planned_output,
         runOutputAxes(input.snapshot),
-        quantity
+        quantity,
+        // #2500 — a plan may be a size split alone on a multi-colour design.
+        "planned"
       )
       if (!check.ok) {
         throw new MedusaError(
