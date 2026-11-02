@@ -60,6 +60,17 @@ export type SendProductionRunToProductionInput = {
    * 'order' and 'production_runs'".
    */
   defer_work_order?: boolean
+  /**
+   * #2500 — this run is one design of a bundle, and the CALLER tells the
+   * partner once for the whole bundle (`work_order.sent_to_partner`).
+   *
+   * Dispatch then emits `production_run.sent_in_bundle` instead of
+   * `production_run.sent_to_partner`. Only the activity recorder listens to
+   * it: the WhatsApp flow and the partner push both listen to
+   * `sent_to_partner` alone, so a bundle of 9 designs no longer sends the
+   * partner 9 WhatsApps in 8 seconds (Shramdaan, order #152, 2026-11-02).
+   */
+  in_bundle?: boolean
 }
 
 /** One resolved template, identified rather than merely named. */
@@ -450,11 +461,13 @@ const linkDesignToTasksStep = createStep(
 
 const notifyPartnerStep = createStep(
   "notify-partner-production-run",
-  async (input: { run: any }, { container }) => {
+  async (input: { run: any; in_bundle?: boolean }, { container }) => {
     const eventService = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
     await eventService.emit([
       {
-        name: "production_run.sent_to_partner",
+        name: input.in_bundle
+          ? "production_run.sent_in_bundle"
+          : "production_run.sent_to_partner",
         data: {
           production_run_id: input.run.id,
           partner_id: input.run.partner_id,
@@ -612,7 +625,7 @@ export const sendProductionRunToProductionWorkflow = createWorkflow(
       task_ids: taskIds,
     })
 
-    notifyPartnerStep({ run })
+    notifyPartnerStep({ run, in_bundle: input.in_bundle })
 
     // Start the long-running lifecycle workflow fire-and-forget
     startLifecycleWorkflowStep({
