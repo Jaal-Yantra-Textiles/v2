@@ -25,6 +25,7 @@ import { createPartnerNotification } from "../lib/notifications/create-partner-n
 
 type EventName =
   | "production_run.sent_to_partner"
+  | "production_run.sent_in_bundle"
   | "production_run.accepted"
   | "production_run.started"
   | "production_run.finished"
@@ -98,6 +99,11 @@ export default async function productionRunActivityRecorder({
   if (!productionRunId) {
     return
   }
+  // #2500 — the bundle's message could not go out, so each design was re-sent
+  // the per-run WhatsApp. Its `sent_in_bundle` row is already on the timeline.
+  if (eventData.bundle_fallback === true) {
+    return
+  }
 
   const partnerId = eventData.partner_id || eventData.production_run?.partner_id || null
   const occurredAt = new Date()
@@ -133,7 +139,12 @@ export default async function productionRunActivityRecorder({
       design_id: eventData.design_id ?? null,
     }
   } else {
-    const lifecycleKind = eventName.replace("production_run.", "")
+    // #2500 — a design dispatched as part of a bundle is still "sent to
+    // partner" on its own timeline; only the partner's message is per bundle.
+    const lifecycleKind =
+      eventName === "production_run.sent_in_bundle"
+        ? "sent_to_partner"
+        : eventName.replace("production_run.", "")
     if (!LIFECYCLE_SUMMARY_BY_KIND[lifecycleKind]) {
       return
     }
@@ -214,6 +225,7 @@ function pickLifecyclePayload(data: Record<string, any>): Record<string, any> | 
 export const config: SubscriberConfig = {
   event: [
     "production_run.sent_to_partner",
+    "production_run.sent_in_bundle",
     "production_run.accepted",
     "production_run.started",
     "production_run.finished",

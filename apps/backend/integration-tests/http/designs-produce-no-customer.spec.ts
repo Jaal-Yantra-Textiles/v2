@@ -257,6 +257,61 @@ setupSharedTestSuite(() => {
         }
       })
 
+      it("tells the partner about the batch ONCE, not once per design (#2500)", async () => {
+        const container = getContainer()
+        const template = await createTemplate("bundle", "Production")
+        const batchDesignIds = [
+          await createDesign("Bundle A"),
+          await createDesign("Bundle B"),
+        ]
+
+        // Every event the batch emits, from the workflows and from the caller.
+        const eventBus: any = container.resolve(Modules.EVENT_BUS)
+        const seen: { name: string; data: any }[] = []
+        const originalEmit = eventBus.emit.bind(eventBus)
+        const spy = jest.spyOn(eventBus, "emit").mockImplementation(async (...args: any[]) => {
+          const list = Array.isArray(args[0]) ? args[0] : [args[0]]
+          for (const e of list) {
+            if (e?.name) seen.push({ name: e.name, data: e.data })
+          }
+          return originalEmit(...args)
+        })
+
+        let result: any
+        try {
+          result = await produceDesignsAsWorkOrder(container, batchDesignIds, partnerId, {
+            selections: batchDesignIds.map((id) => ({ design_id: id, template_ids: [template] })),
+          })
+        } finally {
+          spy.mockRestore()
+        }
+
+        expect(result.not_dispatched).toEqual([])
+        expect(result.dispatched).toHaveLength(2)
+        expect(result.work_order_id).toBeTruthy()
+
+        // Each design's dispatch is quiet: it says "sent in a bundle", which
+        // neither the WhatsApp flow nor the push listens to.
+        const inBundle = seen.filter((e) => e.name === "production_run.sent_in_bundle")
+        expect(inBundle.map((e) => e.data.production_run_id).sort()).toEqual(
+          [...result.run_ids].sort()
+        )
+        expect(
+          seen.filter(
+            (e) => e.name === "production_run.sent_to_partner" && e.data?.bundle_fallback !== true
+          )
+        ).toEqual([])
+
+        // And the batch is announced exactly once, naming its work order.
+        const announced = seen.filter((e) => e.name === "work_order.sent_to_partner")
+        expect(announced).toHaveLength(1)
+        expect(announced[0].data.work_order_id).toBe(result.work_order_id)
+        expect(announced[0].data.partner_id).toBe(partnerId)
+        expect([...announced[0].data.production_run_ids].sort()).toEqual(
+          [...result.run_ids].sort()
+        )
+      })
+
       it("previews the design → templates plan without creating anything", async () => {
         const container = getContainer()
         const templateA = await createTemplate("dry", "Production")

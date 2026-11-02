@@ -33,3 +33,25 @@ describe("productionRunActivityRecorder — reminder cap retry (2026-10-09)", ()
     expect(createPartnerNotification).not.toHaveBeenCalled()
   })
 })
+
+describe("productionRunActivityRecorder — bundles (#2500)", () => {
+  it("records a design sent in a bundle as sent to partner on its own timeline", async () => {
+    const row = await run("production_run.sent_in_bundle", {
+      production_run_id: "prod_run_x",
+      partner_id: "partner_x",
+      design_id: "d_x",
+    })
+    expect(row.activity_type).toBe("lifecycle_event")
+    expect(row.kind).toBe("sent_to_partner")
+    expect(row.summary).toBe("Run sent to partner")
+  })
+
+  it("does not record the per-design fallback a second time", async () => {
+    const row = await run("production_run.sent_to_partner", {
+      production_run_id: "prod_run_x",
+      partner_id: "partner_x",
+      bundle_fallback: true,
+    })
+    expect(row).toBeUndefined()
+  })
+})

@@ -1,5 +1,5 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import type { MedusaContainer } from "@medusajs/framework/types"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import type { IEventBusModuleService, MedusaContainer } from "@medusajs/framework/types"
 
 import { createProductionRunWorkflow } from "../production-runs/create-production-run"
 import { sendProductionRunToProductionWorkflow } from "../production-runs/send-production-run-to-production"
@@ -258,6 +258,8 @@ export async function produceDesignsAsWorkOrder(
             // The batch is collated below, once every run is dispatched —
             // dispatch must not mint each run an order of its own first.
             defer_work_order: true,
+            // #2500 — the partner hears about the batch ONCE, below.
+            in_bundle: true,
           },
         })
         reports.push({
@@ -370,6 +372,12 @@ export async function produceDesignsAsWorkOrder(
     )
   }
 
+  await announceBundle(container, {
+    partnerId,
+    workOrderId,
+    dispatched: reports.filter((r) => r.dispatched && r.run_id),
+  })
+
   return {
     created: runIds.length,
     run_ids: runIds,
@@ -380,6 +388,48 @@ export async function produceDesignsAsWorkOrder(
     not_dispatched: notDispatched,
     work_order_joined: joined,
     work_order_problem: workOrderProblem,
+  }
+}
+
+/**
+ * #2500 — one event for the whole batch. Its WhatsApp subscriber sends ONE
+ * message listing every design, and falls back to the per-design template for
+ * each run when that cannot go out, including when no work order was made.
+ *
+ * Only DISPATCHED runs are announced: an undispatched one has no tasks, so
+ * there is nothing for the partner to accept (it was never announced before
+ * either).
+ */
+const announceBundle = async (
+  container: MedusaContainer,
+  input: {
+    partnerId: string
+    workOrderId: string | null
+    dispatched: ProduceDesignReport[]
+  }
+) => {
+  if (!input.dispatched.length) {
+    return
+  }
+  const logger: any = container.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const eventBus = container.resolve(Modules.EVENT_BUS) as IEventBusModuleService
+    await eventBus.emit({
+      name: "work_order.sent_to_partner",
+      data: {
+        work_order_id: input.workOrderId,
+        partner_id: input.partnerId,
+        production_run_ids: input.dispatched.map((r) => r.run_id as string),
+        design_ids_by_run: Object.fromEntries(
+          input.dispatched.map((r) => [r.run_id as string, r.design_id])
+        ),
+      },
+    })
+  } catch (e: any) {
+    // The work WAS sent; only the courtesy message is lost. Say so loudly.
+    logger.error(
+      `[produce-designs-as-work-order] could not announce ${input.dispatched.length} dispatched run(s) to partner ${input.partnerId}: ${e?.message}`
+    )
   }
 }
 

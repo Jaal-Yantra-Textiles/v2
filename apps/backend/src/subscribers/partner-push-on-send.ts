@@ -14,6 +14,8 @@ import { createPartnerNotification } from "../lib/notifications/create-partner-n
  * - `production_run.sent_to_partner` — a design run dispatched to the partner
  *   (send-to-production, produce, dependency release, auto-dispatch). Opens
  *   the run.
+ * - `work_order.sent_to_partner` — a bundle of designs (#2500). One push for
+ *   the bundle, opening the work order; its designs' own pushes are skipped.
  * - `inventory_order_assigned_to_partner` — only `send-to-partner` emits it;
  *   `assign-partner` stays silent by design. Opens the order.
  *
@@ -38,9 +40,35 @@ export default async function partnerPushOnSend({
   }
 
   try {
+    if (event.name === "work_order.sent_to_partner") {
+      // #2500 — one push for the whole bundle, opening the work order.
+      const workOrderId = data.work_order_id ? String(data.work_order_id) : null
+      const runIds = ((data.production_run_ids as any[]) || []).filter(Boolean).map(String)
+      if (!workOrderId || !runIds.length) return
+      const count = runIds.length
+
+      await createPartnerNotification(container, {
+        partner_id: partnerId,
+        title: count === 1 ? "New design to make" : `${count} new designs to make`,
+        description: "Open the order to accept the work.",
+        url: `/orders/${workOrderId}`,
+        resource_type: "order",
+        resource_id: workOrderId,
+        trigger_type: event.name,
+        idempotency_key: `sent-to-partner:${workOrderId}:${[...runIds].sort()[0]}:${partnerId}`,
+        // The phone apps open only a run or an inventory order today, so the
+        // tap lands on the bundle's first design until they have a bundle
+        // screen (#2500, #2238). The web bell uses `url` and opens the order.
+        data: { order_id: workOrderId, production_run_id: [...runIds].sort()[0] },
+      })
+      return
+    }
+
     if (event.name === "production_run.sent_to_partner") {
       const runId = data.production_run_id ? String(data.production_run_id) : null
       if (!runId) return
+      // #2500 — a design of a bundle whose push already went out.
+      if (data.bundle_push_sent === true) return
       const designId = data.design_id ? String(data.design_id) : null
 
       let designName: string | null = null
@@ -100,5 +128,9 @@ export default async function partnerPushOnSend({
 }
 
 export const config: SubscriberConfig = {
-  event: ["production_run.sent_to_partner", "inventory_order_assigned_to_partner"],
+  event: [
+    "production_run.sent_to_partner",
+    "inventory_order_assigned_to_partner",
+    "work_order.sent_to_partner",
+  ],
 }
