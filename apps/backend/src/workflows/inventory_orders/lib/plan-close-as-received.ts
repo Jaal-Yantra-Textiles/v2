@@ -20,7 +20,7 @@
  *
  * ## The rule
  *
- * Only from `Shipped` or `Partial` — the partner has said it left. Then ONE of:
+ * From `Shipped` or `Partial` — the partner has said it left. Then ONE of:
  *
  *  - **covered**: every line's typed receipts reach its ordered quantity,
  *    within {@link RECEIPT_ROUNDING_TOLERANCE} (receipts written before
@@ -28,6 +28,8 @@
  *  - **confirmed**: an operator states the stock is on the books by other means
  *    (the level was posted before typed receipts existed, or set by hand).
  *    That is a human's claim, so it is recorded with the order as such.
+ *
+ * From `Processing` ONLY when covered (see {@link CLOSABLE_WHEN_COVERED_STATUSES}).
  *
  * 🔴 An order carrying `metadata.reversal_note` is ALWAYS refused. Receipts on
  * it were reversed by hand and which rows are corrected re-entries is not
@@ -37,6 +39,17 @@
 export const RECEIPT_ROUNDING_TOLERANCE = 0.5
 
 export const CLOSABLE_STATUSES = ["Shipped", "Partial"] as const
+
+/**
+ * Closable ONLY when typed receipts cover every line — never on an operator's
+ * `confirmed_on_books` claim. Nobody said a Processing order left, so the only
+ * proof its goods arrived is the receipts themselves.
+ *
+ * Seen 2026-11-02: HR Handloom's extra cloth (`inv_order_01M59BGVT6ZSMZ23SBXQFE2KYD`,
+ * bill 573) arrived inside another order's parcel and was received by hand,
+ * 10/10 and 14.5/14.5, but nothing ever moved it past Processing.
+ */
+export const CLOSABLE_WHEN_COVERED_STATUSES = ["Processing"] as const
 
 export type CloseAsReceivedLine = {
   id: string
@@ -66,12 +79,15 @@ export const planCloseAsReceived = (
   input: CloseAsReceivedInput
 ): CloseAsReceivedPlan => {
   const status = input.status ?? ""
-  if (!(CLOSABLE_STATUSES as readonly string[]).includes(status)) {
+  const coveredOnly = (CLOSABLE_WHEN_COVERED_STATUSES as readonly string[]).includes(status)
+  if (!coveredOnly && !(CLOSABLE_STATUSES as readonly string[]).includes(status)) {
     return {
       ok: false,
       reason: `status is '${status || "unknown"}' — only ${CLOSABLE_STATUSES.join(
         " / "
-      )} can be closed as received`,
+      )} can be closed as received, or ${CLOSABLE_WHEN_COVERED_STATUSES.join(
+        " / "
+      )} when its receipts cover every line`,
     }
   }
 
@@ -98,6 +114,16 @@ export const planCloseAsReceived = (
 
   if (!short_lines.length) {
     return { ok: true, mode: "covered", short_lines: [] }
+  }
+
+  if (coveredOnly) {
+    return {
+      ok: false,
+      reason:
+        `status is '${status}' and typed receipts fall short on ${short_lines.length} line(s) (` +
+        short_lines.map((l) => `${l.line_id}: ${l.received} of ${l.ordered}`).join(", ") +
+        `) — a ${status} order closes only when its receipts cover it; confirmed_on_books does not apply`,
+    }
   }
 
   if (input.confirmed_on_books) {
