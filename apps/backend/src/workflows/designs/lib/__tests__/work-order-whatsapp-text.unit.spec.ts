@@ -33,3 +33,36 @@ describe("composeWorkOrderMessage (#2500)", () => {
     expect(text).toContain("1. Tye and Dye Ruffles — 2 pcs")
   })
 })
+
+import { composeWorkOrderReminder } from "../work-order-whatsapp-text"
+
+describe("composeWorkOrderReminder (#2500)", () => {
+  it("one reminder for the bundle, each design with how long it has waited", () => {
+    const text = composeWorkOrderReminder({
+      greet_name: "Shramdaan",
+      order_ref: "152",
+      kind: "assignment_pending",
+      lines: [
+        { design_name: "Bag for Paris", quantity: 10, days: 3 },
+        { design_name: "Women cord set", quantity: 2, days: 1 },
+      ],
+      language: "hinglish",
+    })
+    expect(text).toContain("order #152 ke 2 design abhi accept hone baaki hain")
+    expect(text).toContain("1. Bag for Paris — 10 pcs (3 din)")
+    expect(text).toContain("2. Women cord set — 2 pcs (1 din)")
+  })
+
+  it("asks an English partner for the action the reminder is about", () => {
+    const text = composeWorkOrderReminder({
+      greet_name: "Asha",
+      order_ref: "153",
+      kind: "not_started",
+      lines: [{ design_name: "Ruffles", quantity: 2, days: 1 }],
+      language: "english",
+    })
+    expect(text).toContain("1 design on order #153 were accepted but have not started")
+    expect(text).toContain("1. Ruffles — 2 pcs (1 day)")
+    expect(text).toMatch(/tap Start/)
+  })
+})
