@@ -3098,8 +3098,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         thumbnail: STR("Optional thumbnail image URL."),
         images: {
           type: "array",
-          description: "Optional array of image URLs.",
-          items: { type: "string" },
+          description:
+            "Optional image gallery, in order, as [{ url }]. Core's create route refuses bare strings (\"Field 'images, 0' is required\"). Store the RAW image URL, never a /cdn-cgi/image/ one (the storefront wraps it again and 404s).",
+          items: { type: "object", properties: { url: STR("Image URL.") }, required: ["url"] },
         },
         categories: {
           type: "array",
