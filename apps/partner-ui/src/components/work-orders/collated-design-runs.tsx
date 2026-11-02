@@ -11,6 +11,7 @@ import {
   bulkActions,
   describeBulkFailures,
 } from "../../lib/collated-actions"
+import { formatPlannedOutput } from "../../lib/planned-sizes"
 import type { RunActionKey } from "../../lib/run-phase"
 import {
   BulkActionDrawer,
@@ -78,6 +79,8 @@ const DesignLineHeadline = ({ line }: { line: CollatedLine }) => {
   const { production_run } = useDesignLineRun(line)
   const quantity = Number(line?.quantity) || 0
   const badge = production_run ? runPartnerBadge(production_run) : null
+  // #2500 — a bundle's design shows its planned sizes in the list row too.
+  const sizes = formatPlannedOutput((production_run as any)?.planned_output)
   return (
     <div className="flex min-w-0 flex-1 items-center gap-x-3">
       <Heading level="h3" className="truncate">
@@ -85,6 +88,7 @@ const DesignLineHeadline = ({ line }: { line: CollatedLine }) => {
       </Heading>
       <Text size="xsmall" className="text-ui-fg-subtle shrink-0">
         Qty {quantity}
+        {sizes ? ` · ${sizes}` : ""}
       </Text>
       {badge && (
         <StatusBadge color={badge.color} className="shrink-0">

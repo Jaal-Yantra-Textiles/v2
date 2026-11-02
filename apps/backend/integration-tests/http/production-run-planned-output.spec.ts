@@ -117,7 +117,7 @@ setupSharedTestSuite(() => {
 
     it("records the plan on the run, and a child covering the same total inherits it", async () => {
       const designId = await createSizedDesign()
-      const { partnerId } = await registerPartner("plan")
+      const { partnerId, headers } = await registerPartner("plan")
 
       const res = await api
         .post(
@@ -148,6 +148,12 @@ setupSharedTestSuite(() => {
       expect(parent.planned_output).toEqual(expected)
       expect(child.parent_run_id).toBe(parent.id)
       expect(child.planned_output).toEqual(expected)
+
+      // #2500 — the partner app shows the plan before completion, so the
+      // partner's own run read must carry it.
+      const seen = await api.get(`/partners/production-runs/${child.id}`, { headers })
+      expect(seen.status).toBe(200)
+      expect(seen.data.production_run.planned_output).toEqual(expected)
     })
 
     it("refuses a plan naming a size the design does not have", async () => {
