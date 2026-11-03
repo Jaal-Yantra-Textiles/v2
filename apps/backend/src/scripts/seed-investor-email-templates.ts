@@ -6,6 +6,9 @@
  * (data inlined as a const, not a JSON import, so it survives the prod
  * `medusa build` with no asset-copy dependency).
  *
+ * Also carries `investor-update`, the company letter sent by
+ * `POST /admin/companies/:id/send-update`.
+ *
  * Covers the template the invite chain resolves by key:
  *   - investor-created-from-admin  (admin provisions an investor → temp password)
  *     resolved via `send-admin-investor-creation-email` → `sendNotificationEmailWorkflow`.
@@ -52,6 +55,27 @@ export const investorEmailTemplates = [
       current_year: "Year",
     },
     html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{investor_name}},</h1><p style="font-size:14px;line-height:1.6;color:#3f3f46">Your <strong>{{quarter}}</strong> quarterly report for <strong>Jaal Yantra Textiles</strong> is now available. This report includes financial highlights, portfolio updates, and key metrics for the period.</p><p style="margin:20px 0;text-align:center"><a href="{{report_url}}" style="background:#18181b;color:#fff;text-decoration:none;padding:10px 18px;border-radius:8px;font-size:14px;display:inline-block">View your quarterly report</a></p><p style="font-size:13px;line-height:1.6;color:#71717a">If the button doesn't work, copy this link into your browser:<br/><span style="color:#3f3f46">{{report_url}}</span></p><p style="font-size:12px;color:#a1a1aa;margin-top:24px">This report is confidential and intended for registered investors only.</p><p style="font-size:12px;color:#a1a1aa;margin-top:12px">Jaal Yantra Textiles · {{current_year}}</p></div>`,
+  },
+  {
+    // Free-form letter from a company to its investors —
+    // `POST /admin/companies/:id/send-update`. The admin's text arrives
+    // pre-escaped as `body_html` (see lib/investors/company-update.ts).
+    template_key: "investor-update",
+    name: "Investor — Company Update",
+    template_type: "investor",
+    from: "investors@jaalyantra.com",
+    is_active: true,
+    subject: "{{subject}}",
+    variables: {
+      investor_name: "Investor display name",
+      subject: "Subject the admin wrote",
+      body_html: "The letter, already HTML-escaped",
+      company_name: "Company legal name",
+      sender_name: "Who signs the letter",
+      portal_url: "Investor portal URL",
+      current_year: "Year",
+    },
+    html_content: `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;color:#18181b"><h1 style="font-size:18px;margin:0 0 12px">Hi {{investor_name}},</h1><div style="font-size:14px;line-height:1.6;color:#3f3f46">{{{body_html}}}</div>{{#if portal_url}}<p style="font-size:13px;line-height:1.6;color:#71717a;margin-top:20px">Your holdings and the company's documents are on the investor portal: <a href="{{portal_url}}" style="color:#3f3f46">{{portal_url}}</a></p>{{/if}}<p style="font-size:14px;line-height:1.6;color:#3f3f46;margin-top:20px">{{sender_name}}<br/>{{company_name}}</p><p style="font-size:12px;color:#a1a1aa;margin-top:24px">This update is confidential and intended for the company's investors only.</p><p style="font-size:12px;color:#a1a1aa;margin-top:12px">{{company_name}} · {{current_year}}</p></div>`,
   },
   {
     template_key: "investor-referral-team",

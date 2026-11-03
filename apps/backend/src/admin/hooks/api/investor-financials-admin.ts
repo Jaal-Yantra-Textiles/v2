@@ -181,3 +181,41 @@ export const useUpdateCompanyCompliance = (
     },
   })
 }
+
+// ---- Company update letter to investors ------------------------------------
+
+export type SendCompanyUpdatePayload = {
+  subject: string
+  message: string
+  sender_name?: string
+  investor_ids?: string[]
+  /** false/omitted = preview only. */
+  confirm?: boolean
+}
+
+export type SendCompanyUpdateResponse = {
+  preview: boolean
+  sent: number
+  failed?: number
+  subject: string
+  sender_name: string
+  company_name: string
+  body_html: string
+  template_ready: boolean
+  recipients: Array<{ investor_id: string; name: string; email: string }>
+  skipped: Array<{ investor_id: string; name: string; reason: string }>
+  results?: Array<{ investor_id: string; email: string; notification_id?: string; error?: string }>
+}
+
+export const useSendCompanyUpdate = (
+  companyId: string,
+  options?: UseMutationOptions<SendCompanyUpdateResponse, FetchError, SendCompanyUpdatePayload>
+) =>
+  useMutation({
+    ...options,
+    mutationFn: (payload) =>
+      sdk.client.fetch(`/admin/companies/${companyId}/send-update`, {
+        method: "POST",
+        body: payload,
+      }),
+  })
