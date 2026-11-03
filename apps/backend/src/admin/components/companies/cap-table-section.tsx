@@ -14,6 +14,7 @@ import { useMemo } from "react"
 import { Link } from "react-router-dom"
 import { ActionMenu } from "../common/action-menu"
 import { OwnershipDonut, type DonutSegment } from "./ownership-donut"
+import { ABSORBED_STAKE_STATUSES, ownershipByHolder } from "../../lib/cap-table-ownership"
 import {
   useCompanyCapTables,
   useCapTableConvertibles,
@@ -22,7 +23,6 @@ import {
   type AdminCapTable,
   type AdminConvertible,
   type AdminFundingRound,
-  type AdminStake,
 } from "../../hooks/api/cap-tables-admin"
 
 const num = (v?: number | null) =>
@@ -30,9 +30,6 @@ const num = (v?: number | null) =>
 
 const money = (v?: number | null, ccy?: string | null) =>
   v == null ? "—" : `${ccy ? ccy + " " : ""}${new Intl.NumberFormat().format(Number(v))}`
-
-const stakeValue = (s: AdminStake) =>
-  Number(s.total_invested ?? 0) || Number(s.number_of_shares ?? 0) || 0
 
 const stakeStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
   switch (s) {
@@ -53,8 +50,7 @@ const stakeStatusColor = (s?: string): "green" | "orange" | "red" | "grey" => {
 }
 
 // A participation is "absorbed" into the capital table only once it's fully
-// paid. Committed money and share count exclude parked/declined stakes.
-const ABSORBED_STATUSES = new Set(["fully_paid"])
+// paid (ABSORBED_STAKE_STATUSES). Committed money excludes parked/declined stakes.
 const EXCLUDED_STATUSES = new Set(["rejected", "not_followed_up", "cancelled"])
 
 const roundStatusColor = (status?: string): "green" | "orange" | "grey" | "red" => {
@@ -80,10 +76,13 @@ const OwnershipPanel = ({ capTable }: { capTable: AdminCapTable }) => {
   const { segments, totalCommitted, totalPaid, absorbedCount } = useMemo(() => {
     // Capital table = fully absorbed (paid) stakes only. The ownership donut
     // reflects who actually holds paid-up equity, not who merely committed.
-    const absorbed = stakes.filter((s) => ABSORBED_STATUSES.has(s.status ?? ""))
-    const segs: DonutSegment[] = absorbed.map((s) => ({
-      label: s.investor?.name ?? "Investor",
-      value: stakeValue(s),
+    // One slice per HOLDER by shares held — a holder with several stakes
+    // (founding shares + a loan conversion) is one slice, not several.
+    const absorbed = stakes.filter((s) => ABSORBED_STAKE_STATUSES.has(s.status ?? ""))
+    const holders = ownershipByHolder(stakes)
+    const segs: DonutSegment[] = holders.map((h) => ({
+      label: h.label,
+      value: h.value,
       highlight: true,
     }))
     // Committed = still-live pipeline (excludes declined / not-followed-up /
@@ -99,7 +98,7 @@ const OwnershipPanel = ({ capTable }: { capTable: AdminCapTable }) => {
       segments: segs,
       totalCommitted: committed,
       totalPaid: paid,
-      absorbedCount: absorbed.length,
+      absorbedCount: holders.length,
     }
   }, [stakes])
 
