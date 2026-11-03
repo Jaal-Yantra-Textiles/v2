@@ -10,7 +10,7 @@ import {
   useDataTable,
 } from "@medusajs/ui"
 import { UIMatch, useParams, Link, Outlet } from "react-router-dom"
-import { CheckCircleSolid, FlagMini, Plus } from "@medusajs/icons"
+import { CheckCircleSolid, EnvelopeSolid, FlagMini, Plus } from "@medusajs/icons"
 import {
   PIPELINE_STAGES,
   useCompany,
@@ -137,6 +137,7 @@ const CompanyDetailPage = () => {
               {
                 actions: [
                   { icon: <Plus />, label: "Invite investor", to: "invite-investor" },
+                  { icon: <EnvelopeSolid />, label: "Send update", to: "send-update" },
                 ],
               },
             ]}
@@ -152,7 +153,7 @@ const CompanyDetailPage = () => {
       <ComplianceSection companyId={id!} company={company} />
 
       {/* Route-modal outlet: @add-share-class, @add-round, @record-payment,
-          @add-document, @edit-details, @create-cap-table, @participations,
+          @add-document, @edit-details, @create-cap-table, @participations, @send-update,
           @invite-investor render here as drawers / focus modals. */}
       <Outlet />
     </div>
