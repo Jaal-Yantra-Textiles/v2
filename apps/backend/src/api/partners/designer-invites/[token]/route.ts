@@ -1,6 +1,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { DESIGNER_INVITE_MODULE } from "../../../../modules/designer-invite"
+import { coreScene } from "../../../../modules/designs/lib/moodboard-ownership"
 import { hashInviteToken, isInviteUsable } from "../../../../modules/designer-invite/lib/token"
 
 /**
@@ -28,10 +29,32 @@ export const GET = async (
   const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
   const { data: designs = [] } = await query.graph({
     entity: "design",
-    fields: ["id", "name", "description", "design_type", "moodboard"],
+    fields: [
+      "id",
+      "name",
+      "description",
+      "design_type",
+      "moodboard",
+      "moodboards.id",
+      "moodboards.owner_type",
+      "moodboards.partner_id",
+      "moodboards.scene",
+    ],
     filters: { id: invite.design_id },
   })
-  const design = designs[0] || null
+  const row = designs[0] || null
+  // The core board lives in `design_moodboard` since #2017 and the mint-time
+  // seed writes only there; `design.moodboard` is just the legacy fallback.
+  // Reading the column alone showed "No moodboard yet" on a seeded board.
+  const design = row
+    ? {
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        design_type: row.design_type,
+        moodboard: coreScene(row.moodboards as any, row.moodboard) ?? null,
+      }
+    : null
 
   res.json({
     invite: {

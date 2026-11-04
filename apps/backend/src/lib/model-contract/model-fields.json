@@ -1167,6 +1167,24 @@
       "updated_at"
     ]
   },
+  "DesignPreviewLink (modules/designer-invite/models/design-preview-link.ts)": {
+    "file": "modules/designer-invite/models/design-preview-link.ts",
+    "fields": [
+      "created_at",
+      "created_by",
+      "deleted_at",
+      "expires_at",
+      "id",
+      "label",
+      "metadata",
+      "partner_id",
+      "revoked_at",
+      "scope",
+      "scope_id",
+      "token_hash",
+      "updated_at"
+    ]
+  },
   "DesignSizeSets (modules/designs/models/design_size_set.ts)": {
     "file": "modules/designs/models/design_size_set.ts",
     "fields": [
