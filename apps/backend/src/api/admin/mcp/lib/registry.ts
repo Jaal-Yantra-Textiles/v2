@@ -8879,6 +8879,57 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["request_order_approval", "get_order_balance"],
   },
   {
+    name: "create_design_preview_link",
+    description: [
+      "Mint a READ-ONLY, no-login link to the moodboards of a bundle (pass `order_id`, a collated design work order) or of one design (`design_id`) — #2500. For sending a production unit the boards to look at.",
+      "",
+      "Sends NOTHING: returns `url` for the admin to check and forward. Requires confirm:true. Not a designer invite — the page has no accept/sign-up, creates no partner, and keeps working for any number of viewers until it expires (`expires_in_days`, omit for none) or is revoked.",
+      "",
+      "Each design shows its CORE board (ours), read at view time, so later edits show. The raw token is returned once; a lost link is replaced by minting another.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/design-preview-links",
+    write: true,
+    sensitive: true,
+    bodyParams: ["order_id", "design_id", "expires_in_days", "partner_id", "label", "metadata"],
+    inputSchema: obj({
+      order_id: STR("A bundle: every design on this design work order, e.g. 'order_...'. Pass this OR design_id."),
+      design_id: STR("One design. Pass this OR order_id."),
+      expires_in_days: { type: "integer", description: "Days until the link stops working (1-365). Omit for a link that lasts until revoked." },
+      partner_id: STR("Who it is for (recorded only). Defaults to the work order's partner."),
+      label: STR("Page heading. Defaults to 'Bundle #<n>'."),
+      metadata: { type: "object", description: "Free-form notes." },
+    }),
+    sideEffects: "Creates a preview link row. Sends no message.",
+    nextSteps: ["list_design_preview_links", "revoke_design_preview_link"],
+  },
+  {
+    name: "list_design_preview_links",
+    description:
+      "List the read-only moodboard preview links minted for a bundle (`order_id`) or a design (`design_id`), newest first — scope, label, who it was for, expiry, whether revoked, and `usable`. The URL itself is not stored and cannot be listed. Read.",
+    method: "GET",
+    path: "/admin/design-preview-links",
+    queryParams: ["order_id", "design_id"],
+    inputSchema: obj({
+      order_id: STR("Work order id."),
+      design_id: STR("Design id."),
+    }),
+    nextSteps: ["create_design_preview_link", "revoke_design_preview_link"],
+  },
+  {
+    name: "revoke_design_preview_link",
+    description:
+      "Revoke a moodboard preview link: its page stops showing the designs at once. Cannot be undone — mint a new link instead. Requires confirm:true.",
+    method: "DELETE",
+    path: "/admin/design-preview-links/:id",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Preview link id (from list_design_preview_links).") }, ["id"]),
+    sideEffects: "Sets revoked_at; anyone holding the link loses access.",
+    nextSteps: ["create_design_preview_link"],
+  },
+  {
     name: "get_production_run_payments",
     description:
       "Read whether a production run has already been billed and by which payout — the run's billing status, the live claim, what remains billable, and every line naming this run. Read. 🔴 The run does not know it has been billed; this is the one place to learn that before creating a payout for it. Call it BEFORE create_payment_submission so a completed run already paid for is not claimed twice.",

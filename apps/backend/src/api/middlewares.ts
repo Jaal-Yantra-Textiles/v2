@@ -346,6 +346,7 @@ import { PartnerPostDesignTasksReq } from "./partners/designs/[designId]/tasks/v
 import { DesignBriefSchema as PartnerDesignBriefSchema, UpdateDesignBriefSchema as PartnerUpdateDesignBriefSchema } from "./partners/designs/[designId]/brief/validators";
 import { SavePartnerMoodboardSchema } from "./partners/designs/[designId]/moodboard/validators";
 import { AdminCreateDesignerInviteSchema } from "./admin/designs/[id]/designer-invites/validators";
+import { AdminCreateDesignPreviewLinkSchema } from "./admin/design-preview-links/validators";
 import { AcceptDesignerInviteSchema } from "./partners/designer-invites/[token]/accept/validators";
 import { PartnerPostProductionRunConsumptionLogReq } from "./partners/production-runs/[id]/consumption-logs/validators";
 import { listPartnersQuerySchema, PostPartnerSchema } from "./admin/partners/validators";
@@ -5282,6 +5283,14 @@ export default defineMiddlewares({
       matcher: "/admin/designs/:id/designer-invites",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminCreateDesignerInviteSchema))],
+    },
+
+    // Design preview link (#2500): a read-only, no-login link to a bundle's
+    // (or one design's) moodboards. The page is GET /partners/design-previews/:token.
+    {
+      matcher: "/admin/design-preview-links",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateDesignPreviewLinkSchema))],
     },
 
     // Inventory linkin on designs

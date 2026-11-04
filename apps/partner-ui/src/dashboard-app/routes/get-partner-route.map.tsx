@@ -1671,6 +1671,11 @@ export function getPartnerRouteMap(): RouteObject[] {
           path: "/designer-invite/:token",
           lazy: () => import("../../routes/designer-invite"),
         },
+        {
+          // #2500 — read-only bundle/design moodboard preview (token = capability).
+          path: "/design-preview/:token",
+          lazy: () => import("../../routes/design-preview"),
+        },
       ],
     },
     {

@@ -102,6 +102,7 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/partners", "partners"],
   ["/admin/designs", "designs"],
   ["/admin/design-work-orders", "designs"],
+  ["/admin/design-preview-links", "designs"],
   ["/admin/production-run-policy", "production"],
   ["/admin/production-runs", "production"],
   // Task templates ARE the dispatch vocabulary — every run tool that takes
