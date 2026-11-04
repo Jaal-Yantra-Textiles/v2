@@ -96,7 +96,13 @@ export const DataTableRoot = <TData,>({
   const hasCommandBar = commands && commands.length > 0;
 
   const rowSelection = table.getState().rowSelection;
-  const { pageIndex, pageSize } = table.getState().pagination;
+  // A table built with `enablePagination: false` has NO pagination state
+  // (useDataTable passes `pagination: undefined`), so read it defensively —
+  // destructuring it directly crashed the Designs "Bundles" view.
+  const { pageIndex, pageSize } = table.getState().pagination ?? {
+    pageIndex: 0,
+    pageSize: count,
+  };
 
   const colCount = columns.length - (hasSelect ? 1 : 0) - (hasActions ? 1 : 0);
   const colWidth = 100 / colCount;
