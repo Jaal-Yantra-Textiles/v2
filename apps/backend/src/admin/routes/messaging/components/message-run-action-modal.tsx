@@ -21,8 +21,14 @@ import {
   useAddRunActivityNote,
   useAdminCompleteRun,
   useAttachMediaToRun,
+  useProductionRun,
   type AdminProductionRun,
 } from "../../../hooks/api/production-runs"
+import {
+  completionConsumptionsPayload,
+  completionMaterialRows,
+  type CompletionMaterialRow,
+} from "../../../lib/completion-materials"
 
 export type MessageRunActionType = "activity_note" | "attach_media" | "complete_run"
 
@@ -83,6 +89,7 @@ export const MessageRunActionModal = ({
   const [costType, setCostType] = useState<"per_unit" | "total">("total")
   const [allowShortfall, setAllowShortfall] = useState(false)
   const [sendSummary, setSendSummary] = useState(true)
+  const [materialRows, setMaterialRows] = useState<CompletionMaterialRow[]>([])
 
   // Fetch the partner's production runs. complete_run asks the server for
   // in_progress runs only; activity_note / attach_media fetch the partner's
@@ -152,6 +159,26 @@ export const MessageRunActionModal = ({
     () => productionRuns.find((r) => r.id === selectedRunId),
     [productionRuns, selectedRunId]
   )
+
+  // The run's planned material, to prefill "Material used". The detail carries
+  // both the allocation (`materials`) and the design BOM on the snapshot.
+  const { production_run: runDetail, materials: runAllocation } = (useProductionRun(
+    selectedRunId,
+    undefined,
+    { enabled: open && actionType === "complete_run" && !!selectedRunId }
+  ) as any)
+  useEffect(() => {
+    setMaterialRows(completionMaterialRows(runDetail, runAllocation))
+  }, [runDetail?.id, runAllocation])
+
+  const setMaterialField = (
+    index: number,
+    field: "quantity" | "unit_cost",
+    value: string
+  ) =>
+    setMaterialRows((rows) =>
+      rows.map((r, i) => (i === index ? { ...r, [field]: value } : r))
+    )
 
   const title = actionType === "activity_note"
     ? "Add to run activity log"
@@ -233,6 +260,7 @@ export const MessageRunActionModal = ({
         cost_type: costType,
         notes: noteText.trim() || undefined,
         allow_shortfall: allowShortfall,
+        consumptions: completionConsumptionsPayload(materialRows),
         from_message_id: message.id,
         from_conversation_id: conversationId,
       })
@@ -469,6 +497,48 @@ export const MessageRunActionModal = ({
                       rows={2}
                       placeholder="Describe the rejection…"
                     />
+                  </div>
+                )}
+
+                {materialRows.length > 0 && (
+                  <div className="mb-4">
+                    <Label>Material used</Label>
+                    <Text size="xsmall" className="text-ui-fg-subtle mb-2">
+                      What the whole run used, prefilled from its plan. Clear a
+                      quantity to leave that material out. Cloth we sent to the
+                      partner comes off our stock when the run completes.
+                    </Text>
+                    <div className="flex flex-col gap-2">
+                      {materialRows.map((row, i) => (
+                        <div
+                          key={row.inventory_item_id}
+                          className="grid grid-cols-[1fr_7rem_7rem] items-end gap-2"
+                        >
+                          <Text size="small" className="truncate pb-2">
+                            {row.title}
+                            <span className="text-ui-fg-muted"> · {row.unit_of_measure}</span>
+                          </Text>
+                          <Input
+                            aria-label={`${row.title} quantity`}
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={row.quantity}
+                            onChange={(e) => setMaterialField(i, "quantity", e.target.value)}
+                            placeholder="Qty"
+                          />
+                          <Input
+                            aria-label={`${row.title} cost per unit`}
+                            type="number"
+                            min={0}
+                            step="any"
+                            value={row.unit_cost}
+                            onChange={(e) => setMaterialField(i, "unit_cost", e.target.value)}
+                            placeholder="₹ / unit"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 

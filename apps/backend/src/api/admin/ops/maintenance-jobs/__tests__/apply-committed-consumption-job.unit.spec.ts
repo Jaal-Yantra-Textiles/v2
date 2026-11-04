@@ -36,6 +36,10 @@ const makeContainer = (opts: {
   designLinks?: Array<Record<string, any>>
   /** location_ownership rows; omit for the brand-store fallback. */
   ownership?: Array<Record<string, any>>
+  /** partner id → the stock location the partner is linked to. */
+  partnerLocations?: Record<string, string>
+  /** goods_transfer rows (material transfers). */
+  transfers?: Array<Record<string, any>>
 }) => {
   const listLogs = jest.fn(async (filters: Record<string, any>) => {
     const ids: string[] | undefined = filters?.id
@@ -56,7 +60,11 @@ const makeContainer = (opts: {
   ]
 
   const query = {
-    graph: jest.fn(async ({ entity }: { entity: string }) => {
+    graph: jest.fn(async ({ entity, filters }: { entity: string; filters?: any }) => {
+      if (entity === "partners") {
+        const loc = opts.partnerLocations?.[filters?.id]
+        return { data: [{ stock_locations: loc ? [{ id: loc }] : [] }] }
+      }
       if (entity === "inventory_level") {
         return { data: levels }
       }
@@ -84,6 +92,21 @@ const makeContainer = (opts: {
           listAndCountProductionRuns: jest
             .fn()
             .mockResolvedValue([opts.runs ?? [], (opts.runs ?? []).length]),
+          listProductionRuns: jest.fn(async (f: any) =>
+            (opts.runs ?? []).filter((r) => !f?.id || f.id.includes(r.id))
+          ),
+        }
+      }
+      if (key === "fullfilled_orders") {
+        return {
+          listGoodsTransfers: jest.fn(async (f: any) =>
+            (opts.transfers ?? []).filter(
+              (t) =>
+                f.inventory_item_id.includes(t.inventory_item_id) &&
+                f.to_location_id.includes(t.to_location_id) &&
+                t.status === f.status
+            )
+          ),
         }
       }
       // consumption_log
@@ -304,5 +327,92 @@ describe("apply-committed-consumption-to-inventory — location rule (#2406)", (
     expect(listLogs.mock.calls[0][0]).toMatchObject({ id: ["log_a"] })
     const [{ input }] = runInventoryLevels.mock.calls[0]
     expect(input.updates[0].stocked_quantity).toBe(19)
+  })
+})
+
+/**
+ * Consignment by transfer — prod 2026-11-04. Prince's denim run had no material
+ * allocation; our 13.3 m of handloom denim reached Prince's warehouse through
+ * two admin material transfers out of Dharamshala, and the design's Preferred
+ * location still pointed at Dharamshala. Completing the run consumed 6.45 m and
+ * the deduction skipped as partner-held; the level was corrected by hand.
+ */
+describe("apply-committed-consumption-to-inventory — material we transferred to the partner", () => {
+  const OURS = "sloc_dharamshala"
+  const PRINCE = "sloc_prince"
+  const OTHER = "sloc_other_partner"
+  const ownership = [
+    { stock_location_id: OURS, is_core: true },
+    { stock_location_id: PRINCE, is_core: false },
+    { stock_location_id: OTHER, is_core: false },
+  ]
+  const levels = [
+    { id: "ilev_ours", inventory_item_id: ITEM, location_id: OURS, stocked_quantity: 0 },
+    { id: "ilev_prince", inventory_item_id: ITEM, location_id: PRINCE, stocked_quantity: 12.3 },
+    { id: "ilev_other", inventory_item_id: ITEM, location_id: OTHER, stocked_quantity: 4 },
+  ]
+  const runs = [{ id: "run_prince", partner_id: "partner_prince", design_id: "design_1", status: "completed", produced_quantity: 3 }]
+  const delivered = { inventory_item_id: ITEM, to_location_id: PRINCE, status: "delivered" }
+  const runLog = (over: Log = {}) =>
+    committedLog({ production_run_id: "run_prince", quantity: 6.45, ...over })
+
+  const apply = (o: Partial<Parameters<typeof makeContainer>[0]> & { logs: Log[] }) => {
+    const made = makeContainer({
+      levels,
+      ownership,
+      runs,
+      partnerLocations: { partner_prince: PRINCE },
+      designLinks: [{ design_id: "design_1", inventory_item_id: ITEM, location_id: OURS }],
+      ...o,
+    })
+    return applyCommittedConsumptionJob
+      .run(made.container, { dry_run: false, params: {} } as any)
+      .then((result) => ({ result, ...made }))
+  }
+
+  it("deducts at the partner's warehouse when we transferred that cloth there (admin log naming it)", async () => {
+    const { result } = await apply({ logs: [runLog({ location_id: PRINCE })], transfers: [delivered] })
+
+    expect(result.applied).toBe(true)
+    const [{ input }] = runInventoryLevels.mock.calls[0]
+    expect(input.updates).toEqual([
+      { id: "ilev_prince", inventory_item_id: ITEM, location_id: PRINCE, stocked_quantity: 5.85 },
+    ])
+    expect(result.summary).toMatch(/consignment/)
+  })
+
+  it("deducts there for a partner completion log with no location of its own", async () => {
+    const { result } = await apply({ logs: [runLog({ location_id: null })], transfers: [delivered] })
+
+    expect(result.applied).toBe(true)
+    const [{ input }] = runInventoryLevels.mock.calls[0]
+    expect(input.updates[0]).toMatchObject({ location_id: PRINCE, stocked_quantity: 5.85 })
+  })
+
+  it("still skips when no transfer of ours reached that warehouse (the partner's own cloth)", async () => {
+    const { result } = await apply({ logs: [runLog({ location_id: PRINCE })], transfers: [] })
+
+    expect(result.applied).toBe(false)
+    expect(runInventoryLevels).not.toHaveBeenCalled()
+  })
+
+  it("does not count a transfer that has not been counted in yet", async () => {
+    const { result } = await apply({
+      logs: [runLog({ location_id: PRINCE })],
+      transfers: [{ ...delivered, status: "in_transit" }],
+    })
+
+    expect(result.applied).toBe(false)
+    expect(runInventoryLevels).not.toHaveBeenCalled()
+  })
+
+  it("never lets a run take our cloth off ANOTHER partner's bench by naming it", async () => {
+    const { result } = await apply({
+      logs: [runLog({ location_id: OTHER })],
+      transfers: [{ ...delivered, to_location_id: OTHER }],
+    })
+
+    expect(result.applied).toBe(false)
+    expect(runInventoryLevels).not.toHaveBeenCalled()
   })
 })

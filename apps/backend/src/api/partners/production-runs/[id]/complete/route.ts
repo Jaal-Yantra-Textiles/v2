@@ -6,6 +6,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { completeProductionRunWorkflow } from "../../../../../workflows/production-runs/complete-production-run"
 import { costTypeGuardMessage } from "../../../../../workflows/production-runs/lib/cost-type-guard"
+import { CompletionConsumptionsSchema } from "../../../../admin/production-runs/consumption-schema"
 import { OutputLinesSchema } from "../../../../admin/production-runs/output-schema"
 
 const REJECTION_REASONS = [
@@ -26,29 +27,7 @@ const CompleteBodySchema = z.object({
   rejection_notes: z.string().optional(),
   partner_cost_estimate: z.number().positive().optional(),
   cost_type: z.enum(["per_unit", "total"]).optional(),
-  consumptions: z
-    .array(
-      z.object({
-        inventory_item_id: z.string().optional(),
-        quantity: z.number().positive(),
-        /**
-         * What `quantity` measures: what this run used in all ("total") or one
-         * piece's worth ("per_piece"). Without it the log never comes off
-         * stock — the apply job refuses to guess a basis.
-         */
-        quantity_basis: z.enum(["total", "per_piece"]).optional(),
-        unit_cost: z.number().positive().optional(),
-        unit_of_measure: z
-          .enum(["Meter", "Yard", "Kilogram", "Gram", "Piece", "Roll", "kWh", "Liter", "Cubic_Meter", "Hour", "Other"])
-          .optional(),
-        consumption_type: z
-          .enum(["sample", "production", "wastage", "energy_electricity", "energy_water", "energy_gas", "labor"])
-          .optional(),
-        location_id: z.string().optional(),
-        notes: z.string().optional(),
-      })
-    )
-    .optional(),
+  consumptions: CompletionConsumptionsSchema.optional(),
   notes: z.string().optional(),
   /**
    * Complete with less output than was ordered, deliberately. The workflow

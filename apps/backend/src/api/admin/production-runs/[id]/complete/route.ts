@@ -8,6 +8,7 @@ import { PRODUCTION_RUNS_MODULE } from "../../../../../modules/production_runs"
 import type ProductionRunService from "../../../../../modules/production_runs/service"
 import { adminCompleteProductionRunWorkflow } from "../../../../../workflows/production-runs/admin-complete-production-run"
 import { costTypeGuardMessage } from "../../../../../workflows/production-runs/lib/cost-type-guard"
+import { CompletionConsumptionsSchema } from "../../consumption-schema"
 import { OutputLinesSchema } from "../../output-schema"
 
 const REJECTION_REASONS = [
@@ -28,6 +29,11 @@ const CompleteBodySchema = z.object({
   rejection_notes: z.string().optional(),
   partner_cost_estimate: z.number().positive().optional(),
   cost_type: z.enum(["per_unit", "total"]).optional(),
+  /**
+   * What the run used. Logged as the admin's, and committed at the end of the
+   * completion like a partner's — committing is what takes it off our stock.
+   */
+  consumptions: CompletionConsumptionsSchema.optional(),
   notes: z.string().optional(),
   allow_shortfall: z.boolean().optional(),
   /** #2271 — what was made, per size/colour. See the partner complete route. */
@@ -126,6 +132,8 @@ export const POST = async (
       partner_cost_estimate: body.partner_cost_estimate,
       cost_type: body.cost_type,
       allow_shortfall: body.allow_shortfall,
+      consumptions: body.consumptions,
+      consumed_by: "admin",
       notes: body.notes,
       override_note: body.notes,
       produced_output: body.produced_output ?? undefined,
