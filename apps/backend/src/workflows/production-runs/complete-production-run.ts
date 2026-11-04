@@ -70,6 +70,8 @@ export type CompleteProductionRunInput = PartnerRunInput & {
   partner_cost_estimate?: number
   cost_type?: "per_unit" | "total"
   consumptions?: ConsumptionEntry[]
+  /** Who reported `consumptions` — the admin closing a run records its own. */
+  consumed_by?: "admin" | "partner"
   notes?: string
   /**
    * Complete with LESS output than was ordered, deliberately.
@@ -209,6 +211,7 @@ const logConsumptionsStep = createStep(
       production_run_id: string
       run_type: string
       default_location_id: string | undefined
+      consumed_by: "admin" | "partner"
     },
     { container }
   ) => {
@@ -230,7 +233,7 @@ const logConsumptionsStep = createStep(
             unit_cost: c.unit_cost,
             unit_of_measure: c.unit_of_measure as any,
             consumption_type: (c.consumption_type || (input.run_type === "sample" ? "sample" : "production")) as any,
-            consumed_by: "partner" as const,
+            consumed_by: input.consumed_by,
             location_id: c.location_id || input.default_location_id,
             notes: c.notes,
           },
@@ -626,6 +629,7 @@ export const completeProductionRunWorkflow = createWorkflow(
         production_run_id: data.input.production_run_id,
         run_type: (data.run as any).run_type || "production",
         default_location_id: data.partnerLocation.location_id,
+        consumed_by: (data.input.consumed_by ?? "partner") as "admin" | "partner",
       })
     )
 

@@ -703,6 +703,14 @@ export type AdminCompleteRunPayload = {
   cost_type?: "per_unit" | "total"
   notes?: string
   allow_shortfall?: boolean
+  /** What the run used — logged as the admin's and committed on completion. */
+  consumptions?: Array<{
+    inventory_item_id: string
+    quantity: number
+    quantity_basis: "total" | "per_piece"
+    unit_cost?: number
+    unit_of_measure?: string
+  }>
   from_message_id?: string
   from_conversation_id?: string
 }

@@ -25,6 +25,10 @@ import {
   type ConsumptionApplyLog,
 } from "../../../../workflows/consumption-logs/lib/apply-to-inventory"
 import { readRunAllocation } from "../../../../lib/production-run-allocation"
+import {
+  mergeIssuedKeys,
+  readTransferredMaterialKeysByRun,
+} from "../../../../workflows/consumption-logs/lib/transferred-material"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -225,7 +229,9 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
     // come off our books when it becomes a garment, even though the building is
     // not ours. The run's own material allocation is what says we issued it:
     // written by us at approval, and something a partner cannot forge.
-    const issuedLocationKeysByRun: Record<string, Set<string>> = {}
+    // So is a delivered material transfer into the run's partner location —
+    // see `readTransferredMaterialKeysByRun`.
+    let issuedLocationKeysByRun: Record<string, Set<string>> = {}
     {
       const runIds = Array.from(
         new Set(considered.map((l) => l.production_run_id).filter(Boolean))
@@ -244,6 +250,10 @@ export const applyCommittedConsumptionJob: MaintenanceJob = {
           issuedLocationKeysByRun[runId] = keys
         }
       }
+      issuedLocationKeysByRun = mergeIssuedKeys(
+        issuedLocationKeysByRun,
+        await readTransferredMaterialKeysByRun(container, runIds, itemIds)
+      )
     }
 
     // Where each log draws from, most specific first:
@@ -504,6 +514,12 @@ async function resolveLocationByLog(
     const keys = issuedLocationKeysByRun[l.production_run_id]
     if (!keys) {
       return undefined
+    }
+    // The log's own location first: once transfers count, one item can be
+    // issued to the same run at more than one place, and the log is what says
+    // which bench the cloth was cut at.
+    if (l.location_id && keys.has(levelKey(l.inventory_item_id, l.location_id))) {
+      return l.location_id
     }
     const prefix = `${l.inventory_item_id}@`
     for (const key of keys) {
