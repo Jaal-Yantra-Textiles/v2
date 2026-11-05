@@ -2,6 +2,8 @@ package com.jyt.partner.models
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -41,6 +43,11 @@ data class UnifiedOrderStatus(
     @SerialName("partner_status") val partnerStatus: String? = null,
 )
 
+/** The typed order-kind sidecar: "collated" (one order, many designs — a
+ *  bundle) or "per_run". Served by both the list and detail routes. */
+@Serializable
+data class UnifiedOrderKind(val kind: String? = null)
+
 @Serializable
 data class PartnerOrder(
     val id: String,
@@ -59,9 +66,28 @@ data class PartnerOrder(
     /** Run refs attached by the detail read — the matching production runs. */
     @SerialName("production_runs") val productionRuns: List<ProductionRunRef>? = null,
     @SerialName("unified_order_status") val unifiedOrderStatus: UnifiedOrderStatus? = null,
+    @SerialName("unified_order_kind") val unifiedOrderKind: UnifiedOrderKind? = null,
+    /** Kept raw — read only for the pre-sidecar `collated_design_order` flag. */
+    val metadata: JsonObject? = null,
 ) {
     val workStatus: WorkStatus?
         get() = WorkStatus.from(unifiedOrderStatus?.partnerStatus)
+
+    /**
+     * A bundle: one collated work order carrying many designs (the web's
+     * isCollatedOrder). An ABSENT kind means "nobody said" — orders from
+     * before the sidecar — so it falls back to the metadata flag; only an
+     * explicit "per_run" may mean per-run, or a bundle would render as its
+     * first design alone.
+     */
+    val isCollated: Boolean
+        get() = when (unifiedOrderKind?.kind) {
+            "collated" -> true
+            "per_run" -> false
+            // Boolean true only, like the web's `=== true` — not the string "true".
+            else -> (metadata?.get("collated_design_order") as? JsonPrimitive)
+                ?.let { !it.isString && it.content == "true" } == true
+        }
 }
 
 @Serializable
