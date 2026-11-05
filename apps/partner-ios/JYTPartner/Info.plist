@@ -21,7 +21,7 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>PartnerBackendURL</key>
-	<string>http://localhost:9000</string>
+	<string>$(PARTNER_BACKEND_URL)</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

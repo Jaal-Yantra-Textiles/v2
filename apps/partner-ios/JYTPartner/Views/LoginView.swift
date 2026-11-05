@@ -31,6 +31,17 @@ struct LoginView: View {
           .padding(.horizontal, 32)
       }
 
+      // Why we're here when the partner didn't sign out themselves.
+      if let notice = auth.sessionNotice {
+        Label(notice, systemImage: "clock.badge.exclamationmark")
+          .font(.footnote)
+          .foregroundStyle(.orange)
+          .padding(.horizontal, 12)
+          .padding(.vertical, 8)
+          .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+          .padding(.horizontal, 24)
+      }
+
       HStack(spacing: 4) {
         methodButton("Email", selected: !usePhone) { usePhone = false }
         methodButton("Phone", selected: usePhone) { usePhone = true }

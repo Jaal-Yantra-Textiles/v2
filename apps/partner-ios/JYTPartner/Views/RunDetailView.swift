@@ -8,6 +8,14 @@ struct RunDetailView: View {
 
   @State private var detail: ProductionRunDetail?
   @State private var design: DesignDetail?
+  /// The linked design (the Complete form's materials) failed to load.
+  @State private var designFailed = false
+  @State private var loadingDesign = false
+  /// Completed runs only; nil hides the Cost section (incl. on failure).
+  @State private var costSummary: RunCostSummary?
+  /// Materials logged on the run, read when the Finish sheet opens;
+  /// nil = unknown.
+  @State private var consumptionCount: Int?
   @State private var loading = true
   @State private var errorText: String?
   @State private var actionError: String?
@@ -61,8 +69,8 @@ struct RunDetailView: View {
             if let role = detail.production_run.role, !role.isEmpty {
               LabeledContent("Role", value: role)
             }
-            if let qty = detail.production_run.quantity {
-              LabeledContent("Quantity", value: "\(qty)")
+            if let qty = detail.production_run.quantityText {
+              LabeledContent("Quantity", value: qty)
             }
           }
 
@@ -88,12 +96,31 @@ struct RunDetailView: View {
             }
           }
 
+          if let costSummary {
+            costSection(costSummary, run: detail.production_run)
+          }
+
           if let designID = detail.production_run.design_id {
             Section("Design") {
               NavigationLink {
                 DesignDetailView(designID: designID, fallbackRow: nil)
               } label: {
                 Label("Open design", systemImage: "square.grid.2x2")
+              }
+              if designFailed {
+                HStack {
+                  Label("Couldn't load materials", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                  Spacer()
+                  if loadingDesign {
+                    ProgressView()
+                  } else {
+                    Button("Retry") { Task { await loadDesign() } }
+                      .buttonStyle(.borderless)
+                      .font(.footnote.weight(.semibold))
+                  }
+                }
               }
             }
           }
@@ -158,7 +185,7 @@ struct RunDetailView: View {
       FinishRunSheet(
         pendingTasks: pendingTasks,
         isSample: isSample,
-        consumptionCount: -1
+        consumptionCount: consumptionCount
       ) { notes in
         Task { await run(.finish, notes: notes) }
       }
@@ -169,7 +196,10 @@ struct RunDetailView: View {
         materials: RunMaterials.options(run: detail?.production_run, design: design),
         run: detail?.production_run
       ) { body in
-        Task { await run(.complete, completeBody: body) }
+        // Throws back into the sheet, which stays open on failure.
+        try await PartnerAPI.shared.completeRun(id: runID, body: body)
+        NotificationCenter.default.post(name: .runDidMutate, object: nil)
+        await load()
       }
     }
     .sheet(isPresented: $showProfitShareSheet) {
@@ -201,6 +231,29 @@ struct RunDetailView: View {
     }
   }
 
+  /// Your rate, your total and the cost per piece, from the cost summary.
+  private func costSection(_ summary: RunCostSummary, run: ProductionRun) -> some View {
+    let code = summary.currency.map { $0.uppercased() } ?? run.costCurrencyCode
+    let perPiece = (summary.partner?.cost_type ?? run.cost_type) == "per_unit"
+    return Section("Cost") {
+      if let estimate = summary.partner?.estimate {
+        LabeledContent("Your rate") {
+          Text(CompleteRunSheet.money(estimate, code) + (perPiece ? " / piece" : " total"))
+        }
+      }
+      if let total = summary.partner?.total {
+        LabeledContent("Your total") {
+          Text(CompleteRunSheet.money(total, code)).fontWeight(.semibold)
+        }
+      }
+      if let perUnit = summary.cost_per_unit {
+        LabeledContent("Cost per piece") {
+          Text(CompleteRunSheet.money(perUnit, code))
+        }
+      }
+    }
+  }
+
   @MainActor
   private func load() async {
     loading = detail == nil
@@ -214,13 +267,32 @@ struct RunDetailView: View {
         profitShare = share
       }
       // The linked design carries the complete form's material options.
-      if design == nil, let designID = detail?.production_run.design_id {
-        design = try? await PartnerAPI.shared.design(id: designID)
+      if design == nil {
+        await loadDesign()
+      }
+      if detail?.production_run.status == "completed" {
+        // Hidden when it fails — the run itself still reads fine.
+        costSummary = try? await PartnerAPI.shared.runCostSummary(id: runID)
+      } else {
+        costSummary = nil
       }
     } catch {
       loading = false
       errorText = (error as? LocalizedError)?.errorDescription
         ?? "Couldn't load this run."
+    }
+  }
+
+  @MainActor
+  private func loadDesign() async {
+    guard let designID = detail?.production_run.design_id else { return }
+    loadingDesign = true
+    defer { loadingDesign = false }
+    do {
+      design = try await PartnerAPI.shared.design(id: designID)
+      designFailed = false
+    } catch {
+      designFailed = true
     }
   }
 
@@ -232,7 +304,11 @@ struct RunDetailView: View {
     case .accept, .start:
       pendingAction = action
     case .finish:
-      showFinishSheet = true
+      Task {
+        // The real count, so the sheet's "no materials" nudge is true.
+        consumptionCount = try? await PartnerAPI.shared.runConsumptionLogCount(id: runID)
+        showFinishSheet = true
+      }
     case .complete:
       showCompleteSheet = true
     }
@@ -241,8 +317,7 @@ struct RunDetailView: View {
   @MainActor
   private func run(
     _ action: RunAction,
-    notes: String? = nil,
-    completeBody: PartnerAPI.CompleteRunBody? = nil
+    notes: String? = nil
   ) async {
     guard !acting else { return }
     acting = true
@@ -256,8 +331,8 @@ struct RunDetailView: View {
       case .finish:
         try await PartnerAPI.shared.finishRun(id: runID, notes: notes)
       case .complete:
-        try await PartnerAPI.shared.completeRun(
-          id: runID, body: completeBody ?? PartnerAPI.CompleteRunBody())
+        // Sent from the Complete sheet itself, which owns its errors.
+        return
       }
       pendingAction = nil
       // Let the list screens (orders, designs, order detail) know the run
