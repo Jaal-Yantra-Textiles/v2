@@ -145,16 +145,17 @@ fun OrderDetailScreen(
 
     LaunchedEffect(Unit) { load() }
 
-    val multi = isMultiRun(runs)
-    val activeRun: ProductionRun? = remember(runs) { runs.firstOrNull { it.isOpen() } }
-    val nextAction = activeRun?.let { nextRunAction(it) }
-    val isSample = activeRun?.runType == "sample"
+    val multi = usesDesignCards(detail, runs)
+    val bundle = detail?.isCollated == true
     fun designOf(run: ProductionRun?): DesignDetail? = run?.designId?.let { designsById[it] }
+    val activeRun: ProductionRun? = remember(runs) { runs.firstOrNull { it.isOpen() } }
+    val nextAction = activeRun?.let { nextRunAction(it, isActionable(designOf(it))) }
+    val isSample = activeRun?.runType == "sample"
     // Single-run orders: the run's own design, else the order's.
     val design: DesignDetail? = designOf(activeRun)
         ?: detail?.resolveDesignId(runs)?.let { designsById[it] }
     fun nameOf(run: ProductionRun): String = designOf(run)?.name ?: "Design"
-    val bulk = remember(runs) { bulkActions(runs) }
+    val bulk = remember(runs, designsById) { bulkActions(runs) { isActionable(designOf(it)) } }
 
     suspend fun apply(action: RunAction, run: ProductionRun) {
         val api = PartnerApi.get(context)
@@ -363,8 +364,8 @@ fun OrderDetailScreen(
                             if (multi) {
                                 val open = runs.count { it.isOpen() }
                                 Text(
-                                    if (open == 0) "All ${runs.size} designs in this order are done."
-                                    else "This order has ${runs.size} designs, $open still open. " +
+                                    if (open == 0) "All ${runs.size} designs in this ${if (bundle) "bundle" else "order"} are done."
+                                    else "This ${if (bundle) "bundle" else "order"} has ${runs.size} designs, $open still open. " +
                                         "Act on one design from its card, or on several at once with " +
                                         "“Actions for all designs” below.",
                                     fontSize = 13.sp,
@@ -424,7 +425,8 @@ fun OrderDetailScreen(
                     // ── One card per design's run.
                     item {
                         Text(
-                            "Designs in this order · ${runs.size}",
+                            if (bundle) "Bundle · ${runs.size} design${if (runs.size == 1) "" else "s"}"
+                            else "Designs in this order · ${runs.size}",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 15.sp,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
@@ -434,6 +436,7 @@ fun OrderDetailScreen(
                         DesignRunCard(
                             run = run,
                             design = designOf(run),
+                            actionable = isActionable(designOf(run)),
                             busy = acting || uploading,
                             onOpenRun = { onOpenRun(run.id) },
                             onOpenDesign = { run.designId?.let(onOpenDesign) },
@@ -739,6 +742,7 @@ private fun DesignDetail.thumbOf(): String? =
 private fun DesignRunCard(
     run: ProductionRun,
     design: DesignDetail?,
+    actionable: Boolean,
     busy: Boolean,
     onOpenRun: () -> Unit,
     onOpenDesign: () -> Unit,
@@ -746,7 +750,7 @@ private fun DesignRunCard(
     onUpload: () -> Unit,
     onOpenMedia: (List<String>, Int) -> Unit,
 ) {
-    val action = nextRunAction(run)
+    val action = nextRunAction(run, actionable)
     Card(
         onClick = onOpenRun,
         shape = RoundedCornerShape(16.dp),

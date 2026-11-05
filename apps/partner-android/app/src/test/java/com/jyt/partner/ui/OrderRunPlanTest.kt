@@ -1,6 +1,11 @@
 package com.jyt.partner.ui
 
+import com.jyt.partner.models.DesignDetail
+import com.jyt.partner.models.OrderDesignSummary
+import com.jyt.partner.models.PartnerInfo
+import com.jyt.partner.models.PartnerOrder
 import com.jyt.partner.models.ProductionRun
+import com.jyt.partner.models.UnifiedOrderKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -51,6 +56,43 @@ class OrderRunPlanTest {
     fun `one run keeps the single-design screen`() {
         assertFalse(isMultiRun(listOf(run("a", "sent_to_partner"))))
         assertTrue(isMultiRun(listOf(run("a", "sent_to_partner"), run("b", "completed"))))
+    }
+
+    private fun bundle(designs: Int) = PartnerOrder(
+        id = "order_1",
+        displayId = 152,
+        designs = (1..designs).map { OrderDesignSummary(id = "des_$it") },
+        unifiedOrderKind = UnifiedOrderKind("collated"),
+    )
+
+    @Test
+    fun `a bundle gets the design cards even with one run loaded`() {
+        val one = listOf(run("a", "sent_to_partner"))
+        assertTrue(usesDesignCards(bundle(9), one))
+        assertFalse(usesDesignCards(PartnerOrder(id = "o", displayId = 1), one))
+        assertFalse(usesDesignCards(null, one))
+    }
+
+    @Test
+    fun `the list row names a bundle and its design count`() {
+        assertEquals("Bundle · 9 designs", bundleLabel(bundle(9)))
+        assertEquals("Bundle · 1 design", bundleLabel(bundle(1)))
+        assertEquals("Bundle", bundleLabel(bundle(0)))
+        assertNull(bundleLabel(PartnerOrder(id = "o", displayId = 1)))
+    }
+
+    @Test
+    fun `a design whose assignment was cancelled offers nothing`() {
+        val cancelled = DesignDetail(id = "d", partnerInfo = PartnerInfo(partnerStatus = "cancelled"))
+        val live = DesignDetail(id = "d", partnerInfo = PartnerInfo(partnerStatus = "in_progress"))
+        assertFalse(isActionable(cancelled))
+        assertTrue(isActionable(live))
+        assertTrue(isActionable(null))
+
+        val runs = listOf(run("a", "sent_to_partner"), run("b", "sent_to_partner"))
+        assertNull(nextRunAction(runs[0], actionable = false))
+        val plan = bulkActions(runs) { it.id != "b" }
+        assertEquals(listOf(RunAction.ACCEPT to listOf("a")), plan.map { (a, t) -> a to t.map { it.id } })
     }
 
     @Test

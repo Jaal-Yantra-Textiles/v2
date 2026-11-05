@@ -1,5 +1,7 @@
 package com.jyt.partner.ui
 
+import com.jyt.partner.models.DesignDetail
+import com.jyt.partner.models.PartnerOrder
 import com.jyt.partner.models.ProductionRun
 import kotlinx.coroutines.CancellationException
 
@@ -31,10 +33,37 @@ fun ProductionRun.isOpen(): Boolean = status != "completed" && status != "cancel
 /** More than one run → one card per run, each with its own action. */
 fun isMultiRun(runs: List<ProductionRun>): Boolean = runs.size > 1
 
+/** A bundle always gets the per-design cards — even when only one of its
+ *  runs loaded, so it never passes for a single-design order. */
+fun usesDesignCards(order: PartnerOrder?, runs: List<ProductionRun>): Boolean =
+    order?.isCollated == true || isMultiRun(runs)
+
+/** "Bundle · 9 designs" for a bundle's list row, else null. */
+fun bundleLabel(order: PartnerOrder): String? {
+    if (!order.isCollated) return null
+    val n = order.designs?.size ?: 0
+    return if (n > 0) "Bundle · $n design${if (n == 1) "" else "s"}" else "Bundle"
+}
+
+/**
+ * Defence-in-depth, as on the web's run card: a design whose ASSIGNMENT to
+ * this partner was cancelled offers no action, even if an older run on it
+ * was left open (cancelling an assignment now cancels its run too).
+ */
+fun isActionable(design: DesignDetail?): Boolean =
+    design?.partnerInfo?.partnerStatus != "cancelled"
+
+/** The run's next step, or none when its design's assignment is cancelled. */
+fun nextRunAction(run: ProductionRun, actionable: Boolean): RunAction? =
+    if (actionable) nextRunAction(run) else null
+
 /** Each action some run owes, with the runs that owe it, in lifecycle order. */
-fun bulkActions(runs: List<ProductionRun>): List<Pair<RunAction, List<ProductionRun>>> =
+fun bulkActions(
+    runs: List<ProductionRun>,
+    actionable: (ProductionRun) -> Boolean = { true },
+): List<Pair<RunAction, List<ProductionRun>>> =
     RunAction.entries.mapNotNull { action ->
-        runs.filter { nextRunAction(it) == action }
+        runs.filter { nextRunAction(it, actionable(it)) == action }
             .takeIf { it.isNotEmpty() }
             ?.let { action to it }
     }

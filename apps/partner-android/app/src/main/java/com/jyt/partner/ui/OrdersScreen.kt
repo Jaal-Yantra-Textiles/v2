@@ -294,6 +294,7 @@ private fun OngoingCard(order: PartnerOrder, onClick: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            bundleLabel(order)?.let { StatusBadge(it, BadgeTone.ACTION) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     "#${order.displayId}",
@@ -359,7 +360,10 @@ private fun OrderRow(order: PartnerOrder, onClick: () -> Unit) {
                     Spacer(Modifier.weight(1f))
                     order.workStatus?.let { WorkStatusBadge(it) }
                 }
-                order.designs?.drop(1)?.takeIf { it.isNotEmpty() }?.let { extra ->
+                val bundle = bundleLabel(order)
+                if (bundle != null) {
+                    StatusBadge(bundle, BadgeTone.ACTION)
+                } else order.designs?.drop(1)?.takeIf { it.isNotEmpty() }?.let { extra ->
                     Text(
                         "+${extra.size} more design${if (extra.size > 1) "s" else ""}",
                         fontSize = 12.sp,
