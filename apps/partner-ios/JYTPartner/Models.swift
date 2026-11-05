@@ -63,6 +63,10 @@ struct PartnerOrder: Codable, Identifiable, Hashable {
   var production_runs: [ProductionRunRef]?
   /// Work status (assigned → … → completed) off the sidecar column.
   var unified_order_status: UnifiedOrderStatus?
+  /// How the order was built — "collated" = a bundle of designs (#2500).
+  var unified_order_kind: UnifiedOrderKind?
+  /// Read only for the pre-sidecar collated flag (see `isCollated`).
+  var metadata: OrderMetadata?
 
   var workStatus: WorkStatus? {
     unified_order_status?.partner_status.flatMap(WorkStatus.init(rawValue:))
@@ -84,6 +88,8 @@ struct PartnerOrderItem: Codable, Hashable, Identifiable {
   var thumbnail: String?
   var quantity: Int
   var total: Double
+  /// On a bundle's lines: the design and run the line belongs to.
+  var metadata: OrderLineMetadata?
 }
 
 struct PartnerOrderListResponse: Codable {
