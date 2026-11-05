@@ -121,6 +121,9 @@ dependencies {
     // app/google-services.json exists (see the top of this file), so the build
     // succeeds without it and push degrades to a no-op (guarded init).
     implementation("com.google.firebase:firebase-messaging:24.0.2")
+    // firebase-messaging pulls androidx.fragment 1.1.0 (via play-services-basement),
+    // which Play Console flags as outdated — pin a current one.
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     implementation("androidx.core:core-ktx:1.13.1")
     // System splash (API 31+) with the pre-31 backport, held on screen
     // while the stored session restores.

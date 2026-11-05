@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -102,7 +103,8 @@ fun DesignDetailScreen(
         ImageViewer(urls = urls, startIndex = index, onDismiss = { viewer = null })
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    // No Scaffold here: TopAppBar pads the status bar, this pads the navigation bar.
+    Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
         TopAppBar(
             title = { Text(design?.name ?: "Design") },
             navigationIcon = {
