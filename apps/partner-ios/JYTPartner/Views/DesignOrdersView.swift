@@ -121,7 +121,15 @@ private struct DesignOrderRow: View {
             WorkStatusBadge(status: status)
           }
         }
-        if let extra = extraCount, extra > 0 {
+        if order.isCollated {
+          // A bundle: one order, many designs, sent together (#2500).
+          Label(
+            "Bundle · \(designCount) design\(designCount == 1 ? "" : "s")",
+            systemImage: "square.stack.3d.up"
+          )
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.tint)
+        } else if let extra = extraCount, extra > 0 {
           Text("+\(extra) more design\(extra > 1 ? "s" : "")")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -153,6 +161,7 @@ private struct DesignOrderRow: View {
   }
 
   private var first: OrderDesignSummary? { order.designs?.first }
+  private var designCount: Int { order.designs?.count ?? 0 }
   private var extraCount: Int? {
     guard let designs = order.designs, designs.count > 1 else { return nil }
     return designs.count - 1

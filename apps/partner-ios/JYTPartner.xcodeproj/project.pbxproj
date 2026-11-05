@@ -30,6 +30,7 @@
 		5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000027 /* InventoryOrdersView.swift */; };
 		5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1000000000000000000028 /* InventoryOrderDetailView.swift */; };
 		5A1000000000000000000048 /* ProfitShareModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002A /* ProfitShareModels.swift */; };
+		5A100000000000000000004D /* BundleModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002F /* BundleModels.swift */; };
 		5A1000000000000000000049 /* ProfitShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002B /* ProfitShareSheet.swift */; };
 		5A100000000000000000004A /* DesignsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002C /* DesignsView.swift */; };
 		5A100000000000000000004B /* InventoryShipmentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002D /* InventoryShipmentSheet.swift */; };
@@ -65,6 +66,7 @@
 		5A100000000000000000002E /* IncomingDeliveriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingDeliveriesView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000029 /* JYTPartner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JYTPartner.entitlements; sourceTree = "<group>"; };
 		5A100000000000000000002A /* ProfitShareModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitShareModels.swift; sourceTree = "<group>"; };
+		5A100000000000000000002F /* BundleModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundleModels.swift; sourceTree = "<group>"; };
 		5A100000000000000000002B /* ProfitShareSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitShareSheet.swift; sourceTree = "<group>"; };
 		5A100000000000000000002C /* DesignsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -106,6 +108,7 @@
 				5A100000000000000000001E /* DesignModels.swift */,
 				5A1000000000000000000025 /* InventoryOrderModels.swift */,
 				5A100000000000000000002A /* ProfitShareModels.swift */,
+				5A100000000000000000002F /* BundleModels.swift */,
 				5A1000000000000000000026 /* PushManager.swift */,
 				5A1000000000000000000013 /* Keychain.swift */,
 				5A1000000000000000000011 /* Config.swift */,
@@ -234,6 +237,7 @@
 				5A1000000000000000000046 /* InventoryOrdersView.swift in Sources */,
 				5A1000000000000000000047 /* InventoryOrderDetailView.swift in Sources */,
 				5A1000000000000000000048 /* ProfitShareModels.swift in Sources */,
+				5A100000000000000000004D /* BundleModels.swift in Sources */,
 				5A1000000000000000000049 /* ProfitShareSheet.swift in Sources */,
 				5A100000000000000000004A /* DesignsView.swift in Sources */,
 				5A100000000000000000004B /* InventoryShipmentSheet.swift in Sources */,

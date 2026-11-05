@@ -28,6 +28,13 @@ struct OrderDetailView: View {
   @State private var acting = false
   /// Materials logged on the active run, read when Finish opens; nil = unknown.
   @State private var consumptionCount: Int?
+  /// A bundle row's run the next action applies to; nil = the active run.
+  @State private var targetRunID: String?
+  /// That row's design, fetched for the Complete form's material options.
+  @State private var targetDesign: DesignDetail?
+  /// An "all designs" step awaiting confirmation (accept / start) or notes (finish).
+  @State private var bulkConfirm: BundleBulk?
+  @State private var bulkFinish: BundleBulk?
 
   // Media upload
   @State private var showMediaDialog = false
@@ -48,11 +55,20 @@ struct OrderDetailView: View {
     }
   }
 
-  private var isSample: Bool { activeRun?.run_type == "sample" }
+  /// The run an action acts on: the bundle row's run when one was tapped,
+  /// else the active run (every non-bundle order).
+  private var targetRun: ProductionRun? {
+    if let targetRunID {
+      return runDetails.first { $0.id == targetRunID }
+    }
+    return activeRun
+  }
 
-  /// Tasks still open on the active run — the same filter as Run detail.
+  private var isSample: Bool { targetRun?.run_type == "sample" }
+
+  /// Tasks still open on the target run — the same filter as Run detail.
   private var pendingTasks: [RunTask] {
-    (activeRun.flatMap { runTasks[$0.id] } ?? []).filter {
+    (targetRun.flatMap { runTasks[$0.id] } ?? []).filter {
       !["completed", "cancelled"].contains($0.status ?? "")
     }
   }
@@ -64,11 +80,8 @@ struct OrderDetailView: View {
       .task { await load() }
       .onReceive(NotificationCenter.default.publisher(for: .runDidMutate)) { _ in
         Task {
-          await load()
-          runDetails = []
-          runTasks = [:]
           design = nil
-          await loadRuns()
+          await load()
         }
       }
       .alert("Action failed", isPresented: Binding(
@@ -121,6 +134,23 @@ struct OrderDetailView: View {
             : "Mark this run as started?"
         )
       }
+      .confirmationDialog(
+        "Confirm",
+        isPresented: Binding(
+          get: { bulkConfirm != nil },
+          set: { if !$0 { bulkConfirm = nil } }
+        ),
+        titleVisibility: .visible,
+        presenting: bulkConfirm
+      ) { bulk in
+        Button(bulk.action.bulkLabel(count: bulk.designs.count)) {
+          Task { await runBulk(bulk) }
+        }
+        Button("Cancel", role: .cancel) { bulkConfirm = nil }
+      } message: { bulk in
+        Text(bulk.designs.map(\.name).joined(separator: ", "))
+      }
+      .sheet(item: $bulkFinish) { bulk in bulkFinishSheet(bulk) }
       .sheet(isPresented: $showFinishSheet) { finishSheet }
       .sheet(isPresented: $showCompleteSheet) { completeSheet }
       .confirmationDialog(
@@ -177,12 +207,15 @@ struct OrderDetailView: View {
 
   private var completeSheet: some View {
     CompleteRunSheet(
-      orderedQuantity: activeRun?.quantity ?? 0,
-      materials: RunMaterials.options(run: activeRun, design: design),
-      run: activeRun
+      orderedQuantity: targetRun?.quantity ?? 0,
+      materials: RunMaterials.options(
+        run: targetRun,
+        design: targetRunID == nil ? design : targetDesign
+      ),
+      run: targetRun
     ) { body in
       // Throws back into the sheet, which stays open on failure.
-      guard let runID = activeRun?.id else { return }
+      guard let runID = targetRun?.id else { return }
       try await PartnerAPI.shared.completeRun(id: runID, body: body)
       NotificationCenter.default.post(name: .runDidMutate, object: nil)
     }
@@ -210,54 +243,63 @@ struct OrderDetailView: View {
 
   private var orderList: some View {
     List {
-      nextStepSection
-
-      Section("Summary") {
-        LabeledContent("Order #", value: "#\(display.display_id)")
-        LabeledContent("Created", value: Self.date.string(from: display.created_at) ?? "—")
-        LabeledContent("Total") {
-          Text(Self.currency.string(display.total, code: display.currency_code ?? ""))
-            .font(.body.weight(.semibold))
-        }
-        if let status = display.workStatus {
-          LabeledContent("Work status") { WorkStatusBadge(status: status) }
-        }
-        if let payment = display.payment_status, !payment.isEmpty {
-          LabeledContent("Payment", value: payment.replacingOccurrences(of: "_", with: " "))
-        }
-        if let fulfillment = display.fulfillment_status, !fulfillment.isEmpty {
-          LabeledContent("Fulfillment", value: fulfillment.replacingOccurrences(of: "_", with: " "))
-        }
+      if display.isCollated {
+        bundleSections
+        summarySection
+      } else {
+        nextStepSection
+        summarySection
+        designsSection
+        itemsSection
+        mediaSection
+        productionRunsSection
       }
+    }
+  }
 
-      designsSection
+  private var summarySection: some View {
+    Section("Summary") {
+      LabeledContent("Order #", value: "#\(display.display_id)")
+      LabeledContent("Created", value: Self.date.string(from: display.created_at) ?? "—")
+      LabeledContent("Total") {
+        Text(Self.currency.string(display.total, code: display.currency_code ?? ""))
+          .font(.body.weight(.semibold))
+      }
+      if let status = display.workStatus {
+        LabeledContent("Work status") { WorkStatusBadge(status: status) }
+      }
+      if let payment = display.payment_status, !payment.isEmpty {
+        LabeledContent("Payment", value: payment.replacingOccurrences(of: "_", with: " "))
+      }
+      if let fulfillment = display.fulfillment_status, !fulfillment.isEmpty {
+        LabeledContent("Fulfillment", value: fulfillment.replacingOccurrences(of: "_", with: " "))
+      }
+    }
+  }
 
-      let items = display.items ?? []
-      if !items.isEmpty {
-        Section("Items") {
-          ForEach(items) { item in
-            HStack(spacing: 10) {
-              DesignThumb(name: item.title, thumbnail: item.thumbnail, size: 36)
-              VStack(alignment: .leading, spacing: 2) {
-                Text(item.title ?? "Item")
-                  .font(.body.weight(.medium))
-                HStack(spacing: 12) {
-                  Text("Qty \(item.quantity)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                  Text(Self.currency.string(item.total, code: display.currency_code ?? ""))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                }
+  @ViewBuilder
+  private var itemsSection: some View {
+    let items = display.items ?? []
+    if !items.isEmpty {
+      Section("Items") {
+        ForEach(items) { item in
+          HStack(spacing: 10) {
+            DesignThumb(name: item.title, thumbnail: item.thumbnail, size: 36)
+            VStack(alignment: .leading, spacing: 2) {
+              Text(item.title ?? "Item")
+                .font(.body.weight(.medium))
+              HStack(spacing: 12) {
+                Text("Qty \(item.quantity)")
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
+                Text(Self.currency.string(item.total, code: display.currency_code ?? ""))
+                  .font(.caption)
+                  .foregroundStyle(.secondary)
               }
             }
           }
         }
       }
-
-      mediaSection
-
-      productionRunsSection
     }
   }
 
@@ -273,6 +315,7 @@ struct OrderDetailView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
           Button {
+            targetRunID = nil
             showActionSheet = true
           } label: {
             HStack(spacing: 8) {
@@ -312,6 +355,121 @@ struct OrderDetailView: View {
 
   private var nextActionForActiveRun: RunAction? {
     activeRun.flatMap { nextRunAction(for: $0) }
+  }
+
+  // MARK: - Bundle (collated work-order, #2500)
+
+  /// A bundle's designs, one per order line, each with its own run.
+  private var bundleDesigns: [BundleDesign] {
+    var runs: [String: ProductionRunDetail] = [:]
+    for run in runDetails {
+      runs[run.id] = ProductionRunDetail(production_run: run, tasks: runTasks[run.id])
+    }
+    return BundleActions.designs(items: display.items ?? [], runs: runs)
+  }
+
+  /// The "all designs" bar, then one row per design with its own next step —
+  /// the web's CollatedDesignRuns. Both read `nextRunAction`, so the bar
+  /// covers exactly the designs whose rows offer that step.
+  @ViewBuilder
+  private var bundleSections: some View {
+    let designs = bundleDesigns
+    let bulk = BundleActions.bulk(designs)
+    if designs.count > 1 && !bulk.isEmpty {
+      Section {
+        ForEach(bulk) { entry in
+          Button {
+            requestBulk(entry)
+          } label: {
+            HStack(spacing: 8) {
+              if acting {
+                ProgressView().tint(.white)
+              } else {
+                Image(systemName: icon(for: entry.action))
+              }
+              Text(entry.action.bulkLabel(count: entry.designs.count))
+                .font(.headline)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+          }
+          .buttonStyle(.borderedProminent)
+          .disabled(acting)
+        }
+      } header: {
+        Text("All designs")
+      } footer: {
+        Text("Each button covers only the designs that owe that step. Complete each design on its own.")
+      }
+    }
+
+    Section("Designs in this bundle (\(designs.count))") {
+      if designs.isEmpty {
+        if runsLoading {
+          HStack { Spacer(); ProgressView(); Spacer() }
+        } else {
+          Text("No designs on this bundle yet.")
+            .font(.footnote).foregroundStyle(.tertiary)
+        }
+      }
+      ForEach(designs) { item in
+        bundleRow(item)
+      }
+    }
+  }
+
+  private func bundleRow(_ item: BundleDesign) -> some View {
+    HStack(spacing: 10) {
+      NavigationLink {
+        RunDetailView(runID: item.runID)
+      } label: {
+        HStack(spacing: 10) {
+          DesignThumb(name: item.name, thumbnail: item.thumbnail, size: 40)
+          VStack(alignment: .leading, spacing: 3) {
+            Text(item.name)
+              .font(.body.weight(.medium))
+              .lineLimit(2)
+            HStack(spacing: 8) {
+              if let status = item.run?.status {
+                RunStatusBadge(status: status)
+              } else if runsLoading {
+                ProgressView().controlSize(.mini)
+              }
+              Text("Qty \(item.run?.quantityText ?? String(item.quantity))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+      if let action = item.nextAction {
+        // Its own tap target — the row itself opens the run.
+        Button(action.shortLabel) { act(on: item, action) }
+          .buttonStyle(.bordered)
+          .controlSize(.small)
+          .disabled(acting)
+      }
+    }
+    .padding(.vertical, 2)
+  }
+
+  /// Finish for several designs: one shared note, and every open task across
+  /// them listed by design for the same acknowledgement as a single Finish.
+  private func bulkFinishSheet(_ bulk: BundleBulk) -> some View {
+    let pending = bulk.designs.flatMap { item in
+      item.pendingTasks.map { task -> RunTask in
+        var named = task
+        named.title = "\(item.name): \(task.title ?? "Task")"
+        return named
+      }
+    }
+    return FinishRunSheet(
+      pendingTasks: pending,
+      isSample: bulk.designs.contains { $0.run?.run_type == "sample" },
+      consumptionCount: nil
+    ) { notes in
+      Task { await runBulk(bulk, notes: notes) }
+    }
   }
 
   /// Design thumbnails — the flagged/first media of the linked design, like
@@ -471,29 +629,35 @@ struct OrderDetailView: View {
     }
   }
 
-  /// Run refs arrive as bare ids; fetch each, and pull the linked design for
-  /// media + the complete form's material options.
+  /// Run refs arrive as bare ids; fetch every one (a bundle can carry many),
+  /// in parallel and kept in ref order, and pull the first run's design for
+  /// media + the complete form's material options. Re-fetches on every call
+  /// so a reload shows the runs' new state.
   @MainActor
   private func loadRuns() async {
     let refs = runRefs
-    guard !refs.isEmpty, runDetails.isEmpty else { return }
+    guard !refs.isEmpty else { return }
     runsLoading = true
-    var loaded: [ProductionRun] = []
-    var designID: String?
-    for ref in refs.prefix(10) {
-      if let runDetail = try? await PartnerAPI.shared.productionRun(id: ref.id) {
-        loaded.append(runDetail.production_run)
-        runTasks[runDetail.production_run.id] = runDetail.tasks ?? []
-        if designID == nil {
-          designID = runDetail.production_run.design_id
-        }
+    let fetched = await withTaskGroup(of: (Int, ProductionRunDetail?).self) { group in
+      for (index, ref) in refs.enumerated() {
+        group.addTask { (index, try? await PartnerAPI.shared.productionRun(id: ref.id)) }
       }
+      var results: [(Int, ProductionRunDetail)] = []
+      for await (index, runDetail) in group {
+        if let runDetail { results.append((index, runDetail)) }
+      }
+      return results.sorted { $0.0 < $1.0 }.map(\.1)
+    }
+    var tasks: [String: [RunTask]] = [:]
+    for runDetail in fetched {
+      tasks[runDetail.production_run.id] = runDetail.tasks ?? []
     }
     withAnimation {
-      runDetails = loaded
+      runDetails = fetched.map(\.production_run)
+      runTasks = tasks
       runsLoading = false
     }
-    if let designID, design == nil {
+    if let designID = fetched.first?.production_run.design_id, design == nil {
       design = try? await PartnerAPI.shared.design(id: designID)
     }
   }
@@ -508,14 +672,74 @@ struct OrderDetailView: View {
     case .finish:
       Task {
         // The real count, so the sheet's "no materials" nudge is true.
-        if let runID = activeRun?.id {
+        if let runID = targetRun?.id {
           consumptionCount = try? await PartnerAPI.shared.runConsumptionLogCount(id: runID)
         }
         showFinishSheet = true
       }
     case .complete:
-      showCompleteSheet = true
+      if targetRunID != nil, let designID = targetRun?.design_id {
+        // A bundle row: its own design's materials, not the first run's.
+        Task {
+          targetDesign = try? await PartnerAPI.shared.design(id: designID)
+          showCompleteSheet = true
+        }
+      } else {
+        showCompleteSheet = true
+      }
     }
+  }
+
+  /// A bundle row's own button: the same flow, aimed at that design's run.
+  private func act(on item: BundleDesign, _ action: RunAction) {
+    targetRunID = item.runID
+    targetDesign = nil
+    handle(action)
+  }
+
+  private func requestBulk(_ bulk: BundleBulk) {
+    actionError = nil
+    if bulk.action == .finish {
+      bulkFinish = bulk
+    } else {
+      bulkConfirm = bulk
+    }
+  }
+
+  /// One step for several designs: the per-run routes in parallel (there is
+  /// no batch endpoint), then any failures named by design, like the web.
+  @MainActor
+  private func runBulk(_ bulk: BundleBulk, notes: String? = nil) async {
+    guard !acting else { return }
+    acting = true
+    defer { acting = false }
+    bulkConfirm = nil
+    let action = bulk.action
+    let failed = await withTaskGroup(of: (String, String)?.self) { group in
+      for item in bulk.designs {
+        group.addTask {
+          do {
+            switch action {
+            case .accept: try await PartnerAPI.shared.acceptRun(id: item.runID)
+            case .start: try await PartnerAPI.shared.startRun(id: item.runID)
+            case .finish: try await PartnerAPI.shared.finishRun(id: item.runID, notes: notes)
+            case .complete: return nil
+            }
+            return nil
+          } catch {
+            return (item.name, (error as? LocalizedError)?.errorDescription ?? "failed")
+          }
+        }
+      }
+      var failures: [(name: String, message: String)] = []
+      for await failure in group {
+        if let failure { failures.append((name: failure.0, message: failure.1)) }
+      }
+      return failures
+    }
+    NotificationCenter.default.post(name: .runDidMutate, object: nil)
+    await load()
+    actionError = BundleActions.describeFailures(total: bulk.designs.count, failed: failed)
   }
 
   @MainActor
@@ -523,7 +747,7 @@ struct OrderDetailView: View {
     _ action: RunAction,
     notes: String? = nil
   ) async {
-    guard let run = activeRun else { return }
+    guard let run = targetRun else { return }
     guard !acting else { return }
     acting = true
     defer { acting = false }
@@ -541,7 +765,6 @@ struct OrderDetailView: View {
       }
       confirmAction = nil
       NotificationCenter.default.post(name: .runDidMutate, object: nil)
-      runDetails = []
       design = nil
       await load()
     } catch {
