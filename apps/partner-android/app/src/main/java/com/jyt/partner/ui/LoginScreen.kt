@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -61,6 +62,9 @@ fun LoginScreen(auth: AuthViewModel) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Edge-to-edge: keep clear of the system bars and the keyboard
+            // (the window no longer shrinks for it).
+            .safeDrawingPadding()
             // Scrollable so the window shrinking for the keyboard (adjustResize)
             // can't push the fields off-screen; each field brings itself into
             // view on focus.

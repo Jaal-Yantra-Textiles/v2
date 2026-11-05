@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
@@ -41,6 +42,9 @@ class MainActivity : ComponentActivity() {
         // A tapped push (cold start) — the nav host opens it once signed in.
         // Not on a config change: the extras would re-open the same screen.
         if (savedInstanceState == null) offerPushTarget(intent)
+        // Draw behind the system bars on every Android version, not just 15+
+        // where targetSdk 35+ forces it — screens pad themselves via insets.
+        enableEdgeToEdge()
         setContent {
             JytPartnerTheme {
                 val state by auth.state.collectAsState()
