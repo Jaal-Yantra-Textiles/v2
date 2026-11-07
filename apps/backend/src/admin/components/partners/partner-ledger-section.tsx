@@ -1,9 +1,10 @@
 import { Badge, Container, Heading, StatusBadge, Text, toast } from "@medusajs/ui"
-import { Check, DocumentText, Plus } from "@medusajs/icons"
+import { Cash, Check, DocumentText, Plus } from "@medusajs/icons"
 import { useState } from "react"
 import { Link } from "react-router-dom"
 
 import { ActionMenu } from "../common/action-menu"
+import { AllocatePaymentDrawer } from "./allocate-payment-drawer"
 import {
   usePartnerLedger,
   useSetPaymentSettles,
@@ -155,7 +156,7 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
           <Text size="xsmall" className="text-ui-fg-muted">
             shares a payment with {entry.settled_shared_with!.length} other
             payout{entry.settled_shared_with!.length > 1 ? "s" : ""} — the money
-            is counted once, oldest claim first
+            is counted once, by the shares named for it or oldest claim first
           </Text>
         )}
         {(entry.credited_amount ?? 0) > 0 && (
@@ -234,10 +235,17 @@ const PayoutRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
 }
 
 /** A payment: an `internal_payments` row, with no statement of what it paid for. */
-const PaymentRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
+const PaymentRow = ({
+  entry,
+  payouts,
+}: {
+  entry: PartnerLedgerEntry
+  payouts: PartnerLedgerEntry[]
+}) => {
   const paymentId = String(entry.id).replace(/^payment:/, "")
   const { mutateAsync, isPending } = useUpdatePayment(paymentId)
   const [loading, setLoading] = useState(false)
+  const [allocating, setAllocating] = useState(false)
 
   const isCompleted = entry.status === "Completed"
 
@@ -298,12 +306,33 @@ const PaymentRow = ({ entry }: { entry: PartnerLedgerEntry }) => {
                     onClick: handleClick,
                     disabled: isCompleted || loading || isPending,
                   },
+                  /**
+                   * #2523 — say which bills this money pays, and how much to
+                   * each. Only for money that actually moved: a Pending
+                   * payment settles nothing in the ledger either.
+                   */
+                  {
+                    label: "Pay bills with this payment",
+                    icon: <Cash />,
+                    onClick: () => setAllocating(true),
+                    disabled: !isCompleted,
+                  },
                 ],
               },
             ]}
           />
         </div>
       </div>
+      {allocating && (
+        <AllocatePaymentDrawer
+          open={allocating}
+          onOpenChange={setAllocating}
+          paymentId={paymentId}
+          paymentAmount={Number(entry.amount ?? 0)}
+          currency={entry.currency ?? null}
+          payouts={payouts}
+        />
+      )}
       {attachments.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 pl-1">
           {attachments.map((a: any) => (
@@ -330,6 +359,10 @@ export const PartnerLedgerSection = ({ partnerId }: { partnerId: string }) => {
   const { entries, totals, isLoading, isError } = usePartnerLedger(partnerId, {
     enabled: !!partnerId,
   })
+  const [allocatingPayment, setAllocatingPayment] = useState<{
+    payment_id: string
+    amount: number
+  } | null>(null)
 
   const rows: PartnerLedgerEntry[] = entries || []
 
@@ -402,7 +435,43 @@ export const PartnerLedgerSection = ({ partnerId }: { partnerId: string }) => {
               it before paying again
             </Text>
           )}
+          {(totals!.unallocated ?? 0) > 0 && (
+            /**
+             * #2523 — money linked to bills that none of them took. Before,
+             * it was in no figure on this panel at all.
+             */
+            <div className="mt-1 flex flex-col gap-y-1" data-testid="ledger-unallocated">
+              <Text size="xsmall" className="text-ui-tag-orange-text">
+                ⚠ {money(totals!.unallocated!, totals!.currency)} of linked
+                payments is not counted against any bill yet
+              </Text>
+              {(totals!.unallocated_payments || []).map((u) => (
+                <button
+                  key={u.payment_id}
+                  type="button"
+                  className="text-ui-fg-interactive txt-compact-xsmall w-fit hover:underline"
+                  onClick={() =>
+                    setAllocatingPayment({ payment_id: u.payment_id, amount: u.amount })
+                  }
+                >
+                  Split the {money(u.amount, totals!.currency)} payment across
+                  bills ({money(u.unallocated, totals!.currency)} unallocated)
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+      )}
+
+      {allocatingPayment && (
+        <AllocatePaymentDrawer
+          open={!!allocatingPayment}
+          onOpenChange={(open) => !open && setAllocatingPayment(null)}
+          paymentId={allocatingPayment.payment_id}
+          paymentAmount={allocatingPayment.amount}
+          currency={totals?.currency ?? null}
+          payouts={rows}
+        />
       )}
 
       {isError && (
@@ -421,7 +490,7 @@ export const PartnerLedgerSection = ({ partnerId }: { partnerId: string }) => {
             entry.kind === "payout" ? (
               <PayoutRow key={entry.id} entry={entry} />
             ) : (
-              <PaymentRow key={entry.id} entry={entry} />
+              <PaymentRow key={entry.id} entry={entry} payouts={rows} />
             )
           )}
         </div>

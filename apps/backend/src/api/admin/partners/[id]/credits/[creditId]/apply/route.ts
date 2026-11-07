@@ -9,11 +9,11 @@
  * given discharges the next payout is a decision a human makes — the same rule
  * `recorded_against_open` follows. This route is where that human makes it.
  *
- * 🔴 And it is deliberately NOT "re-link the spare payment to the next payout",
- * which is the obvious way to carry an overpayment forward and the one that
- * pays twice: `paid` sums `settled_amount` PER PAYOUT with only a per-payout
- * clamp, so one payment linked to two payouts is counted in full against both.
- * Applying the credit in the claim amount cannot double-count.
+ * A credit records money the partner already holds from an EARLIER payment.
+ * Splitting one payment across several payouts is a different act — the fold
+ * allocates it (#1712) and the admin can name each share (#2523) — and the
+ * settled figure this route checks comes from that same fold, so a shared
+ * payment is never counted in full against each payout.
  *
  * Forward-only. There is no unapply: reversing a settled money decision is a
  * new decision with its own reason, and it belongs in a credit of its own
@@ -33,10 +33,11 @@ import type InternalPaymentService from "../../../../../../../modules/internal_p
 import {
   appliedCreditsFor,
   checkCreditApplicable,
+  settledFromLedger,
 } from "../../../../../../../modules/internal_payments/lib/apply-credit"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../../../../modules/payment_submissions"
 import type PaymentSubmissionsService from "../../../../../../../modules/payment_submissions/service"
-import SubmissionPaymentLink from "../../../../../../../links/submission-payment-link"
+import { readPartnerLedger } from "../../../../../payments/partners/[id]/ledger/read-ledger"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const partnerId = String(req.params.id)
@@ -108,29 +109,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
    * a partner shrink the headroom this route checks — and thereby block a
    * credit — by asserting they had been paid.
    *
-   * Best-effort: an unreachable link understates what has settled, which makes
-   * this check STRICTER, never looser. A refusal is recoverable; a wrongly
-   * permitted application spends money that is not there.
+   * 🔑 Read off the FOLDED ledger, not by summing linked payments (#2523). A
+   * payment split across several payouts would count in full against each.
+   *
+   * Not best-effort: a missing figure here would read as 0 settled, which
+   * WIDENS the headroom and lets a credit discharge money already paid. If the
+   * ledger cannot be read, the application is refused by the throw.
    */
-  let settledAmount = 0
-  try {
-    const { data } = await query.graph({
-      entity: SubmissionPaymentLink.entryPoint,
-      fields: ["payment_submission_id", "internal_payments.*"],
-      filters: { payment_submission_id: [submissionId] },
-    })
-    for (const row of (data || []) as any[]) {
-      const raw = row?.internal_payments
-      const rows = !raw ? [] : Array.isArray(raw) ? raw : [raw]
-      for (const p of rows) {
-        if (!p) continue
-        if (String(p.status ?? "") !== "Completed") continue
-        settledAmount += Number(p.amount ?? 0) || 0
-      }
-    }
-  } catch {
-    // Understating settlement can only refuse an application, never allow one.
-  }
+  const ledger = await readPartnerLedger(req.scope, partnerId)
+  const settledAmount = settledFromLedger(ledger.entries as any[], submissionId)
 
   const already = appliedCreditsFor(submissionId, credits)
 

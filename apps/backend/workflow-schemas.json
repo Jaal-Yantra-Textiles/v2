@@ -3965,11 +3965,18 @@
         "placeholder": "{{ $last.inventoryOrderIds }}"
       },
       {
+        "name": "allocations",
+        "type": "array",
+        "required": false,
+        "placeholder": "{{ $last.allocations }}",
+        "description": "How much of this payment goes to each payout it pays (#2523). Each named payout is also LINKED, so a caller need not repeat it in `paymentSubmissionIds`. Validated before the payment is written."
+      },
+      {
         "name": "paymentSubmissionIds",
         "type": "array",
         "required": false,
         "placeholder": "{{ $last.paymentSubmissionIds }}",
-        "description": "The payout(s) this payment SETTLES (#1710). 🔴 The fact that ends the \"one fact, two homes\" class. Until this existed a payment could name a person, a partner or an inventory order — never the submission it was actually paying off — so the partner ledger read `recorded: 0` beside `outstanding: 28,200` on an order against which INR 20,000 had demonstrably moved. That is the reading that pays someone twice. ⚠️ The link it writes is `paym_subm_paym_subm_inte_paym_inte_paym-9812b09f`. It has existed and been migrated since the link was declared — the belief that Postgres's 63-byte identifier limit stopped it from being created was wrong (Medusa abbreviates each segment to four characters and appends a hash). The table was empty because nothing wrote it, not because it was missing."
+        "description": "How much of this payment goes to each payout it pays (#2523). Each named payout is also LINKED, so a caller need not repeat it in `paymentSubmissionIds`. Validated before the payment is written. / allocations?: Array<{ payment_submission_id: string; amount: number }> /** The payout(s) this payment SETTLES (#1710). 🔴 The fact that ends the \"one fact, two homes\" class. Until this existed a payment could name a person, a partner or an inventory order — never the submission it was actually paying off — so the partner ledger read `recorded: 0` beside `outstanding: 28,200` on an order against which INR 20,000 had demonstrably moved. That is the reading that pays someone twice. ⚠️ The link it writes is `paym_subm_paym_subm_inte_paym_inte_paym-9812b09f`. It has existed and been migrated since the link was declared — the belief that Postgres's 63-byte identifier limit stopped it from being created was wrong (Medusa abbreviates each segment to four characters and appends a hash). The table was empty because nothing wrote it, not because it was missing."
       },
       {
         "name": "attachments",

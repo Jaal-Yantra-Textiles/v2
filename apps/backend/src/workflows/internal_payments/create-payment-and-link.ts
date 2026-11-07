@@ -2,11 +2,13 @@ import {
   createStep,
   createWorkflow,
   StepResponse,
+  transform,
   WorkflowResponse,
   when,
 } from "@medusajs/framework/workflows-sdk"
 import {
   ContainerRegistrationKeys,
+  MedusaError,
 } from "@medusajs/framework/utils"
 import { LinkDefinition } from "@medusajs/framework/types"
 import type { Link } from "@medusajs/modules-sdk"
@@ -20,6 +22,7 @@ import {
   normalizePaymentAttachments,
   type PaymentAttachmentInput,
 } from "../../modules/internal_payments/lib/normalize-attachments"
+import { checkAllocation } from "../../modules/internal_payments/lib/allocation"
 
 export type CreatePaymentAndLinkInput = {
   payment: {
@@ -33,6 +36,12 @@ export type CreatePaymentAndLinkInput = {
   personIds?: string[]
   partnerIds?: string[]
   inventoryOrderIds?: string[]
+  /**
+   * How much of this payment goes to each payout it pays (#2523). Each named
+   * payout is also LINKED, so a caller need not repeat it in
+   * `paymentSubmissionIds`. Validated before the payment is written.
+   */
+  allocations?: Array<{ payment_submission_id: string; amount: number }>
   /**
    * The payout(s) this payment SETTLES (#1710).
    *
@@ -246,9 +255,116 @@ export const createPaymentAttachmentsStep = createStep(
   }
 )
 
+/**
+ * Refuse a split that cannot be honoured BEFORE any money is recorded (#2523):
+ * a payout that does not exist, was rejected, or belongs to a partner other
+ * than the one this payment is for; shares adding up to more than the payment;
+ * a share larger than its payout.
+ */
+export const validatePaymentAllocationsStep = createStep(
+  "validate-payment-allocations-step",
+  async (
+    input: {
+      amount: number
+      allocations: Array<{ payment_submission_id: string; amount: number }>
+      partner_ids?: string[]
+    },
+    { container }
+  ) => {
+    const submissionIds = input.allocations.map((a) => a.payment_submission_id)
+    if (new Set(submissionIds).size !== submissionIds.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        "allocations name the same payout twice — give each payout one share"
+      )
+    }
+
+    const submissionsService: any = container.resolve(PAYMENT_SUBMISSIONS_MODULE)
+    const submissions = (await submissionsService.listPaymentSubmissions({
+      id: submissionIds,
+    })) as any[]
+    const byId = new Map(submissions.map((s) => [s.id, s]))
+
+    let named = 0
+    for (const a of input.allocations) {
+      const submission = byId.get(a.payment_submission_id)
+      if (!submission) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_FOUND,
+          `Payment submission ${a.payment_submission_id} not found`
+        )
+      }
+      if (String(submission.status) === "Rejected") {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Payment submission ${a.payment_submission_id} was rejected — it is not owed, so no payment can settle it.`
+        )
+      }
+      if (
+        input.partner_ids?.length &&
+        !input.partner_ids.includes(String(submission.partner_id))
+      ) {
+        throw new MedusaError(
+          MedusaError.Types.NOT_ALLOWED,
+          `Payment submission ${a.payment_submission_id} belongs to partner ${submission.partner_id}, not to the partner this payment is for. A payment cannot settle another partner's payout.`
+        )
+      }
+      const verdict = checkAllocation({
+        paymentId: "(new payment)",
+        submissionId: a.payment_submission_id,
+        amount: Number(a.amount),
+        paymentAmount: Number(input.amount),
+        otherShares: named,
+        payoutTotal: Number(submission.total_amount ?? 0),
+      })
+      if (!verdict.ok) {
+        throw new MedusaError(MedusaError.Types.NOT_ALLOWED, verdict.message)
+      }
+      named += Number(a.amount)
+    }
+
+    return new StepResponse(true)
+  }
+)
+
+export const createPaymentAllocationsStep = createStep(
+  "create-payment-allocations-step",
+  async (
+    input: {
+      payment_id: string
+      allocations: Array<{ payment_submission_id: string; amount: number }>
+    },
+    { container }
+  ) => {
+    const service: any = container.resolve(INTERNAL_PAYMENTS_MODULE)
+    const created = await service.createPaymentAllocations(
+      input.allocations.map((a) => ({
+        payment_id: input.payment_id,
+        payment_submission_id: a.payment_submission_id,
+        amount: a.amount,
+      }))
+    )
+    const list = Array.isArray(created) ? created : [created]
+    return new StepResponse(list, list.map((a: any) => a.id))
+  },
+  async (ids: string[], { container }) => {
+    if (!ids?.length) return
+    const service: any = container.resolve(INTERNAL_PAYMENTS_MODULE)
+    await service.deletePaymentAllocations(ids)
+  }
+)
+
 export const createPaymentAndLinkWorkflow = createWorkflow(
   "create-payment-and-link",
   (input: CreatePaymentAndLinkInput) => {
+    when(input, (i) => Boolean(i.allocations && i.allocations.length)).then(() =>
+      validatePaymentAllocationsStep({
+        amount: input.payment.amount,
+        allocations: input.allocations as any,
+        partner_ids: input.partnerIds,
+      })
+    )
+
     const payment = createPaymentStep(input.payment)
 
     const personLinks = when(input, (i) => Boolean(i.personIds && i.personIds.length)).then(() =>
@@ -272,10 +388,31 @@ export const createPaymentAndLinkWorkflow = createWorkflow(
       })
     )
 
-    const submissionLinks = when(input, (i) => Boolean(i.paymentSubmissionIds && i.paymentSubmissionIds.length)).then(() =>
+    /**
+     * Every payout the payment pays: the ones listed plain, plus the ones given
+     * a share (#2523) — a share for an unlinked payout would be ignored by the
+     * fold, so naming one links it.
+     */
+    const submissionIds = transform({ input }, ({ input }) =>
+      Array.from(
+        new Set([
+          ...(input.paymentSubmissionIds ?? []),
+          ...(input.allocations ?? []).map((a) => a.payment_submission_id),
+        ])
+      )
+    )
+
+    const submissionLinks = when(submissionIds, (ids) => ids.length > 0).then(() =>
       linkPaymentToSubmissionsStep({
         payment_id: payment.id,
-        submission_ids: input.paymentSubmissionIds as string[],
+        submission_ids: submissionIds,
+      })
+    )
+
+    const allocations = when(input, (i) => Boolean(i.allocations && i.allocations.length)).then(() =>
+      createPaymentAllocationsStep({
+        payment_id: payment.id,
+        allocations: input.allocations as any,
       })
     )
 
@@ -286,6 +423,6 @@ export const createPaymentAndLinkWorkflow = createWorkflow(
       })
     )
 
-    return new WorkflowResponse({ payment, personLinks, partnerLinks, inventoryOrderLinks, submissionLinks, attachments })
+    return new WorkflowResponse({ payment, personLinks, partnerLinks, inventoryOrderLinks, submissionLinks, allocations, attachments })
   }
 )

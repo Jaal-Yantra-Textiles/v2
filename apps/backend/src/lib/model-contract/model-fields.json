@@ -3185,6 +3185,21 @@
       "zone"
     ]
   },
+  "PaymentAllocation (modules/internal_payments/models/payment_allocation.ts)": {
+    "file": "modules/internal_payments/models/payment_allocation.ts",
+    "fields": [
+      "amount",
+      "created_at",
+      "deleted_at",
+      "id",
+      "metadata",
+      "note",
+      "payment_id",
+      "payment_submission_id",
+      "raw_amount",
+      "updated_at"
+    ]
+  },
   "PaymentReconciliation (modules/payment_reports/models/payment_reconciliation.ts)": {
     "file": "modules/payment_reports/models/payment_reconciliation.ts",
     "fields": [

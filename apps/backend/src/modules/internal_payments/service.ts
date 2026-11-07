@@ -3,12 +3,14 @@ import Payment from "./models/payment";
 import PaymentDetail from "./models/payment_details";
 import PaymentAttachment from "./models/payment_attachment";
 import PartnerCredit from "./models/partner_credit";
+import PaymentAllocation from "./models/payment_allocation";
 
 class InternalPaymentService extends MedusaService({
   Payment,
   PaymentDetail,
   PaymentAttachment,
   PartnerCredit,
+  PaymentAllocation,
 }) {
   constructor() {
     super(...arguments)

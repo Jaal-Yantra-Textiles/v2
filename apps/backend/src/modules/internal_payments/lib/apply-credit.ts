@@ -191,3 +191,33 @@ export const appliedCreditsFor = (
     ids: rows.map((c) => String(c.id ?? "")).filter(Boolean),
   }
 }
+
+/**
+ * What has settled against ONE payout, read off the folded ledger (#2523).
+ *
+ * 🔴 Never by summing the payout's linked payments. One payment can be split
+ * across several payouts (#1712), and summing counted that payment in FULL
+ * against each — so a payout sharing a 25,000 payment with another read as
+ * 25,000 settled however little of it was allocated there, and the credit
+ * check below refused (or allowed) on a number no ledger shows. The fold's
+ * `settled_amount` is the allocation, already capped at the payout's claim.
+ *
+ * A payout the ledger does not list reads as 0 — STRICTER, never looser: it
+ * can only refuse an application.
+ */
+export const settledFromLedger = (
+  entries:
+    | Array<{
+        kind?: string
+        submission_id?: string | null
+        settled_amount?: number | string | null
+      }>
+    | null
+    | undefined,
+  submissionId: string
+): number => {
+  const entry = (entries || []).find(
+    (e) => e?.kind === "payout" && String(e?.submission_id ?? "") === submissionId
+  )
+  return round2(num(entry?.settled_amount))
+}

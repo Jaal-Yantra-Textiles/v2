@@ -894,3 +894,94 @@ describe("foldPartnerLedger — one payment linked to two payouts (#1712)", () =
     }
   })
 })
+
+describe("foldPartnerLedger — named shares of one payment (#2523)", () => {
+  // HR Handloom, 2026-11-07: one 25,000 payment, an old 16,380 bill and a new
+  // 86,743 one. Oldest-first would put 16,380 on the old bill.
+  const oldBill = { id: "sub_old", status: "Approved", total_amount: 16380, currency: "inr", submitted_at: "2026-09-01T00:00:00.000Z" }
+  const newBill = { id: "sub_new", status: "Pending", total_amount: 86743, currency: "inr", submitted_at: "2026-11-07T00:00:00.000Z" }
+  const pay = { id: "pay_25k", amount: 25000, status: "Completed" }
+  const linkedToBoth = () =>
+    mergePaymentSources([
+      { rows: [pay], attribution: { submission_id: "sub_old" } },
+      { rows: [pay], attribution: { submission_id: "sub_new" } },
+    ])
+  const settled = (entries: any[]) =>
+    Object.fromEntries(
+      entries.filter((e) => e.kind === "payout").map((e) => [e.submission_id, e.settled_amount])
+    )
+
+  it("spends a named share instead of the oldest-first split", () => {
+    const { entries, totals } = foldPartnerLedger({
+      submissions: [oldBill, newBill],
+      items: [],
+      payments: linkedToBoth(),
+      reconciliations: [],
+      allocations: [
+        { payment_id: "pay_25k", payment_submission_id: "sub_new", amount: 25000 },
+        { payment_id: "pay_25k", payment_submission_id: "sub_old", amount: 0 },
+      ],
+    })
+    expect(settled(entries)).toEqual({ sub_old: 0, sub_new: 25000 })
+    expect(totals.paid).toBe(25000)
+    expect(totals.unallocated).toBe(0)
+  })
+
+  it("gives the rest oldest-first to links with no named share", () => {
+    const { entries } = foldPartnerLedger({
+      submissions: [oldBill, newBill],
+      items: [],
+      payments: linkedToBoth(),
+      reconciliations: [],
+      allocations: [
+        { payment_id: "pay_25k", payment_submission_id: "sub_new", amount: 20000 },
+      ],
+    })
+    expect(settled(entries)).toEqual({ sub_old: 5000, sub_new: 20000 })
+  })
+
+  it("shows what a named split left over, and never counts it as paid", () => {
+    const { totals } = foldPartnerLedger({
+      submissions: [oldBill, newBill],
+      items: [],
+      payments: linkedToBoth(),
+      reconciliations: [],
+      allocations: [
+        { payment_id: "pay_25k", payment_submission_id: "sub_new", amount: 10000 },
+        { payment_id: "pay_25k", payment_submission_id: "sub_old", amount: 5000 },
+      ],
+    })
+    expect(totals.paid).toBe(15000)
+    expect(totals.unallocated).toBe(10000)
+    expect(totals.unallocated_payments).toEqual([
+      { payment_id: "pay_25k", amount: 25000, unallocated: 10000 },
+    ])
+  })
+
+  it("caps a named share at what the payout still claims", () => {
+    const { entries, totals } = foldPartnerLedger({
+      submissions: [oldBill],
+      items: [],
+      payments: mergePaymentSources([{ rows: [pay], attribution: { submission_id: "sub_old" } }]),
+      reconciliations: [],
+      allocations: [
+        { payment_id: "pay_25k", payment_submission_id: "sub_old", amount: 25000 },
+      ],
+    })
+    expect(settled(entries)).toEqual({ sub_old: 16380 })
+    expect(totals.unallocated).toBe(8620)
+  })
+
+  it("ignores a share for a payout the payment is no longer linked to", () => {
+    const { entries } = foldPartnerLedger({
+      submissions: [oldBill, newBill],
+      items: [],
+      payments: mergePaymentSources([{ rows: [pay], attribution: { submission_id: "sub_old" } }]),
+      reconciliations: [],
+      allocations: [
+        { payment_id: "pay_25k", payment_submission_id: "sub_new", amount: 25000 },
+      ],
+    })
+    expect(settled(entries)).toEqual({ sub_old: 16380, sub_new: 0 })
+  })
+})

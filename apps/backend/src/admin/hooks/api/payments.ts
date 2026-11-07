@@ -200,6 +200,16 @@ export type PartnerLedgerResponse = {
      * a figure no statement explains. `outstanding` is `billed - paid - credited`.
      */
     credited: number;
+    /**
+     * Money linked to payouts that none of them took (#2523) — what is left of
+     * a split payment. Beside `outstanding`, never subtracted from it.
+     */
+    unallocated?: number;
+    unallocated_payments?: Array<{
+      payment_id: string;
+      amount: number;
+      unallocated: number;
+    }>;
     currency: string | null;
   };
   count: number;
@@ -250,14 +260,20 @@ export const useSetPaymentSettles = (paymentId: string) => {
     mutationFn: async ({
       payment_submission_id,
       settles,
+      amount,
     }: {
       payment_submission_id: string;
       settles: boolean;
+      /** This payout's share of the payment (#2523). Omit for oldest-first. */
+      amount?: number;
     }) =>
       settles
         ? sdk.client.fetch(`/admin/payments/${paymentId}/settles`, {
             method: "POST",
-            body: { payment_submission_id },
+            body:
+              amount === undefined
+                ? { payment_submission_id }
+                : { payment_submission_id, amount },
           })
         : sdk.client.fetch(
             `/admin/payments/${paymentId}/settles?payment_submission_id=${payment_submission_id}`,
@@ -360,6 +376,46 @@ export const useApplyPartnerCredit = (partnerId: string, creditId: string) => {
       queryClient.invalidateQueries({ queryKey: [PARTNER_CREDITS_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: [PARTNER_LEDGER_QUERY_KEY] });
       queryClient.invalidateQueries({ queryKey: adminPartnersQueryKeys.details() });
+    },
+  });
+};
+
+/**
+ * Split one payment across several payouts, naming each share (#2523).
+ *
+ * One POST per payout, smallest share first: when a payment is re-split, a
+ * lowered share must land before a raised one, or the server sees both at
+ * once and refuses the raise as more than the payment holds. Reports how many
+ * shares landed, so a refusal half-way is never read as all-or-nothing.
+ */
+export const useSplitPayment = (paymentId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (shares: Record<string, number>) => {
+      const toWrite = Object.entries(shares)
+        .filter(([, amount]) => Number(amount) > 0)
+        .sort(([, a], [, b]) => Number(a) - Number(b));
+      let written = 0;
+      try {
+        for (const [payment_submission_id, amount] of toWrite) {
+          await sdk.client.fetch(`/admin/payments/${paymentId}/settles`, {
+            method: "POST",
+            body: { payment_submission_id, amount: Number(amount) },
+          });
+          written++;
+        }
+      } catch (e: any) {
+        const err: any = new Error(
+          `${written} of ${toWrite.length} shares saved — ${e?.message || "the next one was refused"}`,
+        );
+        err.written = written;
+        throw err;
+      }
+      return { written };
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: [PARTNER_LEDGER_QUERY_KEY] });
     },
   });
 };
