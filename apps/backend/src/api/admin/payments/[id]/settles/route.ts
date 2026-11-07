@@ -13,10 +13,11 @@ import { INTERNAL_PAYMENTS_MODULE } from "../../../../../modules/internal_paymen
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../../../modules/payment_submissions"
 import type PaymentSubmissionsService from "../../../../../modules/payment_submissions/service"
 import type InternalPaymentService from "../../../../../modules/internal_payments/service"
+import { checkAllocation } from "../../../../../modules/internal_payments/lib/allocation"
 import { decideSamePartner, resolvePaymentOwners } from "./same-partner"
 
 /**
- * POST /admin/payments/:id/settles   { payment_submission_id }
+ * POST /admin/payments/:id/settles   { payment_submission_id, amount? }
  * DELETE /admin/payments/:id/settles { payment_submission_id }
  *
  * State that an EXISTING payment discharges a payout — or take it back.
@@ -47,7 +48,7 @@ import { decideSamePartner, resolvePaymentOwners } from "./same-partner"
 const resolveBoth = async (
   req: MedusaRequest,
   submissionId: string
-): Promise<void> => {
+): Promise<{ payment: any; submission: any }> => {
   if (!submissionId) {
     throw new MedusaError(
       MedusaError.Types.INVALID_DATA,
@@ -138,6 +139,8 @@ const resolveBoth = async (
       }. A payment cannot settle another partner's payout.`
     )
   }
+
+  return { payment, submission }
 }
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
@@ -147,7 +150,42 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       ""
   ).trim()
 
-  await resolveBoth(req, submissionId)
+  const { payment, submission } = await resolveBoth(req, submissionId)
+
+  /**
+   * The share of this payment that goes to THIS payout (#2523). Optional:
+   * absent, the fold splits the payment oldest-payout-first as before.
+   * Checked BEFORE the link is written, so a refused share writes nothing.
+   */
+  const rawAmount =
+    (req.validatedBody as any)?.amount ?? (req.body as any)?.amount
+  const paymentService: InternalPaymentService = req.scope.resolve(
+    INTERNAL_PAYMENTS_MODULE
+  )
+  let existingShare: any = null
+  if (rawAmount !== undefined && rawAmount !== null) {
+    const amount = Number(rawAmount)
+    const shares = (await (paymentService as any).listPaymentAllocations({
+      payment_id: req.params.id,
+    })) as any[]
+    existingShare =
+      shares.find((a) => a.payment_submission_id === submissionId) ?? null
+    const otherShares = shares
+      .filter((a) => a.payment_submission_id !== submissionId)
+      .reduce((acc, a) => acc + Number(a.amount ?? 0), 0)
+
+    const verdict = checkAllocation({
+      paymentId: String(req.params.id),
+      submissionId,
+      amount,
+      paymentAmount: Number(payment.amount ?? 0),
+      otherShares,
+      payoutTotal: Number(submission.total_amount ?? 0),
+    })
+    if (!verdict.ok) {
+      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, verdict.message)
+    }
+  }
 
   const remoteLink = req.scope.resolve(ContainerRegistrationKeys.LINK) as Link
 
@@ -170,10 +208,28 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     },
   } as any)
 
+  let allocated: number | null = null
+  if (rawAmount !== undefined && rawAmount !== null) {
+    allocated = Number(rawAmount)
+    if (existingShare) {
+      await (paymentService as any).updatePaymentAllocations({
+        id: existingShare.id,
+        amount: allocated,
+      })
+    } else {
+      await (paymentService as any).createPaymentAllocations({
+        payment_id: req.params.id,
+        payment_submission_id: submissionId,
+        amount: allocated,
+      })
+    }
+  }
+
   return res.status(200).json({
     payment_id: req.params.id,
     payment_submission_id: submissionId,
     settles: true,
+    amount: allocated,
   })
 }
 
@@ -191,6 +247,23 @@ export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
     [PAYMENT_SUBMISSIONS_MODULE]: { payment_submission_id: submissionId },
     [INTERNAL_PAYMENTS_MODULE]: { internal_payments_id: req.params.id },
   })
+
+  /**
+   * The named share goes with the link (#2523). Left behind, it would come
+   * back to life the day someone re-links the pair without an amount.
+   */
+  const paymentService: InternalPaymentService = req.scope.resolve(
+    INTERNAL_PAYMENTS_MODULE
+  )
+  const stale = (await (paymentService as any).listPaymentAllocations({
+    payment_id: req.params.id,
+    payment_submission_id: submissionId,
+  })) as any[]
+  if (stale.length) {
+    await (paymentService as any).softDeletePaymentAllocations(
+      stale.map((a) => a.id)
+    )
+  }
 
   return res.status(200).json({
     payment_id: req.params.id,

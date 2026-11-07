@@ -39,6 +39,19 @@ export const CreatePaymentAndLinkSchema = z.object({
    * money against the order and warn, rather than assume.
    */
   paymentSubmissionIds: z.array(z.string()).optional(),
+  /**
+   * How much of this payment goes to each payout (#2523). Each payout named
+   * here is linked too. Refused when the shares add up to more than the
+   * payment, a share exceeds its payout, or a payout belongs to another partner.
+   */
+  allocations: z
+    .array(
+      z.object({
+        payment_submission_id: z.string().min(1),
+        amount: z.number().min(0),
+      })
+    )
+    .optional(),
   attachments: z.array(PaymentAttachmentSchema).optional(),
 })
 

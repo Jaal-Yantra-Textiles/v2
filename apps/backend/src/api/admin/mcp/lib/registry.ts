@@ -1840,7 +1840,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "get_partner_ledger",
     description:
-      "The whole money record for one partner: every payout (billed / paid / outstanding) plus every payment recorded against them, from all THREE homes a payment can live in (the partner link, the inventory-order link, and the payment method's `paid_to`). Read this BEFORE answering 'has this partner been paid' — the payout list alone said `recorded: 0` for a partner holding INR 121,777. 🔑 The figures are nested under `.totals`, not at the top level: a read of `.billed` returns undefined, which is a confident nothing. `recorded_against_open` is money already sitting against a source an UNPAID payout bills — reported BESIDE `outstanding`, never subtracted from it; whether it discharges the payout is a human decision, recorded with link_payment_to_payout.",
+      "The whole money record for one partner: every payout (billed / paid / outstanding) plus every payment recorded against them, from all THREE homes a payment can live in (the partner link, the inventory-order link, and the payment method's `paid_to`). Read this BEFORE answering 'has this partner been paid' — the payout list alone said `recorded: 0` for a partner holding INR 121,777. 🔑 The figures are nested under `.totals`, not at the top level: a read of `.billed` returns undefined, which is a confident nothing. `recorded_against_open` is money already sitting against a source an UNPAID payout bills — reported BESIDE `outstanding`, never subtracted from it; whether it discharges the payout is a human decision, recorded with link_payment_to_payout. `unallocated` (in `.totals`, with `unallocated_payments`) is money linked to payouts that none of them took — a split that left some of a payment over (#2523); point it at a bill with link_payment_to_payout + `amount`.",
     method: "GET",
     path: "/admin/payments/partners/:id/ledger",
     pathParams: ["id"],
@@ -2580,7 +2580,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "apply_partner_credit",
     description:
-      "Consume an Open credit against a specific payout — the deliberate act that turns money the partner already holds into a reduction of what they are still owed. The credit becomes `Applied`, stamps the payout it discharged, and the ledger's `credited` rises while `outstanding` falls by the same amount. Sensitive: requires confirm:true. 🔑 `paid` does NOT move — that figure means money that transferred, and a founder reconciling the ledger against a bank statement must not find a number no statement explains. 🔴 This is the SAFE way to carry a surplus forward; never link one payment to two payouts to do it, because `paid` sums per payout with only a per-payout clamp and the same money would count in full against both. ⚠️ A credit applies WHOLE — there is no partial application — so it is refused if it is larger than what the payout still claims, if the credit is not Open, or if the payout is Paid or Rejected. The refusal names both numbers.",
+      "Consume an Open credit against a specific payout — the deliberate act that turns money the partner already holds into a reduction of what they are still owed. The credit becomes `Applied`, stamps the payout it discharged, and the ledger's `credited` rises while `outstanding` falls by the same amount. Sensitive: requires confirm:true. 🔑 `paid` does NOT move — that figure means money that transferred, and a founder reconciling the ledger against a bank statement must not find a number no statement explains. 🔑 Use it for money the partner holds from an EARLIER payment (an overpayment, a correction). To split ONE payment across several payouts, use link_payment_to_payout once per payout instead — with `amount` to name each share. ⚠️ A credit applies WHOLE — there is no partial application — so it is refused if it is larger than what the payout still claims, if the credit is not Open, or if the payout is Paid or Rejected. The refusal names both numbers.",
     method: "POST",
     path: "/admin/partners/:id/credits/:creditId/apply",
     pathParams: ["id", "creditId"],
@@ -2607,17 +2607,20 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
   {
     name: "link_payment_to_payout",
     description:
-      "Record that an existing payment SETTLES a payout — the only way a payout can be settled in PART (the payout keeps its status; `paid` on the ledger moves by the payment's amount). Sensitive: requires confirm:true. 🔴 Never link one payment to TWO payouts to carry a surplus forward: `paid` sums per payout with only a per-payout clamp, so the same money would count in full against both. Record the surplus as a credit instead. 🔴 Only a `Completed` payment settles anything — two production rows are COMMITMENT rows (the exact ordered total, filed the day the order was created) and are not money that moved.",
+      "Record that an existing payment SETTLES a payout — the only way a payout can be settled in PART (the payout keeps its status; `paid` on the ledger moves by the payment's share). Sensitive: requires confirm:true. 🔑 ONE payment may pay SEVERAL payouts — call this once per payout (#1712, #2523). Pass `amount` to name this payout's share (e.g. 16,380 to the old bill, the rest to the new one); without it the ledger splits the payment oldest-payout-first. The money is never counted twice: shares are capped by the payment and by what each payout still claims, a named share larger than what the payment has left is REFUSED, and whatever no payout took shows as `unallocated` on get_partner_ledger. 🔴 Only a `Completed` payment settles anything — two production rows are COMMITMENT rows (the exact ordered total, filed the day the order was created) and are not money that moved.",
     method: "POST",
     path: "/admin/payments/:id/settles",
     pathParams: ["id"],
-    bodyParams: ["payment_submission_id"],
+    bodyParams: ["payment_submission_id", "amount"],
     previewPath: "/admin/payments/:id",
     write: true,
     sensitive: true,
     inputSchema: obj(
       {
         id: STR("Payment id (an `internal_payments` row) whose money settles the payout."),
+        amount: NUM(
+          "How much of the payment goes to THIS payout. Optional — omit to let the ledger split the payment oldest-payout-first. 0 means none of it. Refused (not clamped) when the payment's named shares would add up to more than the payment, or when it exceeds what the payout bills. Re-sending with a new amount replaces this payout's share."
+        ),
         payment_submission_id: STR(
           "The payout (payment submission) this payment settles. Must belong to the SAME partner as the payment — the route refuses otherwise, because a payment discharging another partner's payout pays the wrong person and leaves a link nobody would question."
         ),
@@ -2625,7 +2628,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "payment_submission_id"]
     ),
     sideEffects:
-      "Creates the payment↔payout link and moves `paid` / `outstanding` on the partner ledger. Repeating the same link is a no-op, not an error. Writes no payment and changes no payout status.",
+      "Creates the payment↔payout link (and, with `amount`, the payment's named share for this payout) and moves `paid` / `outstanding` on the partner ledger. Repeating the same link is a no-op, not an error. Writes no payment and changes no payout status.",
     nextSteps: ["get_partner_ledger"],
   },
   {
@@ -2651,7 +2654,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id", "payment_submission_id"]
     ),
     sideEffects:
-      "Removes the payment↔payout link and lowers `paid` on the partner ledger by that payment's amount.",
+      "Removes the payment↔payout link and any share named for it, and lowers `paid` on the partner ledger by what that payout had taken of the payment.",
     nextSteps: ["get_partner_ledger"],
   },
 

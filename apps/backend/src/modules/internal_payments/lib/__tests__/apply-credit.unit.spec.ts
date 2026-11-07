@@ -3,7 +3,12 @@ import {
   canApplyToStatus,
   checkCreditApplicable,
   remainingClaim,
+  settledFromLedger,
 } from "../apply-credit"
+import {
+  foldPartnerLedger,
+  mergePaymentSources,
+} from "../../../../api/admin/payments/partners/[id]/ledger/fold"
 
 /**
  * hrhandloom's real numbers throughout: a 1,380 credit born from being paid
@@ -223,5 +228,51 @@ describe("appliedCreditsFor (#1712)", () => {
   it("handles a missing list", () => {
     expect(appliedCreditsFor("sub_1", null).total).toBe(0)
     expect(appliedCreditsFor("sub_1", undefined).ids).toEqual([])
+  })
+})
+
+describe("settledFromLedger (#2523)", () => {
+  /**
+   * HR Handloom's shape: one 25,000 payment split across two payouts. The old
+   * route summed the payment in full against EACH payout.
+   */
+  const subA = { id: "sub_A", status: "Approved", total_amount: 16380, currency: "inr", submitted_at: "2026-09-01T00:00:00.000Z" }
+  const subB = { id: "sub_B", status: "Approved", total_amount: 33000, currency: "inr", submitted_at: "2026-10-19T00:00:00.000Z" }
+  const pay = { id: "pay_1", amount: 25000, status: "Completed" }
+
+  const { entries } = foldPartnerLedger({
+    submissions: [subA, subB],
+    items: [],
+    payments: mergePaymentSources([
+      { rows: [pay], attribution: { submission_id: "sub_A" } },
+      { rows: [pay], attribution: { submission_id: "sub_B" } },
+    ]),
+    reconciliations: [],
+  })
+
+  it("reads each payout's SHARE of a split payment, not the whole payment", () => {
+    expect(settledFromLedger(entries, "sub_A")).toBe(16380)
+    expect(settledFromLedger(entries, "sub_B")).toBe(8620)
+  })
+
+  it("leaves headroom on the payout that only got part of the payment", () => {
+    // sub_B really has 33,000 - 8,620 = 24,380 left. Summing linked payments
+    // said 25,000 settled there (8,000 left) and refused this 10,000 credit.
+    const credit = { amount: 10000, status: "Open", currency_code: "inr" }
+    expect(
+      checkCreditApplicable({
+        credit,
+        submission: { ...subB },
+        settledAmount: settledFromLedger(entries, "sub_B"),
+      }).ok
+    ).toBe(true)
+    // The old reading, for contrast — the refusal this fix removes.
+    expect(
+      checkCreditApplicable({ credit, submission: { ...subB }, settledAmount: 25000 }).ok
+    ).toBe(false)
+  })
+
+  it("reads 0 for a payout the ledger does not list", () => {
+    expect(settledFromLedger(entries, "sub_missing")).toBe(0)
   })
 })

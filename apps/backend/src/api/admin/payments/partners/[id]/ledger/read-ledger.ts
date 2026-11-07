@@ -330,12 +330,33 @@ export const readPartnerLedger = async (
     credits = []
   }
 
+  /**
+   * ── Named shares of split payments (#2523) ──────────────────────────────
+   *
+   * Read by PAYOUT id, so only shares against this partner's own payouts come
+   * back. Best-effort like the sources above: without them a split payment
+   * falls back to oldest-first, which moves money between this partner's
+   * payouts but never changes `paid` in total.
+   */
+  let allocations: any[] = []
+  if (submissionIds.length) {
+    try {
+      const paymentsService: any = container.resolve(INTERNAL_PAYMENTS_MODULE)
+      allocations = (await paymentsService.listPaymentAllocations({
+        payment_submission_id: submissionIds,
+      })) as any[]
+    } catch {
+      allocations = []
+    }
+  }
+
   const { entries, totals } = foldPartnerLedger({
     submissions,
     items,
     payments,
     reconciliations,
     credits,
+    allocations,
   })
 
   return { entries, totals, count: entries.length }

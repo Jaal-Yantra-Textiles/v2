@@ -48,6 +48,11 @@ export const ListPaymentsQuery = ListPaymentsQuerySchema;
  */
 export const PaymentSettlesSchema = z.object({
   payment_submission_id: z.string().min(1),
+  /**
+   * How much of the payment goes to this payout (#2523). Optional — absent,
+   * the ledger splits the payment oldest-payout-first.
+   */
+  amount: z.number().min(0).optional(),
 })
 
 export type PaymentSettles = z.infer<typeof PaymentSettlesSchema>

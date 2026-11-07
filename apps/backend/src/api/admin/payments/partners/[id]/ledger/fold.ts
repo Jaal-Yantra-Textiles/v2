@@ -109,6 +109,16 @@ export type PaymentLike = {
  * payout is a money decision a human makes by linking it (`submission_id`),
  * not one this fold may infer from a shared order id.
  */
+/**
+ * A share of one payment named for one payout (#2523) — a `payment_allocation`
+ * row. Only counts while the payment is still LINKED to that payout.
+ */
+export type AllocationLike = {
+  payment_id: string
+  payment_submission_id: string
+  amount?: number | string | null
+}
+
 export type RecordedAgainst = {
   payment_id: string
   amount: number
@@ -300,6 +310,18 @@ export type LedgerTotals = {
    */
   recorded_against_open: number
   /**
+   * Money LINKED to payouts that no payout took (#2523) — what is left of a
+   * payment after every named share and the oldest-first fallback. Shown
+   * beside `outstanding`, never subtracted from it: it is money a human still
+   * has to point at a bill.
+   */
+  unallocated: number
+  unallocated_payments: Array<{
+    payment_id: string
+    amount: number
+    unallocated: number
+  }>
+  /**
    * The currency all live submissions agree on, or null when they do not. A
    * caller must not render an aggregate against a null currency.
    */
@@ -412,9 +434,16 @@ export const foldPartnerLedger = (input: {
    * which is exactly what it reported before they existed.
    */
   credits?: CreditLike[]
+  /**
+   * The shares a human named for a payment split across payouts (#2523).
+   * Optional for the same reason as `credits`: folded without them, every
+   * payment allocates oldest-first exactly as it did before.
+   */
+  allocations?: AllocationLike[]
 }): { entries: LedgerEntry[]; totals: LedgerTotals } => {
   const { submissions, items, payments, reconciliations } = input
   const credits = input.credits || []
+  const allocations = input.allocations || []
 
   const itemsBySubmission = new Map<string, SubmissionItemLike[]>()
   for (const item of items) {
@@ -515,6 +544,19 @@ export const foldPartnerLedger = (input: {
    */
   const SETTLING_STATUSES = new Set(["Completed"])
   const allocationBySubmission = new Map<string, number>()
+  const unallocatedByPayment = new Map<string, number>()
+
+  /** payment id → (payout id → named share), from `payment_allocation` (#2523). */
+  const explicitShares = new Map<string, Map<string, number>>()
+  for (const a of allocations) {
+    if (!a?.payment_id || !a?.payment_submission_id) continue
+    const shares = explicitShares.get(a.payment_id) ?? new Map<string, number>()
+    shares.set(
+      a.payment_submission_id,
+      (shares.get(a.payment_submission_id) ?? 0) + num(a.amount)
+    )
+    explicitShares.set(a.payment_id, shares)
+  }
   const sharedWithBySubmission = new Map<string, string[]>()
 
   const submissionOrder = [...submissions].sort((a, b) => {
@@ -543,15 +585,40 @@ export const foldPartnerLedger = (input: {
       .map((sub) => sub.id)
       .filter((id) => named.includes(id))
 
-    for (const id of ordered) {
-      if (remaining <= 0) break
+    const spend = (id: string, wanted: number) => {
       const room = Math.max(0, headroom.get(id) ?? 0)
-      if (room <= 0) continue
-      const take = Math.round(Math.min(remaining, room) * 100) / 100
-      if (take <= 0) continue
+      const take = Math.round(Math.min(remaining, room, wanted) * 100) / 100
+      if (take <= 0) return
       allocationBySubmission.set(id, (allocationBySubmission.get(id) ?? 0) + take)
       headroom.set(id, room - take)
       remaining = Math.round((remaining - take) * 100) / 100
+    }
+
+    /**
+     * 🔑 Named shares first (#2523), in the same fixed payout order. A payout
+     * with a named share gets exactly that — capped by what the payment has
+     * left and what the payout still claims, never topped up by the fallback.
+     */
+    const named_shares = explicitShares.get(p.id)
+    for (const id of ordered) {
+      if (!named_shares?.has(id)) continue
+      spend(id, named_shares.get(id) ?? 0)
+    }
+
+    // Then oldest-first for the links nobody named a share for (#1712).
+    for (const id of ordered) {
+      if (remaining <= 0) break
+      if (named_shares?.has(id)) continue
+      spend(id, Infinity)
+    }
+
+    /**
+     * What this payment has left after every payout it pays took its share.
+     * Before #2523 it showed nowhere: a 25,000 payment with 20,000 named read
+     * as 20,000 of money and 5,000 of nothing.
+     */
+    if (remaining > 0) {
+      unallocatedByPayment.set(p.id, remaining)
     }
 
     /**
@@ -792,6 +859,23 @@ export const foldPartnerLedger = (input: {
         }
         return total
       })(),
+      /**
+       * Money linked to payouts that none of them took (#2523): a named split
+       * that left some of the payment over, or a payment larger than every
+       * payout it pays. Not in `paid` (no payout absorbed it) and not in
+       * `recorded` (it is not a standalone payment) — before this it was in no
+       * figure at all.
+       */
+      unallocated: Math.round(
+        [...unallocatedByPayment.values()].reduce((a, b) => a + b, 0) * 100
+      ) / 100,
+      unallocated_payments: [...unallocatedByPayment.entries()].map(
+        ([payment_id, unallocated]) => ({
+          payment_id,
+          amount: num(paymentsById.get(payment_id)?.amount),
+          unallocated,
+        })
+      ),
       currency: currencies.size === 1 ? [...currencies][0] : null,
     },
   }
