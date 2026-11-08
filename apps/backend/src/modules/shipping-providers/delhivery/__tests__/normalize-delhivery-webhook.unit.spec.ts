@@ -188,3 +188,22 @@ describe("delhiveryTimestamp", () => {
     expect(delhiveryTimestamp(0)).toBe("")
   })
 })
+
+describe("normalizeDelhiveryWebhook — the tracking API envelope", () => {
+  it("reads the AWB out of ShipmentData[0].Shipment", () => {
+    const out = normalizeDelhiveryWebhook({
+      ShipmentData: [
+        {
+          Shipment: {
+            AWB: "41712510000125",
+            Status: { Status: "Delivered", StatusType: "DL" },
+            Scans: [],
+          },
+        },
+      ],
+    })
+    expect(out.awb).toBe("41712510000125")
+    expect(out.current_status).toBe("Delivered")
+    expect(out.current_status_code).toBe("DL")
+  })
+})

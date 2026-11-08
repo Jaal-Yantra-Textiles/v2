@@ -129,7 +129,11 @@ export function normalizeDelhiveryWebhook(payload: any): {
   }>
   raw: any
 } {
-  const shipment = payload?.Shipment ?? payload?.shipment ?? payload ?? {}
+  // The tracking API's envelope (`ShipmentData: [{ Shipment }]`) is also
+  // accepted, so a push that mirrors it isn't dropped for want of an AWB.
+  const envelope = Array.isArray(payload?.ShipmentData) ? payload.ShipmentData[0] : null
+  const shipment =
+    envelope?.Shipment ?? payload?.Shipment ?? payload?.shipment ?? envelope ?? payload ?? {}
   const rawStatus = shipment?.Status ?? shipment?.status ?? {}
 
   // The flat push sends `status` as a string; the nested one as an object.
@@ -142,6 +146,8 @@ export function normalizeDelhiveryWebhook(payload: any): {
     shipment?.Waybill ??
     shipment?.waybill ??
     shipment?.wbn ??
+    shipment?.AWBNo ??
+    shipment?.waybill_number ??
     payload?.AWB ??
     payload?.awb ??
     payload?.waybill ??

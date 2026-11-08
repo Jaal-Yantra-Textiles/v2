@@ -1196,12 +1196,14 @@ export default defineMiddlewares({
       bodyParser: { sizeLimit: "10mb" },
     },
     {
-      // Carrier tracking pushes (Shiprocket — #888). Gated by
-      // SHIPPING_WEBHOOK_SECRET (custom header configured in the carrier
-      // dashboard; Shiprocket has no HMAC), JSON body parsed normally.
+      // Carrier tracking pushes (Shiprocket #888, Delhivery). Gated by
+      // SHIPPING_WEBHOOK_SECRET (custom header configured with the carrier;
+      // neither signs). Raw body kept: Delhivery's pushes were not read as
+      // JSON and every one was dropped (see track/push-body.ts).
       matcher: "/webhooks/shipping/track",
       method: "POST",
       middlewares: [],
+      bodyParser: { preserveRawBody: true },
     },
     {
       // PayU posts application/x-www-form-urlencoded; preserve the raw body so

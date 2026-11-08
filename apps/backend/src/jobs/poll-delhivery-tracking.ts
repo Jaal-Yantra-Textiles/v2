@@ -1,6 +1,7 @@
 import { MedusaContainer } from "@medusajs/framework/types"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { FULLFILLED_ORDERS_MODULE } from "../modules/fullfilled_orders"
 import { resolveShippingProvider } from "../modules/shipping-providers/resolver"
 import type { ShippingProviderClient } from "../modules/shipping-providers/provider-interface"
 import { syncOrderShipmentTrackingWorkflow } from "../workflows/orders/sync-order-shipment-tracking"
@@ -23,7 +24,22 @@ import { syncInventoryShipmentTrackingWorkflow } from "../workflows/inventory_or
  *
  * Only open shipments are polled: anything already delivered or canceled is
  * terminal, and re-asking the carrier about it is pure quota burn.
+ *
+ * 🔴 Two kinds of shipment carry a Delhivery AWB: core-order fulfillments
+ * (`data.waybill`) and supplier/inventory-order shipments (`inventory_shipment`).
+ * Until Nov 2026 only the first was polled, so GOF's parcel (AWB
+ * 41712510000125, delivered 2026-11-03) sat at "created" with every push
+ * dropped and no poll to catch it.
  */
+
+/** Inventory shipment states the carrier can still move. */
+const OPEN_INVENTORY_SHIPMENT_STATUSES = [
+  "created",
+  "pickup_scheduled",
+  "picked_up",
+  "in_transit",
+  "out_for_delivery",
+]
 
 /** Cap per run so a large backlog can't stall the scheduler or spam the API. */
 const MAX_PER_RUN = 100
@@ -60,11 +76,19 @@ export default async function pollDelhiveryTracking(container: MedusaContainer) 
     filters: { delivered_at: null, canceled_at: null },
   })
 
-  const open = (fulfillments || [])
+  const fulfillmentAwbs = (fulfillments || [])
     .filter(
       (f: any) => f?.data?.carrier === "delhivery" && !!f?.data?.waybill
     )
-    .slice(0, MAX_PER_RUN)
+    .map((f: any) => String(f.data.waybill))
+
+  const inventoryAwbs = await openInventoryShipmentAwbs(container, logger)
+
+  // One AWB is one carrier call, however many rows point at it.
+  const open = Array.from(new Set([...inventoryAwbs, ...fulfillmentAwbs])).slice(
+    0,
+    MAX_PER_RUN
+  )
 
   if (!open.length) {
     return
@@ -73,8 +97,7 @@ export default async function pollDelhiveryTracking(container: MedusaContainer) 
   let checked = 0
   let advanced = 0
 
-  for (const fulfillment of open) {
-    const awb = String(fulfillment.data.waybill)
+  for (const awb of open) {
     try {
       // The adapter takes a ShipmentRef and returns the normalized
       // TrackingResult directly — the exact shape the webhook normalizers
@@ -107,6 +130,26 @@ export default async function pollDelhiveryTracking(container: MedusaContainer) 
   logger.info(
     `[delhivery-poll] checked=${checked}/${open.length} advanced=${advanced}`
   )
+}
+
+async function openInventoryShipmentAwbs(
+  container: MedusaContainer,
+  logger: any
+): Promise<string[]> {
+  try {
+    const fulfilledOrders: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+    const shipments = await fulfilledOrders.listInventoryShipments({
+      carrier: "delhivery",
+      status: OPEN_INVENTORY_SHIPMENT_STATUSES,
+    })
+    return (shipments || [])
+      .map((s: any) => String(s?.awb || "").trim())
+      .filter(Boolean)
+  } catch (e: any) {
+    // Core-order polling must not die with it.
+    logger.warn(`[delhivery-poll] could not list inventory shipments: ${e?.message || e}`)
+    return []
+  }
 }
 
 export const config = {

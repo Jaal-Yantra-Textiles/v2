@@ -211,6 +211,31 @@ setupSharedTestSuite(() => {
     expect(shipment.metadata.tracking_events.length).toBeGreaterThan(0);
   });
 
+  it("Delhivery push sent as text/plain (aiohttp) is read, not dropped as 'no AWB'", async () => {
+    // Nov 2026: 26 Delhivery pushes for GOF's parcel were acked 200 and all
+    // dropped — the JSON arrived as a text/plain string.
+    const { orderId } = await createOrderWithShipment();
+
+    const res = await api
+      .post(
+        `/webhooks/shipping/track?carrier=delhivery&token=${WEBHOOK_SECRET}`,
+        JSON.stringify({
+          Shipment: {
+            AWB: STUB_AWB,
+            Status: { Status: "Delivered", StatusType: "DL", StatusDateTime: "2026-11-03T06:39:00" },
+          },
+        }),
+        { headers: { "content-type": "text/plain; charset=utf-8" } }
+      )
+      .catch((e: any) => e.response);
+    expect(res.status).toBe(200);
+
+    const delivered = await waitFor(
+      async () => (await fetchOrder(orderId)).shipments?.[0]?.status === "delivered"
+    );
+    expect(delivered).toBe(true);
+  });
+
   it("delivered → order Delivered; a late in-transit push never regresses", async () => {
     const { orderId } = await createOrderWithShipment();
 

@@ -5,6 +5,7 @@ import { normalizeDelhiveryWebhook } from "../../../../modules/shipping-provider
 import { normalizeShiprocketWebhook } from "../../../../modules/shipping-providers/shiprocket/client"
 import { syncInventoryShipmentTrackingWorkflow } from "../../../../workflows/inventory_orders/sync-inventory-shipment-tracking"
 import { syncOrderShipmentTrackingWorkflow } from "../../../../workflows/orders/sync-order-shipment-tracking"
+import { describePushBody, pushPayloads } from "./push-body"
 
 /**
  * POST /webhooks/shipping/track (#888)
@@ -43,13 +44,17 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     logger.warn("[Shipping Webhook] SHIPPING_WEBHOOK_SECRET not set — gate is open")
   }
 
-  const body = req.body as any
   const carrier = String((req.query?.carrier as string) || "shiprocket")
+  const contentType = String(req.headers["content-type"] || "")
+  // A content type none of Medusa's parsers claim (octet-stream, none at all)
+  // leaves the stream unread — read it here, before the ack ends the request.
+  const rawBody = (req as any).rawBody ?? (await readUnparsedBody(req))
+  const body = req.body as any
 
   // Ack immediately; process async (Shiprocket requires a fast 200).
   res.status(200).send("OK")
 
-  processTrackingPush(req.scope, carrier, body).catch((error) => {
+  processTrackingPushes(req.scope, carrier, body, rawBody, contentType).catch((error) => {
     logger.error("[Shipping Webhook] Failed to process push:", error as Error)
   })
 }
@@ -59,17 +64,44 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
  * shape, so everything downstream (AWB match → inventory shipment → core order)
  * is carrier-agnostic.
  *
- * Delhivery's status push has to be enabled by their account team, so until it
- * is, Delhivery AWBs are kept current by the scheduled poll in
- * `jobs/poll-delhivery-tracking` instead. Both paths feed the same workflows,
- * so the webhook is a latency improvement rather than a dependency.
+ * Delhivery's push is live (their team enabled it for
+ * `?carrier=delhivery` in Oct 2026); the hourly poll in
+ * `jobs/poll-delhivery-tracking` is the safety net behind it. Both paths feed
+ * the same workflows, so a missed push only costs latency.
  */
 const NORMALIZERS: Record<string, (body: any) => any> = {
   shiprocket: normalizeShiprocketWebhook,
   delhivery: normalizeDelhiveryWebhook,
 }
 
-async function processTrackingPush(scope: any, carrier: string, body: any): Promise<void> {
+/** Cap on a body we read ourselves — a status push is a few hundred bytes. */
+const MAX_UNPARSED_BYTES = 1024 * 1024
+
+async function readUnparsedBody(req: MedusaRequest): Promise<Buffer | undefined> {
+  const stream: any = req
+  if (req.body != null && !isEmptyObject(req.body)) return undefined
+  if (!stream.readable || stream.readableEnded) return undefined
+  const chunks: Buffer[] = []
+  let size = 0
+  for await (const chunk of stream) {
+    size += chunk.length
+    if (size > MAX_UNPARSED_BYTES) break
+    chunks.push(Buffer.from(chunk))
+  }
+  return chunks.length ? Buffer.concat(chunks) : undefined
+}
+
+function isEmptyObject(value: unknown): boolean {
+  return typeof value === "object" && value !== null && Object.keys(value).length === 0
+}
+
+async function processTrackingPushes(
+  scope: any,
+  carrier: string,
+  body: any,
+  rawBody: unknown,
+  contentType: string
+): Promise<void> {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
 
   // Unknown carriers are logged, not 4xx'd (the ack already went out, and a
@@ -80,11 +112,30 @@ async function processTrackingPush(scope: any, carrier: string, body: any): Prom
     return
   }
 
-  const tracking = normalizer(body)
-  if (!tracking.awb) {
-    logger.info("[Shipping Webhook] Push without an AWB — ignored (test webhook?)")
+  const payloads = pushPayloads(body, rawBody)
+  const trackings = payloads.map((p) => normalizer(p)).filter((t) => !!t?.awb)
+  if (!trackings.length) {
+    // Never drop an update silently again: record its shape so the next one
+    // shows exactly what the carrier sent.
+    logger.warn(
+      `[Shipping Webhook] ${carrier} push without an AWB — ignored. ` +
+        describePushBody(rawBody ?? body, contentType)
+    )
     return
   }
+
+  for (const tracking of trackings) {
+    try {
+      await processTrackingPush(scope, tracking)
+    } catch (error) {
+      logger.error(`[Shipping Webhook] Failed to process AWB ${tracking.awb}:`, error as Error)
+    }
+  }
+}
+
+async function processTrackingPush(scope: any, tracking: any): Promise<void> {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  const body = tracking.raw
 
   const { result } = await syncInventoryShipmentTrackingWorkflow(scope).run({
     input: { tracking: { ...tracking, raw: body } },
