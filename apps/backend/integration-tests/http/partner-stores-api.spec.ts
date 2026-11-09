@@ -235,6 +235,21 @@ setupSharedTestSuite(() => {
         expect(Array.isArray(res.data.sales_channels)).toBe(true)
         expect(res.data.sales_channels.length).toBeGreaterThanOrEqual(1)
       })
+
+      it("marks the store's channel as the partner's (#2527)", async () => {
+        // Only a marked channel is ever eligible for orphan cleanup; admin
+        // channels (Partner Work Orders, POS) carry no mark.
+        const res = await api.get(
+          `/admin/sales-channels/${partner.salesChannelId}`,
+          adminHeaders
+        )
+        expect(res.data.sales_channel.metadata).toEqual(
+          expect.objectContaining({
+            created_by: "partner_store",
+            partner_id: partner.partnerId,
+          })
+        )
+      })
     })
 
     describe("Store Shipping Options", () => {
