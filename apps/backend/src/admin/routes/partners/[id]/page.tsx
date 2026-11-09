@@ -10,6 +10,7 @@ import { PartnerCreditsSection } from "../../../components/partners/partner-cred
 import { PartnerTasksSection } from "../../../components/partners/partner-tasks-section"
 import { PartnerFeedbacksSection } from "../../../components/partners/partner-feedbacks-section"
 import { PartnerStorefrontSection } from "../../../components/partners/partner-storefront-section"
+import { PartnerStoreSwitchSection } from "../../../components/partners/partner-store-switch-section"
 import { PartnerInspectionSection } from "../../../components/partners/partner-inspection-section"
 import { PartnerSubscriptionSection } from "../../../components/partners/partner-subscription-section"
 import { PartnerPeopleSection } from "../../../components/partners/partner-people-section"
@@ -71,6 +72,7 @@ const PartnerDetailPage = () => {
           />
           <PartnerInspectionSection partnerId={partner.id} />
           <PartnerTasksSection partnerId={partner.id} />
+          <PartnerStoreSwitchSection partnerId={partner.id} />
           <PartnerStorefrontSection partnerId={partner.id} />
         </TwoColumnPage.Main>
         <TwoColumnPage.Sidebar>
