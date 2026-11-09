@@ -68,7 +68,10 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   const { admin, partner } = await resolveCurrentAdmin(req)
-  res.json({ admin, partner_id: partner.id })
+  // workspace_type lets the mobile app render the persona's surface
+  // (an "individual" sees tasks + shared folders, not orders/designs)
+  // without a second /partners/details round trip.
+  res.json({ admin, partner_id: partner.id, workspace_type: partner.workspace_type })
 }
 
 type UpdateMePayload = {

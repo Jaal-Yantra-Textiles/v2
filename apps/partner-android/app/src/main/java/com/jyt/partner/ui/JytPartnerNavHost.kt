@@ -12,14 +12,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Checkroom
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.outlined.Checkroom
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Timeline
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -64,6 +68,8 @@ object Routes {
     const val PAYMENTS = "payments?runId={runId}"
     const val PAYMENT = "payment/{submissionId}"
     const val REQUEST_PAYMENT = "payments/request?runId={runId}"
+    const val TASK = "task/{taskId}"
+    const val FOLDER = "folder/{folderId}"
 
     fun order(id: String) = "order/$id"
     fun run(id: String) = "run/$id"
@@ -74,6 +80,8 @@ object Routes {
     fun payment(id: String) = "payment/$id"
     fun requestPayment(runId: String? = null) =
         if (runId == null) "payments/request" else "payments/request?runId=$runId"
+    fun task(id: String) = "task/$id"
+    fun folder(id: String) = "folder/$id"
 }
 
 @Composable
@@ -196,6 +204,20 @@ fun JytPartnerNavHost(auth: AuthViewModel) {
                             onBack = { navController.popBackStack() },
                         )
                     }
+                    composable(Routes.TASK) { entry ->
+                        val taskId = entry.arguments?.getString("taskId").orEmpty()
+                        TaskDetailScreen(
+                            taskId = taskId,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
+                    composable(Routes.FOLDER) { entry ->
+                        val folderId = entry.arguments?.getString("folderId").orEmpty()
+                        SharedFolderDetailScreen(
+                            folderId = folderId,
+                            onBack = { navController.popBackStack() },
+                        )
+                    }
                 }
             }
         }
@@ -264,17 +286,36 @@ private enum class Tab(val label: String, val filled: androidx.compose.ui.graphi
     ORDERS("Orders", Icons.Filled.Checkroom, Icons.Outlined.Checkroom),
     DESIGNS("Designs", Icons.Filled.Palette, Icons.Outlined.Palette),
     INVENTORY("Inventory", Icons.Filled.Inventory2, Icons.Outlined.Inventory2),
+    TASKS("Tasks", Icons.Filled.Timeline, Icons.Outlined.Timeline),
+    FOLDERS("Folders", Icons.Filled.FolderOpen, Icons.Outlined.FolderOpen),
     SETTINGS("Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 }
 
 @Composable
 private fun MainScaffold(auth: AuthViewModel, navController: androidx.navigation.NavHostController) {
-    var selectedTab by rememberSaveable { mutableStateOf(Tab.ORDERS) }
+    val state by auth.state.collectAsState()
+    val me = (state as? AuthViewModel.State.SignedIn)?.me
+
+    // The persona picks the surface, the same field the partner-ui's
+    // buildCoreRoutes routes on: an "individual" (model, freelancer…) gets
+    // their assigned tasks and media folders instead of the commerce tabs.
+    val tabs = if (me?.workspaceType == "individual") {
+        listOf(Tab.TASKS, Tab.FOLDERS, Tab.SETTINGS)
+    } else {
+        listOf(Tab.ORDERS, Tab.DESIGNS, Tab.INVENTORY, Tab.SETTINGS)
+    }
+
+    var selectedTab by rememberSaveable {
+        mutableStateOf(if (me?.workspaceType == "individual") Tab.TASKS else Tab.ORDERS)
+    }
+    // A persona switch (sign out → sign in as someone else) recreates this
+    // scaffold, but stay defensive: the selection must be one of the tabs.
+    if (selectedTab !in tabs) selectedTab = tabs.first()
 
     Scaffold(
         bottomBar = {
             NavigationBar {
-                Tab.entries.forEach { tab ->
+                tabs.forEach { tab ->
                     NavigationBarItem(
                         selected = tab == selectedTab,
                         onClick = { selectedTab = tab },
@@ -292,6 +333,12 @@ private fun MainScaffold(auth: AuthViewModel, navController: androidx.navigation
     ) { padding ->
         androidx.compose.foundation.layout.Box(modifier = Modifier.padding(padding)) {
             when (selectedTab) {
+                Tab.TASKS -> TasksScreen(
+                    onOpenTask = { id -> navController.navigate(Routes.task(id)) },
+                )
+                Tab.FOLDERS -> SharedFoldersScreen(
+                    onOpenFolder = { id -> navController.navigate(Routes.folder(id)) },
+                )
                 Tab.ORDERS -> OrdersScreen(
                     onOpenOrder = { id -> navController.navigate(Routes.order(id)) },
                 )

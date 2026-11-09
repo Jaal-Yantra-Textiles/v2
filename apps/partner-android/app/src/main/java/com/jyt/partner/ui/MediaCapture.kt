@@ -34,12 +34,22 @@ import java.io.File
 class MediaCapture internal constructor(
     val takePhoto: () -> Unit,
     val pickFromLibrary: () -> Unit,
+    /** Multi-file gallery pick — only present when the caller asked for it
+     *  (shared folders); the single-pick flows never see it. */
+    val pickMultipleFromLibrary: (() -> Unit)? = null,
 )
+
+/** How many files one gallery trip can hand over to the folder queue. */
+private const val MAX_MULTI_PICK = 15
 
 /**
  * The camera + gallery launchers behind one handle (the MediaPickerView
  * counterpart). [onMedia] gets a content Uri either way, so the caller's
  * upload code reads both the same.
+ *
+ * Pass [onMultiple] to turn the gallery pick into a multi-select that
+ * hands over every picked file at once (shared folders' background
+ * queue). Without it the handle behaves exactly as before: one file.
  *
  * The camera goes through the phone's own camera app (ACTION_IMAGE_CAPTURE),
  * which needs no CAMERA permission as long as the manifest doesn't declare
@@ -49,6 +59,7 @@ class MediaCapture internal constructor(
 fun rememberMediaCapture(
     onMedia: (Uri) -> Unit,
     onError: (String) -> Unit,
+    onMultiple: ((List<Uri>) -> Unit)? = null,
 ): MediaCapture {
     val context = LocalContext.current
     // Saveable: a low-memory phone can kill the app while the camera is open,
@@ -64,8 +75,15 @@ fun rememberMediaCapture(
     val library = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) onMedia(uri)
     }
+    val multiLibrary = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(maxItems = MAX_MULTI_PICK)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            if (onMultiple != null) onMultiple(uris) else uris.forEach(onMedia)
+        }
+    }
 
-    return remember(camera, library) {
+    return remember(camera, library, multiLibrary) {
         MediaCapture(
             takePhoto = {
                 val uri = newCameraFile(context)
@@ -83,6 +101,11 @@ fun rememberMediaCapture(
             pickFromLibrary = {
                 library.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
             },
+            pickMultipleFromLibrary = if (onMultiple != null) {
+                {
+                    multiLibrary.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                }
+            } else null,
         )
     }
 }
@@ -96,12 +119,14 @@ private fun newCameraFile(context: Context): Uri {
     return FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
 }
 
-/** Take photo / Choose from gallery — shown before an upload. */
+/** Take photo / Choose from gallery — shown before an upload. With
+ *  [multiple] the gallery pick hands over every selected file at once. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MediaSourceSheet(
     capture: MediaCapture,
     onDismiss: () -> Unit,
+    multiple: Boolean = false,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 16.dp)) {
@@ -115,11 +140,17 @@ fun MediaSourceSheet(
             )
             ListItem(
                 headlineContent = { Text("Choose from gallery") },
-                supportingContent = { Text("Photos or videos") },
+                supportingContent = {
+                    Text(if (multiple) "Photos or videos — pick several" else "Photos or videos")
+                },
                 leadingContent = { Icon(Icons.Filled.PhotoLibrary, contentDescription = null) },
                 modifier = Modifier.clickable {
                     onDismiss()
-                    capture.pickFromLibrary()
+                    if (multiple && capture.pickMultipleFromLibrary != null) {
+                        capture.pickMultipleFromLibrary?.invoke()
+                    } else {
+                        capture.pickFromLibrary()
+                    }
                 },
             )
         }

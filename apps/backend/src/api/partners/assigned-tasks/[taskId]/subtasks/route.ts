@@ -102,6 +102,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { getPartnerFromAuthContext } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
+import { fetchTaskWithPartners } from "../../lib";
 
 /**
  * GET /partners/assigned-tasks/[taskId]/subtasks
@@ -132,22 +133,14 @@ export async function GET(
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
     
     // Verify parent task is assigned to this partner
-    const { data: taskData } = await query.index({
-      entity: 'task',
-      fields: ["*", "partners.*"],
-      filters: {
-        id: taskId
-      }
-    });
+    const task = await fetchTaskWithPartners(req.scope, taskId);
 
-    if (!taskData || taskData.length === 0) {
+    if (!task) {
       return res.status(404).json({ 
         error: "Task not found" 
       });
     }
 
-    const task = taskData[0] as any;
-    
     // Check if task is linked to this partner
     const isLinked = task.partners && Array.isArray(task.partners) && 
                      task.partners.some((p: any) => p.id === partner.id);

@@ -1,7 +1,8 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { finishPartnerTaskWorkflow } from "../../../../../workflows/tasks/finish-partner-task"
 import { getPartnerFromAuthContext } from "../../../helpers"
+import { fetchTaskWithPartners } from "../../lib"
 
 /**
  * POST /partners/assigned-tasks/[taskId]/finish
@@ -26,14 +27,11 @@ export async function POST(
       )
     }
 
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-    const { data: taskData } = await query.index({
-      entity: "task",
-      fields: ["*", "partners.*"],
-      filters: { partners: { id: partner.id }, id: taskId },
-    })
+    const task = await fetchTaskWithPartners(req.scope, taskId)
+    const isLinked = Array.isArray(task?.partners)
+      && task.partners.some((p: any) => p.id === partner.id)
 
-    if (!taskData?.length) {
+    if (!task || !isLinked) {
       return res.status(403).json({
         message: "Task not assigned to this partner or does not exist",
       })
