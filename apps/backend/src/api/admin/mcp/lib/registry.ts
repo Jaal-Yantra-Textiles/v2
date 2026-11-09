@@ -497,6 +497,24 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects: "Sets is_disabled=false on the store's default sales channel.",
     nextSteps: ["disable_store", "list_stores"],
   },
+  {
+    name: "delete_partner_storefront",
+    description:
+      "Delete an INACTIVE partner's only store: unlinks its publishable keys, soft-deletes its sales channel and the store, and removes the partner↔store link. The partner, its products, orders and stock locations stay. Refuses an active partner (use disable_store), several stores, or orders still in flight. Sensitive: requires confirm:true. dry_run first.",
+    method: "DELETE",
+    path: "/admin/partners/:id/storefront",
+    pathParams: ["id"],
+    previewPath: "/admin/partners/:id/storefront",
+    write: true,
+    sensitive: true,
+    inputSchema: obj(
+      { id: STR("Partner id whose storefront to delete, e.g. '01M6...'.") },
+      ["id"]
+    ),
+    sideEffects:
+      "Soft-deletes the store and its sales channel and unlinks the channel's publishable keys (key rows kept). Does NOT delete the partner, products, orders or stock locations — delete an empty location with DELETE /admin/stock-locations/:id.",
+    nextSteps: ["list_stores", "get_partner"],
+  },
 
   // ===== Designs & production ==============================================
   {

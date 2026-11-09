@@ -5023,6 +5023,11 @@ export default defineMiddlewares({
       middlewares: [],
     },
     {
+      matcher: "/admin/partners/:id/storefront",
+      method: "DELETE",
+      middlewares: [],
+    },
+    {
       matcher: "/admin/partners/:id/storefront/provision",
       method: "POST",
       middlewares: [],

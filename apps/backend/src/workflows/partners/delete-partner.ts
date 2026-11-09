@@ -25,7 +25,7 @@ type DeletePartnerInput = {
  * An order still in flight. Everything else is history: a completed, canceled,
  * archived or draft order is not waiting on this partner for anything.
  */
-const TERMINAL_ORDER_STATUSES = new Set([
+export const TERMINAL_ORDER_STATUSES = new Set([
   "completed",
   "canceled",
   "archived",
@@ -151,7 +151,7 @@ const planPartnerCascadeStep = createStep(
  * state never exists — not between two awaits, and not at all if the channel
  * soft-delete then fails.
  */
-const unlinkPublishableKeysStep = createStep(
+export const unlinkPublishableKeysStep = createStep(
   "unlink-partner-publishable-keys-step",
   async (plan: PartnerDeletionPlan, { container }) => {
     for (const k of plan.unlink_keys) {
@@ -171,7 +171,7 @@ const unlinkPublishableKeysStep = createStep(
   }
 )
 
-const softDeletePartnerSalesChannelsStep = createStep(
+export const softDeletePartnerSalesChannelsStep = createStep(
   "soft-delete-partner-sales-channels-step",
   async (plan: PartnerDeletionPlan, { container }) => {
     const ids = plan.soft_delete_sales_channel_ids
@@ -187,7 +187,7 @@ const softDeletePartnerSalesChannelsStep = createStep(
   }
 )
 
-const softDeletePartnerStoresStep = createStep(
+export const softDeletePartnerStoresStep = createStep(
   "soft-delete-partner-stores-step",
   async (plan: PartnerDeletionPlan, { container }) => {
     const ids = plan.soft_delete_store_ids
