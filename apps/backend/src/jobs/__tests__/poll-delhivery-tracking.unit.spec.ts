@@ -83,16 +83,22 @@ const fulfillment = (over: Record<string, any> = {}) => ({
   ...over,
 })
 
-const containerWith = (fulfillments: any[], log = logger()) => {
+const containerWith = (
+  fulfillments: any[],
+  log = logger(),
+  inventoryShipments: any[] = []
+) => {
   const graph = jest.fn().mockResolvedValue({ data: fulfillments })
+  const listInventoryShipments = jest.fn().mockResolvedValue(inventoryShipments)
   const container = {
     resolve: (key: string) => {
       if (key === "logger") return log
       if (key === "query") return { graph }
+      if (key === "fullfilled_orders") return { listInventoryShipments }
       throw new Error(`unexpected resolve(${key})`)
     },
   } as any
-  return { container, log, graph }
+  return { container, log, graph, listInventoryShipments }
 }
 
 const providerWithTrack = () => ({
@@ -223,5 +229,59 @@ describe("poll-delhivery-tracking", () => {
     )
     expect(mockInventoryRun).toHaveBeenCalledTimes(1)
     expect(mockInventoryRun).toHaveBeenCalledWith({ input: { tracking } })
+  })
+
+  it("polls open Delhivery INVENTORY shipments too — GOF's parcel was never polled", async () => {
+    // Nov 2026: a supplier parcel booked straight with Delhivery lives in
+    // inventory_shipment, not in a core fulfillment. Every push was dropped
+    // and the poll only looked at fulfillments, so it stayed "created" after
+    // delivery.
+    const tracking = { ...trackingResult(), awb: "41712510000125" }
+    mockResolveProvider.mockResolvedValue(providerWithTrack())
+    mockTrack.mockResolvedValue(tracking)
+    mockInventoryRun.mockResolvedValue({
+      result: { matched: true, shipment_status_changed: true },
+    })
+
+    const { container, log, listInventoryShipments } = containerWith(
+      [fulfillment({ data: { carrier: "delhivery", waybill: "41712510000125" } })],
+      logger(),
+      [
+        { id: "ish_1", carrier: "delhivery", awb: "41712510000125", status: "created" },
+        { id: "ish_2", carrier: "delhivery", awb: null, status: "created" },
+      ]
+    )
+
+    await pollDelhiveryTracking(container)
+
+    expect(listInventoryShipments).toHaveBeenCalledWith({
+      carrier: "delhivery",
+      status: ["created", "pickup_scheduled", "picked_up", "in_transit", "out_for_delivery"],
+    })
+    // The same AWB on a fulfillment and a shipment is ONE carrier call; the
+    // shipment with no AWB yet is skipped.
+    expect(mockTrack).toHaveBeenCalledTimes(1)
+    expect(mockTrack).toHaveBeenCalledWith({ awb: "41712510000125" })
+    expect(mockInventoryRun).toHaveBeenCalledWith({ input: { tracking } })
+    expect(log.info).toHaveBeenCalledWith(
+      expect.stringContaining("checked=1/1 advanced=1")
+    )
+  })
+
+  it("still polls core fulfillments when listing inventory shipments fails", async () => {
+    mockResolveProvider.mockResolvedValue(providerWithTrack())
+    mockTrack.mockResolvedValue(trackingResult())
+    mockInventoryRun.mockResolvedValue({ result: { matched: false } })
+    mockOrderRun.mockResolvedValue({ result: { matched: true, status_changed: false } })
+
+    const { container, log, listInventoryShipments } = containerWith([fulfillment()])
+    listInventoryShipments.mockRejectedValue(new Error("db down"))
+
+    await pollDelhiveryTracking(container)
+
+    expect(log.warn).toHaveBeenCalledWith(
+      expect.stringContaining("could not list inventory shipments: db down")
+    )
+    expect(mockTrack).toHaveBeenCalledWith({ awb: "10053849125307" })
   })
 })
