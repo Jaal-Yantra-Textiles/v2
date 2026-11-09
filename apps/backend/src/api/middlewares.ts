@@ -227,6 +227,7 @@ import { BulkUpdateProductsSchema } from "./admin/products/bulk-update/validator
 import { BulkProductSpecReq } from "./admin/products/spec-bulk/validators";
 import {
   CreateExportLutSchema,
+  SetRegisteredAddressSchema,
   UpdateExportLutSchema,
 } from "./admin/platform-tax-identities/validators";
 import { CreatePlatformCostConfigSchema } from "./admin/platform-cost-config/validators";
@@ -3125,6 +3126,12 @@ export default defineMiddlewares({
       middlewares: [
         validateAndTransformBody(wrapSchema(CreatePlatformCostConfigSchema)),
       ],
+    },
+    {
+      // #2532 — the seller address on GST tax invoices.
+      matcher: "/admin/platform-tax-identities/:id/registered-address",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(SetRegisteredAddressSchema))],
     },
     {
       matcher: "/admin/platform-tax-identities/:id/export-luts",

@@ -25,6 +25,12 @@ const PlatformTaxIdentity = model.define("platform_tax_identity", {
   country_codes: model.array(),
   /** Disabled rows are skipped by the resolver without being deleted. */
   is_active: model.boolean().default(true),
+  /**
+   * The principal place of business as registered on the GST certificate
+   * (#2532): what a tax invoice prints as the seller address. JSON of
+   * { address_1, address_2, city, province, postal_code, country_code, phone }.
+   */
+  registered_address: model.json().nullable(),
   /** Export LUTs furnished under this registration — one per financial year (#1216). */
   export_luts: model.hasMany(() => PlatformExportLut, {
     mappedBy: "tax_identity",

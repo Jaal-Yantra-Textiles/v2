@@ -56,3 +56,21 @@ export const UpdateExportLutSchema = z
       new Date(v.valid_to) > new Date(v.valid_from),
     { message: "valid_to must be after valid_from", path: ["valid_to"] }
   )
+
+/**
+ * #2532 — the registered address printed as the seller on GST tax invoices.
+ * Must be the principal place of business on the GST certificate, in the
+ * GSTIN's own state; the route checks the state agrees with the GSTIN.
+ */
+export const SetRegisteredAddressSchema = z.object({
+  address_1: z.string().trim().min(1, "address_1 is required"),
+  address_2: z.string().trim().optional(),
+  city: z.string().trim().min(1, "city is required"),
+  province: z.string().trim().min(1, "province (state) is required"),
+  postal_code: z.string().trim().regex(/^\d{6}$/, "postal_code must be a 6-digit PIN"),
+  country_code: z.literal("in").optional().default("in"),
+  phone: z.string().trim().optional(),
+})
+
+export type SetRegisteredAddressBody = z.infer<typeof SetRegisteredAddressSchema>
+

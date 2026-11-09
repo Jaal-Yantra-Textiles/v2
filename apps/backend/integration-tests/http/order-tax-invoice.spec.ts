@@ -45,31 +45,44 @@ setupSharedTestSuite(() => {
       ).data.stock_location
       const storeService: any = container().resolve(Modules.STORE)
       await storeService.updateStores(brand.id, { default_location_id: location.id })
-      // The seller address is the location the order's channel sells from.
+      // The dispatch point is the location the order's channel sells from.
       await api.post(
         `/admin/stock-locations/${location.id}/sales-channels`,
         { add: [brandChannelId] },
         adminHeaders
       )
+      // The seller address is the GST registration's (seeded GSTIN 07 = Delhi).
+      await api.post(
+        "/admin/platform-tax-identities/ptid_jyt_in/registered-address",
+        {
+          address_1: "12 Connaught Place",
+          city: "New Delhi",
+          province: "Delhi",
+          postal_code: "110001",
+        },
+        adminHeaders
+      )
     })
 
-    /** 2 × ₹1,000 + 5% GST, shipped to Karnataka. */
-    const createOrder = async (salesChannelId: string) => {
+    /** 2 × ₹1,000 + 5% GST, shipped to Karnataka (or picked up: no address). */
+    const createOrder = async (salesChannelId: string, opts: { pickup?: boolean } = {}) => {
       const orderService: any = container().resolve(Modules.ORDER)
       const order = await orderService.createOrders({
         sales_channel_id: salesChannelId,
         currency_code: "inr",
         email: `tax-invoice-${Date.now()}@jaalyantra.test`,
         status: "pending",
-        shipping_address: {
-          first_name: "Priya",
-          last_name: "Sharma",
-          address_1: "12 MG Road",
-          city: "Bengaluru",
-          province: "Karnataka",
-          postal_code: "560001",
-          country_code: "in",
-        },
+        shipping_address: opts.pickup
+          ? { first_name: "Cherry", last_name: "M", country_code: "in" }
+          : {
+              first_name: "Priya",
+              last_name: "Sharma",
+              address_1: "12 MG Road",
+              city: "Bengaluru",
+              province: "Karnataka",
+              postal_code: "560001",
+              country_code: "in",
+            },
         items: [
           {
             title: "Handwoven Stole",
@@ -93,8 +106,9 @@ setupSharedTestSuite(() => {
       )
       expect(preview.data.preview.invoice_number).toBeNull()
       expect(preview.data.preview.supply_type).toBe("inter_state")
-      // Seller address comes from the location on the order's channel.
-      expect(preview.data.preview.seller.lines.join(" ")).toContain("Dharamshala")
+      // Seller address is the GST registration's, not the warehouse's.
+      expect(preview.data.preview.seller.lines.join(" ")).toContain("Connaught Place")
+      expect(preview.data.preview.seller.gstin).toBe("07AAGCJ0494A1ZV")
       expect(preview.data.preview.totals).toMatchObject({
         taxable: 2000,
         igst: 100,
@@ -158,6 +172,30 @@ setupSharedTestSuite(() => {
       const old = list.find((i: any) => i.id === first.id)
       expect(old.status).toBe("cancelled")
       expect(old.cancel_reason).toContain(reissued.tax_invoice.invoice_number)
+    })
+
+    it("bills a pickup at Dharamshala under the Delhi GSTIN as IGST", async () => {
+      const { api } = getSharedTestEnv()
+      const orderId = await createOrder(brandChannelId, { pickup: true })
+      const m = (
+        await api.post(`/admin/orders/${orderId}/tax-invoices`, { preview: true }, adminHeaders)
+      ).data.preview
+      expect(m.supply_type).toBe("inter_state")
+      expect(m.place_of_supply).toBe("Himachal Pradesh (02) - handed over at dispatch")
+      expect(m.totals).toMatchObject({ igst: 100, cgst: 0, sgst: 0 })
+    })
+
+    it("refuses a registered address outside the GSTIN's state", async () => {
+      const { api } = getSharedTestEnv()
+      const res = await api
+        .post(
+          "/admin/platform-tax-identities/ptid_jyt_in/registered-address",
+          { address_1: "Ram Nagar Road", city: "Dharamshala", province: "Himachal Pradesh", postal_code: "176215" },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(res.status).toBe(400)
+      expect(res.data.message).toContain("Delhi (07)")
     })
 
     it("refuses an order placed on a partner's store", async () => {

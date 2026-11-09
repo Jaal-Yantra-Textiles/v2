@@ -87,7 +87,7 @@ describe("buildOrderTaxInvoiceModel", () => {
     )
 
     expect(m.supply_type).toBe("inter_state")
-    expect(m.place_of_supply).toBe("Gujarat")
+    expect(m.place_of_supply).toBe("Gujarat (24)")
     expect(m.totals.igst).toBe(114.29)
     expect(m.totals.cgst + m.totals.sgst).toBe(0)
   })
@@ -155,19 +155,39 @@ describe("buildOrderTaxInvoiceModel", () => {
 })
 
 describe("resolveSupplyType", () => {
-  it("compares PIN prefixes when no state is given", () => {
-    expect(
-      resolveSupplyType(SELLER, { name: "x", lines: [], postal_code: "176057", country_code: "in" }, null)
-        .supply_type
-    ).toBe("intra_state")
-    expect(
-      resolveSupplyType(SELLER, { name: "x", lines: [], postal_code: "110001", country_code: "in" }, null)
-        .supply_type
-    ).toBe("inter_state")
+  const HP_SELLER = { gstin: "02ABCDE1234F1Z5", address: SELLER }
+  // Our real registration: GSTIN 07 (Delhi), goods leave Dharamshala (HP).
+  const DELHI_SELLER = {
+    gstin: "07AAGCJ0494A1ZV",
+    address: { name: "JYT", lines: ["New Delhi"], state: "Delhi", postal_code: "110001", country_code: "in" },
+  }
+  const DHARAMSHALA: TaxInvoiceParty = SELLER
+
+  it("takes the seller's state from the GSTIN, not the warehouse", () => {
+    // Cherry's pickup at Dharamshala, billed under the Delhi GSTIN: inter-state.
+    const r = resolveSupplyType(DELHI_SELLER, null, null, DHARAMSHALA)
+    expect(r.supply_type).toBe("inter_state")
+    expect(r.place_of_supply).toBe("Himachal Pradesh (02) - handed over at dispatch")
   })
 
-  it("uses the seller's state when there is no buyer address", () => {
-    const r = resolveSupplyType(SELLER, null, null)
+  it("is intra-state when the buyer is in the GSTIN's state", () => {
+    const delhiBuyer = { name: "x", lines: ["1 CP"], state: "New Delhi", postal_code: "110001", country_code: "in" }
+    expect(resolveSupplyType(DELHI_SELLER, delhiBuyer, null, DHARAMSHALA).supply_type).toBe("intra_state")
+  })
+
+  it("reads state abbreviations", () => {
+    const mh = { name: "x", lines: ["9 Marine Drive"], state: "MH", postal_code: "400001", country_code: "in" }
+    const r = resolveSupplyType(HP_SELLER, mh, null)
+    expect(r).toEqual({ supply_type: "inter_state", place_of_supply: "Maharashtra (27)" })
+  })
+
+  it("refuses a buyer address whose state it cannot read", () => {
+    const bad = { name: "x", lines: ["12 Road"], state: "Somewhere", postal_code: "560001", country_code: "in" }
+    expect(() => resolveSupplyType(HP_SELLER, bad, null)).toThrow("Cannot read the buyer's state")
+  })
+
+  it("falls back to the seller's state with no buyer address and no dispatch", () => {
+    const r = resolveSupplyType(HP_SELLER, null, null)
     expect(r.supply_type).toBe("intra_state")
     expect(r.place_of_supply).toContain("Himachal Pradesh")
   })
