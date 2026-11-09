@@ -226,6 +226,70 @@ setupSharedTestSuite(() => {
       expect(stale.data.tax_invoice.reason).toContain(issued.invoice_number)
     })
 
+    it("emails an issued invoice through the order-tax-invoice template, PDF attached", async () => {
+      const { api } = getSharedTestEnv()
+      await api
+        .post(
+          "/admin/email-templates",
+          {
+            name: "Order Tax Invoice",
+            template_key: "order-tax-invoice",
+            subject: "Tax invoice {{invoice_number}} for order #{{order_display_id}}",
+            html_content: "<p>{{invoice_number}} {{grand_total}}</p>",
+            from: "orders@jaalyantra.com",
+            template_type: "order_tax_invoice",
+          },
+          adminHeaders
+        )
+        .catch(() => undefined)
+
+      const orderId = await createOrder(brandChannelId)
+      const first = (
+        await api.post(`/admin/orders/${orderId}/tax-invoices`, {}, adminHeaders)
+      ).data.tax_invoice
+
+      const noConfirm = await api
+        .post(`/admin/tax-invoices/${first.id}/send`, {}, adminHeaders)
+        .catch((e: any) => e.response)
+      expect(noConfirm.status).toBe(400)
+
+      const preview = (
+        await api.post(`/admin/tax-invoices/${first.id}/send`, { preview: true }, adminHeaders)
+      ).data
+      expect(preview.sent).toBe(false)
+      expect(preview.vars.invoice_number).toBe(first.invoice_number)
+      expect(preview.attachment).toBe(`${first.invoice_number.replace(/\//g, "-")}.pdf`)
+
+      const notifications: any = container().resolve(Modules.NOTIFICATION)
+      const spy = jest.spyOn(notifications, "createNotifications")
+      const sent = (
+        await api.post(`/admin/tax-invoices/${first.id}/send`, { confirm: true }, adminHeaders)
+      ).data
+      const call = spy.mock.calls.find((c: any[]) => c[0]?.template === "order-tax-invoice")
+      spy.mockRestore()
+      expect(sent.sent).toBe(true)
+      expect((call?.[0] as any)?.data?._template_subject).toBe(
+        `Tax invoice ${first.invoice_number} for order #${preview.vars.order_display_id}`
+      )
+      const attachment = (call?.[0] as any)?.attachments?.[0]
+      expect(Buffer.from(attachment.content, "base64").subarray(0, 4).toString()).toBe("%PDF")
+
+      // A cancelled invoice is not sent.
+      const second = (
+        await api.post(
+          `/admin/orders/${orderId}/tax-invoices`,
+          { buyer_gstin: "29ABCDE1234F1Z5", reissue: true },
+          adminHeaders
+        )
+      ).data.tax_invoice
+      const cancelled = await api
+        .post(`/admin/tax-invoices/${first.id}/send`, { confirm: true }, adminHeaders)
+        .catch((e: any) => e.response)
+      expect(cancelled.status).toBeGreaterThanOrEqual(400)
+      expect(cancelled.data.message).toContain("cancelled")
+      expect(second.invoice_number).not.toBe(first.invoice_number)
+    })
+
     it("refuses an order placed on a partner's store", async () => {
       const { api } = getSharedTestEnv()
       const channel = (

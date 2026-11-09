@@ -9,7 +9,8 @@ import { API_BASE_URL, sdk } from "../lib/config"
  * GST tax invoices for an order (#2532): issue the numbered bill, download its
  * PDF, and see cancelled ones. Issuing an unchanged order again returns the
  * same invoice; a changed order is offered a reissue, which cancels the old.
- * Nothing here emails the customer.
+ * "Email" sends the current invoice through the `order-tax-invoice` email
+ * template with the PDF attached, after showing who it goes to.
  */
 type AdminOrder = { id: string }
 
@@ -52,11 +53,36 @@ const OrderTaxInvoiceWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
     onSuccess: () => queryClient.invalidateQueries({ queryKey }),
   })
 
+  const send = useMutation({
+    mutationFn: ({ id, preview }: { id: string; preview: boolean }) =>
+      sdk.client.fetch<{ to: string; invoice_number: string; attachment: string }>(
+        `/admin/tax-invoices/${id}/send`,
+        { method: "POST", body: preview ? { preview: true } : { confirm: true } }
+      ),
+  })
+
   const invoices = data?.tax_invoices ?? []
   const current = invoices.find((i) => i.status === "issued") ?? null
 
   const openPdf = (id: string) =>
     window.open(`${API_BASE_URL}/admin/tax-invoices/${id}/pdf`, "_blank")
+
+  const handleEmail = async (inv: TaxInvoiceRow) => {
+    try {
+      const preview = await send.mutateAsync({ id: inv.id, preview: true })
+      const confirmed = await prompt({
+        title: `Email ${inv.invoice_number}?`,
+        description: `Sends the "order-tax-invoice" email to ${preview.to} with ${preview.attachment} attached. An email cannot be recalled.`,
+        confirmText: "Send",
+        cancelText: "Cancel",
+      })
+      if (!confirmed) return
+      await send.mutateAsync({ id: inv.id, preview: false })
+      toast.success(`Emailed ${inv.invoice_number} to ${preview.to}`)
+    } catch (e: any) {
+      toast.error("Could not email the invoice", { description: e?.message })
+    }
+  }
 
   const handleIssue = async () => {
     const confirmed = await prompt({
@@ -150,9 +176,21 @@ const OrderTaxInvoiceWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
                 {inv.cancel_reason ? ` · ${inv.cancel_reason}` : ""}
               </Text>
             </div>
-            <Button size="small" variant="transparent" onClick={() => openPdf(inv.id)}>
-              PDF
-            </Button>
+            <div className="flex items-center gap-x-1">
+              {inv.status === "issued" && (
+                <Button
+                  size="small"
+                  variant="transparent"
+                  onClick={() => handleEmail(inv)}
+                  disabled={send.isPending}
+                >
+                  Email
+                </Button>
+              )}
+              <Button size="small" variant="transparent" onClick={() => openPdf(inv.id)}>
+                PDF
+              </Button>
+            </div>
           </div>
         ))
       )}
