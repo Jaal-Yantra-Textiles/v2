@@ -1,7 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { getPartnerFromAuthContext } from "../../../../../helpers"
 import { completePartnerSubtaskWorkflow } from "../../../../../../../workflows/tasks/complete-partner-subtask"
+import { fetchTaskWithPartners } from "../../../../lib"
 
 /**
  * POST /partners/assigned-tasks/[taskId]/subtasks/[subtaskId]/complete
@@ -22,16 +22,10 @@ export async function POST(
       return res.status(401).json({ error: "Partner authentication required - no partner found" })
     }
 
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY)
-    const { data: taskData } = await query.index({
-      entity: "task",
-      fields: ["*", "partners.*"],
-      filters: { id: taskId },
-    })
-    if (!taskData?.length) {
+    const task = await fetchTaskWithPartners(req.scope, taskId)
+    if (!task) {
       return res.status(404).json({ error: "Task not found" })
     }
-    const task = taskData[0] as any
     const isLinked = Array.isArray(task.partners)
       && task.partners.some((p: any) => p.id === partner.id)
     if (!isLinked) {

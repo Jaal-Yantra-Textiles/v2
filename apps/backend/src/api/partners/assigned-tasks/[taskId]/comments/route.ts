@@ -114,7 +114,8 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import { MedusaError } from "@medusajs/framework/utils";
+import { fetchTaskWithPartners } from "../../lib";
 import { getPartnerFromAuthContext } from "../../../helpers";
 import { TASKS_MODULE } from "../../../../../modules/tasks";
 import TaskService from "../../../../../modules/tasks/service";
@@ -169,26 +170,15 @@ export async function POST(
             );
         }
 
-        // Verify the task is assigned to this partner (or its parent is)
-        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-        
         // First, fetch the task to check if it's a subtask
-        const { data: taskData } = await query.index({
-            entity: 'task',
-            fields: ["*", "partners.*"],
-            filters: {
-                id: taskId
-            }
-        });
+        const task = await fetchTaskWithPartners(req.scope, taskId);
 
-        if (!taskData || taskData.length === 0) {
+        if (!task) {
             return res.status(404).json({ 
                 message: "Task not found" 
             });
         }
 
-        const task = taskData[0] as any;
-        
         // Check if this task or its parent is linked to the partner
         let isAuthorized = false;
         
@@ -199,15 +189,7 @@ export async function POST(
         
         // If not, check if it's a subtask and its parent is linked to partner
         if (!isAuthorized && task.parent_task_id) {
-            const { data: parentTaskData } = await query.index({
-                entity: 'task',
-                fields: ["*", "partners.*"],
-                filters: {
-                    id: task.parent_task_id
-                }
-            });
-            
-            const parentTask = parentTaskData?.[0] as any
+            const parentTask = await fetchTaskWithPartners(req.scope, task.parent_task_id);
 
             if (
                 parentTask?.partners &&
@@ -292,26 +274,15 @@ export async function GET(
             );
         }
 
-        // Verify the task is assigned to this partner (or its parent is)
-        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-        
         // First, fetch the task to check if it's a subtask
-        const { data: taskData } = await query.index({
-            entity: 'task',
-            fields: ["*", "partners.*"],
-            filters: {
-                id: taskId
-            }
-        });
+        const task = await fetchTaskWithPartners(req.scope, taskId);
 
-        if (!taskData || taskData.length === 0) {
+        if (!task) {
             return res.status(404).json({ 
                 message: "Task not found" 
             });
         }
 
-        const task = taskData[0] as any;
-        
         // Check if this task or its parent is linked to the partner
         let isAuthorized = false;
         
@@ -322,15 +293,7 @@ export async function GET(
         
         // If not, check if it's a subtask and its parent is linked to partner
         if (!isAuthorized && task.parent_task_id) {
-            const { data: parentTaskData } = await query.index({
-                entity: 'task',
-                fields: ["*", "partners.*"],
-                filters: {
-                    id: task.parent_task_id
-                }
-            });
-            
-            const parentTask = parentTaskData?.[0] as any
+            const parentTask = await fetchTaskWithPartners(req.scope, task.parent_task_id);
 
             if (
                 parentTask?.partners &&

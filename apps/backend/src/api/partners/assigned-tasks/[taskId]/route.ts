@@ -102,6 +102,7 @@ import { getPartnerFromAuthContext } from "../../helpers";
 import { TASKS_MODULE } from "../../../../modules/tasks";
 import TaskService from "../../../../modules/tasks/service";
 import { withProductionRun } from "../../../../workflows/production-runs/lib/run-partner-tasks";
+import { fetchTaskWithPartners } from "../lib";
 
 /**
  * GET /partners/assigned-tasks/[taskId]
@@ -126,23 +127,13 @@ export async function GET(req: AuthenticatedMedusaRequest, res: MedusaResponse) 
       });
     }
 
-    const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+    const task = await fetchTaskWithPartners(req.scope, taskId);
 
-    const { data: taskData } = await query.index({
-      entity: "task",
-      fields: ["*", "partners.*"],
-      filters: {
-        id: taskId,
-      },
-    }, { locale: req.locale });
-
-    if (!taskData || taskData.length === 0) {
+    if (!task) {
       return res.status(404).json({
         error: "Task not found",
       });
     }
-
-    const task = taskData[0] as any;
 
     const isLinked =
       task.partners &&

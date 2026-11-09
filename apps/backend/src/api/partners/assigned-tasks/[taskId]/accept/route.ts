@@ -74,11 +74,12 @@
  * }
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework";
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils";
+import { MedusaError } from "@medusajs/framework/utils";
 import { updateTaskWorkflow } from "../../../../../workflows/tasks/update-task";
 import { setStepSuccessWorkflow } from "../../../../../workflows/tasks/task-engine/task-steps";
 import { Status } from "../../../../../workflows/tasks/create-task";
 import { getPartnerFromAuthContext } from "../../../helpers";
+import { fetchTaskWithPartners } from "../../lib";
 
 /**
  * POST /partners/assigned-tasks/[taskId]/accept
@@ -107,23 +108,14 @@ export async function POST(
         }
 
         // Verify the task is assigned to this partner
-        const query = req.scope.resolve(ContainerRegistrationKeys.QUERY);
-        const { data: taskData } = await query.index({
-            entity: 'task',
-            fields: ["*","partners.*"],
-            filters: {
-               id: taskId
-            }
-        });
-        
-        if (!taskData || taskData.length === 0) {
+        const task = await fetchTaskWithPartners(req.scope, taskId);
+
+        if (!task) {
             return res.status(404).json({ 
                 message: "Task not found" 
             });
         }
 
-        const task = taskData[0] as any;
-        
         // Check if task is linked to this partner
         const isLinked = task.partners && Array.isArray(task.partners) && 
                          task.partners.some((p: any) => p.id === partner.id);
