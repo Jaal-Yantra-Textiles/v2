@@ -8795,7 +8795,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     description:
       "Email the buyer an itemised invoice for an order: every line at the price on the order (a zero-priced replacement shows as 'No charge'), shipping, total, what is paid, and the balance with its pay link. Sensitive: requires confirm:true. " +
       "🔑 Run with preview:true FIRST: it returns the invoice and any payment-schedule change and writes nothing. " +
-      "When an order edit moved the total after the deposit, the deposit schedule's balance is moved to the order's pending difference before the link is raised, so the link charges the edited amount; an already-raised balance keeps the SAME link. Refuses (and sends nothing) when what the order shows as paid is not the deposit.",
+      "When an order edit moved the total after the deposit, the deposit schedule's balance is moved to the order's pending difference before the link is raised, so the link charges the edited amount; an already-raised balance keeps the SAME link. Refuses (and sends nothing) when what the order shows as paid is not the deposit. " +
+      "The order's GST tax invoice PDF (issue_order_tax_invoice) is attached when one is issued and still matches the order; the result's tax_invoice says whether it was, or why not.",
     method: "POST",
     path: "/admin/orders/:id/invoice",
     pathParams: ["id"],

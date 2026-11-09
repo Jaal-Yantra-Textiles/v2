@@ -160,6 +160,72 @@ setupSharedTestSuite(() => {
       expect(old.cancel_reason).toContain(reissued.tax_invoice.invoice_number)
     })
 
+    it("attaches the matching tax invoice to the invoice email, and not a stale one", async () => {
+      const { api } = getSharedTestEnv()
+      await api
+        .post(
+          "/admin/email-templates",
+          {
+            name: "Order Invoice",
+            template_key: "order-invoice",
+            subject: "Invoice for order #{{order_display_id}}",
+            html_content: "<p>{{balance_due}}</p>",
+            from: "orders@jaalyantra.com",
+            template_type: "order_invoice",
+          },
+          adminHeaders
+        )
+        .catch(() => undefined) // another test may have created it
+
+      const orderId = await createOrder(brandChannelId)
+
+      const before = await api.post(
+        `/admin/orders/${orderId}/invoice`,
+        { preview: true },
+        adminHeaders
+      )
+      expect(before.data.tax_invoice).toEqual({
+        attached: false,
+        reason: "No tax invoice issued for this order yet.",
+      })
+
+      const issued = (
+        await api.post(`/admin/orders/${orderId}/tax-invoices`, {}, adminHeaders)
+      ).data.tax_invoice
+
+      // Watch what actually reaches the notification module, not just what the
+      // route reports.
+      const notifications: any = container().resolve(Modules.NOTIFICATION)
+      const spy = jest.spyOn(notifications, "createNotifications")
+      const sent = await api.post(`/admin/orders/${orderId}/invoice`, { confirm: true }, adminHeaders)
+      expect(sent.data.sent).toBe(true)
+      expect(sent.data.tax_invoice).toEqual({
+        attached: true,
+        invoice_number: issued.invoice_number,
+      })
+      const call = spy.mock.calls.find((c: any[]) => c[0]?.template === "order-invoice")
+      spy.mockRestore()
+      const attachment = (call?.[0] as any)?.attachments?.[0]
+      expect(attachment?.filename).toBe(`${issued.invoice_number.replace(/\//g, "-")}.pdf`)
+      expect(attachment?.content_type).toBe("application/pdf")
+      expect(Buffer.from(attachment.content, "base64").subarray(0, 4).toString()).toBe("%PDF")
+
+      // The order changes after the invoice: the old bill must not go out.
+      // A new delivery address changes what the bill says.
+      await api.post(
+        `/admin/orders/${orderId}`,
+        { shipping_address: { address_1: "40 Brigade Road" } },
+        adminHeaders
+      )
+      const stale = await api.post(
+        `/admin/orders/${orderId}/invoice`,
+        { preview: true },
+        adminHeaders
+      )
+      expect(stale.data.tax_invoice.attached).toBe(false)
+      expect(stale.data.tax_invoice.reason).toContain(issued.invoice_number)
+    })
+
     it("refuses an order placed on a partner's store", async () => {
       const { api } = getSharedTestEnv()
       const channel = (

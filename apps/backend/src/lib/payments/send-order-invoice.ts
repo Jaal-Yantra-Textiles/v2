@@ -5,6 +5,7 @@ import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { requestOrderBalanceWorkflow } from "../../workflows/payments/request-order-balance"
 import { sendNotificationEmailWorkflow } from "../../workflows/email/workflows/send-notification-email"
 import { buildBalancePayUrl } from "./balance-collection"
+import { currentTaxInvoiceAttachment } from "../invoices/tax-invoice-attachment"
 import {
   buildOrderInvoiceVars,
   capturedOnBalanceCollections,
@@ -21,6 +22,8 @@ export type SendOrderInvoiceResult = {
   to: string | null
   resync: ScheduleResyncPlan
   vars: OrderInvoiceVars
+  /** The GST tax invoice PDF attached, or why none was (#2532). */
+  tax_invoice: { attached: true; invoice_number: string } | { attached: false; reason: string }
 }
 
 /**
@@ -95,6 +98,11 @@ export async function sendOrderInvoice(
   let payUrl: string | null =
     schedule?.balance_link_ref ?? (schedule ? buildBalancePayUrl(backendUrl, schedule.id) : null)
 
+  const summarise = (t: Awaited<ReturnType<typeof currentTaxInvoiceAttachment>>) =>
+    t.attach
+      ? ({ attached: true, invoice_number: t.invoice_number } as const)
+      : ({ attached: false, reason: t.reason } as const)
+
   if (input.preview) {
     return {
       sent: false,
@@ -102,6 +110,7 @@ export async function sendOrderInvoice(
       to: order.email ?? null,
       resync,
       vars: buildOrderInvoiceVars({ order, pay_url: payUrl }),
+      tax_invoice: summarise(await currentTaxInvoiceAttachment(container, input.order_id)),
     }
   }
 
@@ -137,14 +146,24 @@ export async function sendOrderInvoice(
   }
 
   const vars = buildOrderInvoiceVars({ order, pay_url: payUrl })
+  // Checked after the re-read, against the order as it now stands.
+  const taxInvoice = await currentTaxInvoiceAttachment(container, input.order_id)
 
   await sendNotificationEmailWorkflow(container).run({
     input: {
       to: order.email,
       template: ORDER_INVOICE_TEMPLATE,
       data: vars as unknown as Record<string, any>,
+      ...(taxInvoice.attach ? { attachments: [taxInvoice.attachment] } : {}),
     } as any,
   })
 
-  return { sent: true, preview: false, to: order.email, resync, vars }
+  return {
+    sent: true,
+    preview: false,
+    to: order.email,
+    resync,
+    vars,
+    tax_invoice: summarise(taxInvoice),
+  }
 }
