@@ -192,3 +192,77 @@ export const useRemoveStorefrontDomain = (partnerId: string) => {
     },
   })
 }
+
+/**
+ * Whether the partner's store is switched on (#2527). A store has no flag of
+ * its own: "off" is its default sales channel's `is_disabled`, which is what
+ * `POST /admin/stores/:id/disable` and `/enable` flip. Independent of Vercel
+ * provisioning — partners on the shared storefront are never "provisioned".
+ */
+export interface PartnerStoreState {
+  store_id: string
+  store_name: string | null
+  sales_channel_id: string | null
+  /** null when the store has no default channel to switch. */
+  is_disabled: boolean | null
+}
+
+const STORE_STATE_QUERY_KEY = "admin_partner_store_state" as const
+export const storeStateQueryKeys = queryKeysFactory(STORE_STATE_QUERY_KEY)
+
+export const usePartnerStoreState = (partnerId: string) => {
+  return useQuery({
+    queryFn: async (): Promise<PartnerStoreState[]> => {
+      const { partner } = await sdk.client.fetch<{
+        partner: {
+          stores?: Array<{
+            id: string
+            name?: string | null
+            default_sales_channel_id?: string | null
+          } | null>
+        }
+      }>(`/admin/partners/${partnerId}`, {
+        method: "GET",
+        query: { fields: "id,stores.id,stores.name,stores.default_sales_channel_id" },
+      })
+      const stores = (partner?.stores ?? []).filter(
+        (s): s is NonNullable<typeof s> => !!s?.id
+      )
+      return Promise.all(
+        stores.map(async (s) => {
+          const scId = s.default_sales_channel_id ?? null
+          let isDisabled: boolean | null = null
+          if (scId) {
+            const { sales_channel } = await sdk.client.fetch<{
+              sales_channel: { is_disabled: boolean }
+            }>(`/admin/sales-channels/${scId}`, { method: "GET" })
+            isDisabled = !!sales_channel?.is_disabled
+          }
+          return {
+            store_id: s.id,
+            store_name: s.name ?? null,
+            sales_channel_id: scId,
+            is_disabled: isDisabled,
+          }
+        })
+      )
+    },
+    queryKey: storeStateQueryKeys.detail(partnerId),
+    enabled: !!partnerId,
+  })
+}
+
+export const useSetPartnerStoreEnabled = (partnerId: string) => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ storeId, enabled }: { storeId: string; enabled: boolean }) =>
+      sdk.client.fetch(
+        `/admin/stores/${storeId}/${enabled ? "enable" : "disable"}`,
+        { method: "POST" }
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: storeStateQueryKeys.detail(partnerId) })
+      queryClient.invalidateQueries({ queryKey: partnersQueryKeys.detail(partnerId) })
+    },
+  })
+}
