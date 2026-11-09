@@ -6463,6 +6463,18 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partners/create-partner-warehouse.ts"
   },
+  "delete-partner-storefront": {
+    "fields": [
+      {
+        "name": "partner_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.partner_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/partners/delete-partner-storefront.ts"
+  },
   "delete-partner": {
     "fields": [
       {

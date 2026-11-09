@@ -5,6 +5,7 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
 import { getPartnerStorefrontStatusWorkflow } from "../../../../../workflows/partners/get-partner-storefront-status"
+import { deletePartnerStorefrontWorkflow } from "../../../../../workflows/partners/delete-partner-storefront"
 import { getPartnerInspectionRecord } from "../lib/partner-inspection"
 
 /**
@@ -34,4 +35,27 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   ).run({ input: { partner } })
 
   res.json(status)
+}
+
+/**
+ * DELETE /admin/partners/:id/storefront
+ *
+ * Soft-delete an inactive partner's only store and its sales channel, and
+ * unlink the channel's publishable keys (#2527). The partner, its products,
+ * orders and stock locations stay. Refuses an active partner, several stores,
+ * or orders still in flight — see `lib/storefront-deletion-plan.ts`.
+ */
+export const DELETE = async (req: MedusaRequest, res: MedusaResponse) => {
+  const { result: plan } = await deletePartnerStorefrontWorkflow(
+    req.scope
+  ).run({ input: { partner_id: req.params.id } })
+
+  res.json({
+    id: plan.store_id,
+    object: "store",
+    deleted: true,
+    sales_channel_ids: plan.soft_delete_sales_channel_ids,
+    unlinked_keys: plan.unlink_keys,
+    preserved: plan.preserved,
+  })
 }
