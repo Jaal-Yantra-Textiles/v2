@@ -1,28 +1,32 @@
 package com.jyt.partner.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -60,7 +64,6 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
     var orders by remember { mutableStateOf<List<PartnerInventoryOrder>>(emptyList()) }
     var search by rememberSaveable { mutableStateOf("") }
     var statusFilter by remember { mutableStateOf<InventoryOrderStatus?>(null) }
-    var filterMenuOpen by remember { mutableStateOf(false) }
     var initialLoading by remember { mutableStateOf(true) }
     var appending by remember { mutableStateOf(false) }
     var refreshing by remember { mutableStateOf(false) }
@@ -120,57 +123,12 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
-                placeholder = { Text("Search orders…") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-            )
-            Box {
-                IconButton(onClick = { filterMenuOpen = true }) {
-                    Icon(
-                        imageVector = if (statusFilter == null) {
-                            Icons.Filled.Inventory2
-                        } else {
-                            Icons.Filled.Inventory2
-                        },
-                        contentDescription = "Filter by status",
-                        tint = if (statusFilter == null) {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        },
-                    )
-                }
-                DropdownMenu(
-                    expanded = filterMenuOpen,
-                    onDismissRequest = { filterMenuOpen = false },
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("All statuses") },
-                        onClick = {
-                            statusFilter = null
-                            filterMenuOpen = false
-                        },
-                    )
-                    InventoryOrderStatus.entries.forEach { status ->
-                        DropdownMenuItem(
-                            text = { Text(status.raw) },
-                            onClick = {
-                                statusFilter = status
-                                filterMenuOpen = false
-                            },
-                        )
-                    }
-                }
-            }
-        }
+        InventoryOrderFilters(
+            search = search,
+            onSearchChange = { search = it },
+            statusFilter = statusFilter,
+            onStatusChange = { statusFilter = it },
+        )
 
         Refreshable(
             refreshing = refreshing,
@@ -223,8 +181,51 @@ fun InventoryOrdersScreen(onOpenOrder: (String) -> Unit) {
     }
 }
 
+/** The search field and the status filter chips — the web's visible filter
+ *  UI, extracted so the screenshot harness can show the real chrome above
+ *  canned rows. */
 @Composable
-private fun InventoryOrderRow(order: PartnerInventoryOrder, onClick: () -> Unit) {
+internal fun InventoryOrderFilters(
+    search: String,
+    onSearchChange: (String) -> Unit,
+    statusFilter: InventoryOrderStatus?,
+    onStatusChange: (InventoryOrderStatus?) -> Unit,
+) {
+    OutlinedTextField(
+        value = search,
+        onValueChange = onSearchChange,
+        placeholder = { Text("Search orders…") },
+        leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+        singleLine = true,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+
+    // Status filter chips — horizontally scrollable when the statuses
+    // don't all fit.
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        StatusFilterChip("All", selected = statusFilter == null) {
+            onStatusChange(null)
+        }
+        InventoryOrderStatus.entries.forEach { status ->
+            StatusFilterChip(status.raw, selected = statusFilter == status) {
+                onStatusChange(status)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun InventoryOrderRow(order: PartnerInventoryOrder, onClick: () -> Unit) {
     Card(
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
@@ -247,24 +248,47 @@ private fun InventoryOrderRow(order: PartnerInventoryOrder, onClick: () -> Unit)
                 Spacer(Modifier.weight(1f))
                 order.statusEnum?.let { InventoryOrderStatusBadge(it) }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                order.quantity?.let { StatPair("Goods", formatQuantity(it)) }
-                order.totalPrice?.let { StatPair("Total", formatCurrency(it, order.currencyCode)) }
-                Spacer(Modifier.weight(1f))
+            // Weighted columns bound each stat's width, so a big quantity or
+            // amount ellipsizes instead of pushing "Created" off the card.
+            Row {
+                order.quantity?.let {
+                    StatPair(
+                        "Goods",
+                        formatQuantity(it),
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
+                order.totalPrice?.let {
+                    StatPair(
+                        "Total",
+                        formatCurrency(it, order.currencyCode),
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                }
                 StatPair(
                     "Created",
                     formatDate(ApiDate.parse(order.createdAt)),
+                    modifier = Modifier.weight(1f, fill = false),
                     alignEnd = true,
                 )
             }
+            // The goods as wrapping chips — up to three names, then a "+N
+            // more" chip — so a line list reads at a glance instead of one
+            // dot-joined string that clips.
             order.orderLines?.takeIf { it.isNotEmpty() }?.let { lines ->
-                Text(
-                    text = lines.joinToString(" · ") { it.displayName },
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    lines.take(3).forEach { line ->
+                        ItemChip(line.displayName)
+                    }
+                    val remaining = lines.size - 3
+                    if (remaining > 0) {
+                        ItemChip("+$remaining more")
+                    }
+                }
             }
             if (order.isSample == true) {
                 Text(
@@ -276,4 +300,41 @@ private fun InventoryOrderRow(order: PartnerInventoryOrder, onClick: () -> Unit)
             }
         }
     }
+}
+
+/** A single goods line name on a list row — quiet chip, one line, capped
+ *  width so a long material name can't crowd out the rest of the row. */
+@Composable
+private fun ItemChip(label: String) {
+    Text(
+        text = label,
+        fontSize = 11.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .background(
+                MaterialTheme.colorScheme.surfaceVariant,
+                RoundedCornerShape(8.dp),
+            )
+            .widthIn(max = 180.dp)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
+/** One status filter chip — the selected one is filled ink (the badge's
+ *  ACTION tone), so the active filter reads at a glance. */
+@Composable
+private fun StatusFilterChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label, fontSize = 12.sp) },
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            selectedContainerColor = MaterialTheme.colorScheme.onSurface,
+            selectedLabelColor = MaterialTheme.colorScheme.surface,
+        ),
+    )
 }

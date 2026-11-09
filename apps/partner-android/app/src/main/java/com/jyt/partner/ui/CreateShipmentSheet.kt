@@ -103,12 +103,13 @@ fun CreateShipmentSheet(
     val scope = rememberCoroutineScope()
 
     var carrier by rememberSaveable { mutableStateOf(ShipmentCarrier.SHIPROCKET) }
-    var weightKg by rememberSaveable { mutableStateOf("") }
+    var weightGramsText by rememberSaveable { mutableStateOf("") }
     var length by rememberSaveable { mutableStateOf("") }
     var breadth by rememberSaveable { mutableStateOf("") }
     var height by rememberSaveable { mutableStateOf("") }
     val todayEpochDay = remember { LocalDate.now().toEpochDay() }
-    var pickupEpochDay by rememberSaveable { mutableStateOf(todayEpochDay + 1) }
+    // Optional pickup (web parity) — null lets the courier pick the earliest slot.
+    var pickupEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
     var showDatePicker by remember { mutableStateOf(false) }
 
     var rates by remember { mutableStateOf<List<ShippingRate>?>(null) }
@@ -137,13 +138,13 @@ fun CreateShipmentSheet(
         ratesError = null
     }
 
-    val weightGrams = positive(weightKg)?.let { (it * 1000).roundToInt() }?.takeIf { it > 0 }
+    val weightGrams = positive(weightGramsText)?.roundToInt()?.takeIf { it > 0 }
     val lengthCm = positive(length)
     val breadthCm = positive(breadth)
     val heightCm = positive(height)
-    val badWeight = weightKg.isNotBlank() && weightGrams == null
-    val pickupDate = LocalDate.ofEpochDay(pickupEpochDay)
-    val pickupYmd = pickupDate.toString() // ISO yyyy-MM-dd
+    val badWeight = weightGramsText.isNotBlank() && weightGrams == null
+    // ISO yyyy-MM-dd, or null when the courier picks the slot.
+    val pickupYmd = pickupEpochDay?.let { LocalDate.ofEpochDay(it).toString() }
 
     Dialog(
         onDismissRequest = { if (!submitting) onDismiss() },
@@ -179,7 +180,7 @@ fun CreateShipmentSheet(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
-                        "Book a carrier shipment (AWB + label) for this order from your registered pickup address. Weight and size are optional — leave them blank to use the carrier's defaults.",
+                        "Book a carrier shipment (AWB + label) for this order from your registered pickup address. Weight (grams) and size are optional — leave them blank to use the carrier's defaults.",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -202,15 +203,16 @@ fun CreateShipmentSheet(
 
                     Text("Parcel", fontWeight = FontWeight.SemiBold)
                     OutlinedTextField(
-                        value = weightKg,
+                        value = weightGramsText,
                         onValueChange = {
-                            weightKg = decimal(it)
+                            weightGramsText = decimal(it)
                             invalidateRates()
                         },
-                        label = { Text("Weight (kg)") },
+                        label = { Text("Weight (grams)") },
+                        placeholder = { Text("500") },
                         isError = badWeight,
                         supportingText = if (badWeight) {
-                            { Text("Enter a weight above 0, e.g. 1.5") }
+                            { Text("Enter a weight above 0, e.g. 500") }
                         } else null,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
@@ -236,93 +238,97 @@ fun CreateShipmentSheet(
                         }
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Courier", fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.weight(1f))
-                        if (ratesLoading) {
-                            CircularProgressIndicator(Modifier.size(20.dp))
-                        } else {
-                            TextButton(
-                                enabled = !submitting && !badWeight,
-                                onClick = {
-                                    ratesLoading = true
-                                    ratesError = null
-                                    scope.launch {
-                                        try {
-                                            val quote = PartnerApi.get(context).inventoryOrderShippingRates(
-                                                orderId = orderId,
-                                                carrier = carrier.raw,
-                                                weightGrams = weightGrams,
-                                                length = lengthCm,
-                                                breadth = breadthCm,
-                                                height = heightCm,
-                                            )
-                                            rates = sortRates(quote.rates)
-                                            courierId = preselectedCourier(quote.rates)
-                                        } catch (e: CancellationException) {
-                                            throw e
-                                        } catch (e: Exception) {
-                                            rates = null
-                                            ratesError = e.message ?: "Couldn't fetch courier rates."
+                    // Live courier quotes — Shiprocket only (web parity: the
+                    // Delhivery booking has no on-demand rate picker).
+                    if (carrier == ShipmentCarrier.SHIPROCKET) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Courier", fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.weight(1f))
+                            if (ratesLoading) {
+                                CircularProgressIndicator(Modifier.size(20.dp))
+                            } else {
+                                TextButton(
+                                    enabled = !submitting && !badWeight,
+                                    onClick = {
+                                        ratesLoading = true
+                                        ratesError = null
+                                        scope.launch {
+                                            try {
+                                                val quote = PartnerApi.get(context).inventoryOrderShippingRates(
+                                                    orderId = orderId,
+                                                    carrier = carrier.raw,
+                                                    weightGrams = weightGrams,
+                                                    length = lengthCm,
+                                                    breadth = breadthCm,
+                                                    height = heightCm,
+                                                )
+                                                rates = sortRates(quote.rates)
+                                                courierId = preselectedCourier(quote.rates)
+                                            } catch (e: CancellationException) {
+                                                throw e
+                                            } catch (e: Exception) {
+                                                rates = null
+                                                ratesError = e.message ?: "Couldn't fetch courier rates."
+                                            }
+                                            ratesLoading = false
                                         }
-                                        ratesLoading = false
-                                    }
-                                },
-                            ) { Text("Get rates") }
+                                    },
+                                ) { Text("Get rates") }
+                            }
                         }
-                    }
-                    val quoted = rates
-                    when {
-                        ratesError != null -> Text(
-                            ratesError ?: "",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.error,
-                        )
-                        quoted == null -> Text(
-                            "Optional — tap Get rates to choose a courier, or leave it for ${carrier.label} to assign one.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        quoted.isEmpty() -> Text(
-                            "No couriers available for this route.",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        else -> Column {
-                            quoted.forEach { rate ->
-                                val id = rate.courierId
-                                val selected = id != null && id == courierId
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .selectable(
-                                            selected = selected,
-                                            enabled = id != null,
-                                            onClick = { courierId = id },
-                                        )
-                                        .padding(vertical = 2.dp),
-                                ) {
-                                    RadioButton(selected = selected, onClick = null, enabled = id != null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Column(Modifier.weight(1f)) {
-                                        Text(rate.courierName ?: "Courier", fontWeight = FontWeight.Medium)
+                        val quoted = rates
+                        when {
+                            ratesError != null -> Text(
+                                ratesError ?: "",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            quoted == null -> Text(
+                                "Optional — tap Get rates to choose a courier, or leave it for ${carrier.label} to assign one.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            quoted.isEmpty() -> Text(
+                                "No couriers available for this route.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            else -> Column {
+                                quoted.forEach { rate ->
+                                    val id = rate.courierId
+                                    val selected = id != null && id == courierId
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .selectable(
+                                                selected = selected,
+                                                enabled = id != null,
+                                                onClick = { courierId = id },
+                                            )
+                                            .padding(vertical = 2.dp),
+                                    ) {
+                                        RadioButton(selected = selected, onClick = null, enabled = id != null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Column(Modifier.weight(1f)) {
+                                            Text(rate.courierName ?: "Courier", fontWeight = FontWeight.Medium)
+                                            Text(
+                                                buildString {
+                                                    rate.estimatedDays?.let { append("${formatQuantity(it)} days") }
+                                                    if (rate.isRecommended == true) {
+                                                        if (isNotEmpty()) append(" · ")
+                                                        append("Recommended")
+                                                    }
+                                                },
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
                                         Text(
-                                            buildString {
-                                                rate.estimatedDays?.let { append("${formatQuantity(it)} days") }
-                                                if (rate.isRecommended == true) {
-                                                    if (isNotEmpty()) append(" · ")
-                                                    append("Recommended")
-                                                }
-                                            },
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            formatCurrency(rate.amount, rate.currencyCode ?: "INR"),
+                                            fontWeight = FontWeight.Medium,
                                         )
                                     }
-                                    Text(
-                                        formatCurrency(rate.amount, rate.currencyCode ?: "INR"),
-                                        fontWeight = FontWeight.Medium,
-                                    )
                                 }
                             }
                         }
@@ -336,8 +342,13 @@ fun CreateShipmentSheet(
                     ) {
                         Icon(Icons.Filled.CalendarMonth, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(formatYmd(pickupYmd))
+                        Text(pickupYmd?.let { formatYmd(it) } ?: "Choose pickup date (optional)")
                     }
+                    Text(
+                        "Optional — leave blank to let the courier pick the earliest slot.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
 
                     submitError?.let {
                         Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
@@ -392,7 +403,7 @@ fun CreateShipmentSheet(
     if (showDatePicker) {
         // Today or later — a carrier can't collect in the past.
         val pickerState = rememberDatePickerState(
-            initialSelectedDateMillis = pickupEpochDay * DAY_MILLIS,
+            initialSelectedDateMillis = (pickupEpochDay ?: todayEpochDay) * DAY_MILLIS,
             selectableDates = object : SelectableDates {
                 override fun isSelectableDate(utcTimeMillis: Long): Boolean =
                     utcTimeMillis / DAY_MILLIS >= todayEpochDay
@@ -409,7 +420,13 @@ fun CreateShipmentSheet(
                     showDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = {
+                    // Optional pickup — blank hands the slot to the courier.
+                    pickupEpochDay = null
+                    showDatePicker = false
+                }) { Text("Leave blank") }
+            },
         ) {
             DatePicker(state = pickerState)
         }
@@ -421,7 +438,7 @@ fun CreateShipmentSheet(
 private fun ShipmentCreatedView(
     shipment: CreatedShipment,
     carrierLabel: String,
-    requestedPickup: String,
+    requestedPickup: String?,
     onDone: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
@@ -444,12 +461,18 @@ private fun ShipmentCreatedView(
             StatRow("Tracking number", it)
         }
         val scheduled = shipment.pickup?.scheduledDate?.takeIf { it.isNotBlank() }
-        if (scheduled != null) {
-            StatRow("Pickup scheduled", formatYmd(scheduled))
-        } else {
-            StatRow("Pickup requested", formatYmd(requestedPickup))
-            Text(
-                "The carrier hasn't confirmed the pickup slot yet.",
+        when {
+            scheduled != null -> StatRow("Pickup scheduled", formatYmd(scheduled))
+            requestedPickup != null -> {
+                StatRow("Pickup requested", formatYmd(requestedPickup))
+                Text(
+                    "The carrier hasn't confirmed the pickup slot yet.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            else -> Text(
+                "The carrier will confirm the pickup slot.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

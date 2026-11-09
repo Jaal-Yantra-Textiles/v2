@@ -1,33 +1,56 @@
 package com.jyt.partner.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,9 +61,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jyt.partner.api.PartnerApi
@@ -53,6 +79,7 @@ import com.jyt.partner.models.PartnerInventoryOrder
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.async
+import kotlin.math.roundToInt
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -216,32 +243,16 @@ fun InventoryOrderDetailScreen(
                 if (lines.isNotEmpty()) {
                     item {
                         SectionCard("Goods") {
-                            lines.forEach { line ->
-                                Column(Modifier.padding(vertical = 4.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                    ) {
-                                        Text(line.displayName, fontWeight = FontWeight.Medium)
-                                        Text(
-                                            formatCurrency(line.price, current.currencyCode),
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        )
-                                    }
-                                    Text(
-                                        buildString {
-                                            append("Ordered ${formatQuantity(line.quantity)}")
-                                            if (line.fulfilled > 0) append(" · Sent ${formatQuantity(line.fulfilled)}")
-                                            if (line.outstanding > 0) append(" · Outstanding ${formatQuantity(line.outstanding)}")
-                                            // #2289 — sent but not counted yet, and counted short.
-                                            if (line.awaitingCount > 0) append(" · Awaiting count ${formatQuantity(line.awaitingCount)}")
-                                            if (line.short > 0) append(" · Short ${formatQuantity(line.short)}")
-                                        },
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // One table-like block: rows separated by hairlines,
+                            // not stacked cards.
+                            lines.forEachIndexed { index, line ->
+                                if (index > 0) {
+                                    HorizontalDivider(
+                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                        modifier = Modifier.padding(vertical = 8.dp),
                                     )
                                 }
+                                GoodsLineCard(line = line, currencyCode = current.currencyCode)
                             }
                         }
                     }
@@ -415,6 +426,121 @@ fun InventoryOrderDetailScreen(
     }
 }
 
+/** One goods line on the order detail — a table row (not a card): name +
+ *  unit price, a sent-vs-ordered progress bar, and the quantity stats as
+ *  colored chips (the iOS app's teal/orange fragments, upgraded to carry
+ *  awaiting-count and shortfall too). Rows are separated by hairlines in
+ *  the Goods section. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun GoodsLineCard(line: InventoryOrderLine, currencyCode: String?) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                line.displayName,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Text(
+                formatCurrency(line.price, currencyCode),
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (line.quantity > 0.0) {
+            val progress = (line.fulfilled / line.quantity).coerceIn(0.0, 1.0).toFloat()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                )
+                // No "0% sent" label on a fresh line — an empty track
+                // already says nothing has gone out.
+                if (progress > 0f) {
+                    Text(
+                        "${(progress * 100).roundToInt()}% sent",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            LineStatChip("Ordered ${formatQuantity(line.quantity)}", LineStatTone.MUTED)
+            if (line.fulfilled > 0) {
+                LineStatChip("Sent ${formatQuantity(line.fulfilled)}", LineStatTone.SENT)
+            }
+            if (line.outstanding > 0) {
+                LineStatChip("Outstanding ${formatQuantity(line.outstanding)}", LineStatTone.OUTSTANDING)
+            }
+            // #2289 — sent but not counted yet, and counted short.
+            if (line.awaitingCount > 0) {
+                LineStatChip("Awaiting count ${formatQuantity(line.awaitingCount)}", LineStatTone.AWAITING)
+            }
+            if (line.short > 0) {
+                LineStatChip("Short ${formatQuantity(line.short)}", LineStatTone.SHORT)
+            }
+        }
+    }
+}
+
+/** What a quantity chip means — muted for the plan, color for the states
+ *  that need attention at a glance (the badge-tone rule, applied to stats). */
+private enum class LineStatTone { MUTED, SENT, OUTSTANDING, AWAITING, SHORT }
+
+@Composable
+private fun lineStatColor(tone: LineStatTone): Color {
+    val dark = isSystemInDarkTheme()
+    return when (tone) {
+        LineStatTone.MUTED -> MaterialTheme.colorScheme.onSurfaceVariant
+        LineStatTone.SENT -> if (dark) Color(0xFF5EEAD4) else Color(0xFF0F766E)
+        LineStatTone.OUTSTANDING -> if (dark) Color(0xFFFDBA74) else Color(0xFFB45309)
+        LineStatTone.AWAITING -> if (dark) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
+        LineStatTone.SHORT -> MaterialTheme.colorScheme.error
+    }
+}
+
+@Composable
+private fun LineStatChip(label: String, tone: LineStatTone) {
+    val color = lineStatColor(tone)
+    Text(
+        text = label,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Medium,
+        color = color,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .background(color.copy(alpha = 0.12f), RoundedCornerShape(8.dp))
+            // One chip can never be wider than the card — FlowRow wraps but
+            // does not clip an oversized child.
+            .widthIn(max = 200.dp)
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}
+
 internal enum class OrderStep(val label: String) {
     START("Start this order"),
     RECORD_DELIVERY("Record delivery"),
@@ -469,8 +595,9 @@ private fun shipmentStatusLabel(raw: String): String = when (raw) {
  *  editable decimals: cloth is metres and kilograms, so whole-number
  *  steppers alone can't record what actually shipped (iOS parity — its
  *  sheet pairs the steppers with a .decimalPad text field). */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DeliveryReceiptSheet(
+internal fun DeliveryReceiptSheet(
     order: PartnerInventoryOrder,
     onDismiss: () -> Unit,
     onRecorded: () -> Unit,
@@ -496,10 +623,14 @@ private fun DeliveryReceiptSheet(
         } else filtered
     }
 
-    fun step(line: InventoryOrderLine, delta: Double) {
-        val next = ((quantities[line.id] ?: 0.0) + delta).coerceIn(0.0, line.outstanding)
+    fun setLine(line: InventoryOrderLine, value: Double) {
+        val next = value.coerceIn(0.0, line.outstanding)
         quantities = quantities + (line.id to next)
         quantityText = quantityText + (line.id to plainQuantity(next))
+    }
+
+    fun step(line: InventoryOrderLine, delta: Double) {
+        setLine(line, (quantities[line.id] ?: 0.0) + delta)
     }
 
     var deliveryDateMillis by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
@@ -507,170 +638,316 @@ private fun DeliveryReceiptSheet(
     var notes by rememberSaveable { mutableStateOf("") }
     var sending by remember { mutableStateOf(false) }
     var sendError by remember { mutableStateOf<String?>(null) }
+    var detailsExpanded by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     // Fewer than what's outstanding on any line is a partial delivery, and
     // (as on the web) the team needs a note saying why.
-    val isPartial = order.orderLines.orEmpty().any { line ->
-        (quantities[line.id] ?: 0.0) < line.outstanding
+    val lines = order.orderLines.orEmpty()
+    val isPartial = lines.any { line -> (quantities[line.id] ?: 0.0) < line.outstanding }
+    val hasOutstanding = lines.any { it.outstanding > 0.0 }
+    val totalOutstanding = lines.sumOf { it.outstanding }
+    val totalEntered = lines.sumOf { quantities[it.id] ?: 0.0 }
+    // The fast path is armed — every line carries its full outstanding.
+    val everythingEntered = hasOutstanding && lines.all { (quantities[it.id] ?: 0.0) >= it.outstanding }
+
+    // The live summary under the title — what this receipt records right now.
+    val summary = when {
+        everythingEntered -> "Full delivery — ${formatQuantity(totalEntered)} recorded against stock."
+        totalEntered > 0.0 -> "Recording ${formatQuantity(totalEntered)} of ${formatQuantity(totalOutstanding)} outstanding."
+        else -> "Enter each line, or tap \"Delivered everything\" below."
     }
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = { if (!sending) onDismiss() },
-        title = { Text("Record delivery") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .navigationBarsPadding()
+                // The pinned action row rides above the keyboard instead of
+                // being covered by it while a quantity field is focused.
+                .imePadding(),
+        ) {
+            // Scrollable body — everything but the pinned actions.
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text("Record delivery", fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "These are the quantities the team receives against stock. Leave a line at 0 to deliver it later.",
-                    fontSize = 12.sp,
+                    summary,
+                    fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                order.orderLines.orEmpty().forEach { line ->
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(line.displayName, fontWeight = FontWeight.Medium)
-                            Text(
-                                "of ${formatQuantity(line.quantity)}",
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            IconButton(
-                                onClick = { step(line, -1.0) },
-                            ) { Icon(Icons.Filled.Remove, contentDescription = "Less") }
-                            OutlinedTextField(
-                                value = quantityText[line.id] ?: "",
-                                onValueChange = { raw ->
-                                    val clean = sanitize(raw)
-                                    quantityText = quantityText + (line.id to clean)
-                                    clean.toDoubleOrNull()?.let { parsed ->
-                                        quantities = quantities + (
-                                            line.id to parsed.coerceIn(0.0, line.outstanding)
-                                            )
+
+                // The common case in one tap — fill every line with what's
+                // outstanding. The steppers stay for partial deliveries.
+                if (hasOutstanding) {
+                    FilledTonalButton(
+                        onClick = { lines.forEach { if (it.outstanding > 0.0) setLine(it, it.outstanding) } },
+                        enabled = !everythingEntered,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Icon(
+                            imageVector = if (everythingEntered) Icons.Filled.CheckCircle else Icons.Filled.Done,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp),
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (everythingEntered) "Everything marked — full delivery"
+                            else "Delivered everything",
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+
+                if (lines.isNotEmpty()) {
+                    Card(
+                        shape = RoundedCornerShape(14.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp)) {
+                            lines.forEachIndexed { index, line ->
+                                if (index > 0) {
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                                }
+                                Column(
+                                    modifier = Modifier.padding(vertical = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically,
+                                    ) {
+                                        Text(
+                                            line.displayName,
+                                            fontWeight = FontWeight.Medium,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.weight(1f),
+                                        )
+                                        Text(
+                                            "of ${formatQuantity(line.quantity)}",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 1,
+                                        )
                                     }
-                                },
-                                label = { Text("Delivered") },
-                                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                                    keyboardType = KeyboardType.Decimal
-                                ),
-                                singleLine = true,
-                                modifier = Modifier.width(110.dp),
-                            )
-                            IconButton(
-                                onClick = { step(line, 1.0) },
-                            ) { Icon(Icons.Filled.Add, contentDescription = "More") }
-                            if (line.fulfilled > 0) {
-                                Text(
-                                    "already sent ${formatQuantity(line.fulfilled)}",
-                                    fontSize = 11.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                    if (line.outstanding <= 0.0) {
+                                        // Fully delivered line — nothing to type; keep it
+                                        // visible so the partner sees it's accounted for.
+                                        Text(
+                                            "Nothing left to deliver — ${formatQuantity(line.quantity)} recorded in full.",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        )
+                                    } else {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        ) {
+                                            IconButton(onClick = { step(line, -1.0) }) {
+                                                Icon(Icons.Filled.Remove, contentDescription = "Less")
+                                            }
+                                            OutlinedTextField(
+                                                value = quantityText[line.id] ?: "",
+                                                onValueChange = { raw ->
+                                                    val clean = sanitize(raw)
+                                                    quantityText = quantityText + (line.id to clean)
+                                                    clean.toDoubleOrNull()?.let { parsed -> setLine(line, parsed) }
+                                                },
+                                                label = { Text("Delivered") },
+                                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                                singleLine = true,
+                                                modifier = Modifier.weight(1f),
+                                            )
+                                            IconButton(onClick = { step(line, 1.0) }) {
+                                                Icon(Icons.Filled.Add, contentDescription = "More")
+                                            }
+                                        }
+                                        // Its own line, not inside the stepper row — on a
+                                        // narrow screen "already sent 1,234.56" could push
+                                        // the field past the edge.
+                                        if (line.fulfilled > 0) {
+                                            Text(
+                                                "Already sent ${formatQuantity(line.fulfilled)} — this entry is on top.",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
-                // Delivery date — a compact prev/next-day stepper keeps the
-                // dialog dependency-free.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { deliveryDateMillis -= 86_400_000L }) {
-                        Icon(Icons.Filled.Remove, contentDescription = "Earlier")
-                    }
-                    Text(
-                        SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(deliveryDateMillis)),
-                        fontWeight = FontWeight.Medium,
-                    )
-                    IconButton(onClick = { deliveryDateMillis += 86_400_000L }) {
-                        Icon(Icons.Filled.Add, contentDescription = "Later")
-                    }
-                }
-                OutlinedTextField(
-                    value = trackingNumber,
-                    onValueChange = { trackingNumber = it },
-                    label = { Text("Tracking number (optional)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = notes,
-                    onValueChange = { notes = it },
-                    label = {
-                        Text(
-                            if (isPartial) "Why is this a partial delivery? (required)"
-                            else "Anything the team should know (optional)"
-                        )
-                    },
-                    isError = isPartial && notes.isBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+
+                // Partial nudge — always visible while a partial is entered.
                 if (isPartial) {
                     Text(
-                        "Partial delivery — add a note, or set every line to what's outstanding.",
+                        "Partial delivery — add a note in Delivery details.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+
+                // Delivery details — collapsed by default: a full delivery is
+                // quantities + Submit, nothing more.
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { detailsExpanded = !detailsExpanded },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "Delivery details",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (isPartial && notes.isBlank()) {
+                        Text(
+                            "note required",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    Icon(
+                        imageVector = if (detailsExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                        contentDescription = if (detailsExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (detailsExpanded) {
+                    Text(
+                        "Leave a line at 0 to deliver it later.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    // Delivery date — a compact prev/next-day stepper keeps
+                    // the sheet dependency-free.
+                    Text(
+                        "Delivery date",
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconButton(onClick = { deliveryDateMillis -= 86_400_000L }) {
+                            Icon(Icons.Filled.Remove, contentDescription = "Earlier")
+                        }
+                        Text(
+                            SimpleDateFormat("MMM d, yyyy", Locale.US).format(Date(deliveryDateMillis)),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        IconButton(onClick = { deliveryDateMillis += 86_400_000L }) {
+                            Icon(Icons.Filled.Add, contentDescription = "Later")
+                        }
+                    }
+                    OutlinedTextField(
+                        value = trackingNumber,
+                        onValueChange = { trackingNumber = it },
+                        label = { Text("Tracking number (optional)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    OutlinedTextField(
+                        value = notes,
+                        onValueChange = { notes = it },
+                        label = {
+                            Text(
+                                if (isPartial) "Why is this a partial delivery? (required)"
+                                else "Anything the team should know (optional)"
+                            )
+                        },
+                        isError = isPartial && notes.isBlank(),
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 if (sendError != null) {
                     Text(sendError ?: "", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
                 }
             }
-        },
-        confirmButton = {
+
+            // Pinned actions — always visible at the bottom, above the
+            // keyboard, no matter how many lines scroll past.
+            Spacer(Modifier.height(12.dp))
             if (sending) {
-                CircularProgressIndicator(Modifier.size(20.dp))
+                Box(
+                    Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator(Modifier.size(24.dp))
+                }
             } else {
-                TextButton(
-                    onClick = {
-                        val lines = order.orderLines.orEmpty().mapNotNull { line ->
-                            val quantity = quantities[line.id] ?: 0.0
-                            // Backend validator: quantity must be > 0.
-                            if (quantity <= 0.0) null
-                            else CompleteInventoryOrderBody.Line(line.id, quantity)
-                        }
-                        if (lines.isEmpty()) {
-                            sendError = "Record at least one line's delivered quantity."
-                            return@TextButton
-                        }
-                        if (isPartial && notes.isBlank()) {
-                            sendError = "Add a note when delivering less than what's outstanding."
-                            return@TextButton
-                        }
-                        sending = true
-                        scope.launch {
-                            try {
-                                PartnerApi.get(context).completeInventoryOrder(
-                                    id = order.id,
-                                    body = CompleteInventoryOrderBody(
-                                        notes = notes.takeIf { it.isNotBlank() },
-                                        deliveryDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
-                                            .format(Date(deliveryDateMillis)),
-                                        trackingNumber = trackingNumber.takeIf { it.isNotBlank() },
-                                        lines = lines,
-                                    ),
-                                )
-                                onRecorded()
-                            } catch (e: Exception) {
-                                sendError = e.message ?: "Couldn't record the delivery."
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = { onDismiss() },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Cancel") }
+                    Button(
+                        onClick = {
+                            val entries = order.orderLines.orEmpty().mapNotNull { line ->
+                                val quantity = quantities[line.id] ?: 0.0
+                                // Backend validator: quantity must be > 0.
+                                if (quantity <= 0.0) null
+                                else CompleteInventoryOrderBody.Line(line.id, quantity)
                             }
-                            sending = false
-                        }
-                    },
-                ) { Text("Submit") }
+                            if (entries.isEmpty()) {
+                                sendError = "Record at least one line's delivered quantity."
+                                return@Button
+                            }
+                            if (isPartial && notes.isBlank()) {
+                                // Bring the note field into view instead of
+                                // making the partner hunt for it.
+                                detailsExpanded = true
+                                sendError = "Add a note when delivering less than what's outstanding."
+                                return@Button
+                            }
+                            sending = true
+                            scope.launch {
+                                try {
+                                    PartnerApi.get(context).completeInventoryOrder(
+                                        id = order.id,
+                                        body = CompleteInventoryOrderBody(
+                                            notes = notes.takeIf { it.isNotBlank() },
+                                            deliveryDate = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+                                                .format(Date(deliveryDateMillis)),
+                                            trackingNumber = trackingNumber.takeIf { it.isNotBlank() },
+                                            lines = entries,
+                                        ),
+                                    )
+                                    onRecorded()
+                                } catch (e: Exception) {
+                                    sendError = e.message ?: "Couldn't record the delivery."
+                                }
+                                sending = false
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("Submit", fontWeight = FontWeight.SemiBold) }
+                }
             }
-        },
-        dismissButton = {
-            OutlinedButton(onClick = { if (!sending) onDismiss() }) { Text("Cancel") }
-        },
-    )
+        }
+    }
 }
