@@ -46,6 +46,18 @@ describe("decideIssue", () => {
     expect((d as any).reason).toContain("JYT/2026-27/0001")
   })
 
+  it("treats a corrected seller address as a change that needs a reissue", () => {
+    const corrected = buildOrderTaxInvoiceModel({
+      ...base,
+      seller: { ...base.seller, address: { ...base.seller.address, lines: ["1/2300A Mandoli Road"] } },
+    })
+    expect(decideIssue(issued(), corrected, {}).action).toBe("refuse")
+    expect(decideIssue(issued(), corrected, { reissue: true })).toEqual({
+      action: "issue",
+      cancel_invoice_id: "tinv_1",
+    })
+  })
+
   it("cancels the old invoice and issues a new one on reissue", () => {
     const next = buildOrderTaxInvoiceModel({ ...base, buyer_gstin: "29ABC" })
     expect(decideIssue(issued(), next, { reissue: true })).toEqual({

@@ -14,9 +14,16 @@ export type IssueDecision =
   | { action: "issue"; cancel_invoice_id: string | null }
   | { action: "refuse"; reason: string }
 
-/** The billable content of an invoice — everything but number and dates. */
+/**
+ * The billable content of an invoice — everything but number and dates.
+ *
+ * The seller is part of it: a corrected registered address or GSTIN is a
+ * different bill (#2532 — Cherry's 0001/0002 went out with a placeholder
+ * address and had to be reissued), so it must be able to trigger a reissue.
+ */
 export function invoiceFingerprint(model: OrderTaxInvoiceModel): string {
   return JSON.stringify({
+    seller: model.seller,
     rows: model.rows.map((r) => [r.description, r.hsn, r.quantity, r.taxable, r.cgst, r.sgst, r.igst]),
     totals: [model.totals.taxable, model.totals.tax, model.totals.grand_total],
     supply: model.supply_type,
