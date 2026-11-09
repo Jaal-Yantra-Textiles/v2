@@ -867,6 +867,9 @@ module.exports = defineConfig({
   {
     resolve: "./src/modules/platform-tax-identity",
   },
+  {
+    resolve: "./src/modules/tax_invoice",
+  },
   /**
    * #1939's economic policy table. It was added to `medusa-config.ts` by #1942
    * and never to this file, which the Dockerfile copies OVER that one — so in

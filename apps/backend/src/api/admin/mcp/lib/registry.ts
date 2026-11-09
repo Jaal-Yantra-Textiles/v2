@@ -8823,6 +8823,45 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_order_balance", "get_order"],
   },
   {
+    name: "issue_order_tax_invoice",
+    description:
+      "Issue the GST tax invoice for an order: a numbered (JYT/2026-27/0001), frozen PDF bill with HSN, CGST+SGST or IGST and paid/balance. Only orders on our own store. Asking again for an unchanged order returns the SAME invoice; a changed order needs reissue:true, which cancels the old one. Sends nothing to the customer. Sensitive: requires confirm:true. " +
+      "🔑 Run with preview:true FIRST: it returns the invoice as it would print and spends no number.",
+    method: "POST",
+    path: "/admin/orders/:id/tax-invoices",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["preview", "reissue", "buyer_gstin"],
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        preview: {
+          type: "boolean",
+          description: "Return the invoice as it would print, without issuing or spending a number.",
+        },
+        reissue: {
+          type: "boolean",
+          description: "The order changed since its invoice: cancel that invoice and issue a new number.",
+        },
+        buyer_gstin: STR("The buyer's 15-character GSTIN, for a business purchase. Printed on the invoice."),
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Assigns the next invoice number of the financial year and stores the frozen invoice. With reissue, marks the previous invoice cancelled (kept, never deleted). No email.",
+    nextSteps: ["list_order_tax_invoices", "send_order_invoice"],
+  },
+  {
+    name: "list_order_tax_invoices",
+    description:
+      "List an order's GST tax invoices, newest first, cancelled ones included. The PDF of each is at GET /admin/tax-invoices/:id/pdf.",
+    method: "GET",
+    path: "/admin/orders/:id/tax-invoices",
+    pathParams: ["id"],
+    inputSchema: obj({ id: STR("Order id, e.g. 'order_...'.") }, ["id"]),
+  },
+  {
     name: "approve_order_sample",
     description:
       "Record the buyer's verdict on the first SAMPLE of a made-to-order deal. On a deal minted with balance_trigger 'sample_approved', decision 'approved' raises the balance and returns the buyer's pay link; 'rejected' is recorded and asks for nothing. Sensitive: requires confirm:true. " +
