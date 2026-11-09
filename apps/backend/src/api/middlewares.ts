@@ -21,6 +21,7 @@ import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { listEmailEditorProductsQuerySchema } from "./admin/email-editor/products/validators";
 import { issueOrderTaxInvoiceSchema } from "./admin/orders/[id]/tax-invoices/validators";
+import { sendTaxInvoiceSchema } from "./admin/tax-invoices/[id]/send/validators";
 import { OpsMaintenanceRunSchema, OpsMaintenanceRunsQuerySchema, OpsMaintenanceBatchSchema, OpsMaintenanceBatchesQuerySchema } from "./admin/ops/maintenance-jobs/validators";
 import { AdminPostLocationOwnershipReq } from "./admin/location-ownership/validators";
 import { AdminUpdateTextileAnalysisSchema } from "./admin/textile-analyses/validators";
@@ -4800,6 +4801,11 @@ export default defineMiddlewares({
       matcher: "/admin/tax-invoices/:id/pdf",
       method: "GET",
       middlewares: [],
+    },
+    {
+      matcher: "/admin/tax-invoices/:id/send",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(sendTaxInvoiceSchema))],
     },
     /**
      * #1752 — a partner's proposed revision (line edits + tax) awaiting approval.

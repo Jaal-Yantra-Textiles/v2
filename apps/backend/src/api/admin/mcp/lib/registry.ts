@@ -8795,7 +8795,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     description:
       "Email the buyer an itemised invoice for an order: every line at the price on the order (a zero-priced replacement shows as 'No charge'), shipping, total, what is paid, and the balance with its pay link. Sensitive: requires confirm:true. " +
       "🔑 Run with preview:true FIRST: it returns the invoice and any payment-schedule change and writes nothing. " +
-      "When an order edit moved the total after the deposit, the deposit schedule's balance is moved to the order's pending difference before the link is raised, so the link charges the edited amount; an already-raised balance keeps the SAME link. Refuses (and sends nothing) when what the order shows as paid is not the deposit.",
+      "When an order edit moved the total after the deposit, the deposit schedule's balance is moved to the order's pending difference before the link is raised, so the link charges the edited amount; an already-raised balance keeps the SAME link. Refuses (and sends nothing) when what the order shows as paid is not the deposit. " +
+      "The order's GST tax invoice PDF (issue_order_tax_invoice) is attached when one is issued and still matches the order; the result's tax_invoice says whether it was, or why not.",
     method: "POST",
     path: "/admin/orders/:id/invoice",
     pathParams: ["id"],
@@ -8851,6 +8852,34 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     sideEffects:
       "Assigns the next invoice number of the financial year and stores the frozen invoice. With reissue, marks the previous invoice cancelled (kept, never deleted). No email.",
     nextSteps: ["list_order_tax_invoices", "send_order_invoice"],
+  },
+  {
+    name: "send_tax_invoice",
+    description:
+      "Email the buyer one issued GST tax invoice through the 'order-tax-invoice' email template, with its PDF attached. Refuses a cancelled invoice or one that no longer matches the order (reissue first). Sensitive: requires confirm:true. " +
+      "🔑 Run with preview:true FIRST: it returns the recipient, the template values and the attachment name, and sends nothing.",
+    method: "POST",
+    path: "/admin/tax-invoices/:id/send",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["preview", "confirm"],
+    inputSchema: obj(
+      {
+        id: STR("Tax invoice id, e.g. 'tinv_...'. Get it from list_order_tax_invoices."),
+        preview: {
+          type: "boolean",
+          description: "Return the recipient, values and attachment without sending. Do this first.",
+        },
+        confirm: {
+          type: "boolean",
+          description: "Must be true to send: the email cannot be recalled. Forwarded to the route.",
+        },
+      },
+      ["id"]
+    ),
+    sideEffects: "Emails the buyer the tax invoice with the PDF attached.",
+    nextSteps: ["list_order_tax_invoices"],
   },
   {
     name: "list_order_tax_invoices",

@@ -116,10 +116,13 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
       )
     }
 
+    const attachments = toResendAttachments((notification as any).attachments)
+
     const commonOptions = {
       from: fromAddress,
       to: [notification.to],
       subject,
+      ...(attachments.length ? { attachments } : {}),
     }
 
     let emailOptions: any
@@ -205,3 +208,21 @@ class ResendNotificationProviderService extends AbstractNotificationProviderServ
 }
 
 export default ResendNotificationProviderService
+
+/**
+ * #2532: Medusa hands attachments to the provider with base64 `content` and
+ * snake_case `content_type`; Resend takes the same base64 string and wants
+ * `contentType`. Entries without a name or content are dropped rather than
+ * sent as empty files.
+ */
+export function toResendAttachments(
+  attachments: Array<{ filename?: string | null; content?: string | null; content_type?: string | null }> | null | undefined
+): Array<{ filename: string; content: string; contentType?: string }> {
+  return (attachments ?? [])
+    .filter((a) => !!a?.filename && !!a?.content)
+    .map((a) => ({
+      filename: a.filename as string,
+      content: a.content as string,
+      ...(a.content_type ? { contentType: a.content_type } : {}),
+    }))
+}

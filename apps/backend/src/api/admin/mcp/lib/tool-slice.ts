@@ -53,6 +53,8 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
   ["/admin/ops", "observability"],
   ["/admin/orders", "orders"],
   ["/admin/order-edits", "orders"],
+  // #2532 — an order's GST tax invoices (send / pdf by invoice id).
+  ["/admin/tax-invoices", "orders"],
   // B2B quotes (#1439). Pre-order rather than post-purchase, but this is the
   // sales slice — a quote is what becomes the cart, and the same conversation
   // covers both.
