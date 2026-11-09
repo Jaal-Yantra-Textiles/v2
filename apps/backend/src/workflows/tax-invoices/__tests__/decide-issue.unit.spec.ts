@@ -46,6 +46,28 @@ describe("decideIssue", () => {
     expect((d as any).reason).toContain("JYT/2026-27/0001")
   })
 
+  it("reuses an invoice read back from jsonb with its keys reordered", () => {
+    // Postgres jsonb sorts keys by length then bytes; reproduce that order.
+    const jsonbOrder = (v: any): any =>
+      Array.isArray(v)
+        ? v.map(jsonbOrder)
+        : v && typeof v === "object"
+          ? Object.fromEntries(
+              Object.entries(v)
+                .sort(([a], [b]) => a.length - b.length || (a < b ? -1 : a > b ? 1 : 0))
+                .map(([k, x]) => [k, jsonbOrder(x)])
+            )
+          : v
+    const stored = issued()
+    const readBack = { ...stored, document: jsonbOrder(JSON.parse(JSON.stringify(stored.document))) }
+    expect(Object.keys(readBack.document.seller)).toEqual(["gstin", "lines", "legal_name"])
+
+    expect(decideIssue(readBack, buildOrderTaxInvoiceModel(base), {})).toEqual({
+      action: "reuse",
+      invoice_id: "tinv_1",
+    })
+  })
+
   it("treats a corrected seller address as a change that needs a reissue", () => {
     const corrected = buildOrderTaxInvoiceModel({
       ...base,

@@ -21,8 +21,23 @@ export type IssueDecision =
  * different bill (#2532 — Cherry's 0001/0002 went out with a placeholder
  * address and had to be reissued), so it must be able to trigger a reissue.
  */
+/**
+ * JSON with object keys sorted at every level. The stored invoice comes back
+ * from a Postgres `jsonb` column with its keys REORDERED (jsonb sorts them by
+ * length, then bytes): the seller block is written as legal_name, gstin, lines
+ * and read back as gstin, lines, legal_name. A plain JSON.stringify then calls
+ * an unchanged invoice "changed" — #2539 shipped exactly that, and it blocked
+ * Cherry's 0003/0004 from being emailed.
+ */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_key, v) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)))
+      : v
+  )
+
 export function invoiceFingerprint(model: OrderTaxInvoiceModel): string {
-  return JSON.stringify({
+  return canonical({
     seller: model.seller,
     rows: model.rows.map((r) => [r.description, r.hsn, r.quantity, r.taxable, r.cgst, r.sgst, r.igst]),
     totals: [model.totals.taxable, model.totals.tax, model.totals.grand_total],
