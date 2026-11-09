@@ -818,7 +818,251 @@ class PartnerApiIntegrationTest {
         assertEquals("DELETE", unregister.method)
         assertEquals("""{"token":"fcm-token-1"}""", unregister.body.readUtf8())
     }
+
+    // ── Individual persona: me + tasks ────────────────────────────────────
+
+    @Test
+    fun `me decodes the partner's workspace_type`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson(
+            """{"admin":{"id":"a1","email":"me@x.com"},"partner_id":"p1","workspace_type":"individual"}"""
+        )
+
+        val me = api.me()
+
+        assertEquals("/partners/me", take().path)
+        assertEquals("individual", me.workspaceType)
+    }
+
+    @Test
+    fun `assigned tasks list decodes tasks with subtasks and production runs`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson(
+            """
+            {
+              "tasks": [
+                {
+                  "id": "t1",
+                  "title": "Shoot the scarf",
+                  "description": "Golden hour",
+                  "priority": "high",
+                  "status": "assigned",
+                  "updated_at": "2026-11-01T10:00:00.000Z",
+                  "subtasks": [
+                    {"id": "t2", "title": "Edit selects", "status": "pending",
+                     "metadata": {"order": 2}},
+                    {"id": "t3", "title": "Shoot flat lays", "status": "completed",
+                     "metadata": {"order": 1}}
+                  ],
+                  "production_run": {
+                    "id": "run-1", "status": "in_progress", "run_type": "sample",
+                    "quantity": 40, "design_id": "d1", "design_name": "Autumn Stole"
+                  }
+                }
+              ],
+              "count": 1
+            }
+            """.trimIndent()
+        )
+
+        val response = api.assignedTasks()
+
+        assertEquals("/partners/assigned-tasks", take().path)
+        assertEquals(1, response.count)
+        val task = response.tasks.single()
+        assertEquals("Shoot the scarf", task.title)
+        assertEquals("high", task.priority)
+        assertEquals(2, task.subtasks.size)
+        assertEquals("run-1", task.productionRun?.id)
+        assertEquals("Autumn Stole", task.productionRun?.designName)
+    }
+
+    @Test
+    fun `accept task posts to the accept route`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson("""{"task":{"id":"t1","status":"accepted"},"message":"Task accepted successfully"}""")
+
+        val response = api.acceptTask("t1")
+
+        val request = take()
+        assertEquals("POST", request.method)
+        assertEquals("/partners/assigned-tasks/t1/accept", request.path)
+        assertEquals("accepted", response.task?.status)
+    }
+
+    @Test
+    fun `finish task sends the optional INR cost`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson("""{"task":{"id":"t1","status":"finished"},"message":"Task completed successfully"}""")
+
+        api.finishTask("t1", actualCost = 2500.0)
+
+        val request = take()
+        assertEquals("/partners/assigned-tasks/t1/finish", request.path)
+        assertEquals(
+            // explicitNulls=false: unset cost fields are left off entirely,
+            // the same shape the web's finish drawer sends.
+            """{"actual_cost":2500.0,"cost_currency":"inr"}""",
+            request.body.readUtf8(),
+        )
+    }
+
+    @Test
+    fun `finish task without a cost sends an empty body`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson("""{"task":{"id":"t1","status":"finished"}}""")
+
+        api.finishTask("t1", actualCost = null)
+
+        assertEquals("{}", take().body.readUtf8())
+    }
+
+    @Test
+    fun `task comments round trip`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson(
+            """{"comments":[{"id":"c1","comment":"Bring the mannequin","author_type":"admin","author_name":"JYT","created_at":"2026-11-01T09:00:00.000Z"}],"count":1}"""
+        )
+
+        val comments = api.taskComments("t1")
+
+        assertEquals("/partners/assigned-tasks/t1/comments", take().path)
+        assertEquals("Bring the mannequin", comments.comments.single().comment)
+
+        enqueueJson("""{"comment":{"id":"c2","comment":"On my way"}}""")
+        api.addTaskComment("t1", "On my way")
+        val post = take()
+        assertEquals("POST", post.method)
+        assertEquals("/partners/assigned-tasks/t1/comments", post.path)
+        assertEquals("""{"comment":"On my way"}""", post.body.readUtf8())
+    }
+
+    // ── Individual persona: shared folders ────────────────────────────────
+
+    @Test
+    fun `shared folders list and detail decode`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson(
+            """{"shared_folders":[{"id":"f1","name":"Product shoot","description":"Autumn drop",
+                 "path":"/shoots","is_public":false,"media_files":[{"id":"m1","original_name":"a.jpg"}]}]}"""
+        )
+
+        val folders = api.sharedFolders().sharedFolders
+
+        assertEquals("/partners/shared-folders", take().path)
+        val folder = folders.single()
+        assertEquals("Product shoot", folder.name)
+        assertEquals(1, folder.mediaFiles.size)
+        assertFalse(folder.isPublic)
+
+        enqueueJson(
+            """{"shared_folder":{"id":"f1","name":"Product shoot","path":"/shoots","is_public":false,
+                 "media_files":[{"id":"m1","file_name":"a-1.jpg","original_name":"a.jpg",
+                   "file_path":"https://cdn/a-1.jpg","file_type":"image","mime_type":"image/jpeg",
+                   "file_size":10240}]}}"""
+        )
+        val detail = api.sharedFolder("f1")
+        assertEquals("/partners/shared-folders/f1", take().path)
+        assertEquals("https://cdn/a-1.jpg", detail.mediaFiles.single().filePath)
+    }
+
+    @Test
+    fun `folder media comments list and add`() = runBlocking {
+        tokens.value = "jwt"
+        enqueueJson("""{"comments":[{"id":"c1","content":"Love this one","author_type":"admin"}]}""")
+
+        val comments = api.folderMediaComments("f1", "m1")
+
+        assertEquals("/partners/shared-folders/f1/media/m1/comments", take().path)
+        assertEquals("Love this one", comments.comments.single().content)
+
+        enqueueJson("""{"comment":{"id":"c2"}}""")
+        api.addFolderMediaComment("f1", "m1", "New cover?")
+        val post = take()
+        assertEquals("POST", post.method)
+        assertEquals("""{"content":"New cover?"}""", post.body.readUtf8())
+    }
+
+    @Test
+    fun `folder upload runs the whole multipart presigned flow`() = runBlocking {
+        tokens.value = "jwt"
+        // 1. Initiate
+        enqueueJson("""{"uploadId":"up-1","key":"shoot_abc123.jpg","partSize":4}""")
+        // 2. Presigned part URLs (pointed back at the mock server)
+        enqueueJson(
+            """{"urls":[{"partNumber":1,"url":"${server.url("/s3/part1")}"},
+                         {"partNumber":2,"url":"${server.url("/s3/part2")}"}]}"""
+        )
+        // 3. The two S3 PUTs — S3 quotes its ETags.
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"etag-one\""))
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("ETag", "\"etag-two\""))
+        // 4. Complete
+        enqueueJson("""{"s3":{"location":"https://cdn/shoot_abc123.jpg","key":"shoot_abc123.jpg"}}""")
+        // 5. Register against the folder
+        enqueueJson("""{"message":"File uploaded to shared folder","media_file":{"id":"m9"}}""")
+
+        // An 8-byte file with a 4-byte part size → exactly two parts.
+        val bytes = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8)
+        val input = PartnerApi.FolderUploadInput(
+            name = "shoot.jpg",
+            mimeType = "image/jpeg",
+            size = bytes.size.toLong(),
+            open = { java.io.ByteArrayInputStream(bytes) },
+        )
+        var lastProgress = -1
+        val registered = api.uploadToSharedFolder("f1", input) { lastProgress = it }
+
+        // Initiate: name/type/size, authenticated.
+        val initiate = take()
+        assertEquals("POST", initiate.method)
+        assertEquals("/partners/medias/uploads/initiate", initiate.path)
+        assertEquals("""{"name":"shoot.jpg","type":"image/jpeg","size":8}""", initiate.body.readUtf8())
+
+        // Parts request carries the uploadId and both part numbers.
+        val parts = take()
+        assertEquals("/partners/medias/uploads/parts", parts.path)
+        assertEquals("""{"uploadId":"up-1","key":"shoot_abc123.jpg","partNumbers":[1,2]}""", parts.body.readUtf8())
+
+        // The S3 PUTs carry no Authorization header — the URL is the credential.
+        val put1 = take()
+        assertEquals("PUT", put1.method)
+        assertEquals("/s3/part1", put1.path)
+        assertNull(put1.getHeader("Authorization"))
+        assertEquals(
+            java.util.Arrays.toString(byteArrayOf(1, 2, 3, 4)),
+            java.util.Arrays.toString(put1.body.readByteArray()),
+        )
+        val put2 = take()
+        assertEquals("/s3/part2", put2.path)
+        assertEquals(
+            java.util.Arrays.toString(byteArrayOf(5, 6, 7, 8)),
+            java.util.Arrays.toString(put2.body.readByteArray()),
+        )
+
+        // Complete: parts sorted by number, ETags unquoted.
+        val complete = take()
+        assertEquals("/partners/medias/uploads/complete", complete.path)
+        assertEquals(
+            """{"uploadId":"up-1","key":"shoot_abc123.jpg",""" +
+                """"parts":[{"PartNumber":1,"ETag":"etag-one"},{"PartNumber":2,"ETag":"etag-two"}],""" +
+                """"name":"shoot.jpg","type":"image/jpeg","size":8}""",
+            complete.body.readUtf8(),
+        )
+
+        // Register: the S3 key and location land on the folder.
+        val register = take()
+        assertEquals("/partners/shared-folders/f1/upload", register.path)
+        assertEquals(
+            """{"key":"shoot_abc123.jpg","url":"https://cdn/shoot_abc123.jpg",""" +
+                """"filename":"shoot.jpg","mimeType":"image/jpeg","size":8}""",
+            register.body.readUtf8(),
+        )
+
+        assertEquals("m9", registered?.id)
+        assertEquals(100, lastProgress)
+    }
 }
+
 
 // ── ApiDate: the two wire formats the backend emits ──────────────────────
 

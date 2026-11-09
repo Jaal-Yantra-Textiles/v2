@@ -131,6 +131,10 @@ data class PartnerOrderDetailResponse(val order: PartnerOrder)
 data class PartnerMe(
     val admin: Admin? = null,
     @SerialName("partner_id") val partnerId: String? = null,
+    /** The partner's persona ("seller" | "manufacturer" | "individual" |
+     *  "designer") — drives which tabs the app shows, the same field the
+     *  partner-ui's resolveWorkspaceType routes on. */
+    @SerialName("workspace_type") val workspaceType: String? = null,
 ) {
     @Serializable
     data class Admin(

@@ -31,6 +31,22 @@ import com.jyt.partner.models.PartnerMe
 import com.jyt.partner.models.PartnerOrder
 import com.jyt.partner.models.PartnerOrderDetailResponse
 import com.jyt.partner.models.PartnerOrderListResponse
+import com.jyt.partner.models.PartnerTask
+import com.jyt.partner.models.PartnerTaskActionResponse
+import com.jyt.partner.models.PartnerTaskDetailResponse
+import com.jyt.partner.models.PartnerTaskListResponse
+import com.jyt.partner.models.AddTaskCommentBody
+import com.jyt.partner.models.AddFolderCommentBody
+import com.jyt.partner.models.CompleteUploadBody
+import com.jyt.partner.models.CompleteUploadResponse
+import com.jyt.partner.models.FinishTaskBody
+import com.jyt.partner.models.FolderMediaCommentsResponse
+import com.jyt.partner.models.InitiateUploadResponse
+import com.jyt.partner.models.RegisterFolderUploadBody
+import com.jyt.partner.models.RegisterFolderUploadResponse
+import com.jyt.partner.models.TaskCommentsResponse
+import com.jyt.partner.models.UploadedPart
+import com.jyt.partner.models.UploadPartsResponse
 import com.jyt.partner.models.ProductionRunDetail
 import com.jyt.partner.models.ProductionRunListResponse
 import com.jyt.partner.models.ProfitShare
@@ -41,6 +57,10 @@ import com.jyt.partner.models.ReceiveIncomingBody
 import com.jyt.partner.models.RunCostSummary
 import com.jyt.partner.models.RunCostSummaryResponse
 import com.jyt.partner.models.ShippingRatesResponse
+import com.jyt.partner.models.SharedFolder
+import com.jyt.partner.models.SharedFolderDetailResponse
+import com.jyt.partner.models.SharedFolderListResponse
+import com.jyt.partner.models.SharedFolderMediaFile
 import com.jyt.partner.models.UploadFile
 import com.jyt.partner.models.UploadFilesResponse
 import kotlinx.coroutines.Dispatchers
@@ -569,6 +589,223 @@ class PartnerApi private constructor(
             "partners/incoming-deliveries/$orderId/receive",
             json.encodeToString(ReceiveIncomingBody.serializer(), body)
         )
+    }
+
+    // ── Assigned tasks (individual persona) ─────────────────────────────
+    // The /partners/assigned-tasks surface — same endpoints the partner-ui
+    // Tasks pages ride on. A partner sees the tasks linked to them, moves
+    // them accept → finish, completes subtasks and keeps a comment thread.
+
+    /** Every task assigned to this partner, subtasks included, with the
+     *  production run each is done for (when it has one). */
+    suspend fun assignedTasks(): PartnerTaskListResponse =
+        get("partners/assigned-tasks")
+
+    suspend fun assignedTask(taskId: String): PartnerTask =
+        get<PartnerTaskDetailResponse>("partners/assigned-tasks/$taskId").task
+
+    /** pending/assigned → accepted. A 409 means the task moved already. */
+    suspend fun acceptTask(taskId: String): PartnerTaskActionResponse =
+        postDecoding("partners/assigned-tasks/$taskId/accept")
+
+    /** accepted/in_progress → finished. The cost is optional; when given it
+     *  is what the partner-ui's finish drawer records (INR actual cost). */
+    suspend fun finishTask(taskId: String, actualCost: Double? = null): PartnerTaskActionResponse {
+        val body = if (actualCost != null && actualCost > 0) {
+            FinishTaskBody(actualCost = actualCost, costCurrency = "inr")
+        } else {
+            FinishTaskBody()
+        }
+        return postDecoding(
+            "partners/assigned-tasks/$taskId/finish",
+            json.encodeToString(FinishTaskBody.serializer(), body),
+        )
+    }
+
+    suspend fun taskComments(taskId: String): TaskCommentsResponse =
+        get("partners/assigned-tasks/$taskId/comments")
+
+    suspend fun addTaskComment(taskId: String, comment: String): PartnerTaskActionResponse =
+        postDecoding(
+            "partners/assigned-tasks/$taskId/comments",
+            json.encodeToString(AddTaskCommentBody.serializer(), AddTaskCommentBody(comment)),
+        )
+
+    /** Marks one subtask done; the parent may complete itself server-side. */
+    suspend fun completeTaskSubtask(taskId: String, subtaskId: String) {
+        post("partners/assigned-tasks/$taskId/subtasks/$subtaskId/complete")
+    }
+
+    // ── Shared folders (individual persona) ──────────────────────────────
+    // Media folders assigned to this partner: list them, browse their
+    // files, and add media through the S3 multipart presigned flow below.
+
+    suspend fun sharedFolders(): SharedFolderListResponse =
+        get("partners/shared-folders")
+
+    suspend fun sharedFolder(folderId: String): SharedFolder =
+        get<SharedFolderDetailResponse>("partners/shared-folders/$folderId").sharedFolder
+
+    suspend fun folderMediaComments(folderId: String, mediaId: String): FolderMediaCommentsResponse =
+        get("partners/shared-folders/$folderId/media/$mediaId/comments")
+
+    suspend fun addFolderMediaComment(folderId: String, mediaId: String, content: String) {
+        post(
+            "partners/shared-folders/$folderId/media/$mediaId/comments",
+            json.encodeToString(AddFolderCommentBody.serializer(), AddFolderCommentBody(content)),
+        )
+    }
+
+    /** A file to land in a folder: a display name, its MIME type, its
+     *  size in bytes, and a way to read its [partIndex]-th chunk of
+     *  [partSize] bytes. Reading per part (instead of one readBytes)
+     *  keeps large videos out of the heap. */
+    class FolderUploadInput(
+        val name: String,
+        val mimeType: String,
+        val size: Long,
+        private val open: () -> java.io.InputStream,
+    ) {
+        fun readPart(partIndex: Int, partSize: Long): ByteArray =
+            open().use { stream ->
+                var toSkip = partIndex * partSize
+                while (toSkip > 0) {
+                    val skipped = stream.skip(toSkip)
+                    if (skipped <= 0) break
+                    toSkip -= skipped
+                }
+                val buffer = java.io.ByteArrayOutputStream()
+                val chunk = ByteArray(64 * 1024)
+                var remaining = partSize
+                while (remaining > 0) {
+                    val read = stream.read(chunk, 0, minOf(chunk.size.toLong(), remaining).toInt())
+                    if (read <= 0) break
+                    buffer.write(chunk, 0, read)
+                    remaining -= read
+                }
+                buffer.toByteArray()
+            }
+    }
+
+    /**
+     * The full folder upload, the Kotlin counterpart of the partner-ui's
+     * SharedFolderDetail handler: initiate → presigned part URLs → PUT the
+     * parts to S3 → complete → register against the folder. [onProgress]
+     * reports 0..100 across all parts. The S3 PUTs carry no auth header —
+     * the URL's signature is the credential.
+     */
+    suspend fun uploadToSharedFolder(
+        folderId: String,
+        file: FolderUploadInput,
+        onProgress: (Int) -> Unit = {},
+    ): SharedFolderMediaFile? {
+        onProgress(0)
+
+        // 1. Initiate the multipart session.
+        val init = postDecoding<InitiateUploadResponse>(
+            "partners/medias/uploads/initiate",
+            json.encodeToString(
+                InitiateBody.serializer(),
+                InitiateBody(file.name, file.mimeType, file.size),
+            ),
+        )
+        val partSize = init.partSize.takeIf { it > 0 } ?: (8L * 1024 * 1024)
+        val totalParts = if (file.size <= 0) 1 else maxOf(1, ((file.size + partSize - 1) / partSize).toInt())
+
+        // 2–4. Presign parts in batches, PUT each to S3, keep the ETags.
+        val etags = mutableMapOf<Int, String>()
+        val batchSize = 4
+        var partNumber = 1
+        while (partNumber <= totalParts) {
+            val batch = (partNumber..minOf(partNumber + batchSize - 1, totalParts)).toList()
+            val partsRes = postDecoding<UploadPartsResponse>(
+                "partners/medias/uploads/parts",
+                json.encodeToString(
+                    PartsBody.serializer(),
+                    PartsBody(init.uploadId, init.key, batch),
+                ),
+            )
+            val urlByPart = partsRes.urls.associate { it.partNumber to it.url }
+            for (pn in batch) {
+                val url = urlByPart[pn] ?: throw PartnerException.InvalidResponse
+                val bytes = file.readPart(pn - 1, partSize)
+                val etag = putToS3(url, bytes)
+                etags[pn] = etag
+                onProgress((etags.size * 100) / totalParts)
+            }
+            partNumber += batchSize
+        }
+
+        // 5. Complete the multipart session.
+        val complete = postDecoding<CompleteUploadResponse>(
+            "partners/medias/uploads/complete",
+            json.encodeToString(
+                CompleteUploadBody.serializer(),
+                CompleteUploadBody(
+                    uploadId = init.uploadId,
+                    key = init.key,
+                    parts = etags.toSortedMap().map { (pn, tag) -> UploadedPart(pn, tag) },
+                    name = file.name,
+                    type = file.mimeType,
+                    size = file.size,
+                ),
+            ),
+        )
+
+        // 6. Register the file against the folder.
+        val registered = postDecoding<RegisterFolderUploadResponse>(
+            "partners/shared-folders/$folderId/upload",
+            json.encodeToString(
+                RegisterFolderUploadBody.serializer(),
+                RegisterFolderUploadBody(
+                    key = complete.s3.key,
+                    url = complete.s3.location,
+                    filename = file.name,
+                    mimeType = file.mimeType,
+                    size = file.size,
+                ),
+            ),
+        )
+        onProgress(100)
+        return registered.mediaFile
+    }
+
+    @Serializable
+    private data class InitiateBody(val name: String, val type: String, val size: Long)
+
+    @Serializable
+    private data class PartsBody(
+        @SerialName("uploadId") val uploadId: String,
+        val key: String,
+        val partNumbers: List<Int>,
+    )
+
+    /** PUT a part to its presigned URL and return the S3 ETag, unquoted —
+     *  the complete call rejects the quoted form. A dedicated client: part
+     *  bodies are megabytes, and the shared client's shorter timeouts are
+     *  tuned for JSON round trips, not slow uplinks. */
+    private val s3Client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(20, TimeUnit.SECONDS)
+            // Parts can be ~8MB; a slow uplink needs minutes, not seconds.
+            .writeTimeout(5, TimeUnit.MINUTES)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .build()
+    }
+
+    private suspend fun putToS3(url: String, bytes: ByteArray): String {
+        val request = Request.Builder()
+            .url(url)
+            .put(bytes.toRequestBody(null))
+            .build()
+        return withContext(Dispatchers.IO) {
+            s3Client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    throw PartnerException.Http(response.code, "Upload to storage failed")
+                }
+                (response.header("ETag") ?: "").replace("\"", "")
+            }
+        }
     }
 
     // ── Push device tokens ───────────────────────────────────────────────
