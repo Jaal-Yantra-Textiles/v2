@@ -11,6 +11,7 @@ import {
   drawLeft,
   drawRight,
   money,
+  sanitize,
 } from "./render-inventory-order-invoice"
 
 /**
@@ -127,6 +128,11 @@ export const renderOrderTaxInvoicePdf = async (
   let ry = blockTop
   const detail = (label: string, value: string) => {
     drawLeft(page, label, left + 340, ry, regular, 8, MUTED)
+    // A value too long to sit beside its label (a place of supply such as
+    // "Himachal Pradesh (02) - handed over at dispatch") drops to its own line
+    // instead of printing over the label.
+    const room = right - (left + 340) - regular.widthOfTextAtSize(label, 8) - 8
+    if (regular.widthOfTextAtSize(sanitize(value), 8) > room) ry -= 10
     drawRight(page, value, right, ry, regular, 8)
     ry -= 11
   }
