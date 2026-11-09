@@ -8,6 +8,7 @@ import {
   createStoresWorkflow,
   createRegionsWorkflow,
   createSalesChannelsWorkflow,
+  updateSalesChannelsWorkflow,
   createStockLocationsWorkflow,
   linkSalesChannelsToStockLocationWorkflow,
   updateStoresWorkflow,
@@ -22,6 +23,7 @@ import {
 import type { RemoteQueryFunction } from "@medusajs/types"
 import type { Link } from "@medusajs/modules-sdk"
 import { PARTNER_MODULE } from "../../modules/partner"
+import { partnerChannelMetadata } from "../../lib/partner-sales-channel"
 import { ensurePartnerShippingProfileId } from "../../lib/partner-shipping-profile"
 import { registerShiprocketPickup } from "../../modules/shipping-providers/pickup-locations"
 import {
@@ -95,7 +97,10 @@ const createStoreStep = createStep(
 const createSalesChannelStep = createStep(
   "create-sales-channel-step",
   async (
-    input: { name: string; description?: string } & { storeName: string },
+    input: { name: string; description?: string } & {
+      storeName: string
+      partnerId: string
+    },
     { container }
   ) => {
     const name = input.name || `${input.storeName} - Default`
@@ -108,6 +113,16 @@ const createSalesChannelStep = createStep(
             description: input.description,
           },
         ],
+      },
+    })
+
+    // #2527: mark the channel as the partner's, so cleanup can tell it from an
+    // admin channel after the store is gone. A separate update because
+    // `CreateSalesChannelDTO` carries no `metadata` (the update DTO does).
+    await updateSalesChannelsWorkflow(container).run({
+      input: {
+        selector: { id: result[0].id },
+        update: { metadata: partnerChannelMetadata(input.partnerId) },
       },
     })
 
@@ -1071,6 +1086,7 @@ export const createStoreWithDefaultsWorkflow = createWorkflow(
 
     const salesChannel = createSalesChannelStep({
       storeName: input.store.name,
+      partnerId: input.partner_id,
       name: input.sales_channel?.name || "",
       description: input.sales_channel?.description,
     })
