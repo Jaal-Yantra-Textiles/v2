@@ -3,6 +3,10 @@ import { Metadata } from "next"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
 import StoreTemplate from "@modules/store/templates"
 
+// A cold product fetch from the API can take ~9 s on its own; the project's
+// default limit is 10 s.
+export const maxDuration = 60
+
 export const metadata: Metadata = {
   title: "Store",
   description: "Explore all of our products.",

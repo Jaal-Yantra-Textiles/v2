@@ -23,15 +23,19 @@ const StoreTemplate = async ({
   const pageNumber = page ? parseInt(page) : 1
   const sort = sortBy || "created_at"
 
-  const { collections } = await listCollections({
-    fields: "*products",
-  })
-
-  const { response: { products } } = await listProducts({
-    pageParam: 1,
-    queryParams: { limit: 100 },
-    countryCode,
-  })
+  // Tags only need `id,*tags`. The default product fields (prices, designs,
+  // raw materials) made this a second 1.5 MB fetch on top of the grid's, and
+  // the two together pushed /store past Vercel's 10 s function limit.
+  const [{ collections }, { response: { products } }] = await Promise.all([
+    listCollections({
+      fields: "*products",
+    }),
+    listProducts({
+      pageParam: 1,
+      queryParams: { limit: 100, fields: "id,*tags" },
+      countryCode,
+    }),
+  ])
 
   // unique tags by id
   const tags = Array.from(new Map(products.flatMap((p) => p.tags?.map((t) => [t.id, t]) || [])).values())
