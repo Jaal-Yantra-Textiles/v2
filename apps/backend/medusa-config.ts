@@ -311,6 +311,9 @@ module.exports = defineConfig({
       resolve: "./src/modules/platform-tax-identity",
     },
     {
+      resolve: "./src/modules/tax_invoice",
+    },
+    {
       resolve: "./src/modules/platform-cost-config",
     },
     {

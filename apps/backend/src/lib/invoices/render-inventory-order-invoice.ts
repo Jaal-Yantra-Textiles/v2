@@ -15,12 +15,12 @@ import type { InventoryOrderInvoiceModel } from "./inventory-order-invoice-model
  * path would give us two.
  */
 
-const A4: [number, number] = [595.28, 841.89]
-const MARGIN = 40
-const INK = rgb(0.1, 0.1, 0.1)
-const MUTED = rgb(0.42, 0.42, 0.42)
-const RULE = rgb(0.75, 0.75, 0.75)
-const BAND = rgb(0.93, 0.93, 0.93)
+export const A4: [number, number] = [595.28, 841.89]
+export const MARGIN = 40
+export const INK = rgb(0.1, 0.1, 0.1)
+export const MUTED = rgb(0.42, 0.42, 0.42)
+export const RULE = rgb(0.75, 0.75, 0.75)
+export const BAND = rgb(0.93, 0.93, 0.93)
 
 /** Column x-offsets, measured from the left margin. */
 const COL = {
@@ -32,7 +32,7 @@ const COL = {
   amountRight: 515, // right edge for right-aligned money
 }
 
-const money = (value: number): string =>
+export const money = (value: number): string =>
   value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 /**
@@ -42,7 +42,7 @@ const money = (value: number): string =>
  * throw: a dash printed as "-" is a cosmetic loss, a 500 on the invoice route
  * is not.
  */
-const sanitize = (text: string): string =>
+export const sanitize = (text: string): string =>
   String(text ?? "")
     .replace(/[‐-―]/g, "-")
     .replace(/[‘’]/g, "'")
@@ -50,7 +50,7 @@ const sanitize = (text: string): string =>
     .replace(/₹/g, "Rs.")
     .replace(/[^\x20-\x7E]/g, "")
 
-const drawRight = (
+export const drawRight = (
   page: PDFPage,
   text: string,
   right: number,
@@ -69,7 +69,7 @@ const drawRight = (
   })
 }
 
-const drawLeft = (
+export const drawLeft = (
   page: PDFPage,
   text: string,
   x: number,

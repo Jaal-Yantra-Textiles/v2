@@ -20,6 +20,7 @@ import cors from "cors";
 import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { listEmailEditorProductsQuerySchema } from "./admin/email-editor/products/validators";
+import { issueOrderTaxInvoiceSchema } from "./admin/orders/[id]/tax-invoices/validators";
 import { OpsMaintenanceRunSchema, OpsMaintenanceRunsQuerySchema, OpsMaintenanceBatchSchema, OpsMaintenanceBatchesQuerySchema } from "./admin/ops/maintenance-jobs/validators";
 import { AdminPostLocationOwnershipReq } from "./admin/location-ownership/validators";
 import { AdminUpdateTextileAnalysisSchema } from "./admin/textile-analyses/validators";
@@ -4774,6 +4775,22 @@ export default defineMiddlewares({
     {
       // The admin mirror of the partner proforma — same gatherer, same bytes.
       matcher: "/admin/inventory-orders/:id/invoice",
+      method: "GET",
+      middlewares: [],
+    },
+    // #2532 GST tax invoices for orders.
+    {
+      matcher: "/admin/orders/:id/tax-invoices",
+      method: "GET",
+      middlewares: [],
+    },
+    {
+      matcher: "/admin/orders/:id/tax-invoices",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(issueOrderTaxInvoiceSchema))],
+    },
+    {
+      matcher: "/admin/tax-invoices/:id/pdf",
       method: "GET",
       middlewares: [],
     },

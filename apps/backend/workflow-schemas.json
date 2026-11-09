@@ -9355,6 +9355,31 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/tax/classify-product-tax-class.ts"
   },
+  "issue-order-tax-invoice": {
+    "fields": [
+      {
+        "name": "order_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.order_id }}"
+      },
+      {
+        "name": "buyer_gstin",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.buyer_gstin }}"
+      },
+      {
+        "name": "reissue",
+        "type": "boolean",
+        "required": false,
+        "placeholder": "false",
+        "description": "Cancel the current invoice and issue a new one for a changed order."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/tax-invoices/issue-order-tax-invoice.ts"
+  },
   "list-user-auth-identities": {
     "fields": [
       {

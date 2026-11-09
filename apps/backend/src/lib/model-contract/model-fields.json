@@ -4249,6 +4249,27 @@
       "updated_at"
     ]
   },
+  "TaxInvoice (modules/tax_invoice/models/tax-invoice.ts)": {
+    "file": "modules/tax_invoice/models/tax-invoice.ts",
+    "fields": [
+      "cancel_reason",
+      "cancelled_at",
+      "created_at",
+      "currency_code",
+      "deleted_at",
+      "document",
+      "financial_year",
+      "grand_total",
+      "id",
+      "invoice_number",
+      "issued_at",
+      "order_id",
+      "raw_grand_total",
+      "sequence",
+      "status",
+      "updated_at"
+    ]
+  },
   "TextileAnalysis (modules/textile-analysis/models/textile-analysis.ts)": {
     "file": "modules/textile-analysis/models/textile-analysis.ts",
     "fields": [

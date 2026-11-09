@@ -478,6 +478,32 @@ export async function resolveCoreLocationIds(
 export async function resolveBrandLocationId(
   container: MedusaContainer
 ): Promise<string> {
+  const brand = await resolveBrandStore(container)
+  const locationId = brand.default_location_id
+  if (!locationId) {
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `Brand store ${brand.id} has no default_location_id — pass location_id explicitly`
+    )
+  }
+  return locationId
+}
+
+export type BrandStore = {
+  id: string
+  name: string | null
+  default_location_id: string | null
+  default_sales_channel_id: string | null
+}
+
+/**
+ * The platform's own store: the one store no partner (live or deleted) links
+ * to. Shared by the brand-location resolver above and tax invoices (#2532),
+ * which bill only orders on this store's channel.
+ */
+export async function resolveBrandStore(
+  container: MedusaContainer
+): Promise<BrandStore> {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
 
   const { data: partners } = await query.graph({
@@ -496,7 +522,7 @@ export async function resolveBrandLocationId(
 
   const { data: stores } = await query.graph({
     entity: "stores",
-    fields: ["id", "name", "default_location_id"],
+    fields: ["id", "name", "default_location_id", "default_sales_channel_id"],
   })
   const brandStores = ((stores || []) as any[]).filter(
     (s) => s?.id && !partnerStoreIds.has(s.id)
@@ -508,12 +534,11 @@ export async function resolveBrandLocationId(
       `Expected exactly one non-partner (brand) store, found ${brandStores.length} — pass location_id explicitly`
     )
   }
-  const locationId = brandStores[0].default_location_id
-  if (!locationId) {
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      `Brand store ${brandStores[0].id} has no default_location_id — pass location_id explicitly`
-    )
+  const b = brandStores[0]
+  return {
+    id: b.id,
+    name: b.name ?? null,
+    default_location_id: b.default_location_id ?? null,
+    default_sales_channel_id: b.default_sales_channel_id ?? null,
   }
-  return locationId as string
 }
