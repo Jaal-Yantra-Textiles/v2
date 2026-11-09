@@ -1,4 +1,5 @@
 import { amountInWords } from "./amount-in-words"
+import { gstinStateCode, stateCodeOf, stateName } from "./gst-state"
 
 /**
  * The PRINTABLE shape of a GST tax invoice for an order (#2532) — what the bill
@@ -61,6 +62,8 @@ export type OrderTaxInvoiceInput = {
   seller: { legal_name: string; gstin: string | null; address: TaxInvoiceParty }
   bill_to: TaxInvoiceParty | null
   ship_to: TaxInvoiceParty | null
+  /** Where the goods leave from: the stock location on the order's channel. */
+  dispatch_from?: TaxInvoiceParty | null
   buyer_gstin?: string | null
   lines: TaxInvoiceLineInput[]
   charges: TaxInvoiceChargeInput[]
@@ -126,31 +129,25 @@ const num = (value: unknown): number => {
 
 const round2 = (value: number): number => Math.round(value * 100) / 100
 
-const normState = (value?: string | null): string =>
-  String(value ?? "")
-    .toLowerCase()
-    .replace(/[^a-z]/g, "")
-
-const pinPrefix = (value?: string | null): string => {
-  const digits = String(value ?? "").replace(/\D/g, "")
-  return digits.length >= 6 ? digits.slice(0, 2) : ""
-}
-
 /**
  * PURE: how this supply is taxed, and where it is supplied to.
  *
- * Buyer state comes from the ship-to address, then bill-to; if neither carries
- * a state, the first two PIN digits are compared with the seller's (exact for
- * our Himachal location: 17xxxx is HP alone).
+ * 🔑 The seller's state is the state of the GSTIN the invoice is issued under
+ * (its first two digits), NOT where the stock sits: our registration is Delhi
+ * (07) while goods leave Dharamshala (02). Intra-state only when the place of
+ * supply is that same state.
  *
- * 🔑 No buyer address at all (in-person pickup, most design orders) means the
- * place of supply is the seller's own location — the GST rule for an
- * over-the-counter supply — so it is intra-state, not a guess at IGST.
+ * Place of supply: the buyer's ship-to state, then bill-to. With no buyer
+ * address at all (in-person pickup, most design orders) it is where the goods
+ * were handed over — the order's dispatch location — and only failing that the
+ * seller's own state. A buyer address whose state cannot be read is refused:
+ * guessing a state on a tax invoice is worse than stopping.
  */
 export function resolveSupplyType(
-  seller: TaxInvoiceParty,
+  seller: { gstin?: string | null; address: TaxInvoiceParty },
   ship_to: TaxInvoiceParty | null,
-  bill_to: TaxInvoiceParty | null
+  bill_to: TaxInvoiceParty | null,
+  dispatch_from: TaxInvoiceParty | null = null
 ): { supply_type: SupplyType; place_of_supply: string } {
   const country = String(
     ship_to?.country_code || bill_to?.country_code || ""
@@ -162,30 +159,31 @@ export function resolveSupplyType(
     }
   }
 
-  const sellerState = seller.state ?? null
-  const buyerState = ship_to?.state || bill_to?.state || null
-  const buyerPin = ship_to?.postal_code || bill_to?.postal_code || null
+  const sellerCode = gstinStateCode(seller.gstin) ?? stateCodeOf(seller.address.state)
+  const label = (code: string, suffix = "") =>
+    `${stateName(code)} (${code})${suffix}`
+  const decide = (code: string, suffix = "") => ({
+    supply_type: (code === sellerCode ? "intra_state" : "inter_state") as SupplyType,
+    place_of_supply: label(code, suffix),
+  })
 
-  if (buyerState && sellerState) {
-    const same = normState(buyerState) === normState(sellerState)
-    return {
-      supply_type: same ? "intra_state" : "inter_state",
-      place_of_supply: buyerState,
+  const buyer = [ship_to, bill_to].find(
+    (p) => p && (p.state || p.postal_code || p.lines.some((l) => l && l !== "IN"))
+  )
+  if (buyer) {
+    const code = stateCodeOf(buyer.state)
+    if (!code) {
+      throw new Error(
+        `Cannot read the buyer's state from "${buyer.state ?? ""}". Add the state to the order's address before issuing a tax invoice.`
+      )
     }
+    return decide(code)
   }
 
-  if (buyerPin && pinPrefix(buyerPin) && pinPrefix(seller.postal_code)) {
-    const same = pinPrefix(buyerPin) === pinPrefix(seller.postal_code)
-    return {
-      supply_type: same ? "intra_state" : "inter_state",
-      place_of_supply: same && sellerState ? sellerState : `PIN ${buyerPin}`,
-    }
-  }
-
-  return {
-    supply_type: "intra_state",
-    place_of_supply: `${sellerState ?? "Seller location"} (no delivery address)`,
-  }
+  const dispatchCode = stateCodeOf(dispatch_from?.state)
+  if (dispatchCode) return decide(dispatchCode, " - handed over at dispatch")
+  if (sellerCode) return decide(sellerCode, " - no delivery address")
+  throw new Error("Cannot determine the place of supply: no buyer address and no seller state.")
 }
 
 const describe = (line: TaxInvoiceLineInput): string => {
@@ -218,9 +216,10 @@ export function buildOrderTaxInvoiceModel(
   input: OrderTaxInvoiceInput
 ): OrderTaxInvoiceModel {
   const { supply_type, place_of_supply } = resolveSupplyType(
-    input.seller.address,
+    input.seller,
     input.ship_to,
-    input.bill_to
+    input.bill_to,
+    input.dispatch_from ?? null
   )
 
   const rows: TaxInvoiceRow[] = []

@@ -25,6 +25,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       "tax_id_type",
       "country_codes",
       "is_active",
+      "registered_address",
       // Dotted paths — a star on a relation is silently dropped.
       "export_luts.id",
       "export_luts.arn",

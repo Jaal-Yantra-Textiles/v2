@@ -3498,6 +3498,7 @@
       "id",
       "is_active",
       "legal_name",
+      "registered_address",
       "tax_id",
       "tax_id_type",
       "updated_at"

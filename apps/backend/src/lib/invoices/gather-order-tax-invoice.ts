@@ -18,8 +18,10 @@ import type {
 /**
  * Read everything a tax invoice for `orderId` needs (#2532).
  *
- * Seller: the platform's India tax identity (legal name, GSTIN) at our brand
- * store's default stock location (Dharamshala) — decided 2026-11-09. Only
+ * Seller: the platform's India tax identity — legal name, GSTIN and its
+ * registered address (Delhi). The stock location on the order's channel
+ * (Dharamshala) is where the goods leave from, used as the place of supply
+ * for a pickup. Only
  * orders on the brand store's channel are invoiced; a partner store's order is
  * refused until we decide whose bill that is.
  */
@@ -89,6 +91,7 @@ export async function gatherOrderTaxInvoice(
       "tax_id_type",
       "country_codes",
       "is_active",
+      "registered_address",
     ],
   })
   const identity = resolvePlatformTaxIdentity(
@@ -116,12 +119,30 @@ export async function gatherOrderTaxInvoice(
     throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, picked.error)
   }
   const loc = picked.location
-  const seller: TaxInvoiceParty = {
-    name: identity.legal_name,
+  // Where the goods leave from — the place of supply for a pickup.
+  const dispatchFrom: TaxInvoiceParty = {
+    name: (loc as any).name ?? "Dispatch",
     lines: addressLines(loc?.address),
     state: loc?.address?.province ?? null,
     postal_code: loc?.address?.postal_code ?? null,
     country_code: loc?.address?.country_code ?? "in",
+  }
+
+  // The seller address is the GST registration's, never the warehouse's: the
+  // registration decides the seller's state (#2532, Delhi 07 vs Dharamshala 02).
+  const registered = (identity as any).registered_address as Record<string, any> | null
+  if (!registered?.address_1) {
+    throw new MedusaError(
+      MedusaError.Types.UNEXPECTED_STATE,
+      `The tax identity ${identity.tax_id} has no registered address. Set it with POST /admin/platform-tax-identities/:id/registered-address before issuing a GST invoice.`
+    )
+  }
+  const seller: TaxInvoiceParty = {
+    name: identity.legal_name,
+    lines: addressLines(registered),
+    state: registered.province ?? null,
+    postal_code: registered.postal_code ?? null,
+    country_code: "in",
   }
 
   let exportLutArn: string | null = null
@@ -153,6 +174,7 @@ export async function gatherOrderTaxInvoice(
     seller: { legal_name: identity.legal_name, gstin: identity.tax_id, address: seller },
     bill_to: party(order.billing_address),
     ship_to: party(order.shipping_address),
+    dispatch_from: dispatchFrom,
     buyer_gstin: opts.buyer_gstin ?? null,
     lines: ((order.items ?? []) as any[]).map((i) => ({
       title: i.title,
