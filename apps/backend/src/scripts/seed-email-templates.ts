@@ -1923,6 +1923,46 @@ export const emailTemplatesData = [
     is_active: true,
   },
 
+  // #2532 — the GST tax invoice, sent on its own with the PDF attached.
+  {
+    name: "Order Tax Invoice",
+    template_key: "order-tax-invoice",
+    from: "orders@jaalyantra.com",
+    subject: "Tax invoice {{invoice_number}} for order #{{order_display_id}}",
+    html_content: `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#FAFAFA;">
+<div style="max-width:640px;margin:0 auto;background:#FFFFFF;border:1px solid #E4E4E7;border-radius:12px;overflow:hidden;margin-top:24px;margin-bottom:24px;">
+  <div style="background:#27272A;padding:32px;text-align:center;">
+    <h1 style="color:#FFFFFF;font-size:20px;font-weight:600;margin:0;">Tax invoice</h1>
+    <p style="color:#A1A1AA;font-size:13px;margin:6px 0 0;">{{invoice_number}} &middot; Order #{{order_display_id}}</p>
+  </div>
+  <div style="padding:32px;">
+    <p style="color:#18181B;font-size:16px;font-weight:500;margin:0;">Hi {{customer_first_name}},</p>
+    <p style="color:#52525B;font-size:14px;line-height:1.6;margin:12px 0 20px;">Thank you for your order. Your GST tax invoice is attached to this email as a PDF.</p>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;">
+      <tr><td style="padding:4px 0;color:#71717A;">Invoice number</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{invoice_number}}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717A;">Invoice date</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{invoice_date}}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717A;">Taxable value</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{taxable}}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717A;">GST</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{tax}}</td></tr>
+      <tr><td style="padding:6px 0;color:#18181B;font-weight:600;">Invoice total</td><td style="padding:6px 0;text-align:right;color:#18181B;font-weight:600;">{{grand_total}}</td></tr>
+      <tr><td style="padding:4px 0;color:#71717A;">Paid</td><td style="padding:4px 0;text-align:right;color:#18181B;">{{paid}}</td></tr>
+    </table>
+    {{#if balance_due}}
+    <p style="color:#18181B;font-size:14px;margin:20px 0 0;">Balance due: <strong>{{balance_due}}</strong></p>
+    {{else}}
+    <p style="color:#16A34A;font-size:14px;margin:20px 0 0;">This invoice is fully paid. Thank you.</p>
+    {{/if}}
+    <p style="color:#71717A;font-size:13px;margin-top:20px;">Questions about this invoice? Just reply to this email.</p>
+  </div>
+  <div style="background:#FAFAFA;padding:20px 32px;text-align:center;border-top:1px solid #E4E4E7;">
+    <p style="color:#71717A;font-size:11px;margin:0;">&copy; {{current_year}} Jaal Yantra Textiles</p>
+  </div>
+</div></body></html>`,
+    variables: { customer_first_name: "Customer's first name", order_display_id: "Order display ID", invoice_number: "GST invoice number", invoice_date: "Invoice date", taxable: "Taxable value", tax: "GST total", grand_total: "Invoice total", paid: "Amount paid", balance_due: "Balance still owed (empty when fully paid)", current_year: "Current year" },
+    template_type: "order_tax_invoice",
+    is_active: true,
+  },
+
   // =========================================================================
   // DELIVERY & PARTNER EVENTS
   // =========================================================================

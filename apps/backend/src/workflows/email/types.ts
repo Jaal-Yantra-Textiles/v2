@@ -3,6 +3,18 @@ export interface SendNotificationEmailInput {
   template: string
   data?: Record<string, any>
   locale?: string
+  /**
+   * Files to attach (#2532), base64 `content`. Only the Resend provider
+   * ("email" channel) sends them; other providers ignore them.
+   */
+  attachments?: EmailAttachment[]
+}
+
+export interface EmailAttachment {
+  filename: string
+  /** Base64-encoded file content. */
+  content: string
+  content_type?: string
 }
 
 export interface EmailTemplateData {

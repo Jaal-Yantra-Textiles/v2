@@ -1,7 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/framework/workflows-sdk"
 import { Modules } from "@medusajs/framework/utils"
 import type { INotificationModuleService } from "@medusajs/types"
-import { ProcessedEmailTemplateData } from "../types"
+import { EmailAttachment, ProcessedEmailTemplateData } from "../types"
 
 interface SendNotificationEmailInput {
   to: string
@@ -11,6 +11,7 @@ interface SendNotificationEmailInput {
   //   "email" → Resend · "email_partner" → Maileroo · "email_bulk" → Mailjet
   // Defaults to "email" so existing callers are unaffected.
   channel?: string
+  attachments?: EmailAttachment[]
 }
 
 export const sendNotificationEmailStep = createStep(
@@ -36,6 +37,15 @@ export const sendNotificationEmailStep = createStep(
       channel: input.channel || "email",
       template: input.template,
       data: notificationData,
+      ...(input.attachments?.length
+        ? {
+            attachments: input.attachments.map((a) => ({
+              filename: a.filename,
+              content: a.content,
+              content_type: a.content_type,
+            })),
+          }
+        : {}),
     })
 
     return new StepResponse(result, { notificationId: result.id })
