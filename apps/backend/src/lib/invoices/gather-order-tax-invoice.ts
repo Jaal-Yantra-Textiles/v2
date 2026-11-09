@@ -102,18 +102,20 @@ export async function gatherOrderTaxInvoice(
     )
   }
 
-  if (!brand.default_location_id) {
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      `Brand store ${brand.id} has no default stock location to use as the seller address.`
-    )
-  }
-  const { data: locations } = await query.graph({
-    entity: "stock_location",
-    fields: ["id", "name", "address.*"],
-    filters: { id: brand.default_location_id },
+  // Seller address = the stock location the order's sales channel sells from.
+  const { data: channels } = await query.graph({
+    entity: "sales_channel",
+    fields: ["id", "stock_locations.id", "stock_locations.name", "stock_locations.address.*"],
+    filters: { id: order.sales_channel_id },
   })
-  const loc = (locations ?? [])[0]
+  const picked = pickSellerLocation(
+    ((channels ?? [])[0]?.stock_locations ?? []) as any[],
+    brand.default_location_id
+  )
+  if ("error" in picked) {
+    throw new MedusaError(MedusaError.Types.UNEXPECTED_STATE, picked.error)
+  }
+  const loc = picked.location
   const seller: TaxInvoiceParty = {
     name: identity.legal_name,
     lines: addressLines(loc?.address),
@@ -204,5 +206,29 @@ const party = (a: any): TaxInvoiceParty | null => {
     state: a.province ?? null,
     postal_code: a.postal_code ?? null,
     country_code: a.country_code ?? null,
+  }
+}
+
+/**
+ * PURE: which of the sales channel's stock locations is the seller address.
+ * One location → that one. Several → the store's default location if it is
+ * among them; otherwise refuse rather than print a guessed address on a tax
+ * invoice.
+ */
+export function pickSellerLocation(
+  locations: Array<{ id?: string | null; name?: string | null; address?: any } | null>,
+  storeDefaultLocationId: string | null
+): { location: { id: string; address?: any } } | { error: string } {
+  const usable = locations.filter((l): l is { id: string; name?: string | null; address?: any } => !!l?.id)
+  if (usable.length === 1) return { location: usable[0] }
+  if (!usable.length) {
+    return { error: "The order's sales channel has no stock location to use as the seller address." }
+  }
+  const preferred = usable.find((l) => l.id === storeDefaultLocationId)
+  if (preferred) return { location: preferred }
+  return {
+    error: `The order's sales channel sells from ${usable.length} locations (${usable
+      .map((l) => l.name ?? l.id)
+      .join(", ")}) and none is the store's default. Not guessing the seller address.`,
   }
 }

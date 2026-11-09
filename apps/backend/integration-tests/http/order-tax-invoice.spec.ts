@@ -24,7 +24,7 @@ setupSharedTestSuite(() => {
       await createAdminUser(container())
       adminHeaders = await getAuthHeaders(api)
 
-      // Seller address = the brand store's default location (Dharamshala).
+      // Seller address = a location on the brand channel (Dharamshala).
       const brand = await resolveBrandStore(container())
       brandChannelId = brand.default_sales_channel_id!
       const location = (
@@ -45,6 +45,12 @@ setupSharedTestSuite(() => {
       ).data.stock_location
       const storeService: any = container().resolve(Modules.STORE)
       await storeService.updateStores(brand.id, { default_location_id: location.id })
+      // The seller address is the location the order's channel sells from.
+      await api.post(
+        `/admin/stock-locations/${location.id}/sales-channels`,
+        { add: [brandChannelId] },
+        adminHeaders
+      )
     })
 
     /** 2 × ₹1,000 + 5% GST, shipped to Karnataka. */
@@ -87,6 +93,8 @@ setupSharedTestSuite(() => {
       )
       expect(preview.data.preview.invoice_number).toBeNull()
       expect(preview.data.preview.supply_type).toBe("inter_state")
+      // Seller address comes from the location on the order's channel.
+      expect(preview.data.preview.seller.lines.join(" ")).toContain("Dharamshala")
       expect(preview.data.preview.totals).toMatchObject({
         taxable: 2000,
         igst: 100,
