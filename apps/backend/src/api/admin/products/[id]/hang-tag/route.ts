@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { loadTagStory } from "../../../../../lib/hang-tag/load-tag-story"
 const getStorefrontBase = () =>
   (process.env.VITE_STOREFRONT_URL || process.env.NEXT_PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || process.env.FRONTEND_URL || "").replace(/\/$/, "")
 
@@ -60,6 +61,19 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const storefrontUrl = `${getStorefrontBase()}/products/${product.handle}`
 
+  // How it was made, for the tag's story section (#2541). From the first
+  // linked design, as the rest of the tag is. A failed lookup costs the story,
+  // never the tag.
+  const designId = (product as any).designs?.[0]?.id as string | undefined
+  const story = designId
+    ? await loadTagStory(req.scope, designId).catch((e: any) => {
+        req.scope
+          .resolve(ContainerRegistrationKeys.LOGGER)
+          .warn(`[hang-tag] story lookup failed for design ${designId}: ${e?.message}`)
+        return null
+      })
+    : null
+
   res.json({
     product: {
       id: product.id,
@@ -71,6 +85,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       tags: (product as any).tags?.map((t: any) => t.value ?? t) ?? [],
       people: (product as any).people ?? [],
       designs: (product as any).designs ?? [],
+      story,
     },
   })
 }

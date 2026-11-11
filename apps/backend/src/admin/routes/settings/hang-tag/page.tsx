@@ -23,6 +23,7 @@ import {
 } from "../../../hooks/api/hang-tag-settings"
 import { HangTagCanvasEditor, TemplateEl } from "../../../components/hang-tag/canvas-editor"
 import ProductMediaModal from "../../../components/media/product-media-modal"
+import { HangTagBrandProfiles } from "../../../components/hang-tag/brand-profiles"
 
 // ── SVG hang tag components ───────────────────────────────────────────────────
 
@@ -559,6 +560,10 @@ const HangTagSettingsPage = () => {
           </div>
         </div>
       </Container>
+
+      <div className="mt-4">
+        <HangTagBrandProfiles />
+      </div>
 
       {/* ── FocusModal: split editor ── */}
       <FocusModal open={open} onOpenChange={(v) => { if (!v) handleCancel() }}>

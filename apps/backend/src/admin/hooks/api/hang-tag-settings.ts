@@ -79,6 +79,15 @@ export type HangTagConfig = {
   // Template element position overrides (per side)
   front_layout?: Record<string, LayoutPos>
   back_layout?: Record<string, LayoutPos>
+  // White-label (#2541): the maker story, care text and a blank MRP line
+  show_story?: boolean
+  show_care?: boolean
+  care_text?: string
+  show_mrp?: boolean
+  /** Print the brand name under a logo that has no wordmark */
+  show_brand_name?: boolean
+  mrp_label?: string
+  mrp_note?: string
 }
 
 export const DEFAULT_HANG_TAG_CONFIG: HangTagConfig = {
@@ -105,7 +114,17 @@ export const DEFAULT_HANG_TAG_CONFIG: HangTagConfig = {
   back_canvas: [],
   front_layout: {},
   back_layout: {},
+  show_story: false,
+  show_care: false,
+  care_text: "",
+  show_mrp: false,
+  mrp_label: "MRP",
+  mrp_note: "Inclusive of all taxes",
 }
+
+/** The care text a tag prints when its config sets none. */
+export const DEFAULT_CARE_TEXT =
+  "Handwoven fabric, coloured with vegetable dyes, so each piece is a little different and colours may soften with time. Hand wash gently in cold water, separately, with a mild soap. Do not wring or bleach. Dry in the shade."
 
 // ── Layout computation helpers ─────────────────────────────────────────────────
 
@@ -195,5 +214,74 @@ export const useUpdateHangTagSettings = () => {
         queryKey: hangTagSettingsQueryKeys.detail("default"),
       })
     },
+  })
+}
+
+// ── White-label brand profiles (#2541) ────────────────────────────────────────
+
+/** A partner or buyer whose name and logo go on the tag instead of ours. */
+export type HangTagBrand = {
+  id: string
+  /** Only what the brand changes; laid over the default config at print time. */
+  config: Partial<HangTagConfig>
+  created_at?: string
+  updated_at?: string
+}
+
+/** The config a tag is printed with: our default, overridden by the brand. */
+export const resolveBrandConfig = (
+  base: HangTagConfig,
+  brand?: HangTagBrand | null
+): HangTagConfig => (brand ? { ...base, ...brand.config } : base)
+
+export const useHangTagBrands = () => {
+  const { data, ...rest } = useQuery({
+    queryKey: hangTagSettingsQueryKeys.list({ kind: "brands" }),
+    queryFn: async () =>
+      sdk.client.fetch<{ brands: HangTagBrand[]; count: number }>(
+        "/admin/hang-tag-settings/brands"
+      ),
+  })
+  return { ...rest, brands: data?.brands ?? [] }
+}
+
+const useInvalidateBrands = () => {
+  const queryClient = useQueryClient()
+  return () =>
+    queryClient.invalidateQueries({
+      queryKey: hangTagSettingsQueryKeys.list({ kind: "brands" }),
+    })
+}
+
+export const useCreateHangTagBrand = () => {
+  const invalidate = useInvalidateBrands()
+  return useMutation({
+    mutationFn: async (config: Partial<HangTagConfig>) =>
+      sdk.client.fetch<{ brand: HangTagBrand }>("/admin/hang-tag-settings/brands", {
+        method: "POST",
+        body: { config },
+      }),
+    onSuccess: invalidate,
+  })
+}
+
+export const useUpdateHangTagBrand = () => {
+  const invalidate = useInvalidateBrands()
+  return useMutation({
+    mutationFn: async ({ id, config }: { id: string; config: Partial<HangTagConfig> }) =>
+      sdk.client.fetch<{ brand: HangTagBrand }>(`/admin/hang-tag-settings/brands/${id}`, {
+        method: "PUT",
+        body: { config },
+      }),
+    onSuccess: invalidate,
+  })
+}
+
+export const useDeleteHangTagBrand = () => {
+  const invalidate = useInvalidateBrands()
+  return useMutation({
+    mutationFn: async (id: string) =>
+      sdk.client.fetch(`/admin/hang-tag-settings/brands/${id}`, { method: "DELETE" }),
+    onSuccess: invalidate,
   })
 }

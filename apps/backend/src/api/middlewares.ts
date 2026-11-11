@@ -268,6 +268,7 @@ import {
 } from "./partners/people/id-extraction/batch/validators";
 import { AdminSendPersonAgreementReq } from "./admin/persons/[id]/agreements/validators";
 import { folderSchema, uploadMediaSchema } from "./admin/medias/validator";
+import { createHangTagBrandSchema, updateHangTagBrandSchema } from "./admin/hang-tag-settings/validators";
 import { ExtractFeaturesRequestSchema } from "./admin/medias/extract-features/validators";
 import { ExtractFolderFeaturesRequestSchema } from "./admin/medias/folder/[id]/extract-features/validators";
 import {
@@ -4704,6 +4705,17 @@ export default defineMiddlewares({
       matcher: "/admin/hang-tag-settings",
       method: "PUT",
       middlewares: [],
+    },
+    // White-label brand profiles (#2541)
+    {
+      matcher: "/admin/hang-tag-settings/brands",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(createHangTagBrandSchema))],
+    },
+    {
+      matcher: "/admin/hang-tag-settings/brands/:id",
+      method: "PUT",
+      middlewares: [validateAndTransformBody(wrapSchema(updateHangTagBrandSchema))],
     },
 
     // Inventory Split
