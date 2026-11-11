@@ -79,6 +79,15 @@ export type HangTagConfig = {
   // Template element position overrides (per side)
   front_layout?: Record<string, LayoutPos>
   back_layout?: Record<string, LayoutPos>
+  // White-label (#2541): the maker story, care text and a blank MRP line
+  show_story?: boolean
+  show_care?: boolean
+  care_text?: string
+  show_mrp?: boolean
+  /** Print the brand name under a logo that has no wordmark */
+  show_brand_name?: boolean
+  mrp_label?: string
+  mrp_note?: string
 }
 
 export const DEFAULT_HANG_TAG_CONFIG: HangTagConfig = {
@@ -105,7 +114,17 @@ export const DEFAULT_HANG_TAG_CONFIG: HangTagConfig = {
   back_canvas: [],
   front_layout: {},
   back_layout: {},
+  show_story: false,
+  show_care: false,
+  care_text: "",
+  show_mrp: false,
+  mrp_label: "MRP",
+  mrp_note: "Inclusive of all taxes",
 }
+
+/** The care text a tag prints when its config sets none. */
+export const DEFAULT_CARE_TEXT =
+  "Handwoven fabric, coloured with vegetable dyes, so each piece is a little different and colours may soften with time. Hand wash gently in cold water, separately, with a mild soap. Do not wring or bleach. Dry in the shade."
 
 // ── Layout computation helpers ─────────────────────────────────────────────────
 
@@ -116,7 +135,10 @@ export function computeFrontLayout(
   const HOLE_R = 2.2, HOLE_CY = HOLE_R + 2.5
   const BAND_Y = HOLE_CY + HOLE_R + 4
   const BAND_H = H * 0.26
-  const TITLE_Y = BAND_Y + BAND_H + 3.5
+  // A wordmark-less logo gets the brand name under it (#2541); the title moves down.
+  const BRAND_NAME_Y = BAND_Y + BAND_H + 2
+  const hasBrandName = !!(cfg.logo_url && cfg.show_brand_name)
+  const TITLE_Y = BAND_Y + BAND_H + 3.5 + (hasBrandName ? 5 : 0)
   const BADGE_Y = TITLE_Y + 3.5
   const ov = cfg.front_layout ?? {}
 
@@ -128,6 +150,7 @@ export function computeFrontLayout(
     "status-badge": { x: (W-12.7)/2,  y: BADGE_Y,             w: 12.7,     h: 3.2 },
     "divider":      { x: W*0.2,       y: H*0.72,              w: W*0.6,    h: 0 },
     "tagline":      { x: W / 2,       y: H - 2,               w: W-8,      h: 2.5 },
+    "brand-name":   { x: W / 2,       y: BRAND_NAME_Y,        w: W-8,      h: 3.5 },
   }
   return Object.fromEntries(
     Object.entries(defaults).map(([id, def]) => [id, { ...def, ...(ov[id] ?? {}) }])
@@ -150,6 +173,23 @@ export function computeBackLayout(
   const computedPaletteY = y + 1; y += cfg.show_color_palette ? 9 : 0
   const computedTagsY = y; y += cfg.show_design_tags ? 5 : 0
   const computedCollabY = y + 1
+  y = computedCollabY + (cfg.show_collaborators ? 10 : 0)
+
+  // White-label boxes (#2541): story, fabric and care share the room between
+  // the sections above and the MRP line, which sits above the QR when there
+  // is one, else at the foot. Text that overflows a box is cut, so a box can
+  // be dragged and resized in the editor and the print follows it.
+  const bottom = cfg.show_qr_code ? DIV_Y - 1 : H - (cfg.show_tagline && cfg.tagline ? 4 : 1.5)
+  const MRP_H = 7
+  const mrpY = bottom - MRP_H
+  const flowEnd = (cfg.show_mrp ? mrpY : bottom) - 1.5
+  const room = Math.max(flowEnd - y, 0)
+  const FABRIC_H = 7
+  const storyH = cfg.show_story ? Math.max(room * (cfg.show_care ? 0.5 : 1) - (FABRIC_H + 1), 8) : 0
+  const storyY = y
+  const fabricY = storyY + storyH + (cfg.show_story ? 1 : 0)
+  const careY = fabricY + (cfg.show_story ? FABRIC_H + 1 : 0)
+  const careH = Math.max(flowEnd - careY, 8)
 
   const defaults: Record<string, { x: number; y: number; w: number; h: number; r?: number }> = {
     "strip":         { x: 0,                y: 0,                w: W,       h: STRIP_H },
@@ -164,6 +204,10 @@ export function computeBackLayout(
     "qr-code":       { x: W/2 - QR_SIZE/2,  y: QR_Y,             w: QR_SIZE, h: QR_SIZE },
     "scan-label":    { x: W/2,              y: QR_Y - 2.5,       w: W-8,     h: 2.5 },
     "tagline":       { x: W/2,              y: H - 0.5,          w: W-8,     h: 2.5 },
+    "story":         { x: 4,                y: storyY,           w: W-8,     h: storyH },
+    "fabric":        { x: 4,                y: fabricY,          w: W-8,     h: FABRIC_H },
+    "care":          { x: 4,                y: careY,            w: W-8,     h: careH },
+    "mrp":           { x: 4,                y: mrpY,             w: W-8,     h: MRP_H },
   }
   return Object.fromEntries(
     Object.entries(defaults).map(([id, def]) => [id, { ...def, ...(ov[id] ?? {}) }])
@@ -195,5 +239,74 @@ export const useUpdateHangTagSettings = () => {
         queryKey: hangTagSettingsQueryKeys.detail("default"),
       })
     },
+  })
+}
+
+// ── White-label brand profiles (#2541) ────────────────────────────────────────
+
+/** A partner or buyer whose name and logo go on the tag instead of ours. */
+export type HangTagBrand = {
+  id: string
+  /** Only what the brand changes; laid over the default config at print time. */
+  config: Partial<HangTagConfig>
+  created_at?: string
+  updated_at?: string
+}
+
+/** The config a tag is printed with: our default, overridden by the brand. */
+export const resolveBrandConfig = (
+  base: HangTagConfig,
+  brand?: HangTagBrand | null
+): HangTagConfig => (brand ? { ...base, ...brand.config } : base)
+
+export const useHangTagBrands = () => {
+  const { data, ...rest } = useQuery({
+    queryKey: hangTagSettingsQueryKeys.list({ kind: "brands" }),
+    queryFn: async () =>
+      sdk.client.fetch<{ brands: HangTagBrand[]; count: number }>(
+        "/admin/hang-tag-settings/brands"
+      ),
+  })
+  return { ...rest, brands: data?.brands ?? [] }
+}
+
+const useInvalidateBrands = () => {
+  const queryClient = useQueryClient()
+  return () =>
+    queryClient.invalidateQueries({
+      queryKey: hangTagSettingsQueryKeys.list({ kind: "brands" }),
+    })
+}
+
+export const useCreateHangTagBrand = () => {
+  const invalidate = useInvalidateBrands()
+  return useMutation({
+    mutationFn: async (config: Partial<HangTagConfig>) =>
+      sdk.client.fetch<{ brand: HangTagBrand }>("/admin/hang-tag-settings/brands", {
+        method: "POST",
+        body: { config },
+      }),
+    onSuccess: invalidate,
+  })
+}
+
+export const useUpdateHangTagBrand = () => {
+  const invalidate = useInvalidateBrands()
+  return useMutation({
+    mutationFn: async ({ id, config }: { id: string; config: Partial<HangTagConfig> }) =>
+      sdk.client.fetch<{ brand: HangTagBrand }>(`/admin/hang-tag-settings/brands/${id}`, {
+        method: "PUT",
+        body: { config },
+      }),
+    onSuccess: invalidate,
+  })
+}
+
+export const useDeleteHangTagBrand = () => {
+  const invalidate = useInvalidateBrands()
+  return useMutation({
+    mutationFn: async (id: string) =>
+      sdk.client.fetch(`/admin/hang-tag-settings/brands/${id}`, { method: "DELETE" }),
+    onSuccess: invalidate,
   })
 }

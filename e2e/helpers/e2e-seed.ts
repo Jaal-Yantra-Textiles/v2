@@ -27,6 +27,43 @@ const E2E_AWB = "E2EAWB1234567"
  * stamps the carrier refs the real Shiprocket flow persists onto
  * `fulfillment.data` (#1116 courier_rate, #1117 tracking_events).
  */
+/**
+ * #2541 — an order with a real product line (2 pieces) for the order-page
+ * "Hang tags" widget, which prints one tag per piece of a line that has a
+ * product. The product has no design, so the review step honestly shows
+ * "No story in records".
+ */
+async function seedHangTagOrder(container: any): Promise<{ orderId: string; productId: string }> {
+  const query = container.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: regions } = await query.graph({ entity: "region", fields: ["id", "currency_code"] })
+  const region = regions?.[0]
+  if (!region) throw new Error("E2E seed: no region found. Run the demo seed first.")
+
+  const handle = `e2e-hang-tag-stole-${Date.now()}`
+  const [product] = await (container.resolve(Modules.PRODUCT) as any).createProducts([
+    { title: "Hang Tag Stole (e2e)", handle, status: "published" },
+  ])
+  const created: any = await (container.resolve(Modules.ORDER) as any).createOrders({
+    status: "pending",
+    region_id: region.id,
+    currency_code: region.currency_code,
+    email: "e2e-hangtags@jyt.test",
+    items: [
+      {
+        title: "Hang Tag Stole (e2e)",
+        product_id: product.id,
+        product_handle: handle,
+        variant_title: "Linen, red",
+        quantity: 2,
+        unit_price: 1500,
+      },
+    ],
+    metadata: { source: "e2e-hang-tags" },
+  })
+  const order = Array.isArray(created) ? created[0] : created
+  return { orderId: order.id, productId: product.id }
+}
+
 async function seedShipmentTrackingOrder(container: any): Promise<string> {
   const query = container.resolve(ContainerRegistrationKeys.QUERY)
 
@@ -3582,6 +3619,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
   logger.info("E2E seed: creating retail order with Shiprocket shipment (#1118)...")
   const shipmentOrderId = await seedShipmentTrackingOrder(container)
 
+  logger.info("E2E seed: creating hang-tag order (#2541)...")
+  const hangTag = await seedHangTagOrder(container)
+
   logger.info("E2E seed: creating design-less product + fulfilled order → product-only run (#1112)...")
   const provenanceProductId = await seedProvenanceProductRun(container)
 
@@ -3716,6 +3756,9 @@ export default async function e2eSeed({ container }: ExecArgs) {
     websiteId: website.id,
     domain,
     shipmentOrderId,
+    // #2541 — order-page hang tags widget (hang-tags-white-label.spec.ts)
+    hangTagOrderId: hangTag.orderId,
+    hangTagProductId: hangTag.productId,
     provenanceProductId,
     inviteDesignId,
     // #1195 gate fixture — consumed by order-shipment-gate.spec.ts (admin, CI)
