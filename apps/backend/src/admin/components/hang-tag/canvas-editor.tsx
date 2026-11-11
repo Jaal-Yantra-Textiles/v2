@@ -7,9 +7,9 @@
  */
 
 import { useCallback, useRef, useState } from "react"
-import { Button, Input, Label, Switch, Text } from "@medusajs/ui"
+import { Button, Input, Label, Switch, Text, Textarea } from "@medusajs/ui"
 import { Trash } from "@medusajs/icons"
-import { CanvasEl, CanvasElType, HangTagConfig, LayoutPos, makeEl } from "../../hooks/api/hang-tag-settings"
+import { CanvasEl, CanvasElType, DEFAULT_CARE_TEXT, HangTagConfig, LayoutPos, makeEl } from "../../hooks/api/hang-tag-settings"
 import ProductMediaModal from "../media/product-media-modal"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -34,7 +34,7 @@ interface Props {
   cfg: HangTagConfig
   onCfgChange: (patch: Partial<HangTagConfig>) => void
   templateEls: TemplateEl[]
-  onLayoutChange: (id: string, pos: { x?: number; y?: number }) => void
+  onLayoutChange: (id: string, pos: LayoutPos) => void
   onResetElementLayout: (id: string) => void
   elements: CanvasEl[]
   onChange: (elements: CanvasEl[]) => void
@@ -296,6 +296,93 @@ const CONFIG_KEY_LABELS: Partial<Record<keyof HangTagConfig, string>> = {
   show_collaborators: "Show collaborators",
   show_qr_code: "Show QR code",
   show_tagline: "Show tagline",
+  show_story: "Show story & fabric",
+  show_care: "Show care",
+  care_text: "Care text",
+  show_mrp: "Show MRP line",
+  mrp_label: "Price label",
+  mrp_note: "Note under it",
+  show_brand_name: "Show brand name",
+}
+
+/** Template boxes whose size matters to the print, so W/H are editable (#2541). */
+const RESIZABLE = new Set(["story", "fabric", "care", "mrp"])
+/** Config keys edited as multi-line text. */
+const LONG_TEXT: (keyof HangTagConfig)[] = ["care_text"]
+
+/** Sample text the editor shows; the print uses each product's records. */
+export const SAMPLE_STORY =
+  "This began in Islampur, West Bengal, where Rahul Ghosh and the GOF Asia team spin and weave cloth by hand. The cloth then travelled to Bhubaneswar, Odisha, where Geetanjali Sharma and the Ksaman Naturals team cut and stitched it."
+
+/** Greedy wrap by an average glyph width, good enough for an SVG preview. */
+function wrapPreview(text: string, widthMm: number, fontMm: number): string[] {
+  const perLine = Math.max(Math.floor(widthMm / (fontMm * 0.5)), 8)
+  const out: string[] = []
+  let line = ""
+  for (const word of text.split(/\s+/)) {
+    const next = line ? `${line} ${word}` : word
+    if (next.length > perLine && line) {
+      out.push(line)
+      line = word
+    } else line = next
+  }
+  if (line) out.push(line)
+  return out
+}
+
+/**
+ * The white-label sections drawn inside their layout boxes, in mm. Used by
+ * the canvas editor and the static preview so both match the print.
+ */
+export function whiteLabelSectionVisual(
+  id: string,
+  box: { x: number; y: number; w: number; h: number },
+  cfg: HangTagConfig
+): React.ReactNode | null {
+  const block = (label: string, text: string, fontMm: number, italic = false) => {
+    const lineH = fontMm * 1.32
+    const lines = wrapPreview(text, box.w, fontMm)
+    const max = Math.max(Math.floor((box.h - 3.2) / lineH), 0)
+    const shown = lines.slice(0, max)
+    if (lines.length > max && shown.length) shown[shown.length - 1] = `${shown[shown.length - 1].replace(/\s+\S*$/, "")}…`
+    return (
+      <g style={{ pointerEvents: "none" }}>
+        <rect x={box.x} y={box.y} width={box.w} height={box.h} fill="none" stroke="#e5e7eb" strokeWidth={0.15} strokeDasharray="0.8,0.8" />
+        <text x={box.x} y={box.y + 2} fontSize={1.9} fontWeight="bold" fill="#777" fontFamily="sans-serif">{label}</text>
+        {shown.map((l, i) => (
+          <text key={i} x={box.x} y={box.y + 3.2 + fontMm + i * lineH} fontSize={fontMm} fill="#222" fontFamily="sans-serif" fontStyle={italic ? "italic" : "normal"}>
+            {l}
+          </text>
+        ))}
+      </g>
+    )
+  }
+  switch (id) {
+    case "story":
+      return cfg.show_story ? block("THE STORY", SAMPLE_STORY, 2.3, true) : null
+    case "fabric":
+      return cfg.show_story ? block("FABRIC", "100% Kala Cotton", 2.1) : null
+    case "care":
+      return cfg.show_care ? block("CARE", cfg.care_text || DEFAULT_CARE_TEXT, 1.95) : null
+    case "mrp":
+      if (!cfg.show_mrp) return null
+      return (
+        <g style={{ pointerEvents: "none" }}>
+          <text x={box.x} y={box.y + 3.6} fontSize={2.8} fontWeight="bold" fill="#111" fontFamily="sans-serif">{cfg.mrp_label || "MRP"}</text>
+          <line x1={box.x + 2.8 * 0.62 * (cfg.mrp_label || "MRP").length + 1.5} y1={box.y + 4} x2={box.x + box.w} y2={box.y + 4} stroke="#111" strokeWidth={0.22} />
+          {cfg.mrp_note && <text x={box.x} y={box.y + 6.4} fontSize={1.6} fill="#888" fontFamily="sans-serif">{cfg.mrp_note}</text>}
+        </g>
+      )
+    case "brand-name":
+      if (!(cfg.logo_url && cfg.show_brand_name)) return null
+      return (
+        <text x={box.x} y={box.y + box.h * 0.8} textAnchor="middle" fontSize={2.8} fontWeight="bold" fill="#111" fontFamily="sans-serif" letterSpacing={0.9} style={{ pointerEvents: "none" }}>
+          {(cfg.brand_name || "BRAND").toUpperCase()}
+        </text>
+      )
+    default:
+      return null
+  }
 }
 
 function TemplatePropertiesPanel({
@@ -308,7 +395,7 @@ function TemplatePropertiesPanel({
   el: TemplateEl
   cfg: HangTagConfig
   onCfgChange: (patch: Partial<HangTagConfig>) => void
-  onLayoutChange: (id: string, pos: { x?: number; y?: number }) => void
+  onLayoutChange: (id: string, pos: LayoutPos) => void
   onResetPosition: (id: string) => void
 }) {
   const [mediaOpen, setMediaOpen] = useState(false)
@@ -336,6 +423,16 @@ function TemplatePropertiesPanel({
       <PropRow label="Y (mm)">
         <NumberInput value={Math.round(el.y * 10) / 10} onChange={(v) => onLayoutChange(el.id, { y: v })} />
       </PropRow>
+      {RESIZABLE.has(el.id) && (
+        <>
+          <PropRow label="W (mm)">
+            <NumberInput value={Math.round(el.w * 10) / 10} onChange={(v) => onLayoutChange(el.id, { w: Math.max(v, 5) })} />
+          </PropRow>
+          <PropRow label="H (mm)">
+            <NumberInput value={Math.round(el.h * 10) / 10} onChange={(v) => onLayoutChange(el.id, { h: Math.max(v, 3) })} />
+          </PropRow>
+        </>
+      )}
 
       {/* Config key controls */}
       {el.configKeys.map((key) => {
@@ -376,6 +473,20 @@ function TemplatePropertiesPanel({
                 {cfg.logo_url ? "Change logo" : "Choose logo"}
               </Button>
             </PropRow>
+          )
+        }
+
+        if (LONG_TEXT.includes(key)) {
+          return (
+            <div key={keyStr} className="flex flex-col gap-y-1">
+              <Text size="xsmall" className="text-ui-fg-subtle">{label}</Text>
+              <Textarea
+                rows={5}
+                value={(cfg[key] as string) || (key === "care_text" ? DEFAULT_CARE_TEXT : "")}
+                onChange={(e) => onCfgChange({ [key]: e.target.value })}
+                className="text-xs"
+              />
+            </div>
           )
         }
 
@@ -496,6 +607,12 @@ function renderTemplateEl(
         <rect x={el.x} y={el.y} width={el.w} height={el.h} fill={cfg.accent_color || "#eee"} rx={0.5} style={{ pointerEvents: "none" }} />
         <text x={el.x + el.w / 2} y={el.y + el.h / 2 + 1.5} textAnchor="middle" fontSize={3} fill="#aaa" fontFamily="sans-serif" style={{ pointerEvents: "none" }}>QR</text>
       </>
+    )
+  } else if (["story", "fabric", "care", "mrp", "brand-name"].includes(el.id)) {
+    visual = whiteLabelSectionVisual(el.id, el, cfg) ?? (
+      <text x={el.x + (el.id === "brand-name" ? 0 : 1)} y={el.y + 2.5} textAnchor={el.id === "brand-name" ? "middle" : "start"} fontSize={2} fill="#ccc" fontFamily="sans-serif" style={{ pointerEvents: "none" }}>
+        {el.label} (hidden)
+      </text>
     )
   } else {
     // Generic placeholder (design-info, partner-info, palette, design-tags, collaborators)

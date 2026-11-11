@@ -76,7 +76,7 @@ const TOGGLES: Array<{ key: keyof BrandForm; label: string; hint: string }> = [
  * White-label brand profiles (#2541): a partner or buyer whose name and logo
  * go on the tag instead of ours. Picked in the review step when printing.
  */
-export const HangTagBrandProfiles = () => {
+export const HangTagBrandProfiles = ({ onDesign }: { onDesign?: (brand: HangTagBrand) => void }) => {
   const { brands, isLoading } = useHangTagBrands()
   const create = useCreateHangTagBrand()
   const update = useUpdateHangTagBrand()
@@ -173,6 +173,9 @@ export const HangTagBrandProfiles = () => {
                 </div>
               </div>
               <div className="flex items-center gap-x-1">
+                {onDesign && (
+                  <Button size="small" variant="transparent" onClick={() => onDesign(b)}>Design</Button>
+                )}
                 <Button size="small" variant="transparent" onClick={() => start(b)}>Edit</Button>
                 <Button size="small" variant="transparent" onClick={() => del(b)}>Delete</Button>
               </div>

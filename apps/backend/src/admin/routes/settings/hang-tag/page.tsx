@@ -18,10 +18,13 @@ import {
   HangTagConfig,
   computeFrontLayout,
   computeBackLayout,
+  HangTagBrand,
+  resolveBrandConfig,
   useHangTagSettings,
+  useUpdateHangTagBrand,
   useUpdateHangTagSettings,
 } from "../../../hooks/api/hang-tag-settings"
-import { HangTagCanvasEditor, TemplateEl } from "../../../components/hang-tag/canvas-editor"
+import { HangTagCanvasEditor, TemplateEl, whiteLabelSectionVisual } from "../../../components/hang-tag/canvas-editor"
 import ProductMediaModal from "../../../components/media/product-media-modal"
 import { HangTagBrandProfiles } from "../../../components/hang-tag/brand-profiles"
 
@@ -204,7 +207,7 @@ function HangTagFrontSvg({ cfg, interactive = false }: { cfg: HangTagConfig; int
   const brandFontSize = Math.min(11 * S / 3, BAND_H * 0.38)
   const titleFontSize = 8.5 * S / 3
 
-  let cy = BAND_Y + BAND_H + 10 * S / 3
+  let cy = BAND_Y + BAND_H + 10 * S / 3 + (cfg.logo_url && cfg.show_brand_name ? 5 * S : 0)
 
   return (
     <>
@@ -276,6 +279,8 @@ function HangTagFrontSvg({ cfg, interactive = false }: { cfg: HangTagConfig; int
           {cfg.tagline}
         </text>
       )}
+
+      <g transform={`scale(${S})`}>{whiteLabelSectionVisual("brand-name", computeFrontLayout(cfg)["brand-name"], cfg)}</g>
 
       {/* Canvas elements overlay */}
       <CanvasElsSvg elements={cfg.front_canvas ?? []} />
@@ -365,7 +370,7 @@ function HangTagBackSvg({ cfg }: { cfg: HangTagConfig }) {
 
       {rows}
 
-      <line x1={MARGIN} y1={DIV_Y} x2={W - MARGIN} y2={DIV_Y} stroke={accentBg} strokeWidth={0.5} />
+      {cfg.show_qr_code && <line x1={MARGIN} y1={DIV_Y} x2={W - MARGIN} y2={DIV_Y} stroke={accentBg} strokeWidth={0.5} />}
 
       {cfg.show_qr_code && (
         <g>
@@ -380,6 +385,13 @@ function HangTagBackSvg({ cfg }: { cfg: HangTagConfig }) {
           {cfg.tagline}
         </text>
       )}
+
+      {/* White-label sections (#2541), drawn in mm inside their layout boxes */}
+      <g transform={`scale(${S})`}>
+        {(["story", "fabric", "care", "mrp"] as const).map((id) => (
+          <g key={id}>{whiteLabelSectionVisual(id, computeBackLayout(cfg)[id], cfg)}</g>
+        ))}
+      </g>
 
       {/* Canvas elements overlay */}
       <CanvasElsSvg elements={cfg.back_canvas ?? []} />
@@ -427,6 +439,7 @@ function buildFrontTemplateEls(cfg: HangTagConfig): TemplateEl[] {
     { id: "status-badge", label: "Status Badge",  ...L["status-badge"], showKey: "show_status_badge", configKeys: ["show_status_badge", "accent_color"] },
     { id: "divider",      label: "Divider",       ...L["divider"],      configKeys: ["accent_color"] },
     { id: "tagline",      label: "Tagline",       ...L["tagline"],      showKey: "show_tagline",      configKeys: ["show_tagline", "tagline"] },
+    { id: "brand-name",   label: "Brand Name",    ...L["brand-name"],   showKey: "show_brand_name",   configKeys: ["show_brand_name", "brand_name"] },
   ]
 }
 
@@ -445,6 +458,11 @@ function buildBackTemplateEls(cfg: HangTagConfig): TemplateEl[] {
     { id: "qr-code",      label: "QR Code",       ...L["qr-code"],      showKey: "show_qr_code",      configKeys: ["show_qr_code", "scan_label", "accent_color"] },
     { id: "scan-label",   label: "QR Caption",    ...L["scan-label"],   configKeys: ["scan_label"] },
     { id: "tagline",      label: "Tagline",       ...L["tagline"],      showKey: "show_tagline",      configKeys: ["show_tagline", "tagline"] },
+    // White-label sections (#2541): the print follows these boxes
+    { id: "story",        label: "Maker Story",   ...L["story"],        showKey: "show_story",        configKeys: ["show_story"] },
+    { id: "fabric",       label: "Fabric",        ...L["fabric"],       showKey: "show_story",        configKeys: ["show_story"] },
+    { id: "care",         label: "Care",          ...L["care"],         showKey: "show_care",         configKeys: ["show_care", "care_text"] },
+    { id: "mrp",          label: "MRP Line",      ...L["mrp"],          showKey: "show_mrp",          configKeys: ["show_mrp", "mrp_label", "mrp_note"] },
   ]
 }
 
@@ -477,7 +495,11 @@ const SIZE_PRESETS = [
 
 const HangTagSettingsPage = () => {
   const { config: savedConfig, isLoading } = useHangTagSettings()
-  const { mutate: updateSettings, isPending: isSaving } = useUpdateHangTagSettings()
+  const { mutate: updateSettings, isPending: isSavingDefault } = useUpdateHangTagSettings()
+  const { mutate: updateBrand, isPending: isSavingBrand } = useUpdateHangTagBrand()
+  const isSaving = isSavingDefault || isSavingBrand
+  // The editor works on our default config, or on one white-label brand (#2541).
+  const [brand, setBrand] = useState<HangTagBrand | null>(null)
 
   const [cfg, setCfg] = useState<HangTagConfig>(DEFAULT_HANG_TAG_CONFIG)
   const [dirty, setDirty] = useState(false)
@@ -497,7 +519,32 @@ const HangTagSettingsPage = () => {
     setDirty(true)
   }
 
+  const openBrandDesign = (b: HangTagBrand) => {
+    setBrand(b)
+    setCfg(resolveBrandConfig({ ...DEFAULT_HANG_TAG_CONFIG, ...savedConfig }, b))
+    setDirty(false)
+    setOpen(true)
+  }
+
   const handleSave = () => {
+    if (brand) {
+      // The brand keeps a full snapshot of its design, so later changes to
+      // our default never move its elements.
+      updateBrand(
+        { id: brand.id, config: cfg },
+        {
+          onSuccess: () => {
+            toast.success(`${cfg.brand_name} tag design saved`)
+            setDirty(false)
+            setOpen(false)
+            setBrand(null)
+            setCfg({ ...DEFAULT_HANG_TAG_CONFIG, ...savedConfig })
+          },
+          onError: (e: any) => toast.error(e?.message ?? "Failed to save the brand design"),
+        }
+      )
+      return
+    }
     updateSettings(cfg, {
       onSuccess: () => {
         toast.success("Hang tag settings saved")
@@ -509,6 +556,7 @@ const HangTagSettingsPage = () => {
   }
 
   const handleCancel = () => {
+    setBrand(null)
     setCfg({ ...DEFAULT_HANG_TAG_CONFIG, ...savedConfig })
     setDirty(false)
     setOpen(false)
@@ -562,7 +610,7 @@ const HangTagSettingsPage = () => {
       </Container>
 
       <div className="mt-4">
-        <HangTagBrandProfiles />
+        <HangTagBrandProfiles onDesign={openBrandDesign} />
       </div>
 
       {/* ── FocusModal: split editor ── */}
@@ -570,9 +618,9 @@ const HangTagSettingsPage = () => {
         <FocusModal.Content className="flex flex-col">
           <FocusModal.Header className="flex items-center justify-between">
             <div>
-              <Heading>Hang Tag Design</Heading>
+              <Heading>{brand ? `${cfg.brand_name} tag design` : "Hang Tag Design"}</Heading>
               <Text size="small" className="text-ui-fg-subtle">
-                {cfg.width_mm} × {cfg.height_mm} mm
+                {cfg.width_mm} × {cfg.height_mm} mm{brand ? " · white-label brand" : ""}
               </Text>
             </div>
             <div className="flex items-center gap-x-2">
@@ -772,6 +820,10 @@ const HangTagSettingsPage = () => {
                   <ToggleRow label="Collaborators" description="People directly linked to the product" checked={cfg.show_collaborators} onChange={(v) => set("show_collaborators", v)} />
                   <ToggleRow label="QR code" description="Storefront URL QR" checked={cfg.show_qr_code} onChange={(v) => set("show_qr_code", v)} />
                   <ToggleRow label="Tagline" checked={cfg.show_tagline} onChange={(v) => set("show_tagline", v)} />
+                  <ToggleRow label="Maker story & fabric" description="Who made it and where, from production records" checked={!!cfg.show_story} onChange={(v) => set("show_story", v)} />
+                  <ToggleRow label="Care instructions" checked={!!cfg.show_care} onChange={(v) => set("show_care", v)} />
+                  <ToggleRow label="Blank MRP line" description="For the brand to price by hand" checked={!!cfg.show_mrp} onChange={(v) => set("show_mrp", v)} />
+                  <ToggleRow label="Brand name under logo" description="For a logo with no wordmark" checked={!!cfg.show_brand_name} onChange={(v) => set("show_brand_name", v)} />
                 </div>
               </Container>
 

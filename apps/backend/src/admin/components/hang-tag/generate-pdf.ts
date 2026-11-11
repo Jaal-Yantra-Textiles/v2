@@ -313,12 +313,13 @@ export async function generateHangTagPdf(
   let fy = H - mm(FL_TITLE.y) - mm(4)
 
   // A logo with no wordmark (#2541): print the brand name under it.
+  // Its box is in the front layout; the title already sits below it.
   if (cfg.logo_url && cfg.show_brand_name && brandName) {
+    const box = frontL["brand-name"]
     const bSize = 8
     const spaced = pdfSafe(brandName).toUpperCase().split("").join(" ")
     const bW = fontBold.widthOfTextAtSize(spaced, bSize)
-    front.drawText(spaced, { x: (W - bW) / 2, y: fy + mm(1), size: bSize, font: fontBold, color: rgb(0.1, 0.1, 0.1) })
-    fy -= mm(5)
+    front.drawText(spaced, { x: mm(box.x) - bW / 2, y: pdfY(box.y, box.h), size: bSize, font: fontBold, color: rgb(0.1, 0.1, 0.1) })
   }
   const titleFontSize = 9
   const titleLines = wrapText(product.title ?? "Untitled", fontBold, titleFontSize, INNER_W)
@@ -513,30 +514,8 @@ export async function generateHangTagPdf(
   }
 
   // ── White-label sections (#2541): story, fabric, care, blank MRP ──────────
-  // The MRP line sits above the QR when there is one, else at the foot of
-  // the tag; the text flows down to it and is cut with an ellipsis if long.
-  const MRP_H = mm(9)
-  const footY = cfg.show_qr_code ? pdfY(BL_DIVIDER.y) + mm(2) : mm(cfg.show_tagline && cfg.tagline ? 5 : 2)
-  const flowFloor = footY + (cfg.show_mrp ? MRP_H : 0)
-
-  const drawSection = (label: string, text: string, size: number, font: any) => {
-    const body = pdfSafe(text).trim()
-    if (!body) return
-    if (by - mm(3) < flowFloor) return
-    back.drawText(label, { x: MARGIN, y: by, size: 5.5, font: fontBold, color: accentText })
-    by -= mm(3)
-    const lineH = size * 1.32
-    const lines = wrapText(body, font, size, INNER_W)
-    for (let i = 0; i < lines.length; i++) {
-      if (by - lineH < flowFloor) break
-      const isLastRoom = by - lineH * 2 < flowFloor && i < lines.length - 1
-      const line = isLastRoom ? truncate(`${lines[i]} ${lines[i + 1]}`, font, size, INNER_W - 4) : lines[i]
-      back.drawText(line, { x: MARGIN, y: by, size, font, color: darkText })
-      by -= lineH
-      if (isLastRoom) break
-    }
-    by -= mm(1.5)
-  }
+  // Each is drawn inside its layout box (computeBackLayout, draggable and
+  // resizable in the editor); text that overflows a box is cut with "…".
   // An accent too light to read on white (the default #eeeeee) falls back to grey.
   const accentText = (() => {
     const h = (cfg.accent_color ?? "").replace("#", "")
@@ -544,21 +523,52 @@ export async function generateHangTagPdf(
     return isNaN(lum) || lum > 0.6 ? rgb(0.45, 0.45, 0.45) : accentColor
   })()
 
+  const drawBox = (
+    box: { x: number; y: number; w: number; h: number },
+    label: string,
+    text: string,
+    size: number,
+    font: any
+  ) => {
+    const body = pdfSafe(text).trim()
+    if (!body || box.h <= 0) return
+    const x = mm(box.x)
+    const width = mm(box.w)
+    const floor = pdfY(box.y, box.h)
+    let ty = pdfY(box.y) - 5.5
+    page2Text(label, x, ty, 5.5, fontBold, accentText)
+    ty -= mm(3)
+    const lineH = size * 1.32
+    const lines = wrapText(body, font, size, width)
+    for (let i = 0; i < lines.length; i++) {
+      if (ty < floor) break
+      const lastRoom = ty - lineH < floor && i < lines.length - 1
+      const line = lastRoom ? truncate(`${lines[i]} ${lines[i + 1]}`, font, size, width - 4) : lines[i]
+      page2Text(line, x, ty, size, font, darkText)
+      ty -= lineH
+      if (lastRoom) break
+    }
+  }
+  function page2Text(t: string, x: number, y: number, size: number, font: any, color: any) {
+    back.drawText(t, { x, y, size, font, color })
+  }
+
   if (cfg.show_story) {
-    drawSection("THE STORY", overrides.story_text ?? product.story?.text ?? "", 6.5, fontOblique)
-    drawSection("FABRIC", overrides.fabric_text ?? defaultFabricText(product.story), 6, fontRegular)
+    drawBox(backL["story"], "THE STORY", overrides.story_text ?? product.story?.text ?? "", 6.5, fontOblique)
+    drawBox(backL["fabric"], "FABRIC", overrides.fabric_text ?? defaultFabricText(product.story), 6, fontRegular)
   }
   if (cfg.show_care) {
-    drawSection("CARE", overrides.care_text ?? (cfg.care_text || DEFAULT_CARE_TEXT), 5.6, fontRegular)
+    drawBox(backL["care"], "CARE", overrides.care_text ?? (cfg.care_text || DEFAULT_CARE_TEXT), 5.6, fontRegular)
   }
   if (cfg.show_mrp) {
+    const box = backL["mrp"]
     const label = pdfSafe(cfg.mrp_label || "MRP")
-    const lineY = footY + mm(4)
-    back.drawText(label, { x: MARGIN, y: lineY + 1, size: 8, font: fontBold, color: darkText })
-    const lx = MARGIN + fontBold.widthOfTextAtSize(label, 8) + mm(1.5)
-    back.drawLine({ start: { x: lx, y: lineY }, end: { x: W - MARGIN, y: lineY }, thickness: 0.6, color: darkText })
+    const lineY = pdfY(box.y + 4)
+    back.drawText(label, { x: mm(box.x), y: lineY + 1, size: 8, font: fontBold, color: darkText })
+    const lx = mm(box.x) + fontBold.widthOfTextAtSize(label, 8) + mm(1.5)
+    back.drawLine({ start: { x: lx, y: lineY }, end: { x: mm(box.x + box.w), y: lineY }, thickness: 0.6, color: darkText })
     const note = pdfSafe(cfg.mrp_note ?? "")
-    if (note) back.drawText(note, { x: MARGIN, y: lineY - mm(2.6), size: 4.6, font: fontRegular, color: subtleGray })
+    if (note) back.drawText(note, { x: mm(box.x), y: lineY - mm(2.6), size: 4.6, font: fontRegular, color: subtleGray })
   }
 
   // Divider above QR area
