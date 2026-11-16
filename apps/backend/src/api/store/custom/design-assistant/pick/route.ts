@@ -10,33 +10,43 @@
  * Excalidraw scene on design.moodboard and stamps design.thumbnail_url.
  *
  * Reuses the chat flow's runSetActiveCanvas (single source of truth for the
- * pick semantics). Public — mirrors the flow's email gate; ownership is
- * enforced by the scene lookup (the canvas must be on the design's board).
+ * pick semantics).
+ *
+ * 🔴 #2543: this used to treat knowing a `design_id` as enough to rewrite the
+ * maker's pick and thumbnail. It now needs the design's access token
+ * (`x-design-token`) or a signed-in customer linked to the design — the same
+ * check every chat tool runs (lib/design-access/authorize.ts). The check runs
+ * before the design is read, so a denial says nothing about existence.
  */
 import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
+
+import {
+  assertDesignAccess,
+  readDesignCredentials,
+} from "../../../../../lib/design-access/authorize"
 import { runSetActiveCanvas } from "../../../../../mastra/agents/tools/storefront-design-flow"
+import type { PickDesignCanvasInput } from "./validators"
 
 export const POST = async (
-  req: AuthenticatedMedusaRequest,
+  req: AuthenticatedMedusaRequest<PickDesignCanvasInput>,
   res: MedusaResponse
 ) => {
-  const validated = (req as any).validatedBody
-  if (!validated?.design_id || !validated?.canvas_id) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "design_id and canvas_id are required"
-    )
-  }
+  const body = req.validatedBody as PickDesignCanvasInput
+  const credentials = readDesignCredentials(req)
+
+  // Throws the 403 (Medusa error handler) before anything is read.
+  await assertDesignAccess(req.scope as any, body.design_id, credentials)
 
   try {
-    const result = await runSetActiveCanvas(req.scope as any, {
-      design_id: validated.design_id,
-      canvas_id: validated.canvas_id,
-    })
+    const result = await runSetActiveCanvas(
+      req.scope as any,
+      { design_id: body.design_id, canvas_id: body.canvas_id },
+      credentials
+    )
     return res.status(200).json(result)
   } catch (e: any) {
     throw new MedusaError(
@@ -45,4 +55,3 @@ export const POST = async (
     )
   }
 }
-

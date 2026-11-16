@@ -223,6 +223,12 @@ import { PartnerAssistantSummarizeSchema } from "./partners/assistant/summarize/
 import { CreateConversationSchema as PartnerCreateConversationSchema, UpdateConversationSchema as PartnerUpdateConversationSchema } from "./partners/assistant/conversations/validators";
 import { CreateConversationSchema as AdminAssistantCreateConversationSchema, UpdateConversationSchema as AdminAssistantUpdateConversationSchema } from "./admin/assistant/conversations/validators";
 import { CreateDesignConversationSchema, UpdateDesignConversationSchema, DeleteDesignConversationSchema } from "./store/custom/design-assistant/conversations/validators";
+import { PickDesignCanvasSchema } from "./store/custom/design-assistant/pick/validators";
+import {
+  analyzeRateLimitMiddleware,
+  chatRateLimitMiddleware,
+  referencesRateLimitMiddleware,
+} from "../lib/design-access/rate-limits";
 import { BulkHsCodesSchema } from "./admin/customs/hs-codes/validators";
 import { BulkUpdateProductsSchema } from "./admin/products/bulk-update/validators";
 import { BulkProductSpecReq } from "./admin/products/spec-bulk/validators";
@@ -649,6 +655,15 @@ function buildOriginAllowList(
 }
 
 // Utility function to create CORS middleware with configurable options
+/**
+ * Populate `auth_context` when the request carries a customer session/bearer,
+ * and let a guest through untouched. For public routes whose access rule is
+ * "a capability token OR the owning customer" (#2543 design chat).
+ */
+const optionalCustomer = authenticate("customer", ["session", "bearer"], {
+  allowUnauthenticated: true,
+})
+
 const createCorsMiddleware = (corsOptions?: cors.CorsOptions) => {
   return async (req: MedusaRequest, res: MedusaResponse, next: MedusaNextFunction) => {
     req.scope.resolve<ConfigModule>("configModule")
@@ -3003,32 +3018,38 @@ export default defineMiddlewares({
         validateAndTransformBody(wrapSchema(AdminAssistantUpdateConversationSchema)),
       ],
     },
-    // Storefront design-assistant conversation history (chat design editor)
-    // — server-persisted design threads, email-scoped (public, mirrors the
-    // chat flow's email gate — no customer auth). Validation only.
+    // Storefront design-assistant (chat design editor). Public — guest makers
+    // — but NOT email-scoped (#2543): every design-scoped call needs the
+    // design's access token (x-design-token) or a signed-in customer linked
+    // to the design, and conversations need their conversation token
+    // (x-conversation-token) or the signed-in customer. `optionalCustomer`
+    // only POPULATES auth_context when a session/bearer is present; it never
+    // rejects a guest.
     {
       matcher: "/store/custom/design-assistant/conversations",
       method: "GET",
-      middlewares: [createCorsMiddleware()],
+      middlewares: [createCorsMiddleware(), optionalCustomer],
     },
     {
       matcher: "/store/custom/design-assistant/conversations",
       method: "POST",
       middlewares: [
         createCorsMiddleware(),
+        optionalCustomer,
         validateAndTransformBody(wrapSchema(CreateDesignConversationSchema)),
       ],
     },
     {
       matcher: "/store/custom/design-assistant/conversations/:id",
       method: "GET",
-      middlewares: [createCorsMiddleware()],
+      middlewares: [createCorsMiddleware(), optionalCustomer],
     },
     {
       matcher: "/store/custom/design-assistant/conversations/:id",
       method: "PATCH",
       middlewares: [
         createCorsMiddleware(),
+        optionalCustomer,
         validateAndTransformBody(wrapSchema(UpdateDesignConversationSchema)),
       ],
     },
@@ -3037,6 +3058,7 @@ export default defineMiddlewares({
       method: "DELETE",
       middlewares: [
         createCorsMiddleware(),
+        optionalCustomer,
         validateAndTransformBody(wrapSchema(DeleteDesignConversationSchema)),
       ],
     },
@@ -3045,7 +3067,11 @@ export default defineMiddlewares({
       // chat flow's set_active_canvas write without a model turn.
       matcher: "/store/custom/design-assistant/pick",
       method: "POST",
-      middlewares: [createCorsMiddleware()],
+      middlewares: [
+        createCorsMiddleware(),
+        optionalCustomer,
+        validateAndTransformBody(wrapSchema(PickDesignCanvasSchema)),
+      ],
     },
     {
       /**
@@ -3056,22 +3082,35 @@ export default defineMiddlewares({
        * that endpoint is customer-authenticated — in a flow whose makers are
        * guests with an email. Every attached photo silently degraded to a
        * session-local preview and never existed server-side.
+       *
+       * Rate-limited per IP (#2543): every file is an upload + a vision call.
        */
       matcher: "/store/custom/design-assistant/references",
       method: "POST",
       bodyParser: false,
-      middlewares: [createCorsMiddleware(), maybeMulterArray("files")],
+      middlewares: [
+        createCorsMiddleware(),
+        referencesRateLimitMiddleware,
+        optionalCustomer,
+        maybeMulterArray("files"),
+      ],
     },
     {
-      // The board read. Public like the rest of the assistant's store mount and
-      // scoped by the maker's email — the board panel previously read through
-      // the CUSTOMER-authenticated `/store/custom/designs/:id`, which 401s for
-      // every guest, i.e. for everyone this flow is built for.
+      // One vision call per request — rate-limited per IP (#2543).
+      matcher: "/store/custom/design-assistant/references/analyze",
+      method: "POST",
+      middlewares: [createCorsMiddleware(), analyzeRateLimitMiddleware],
+    },
+    {
+      // The board read. Public like the rest of the assistant's store mount;
+      // the design token / customer session decides access (#2543). The
+      // board panel previously read through the CUSTOMER-authenticated
+      // `/store/custom/designs/:id`, which 401s for every guest.
       //
       // ⚠️ A route file without a matcher entry is not a route.
       matcher: "/store/custom/design-assistant/designs/:id",
       method: "GET",
-      middlewares: [createCorsMiddleware()],
+      middlewares: [createCorsMiddleware(), optionalCustomer],
     },
     // Customs HS/HSN codes — bulk gap scan + bulk fill. /admin/* is
     // admin-authenticated globally, so only the write body needs validation.
@@ -5680,8 +5719,16 @@ export default defineMiddlewares({
       method: "POST",
       // Public — same reasoning as /store/ai/search. visitor_id in the
       // body is the join key; we don't gate on a customer session.
+      //
+      // #2543: rate-limited per visitor id + per IP (every turn is a paid
+      // model call; numbers in lib/design-access/rate-limits.ts), and an
+      // OPTIONAL customer session so a signed-in maker can reach the designs
+      // linked to them. The limiter reads `visitor_id` from the parsed body,
+      // so it runs after validation.
       middlewares: [
         validateAndTransformBody(wrapSchema(StoreAiChatSchema)),
+        chatRateLimitMiddleware,
+        optionalCustomer,
       ],
     },
     {

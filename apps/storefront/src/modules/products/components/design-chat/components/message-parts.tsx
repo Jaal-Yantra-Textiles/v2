@@ -8,7 +8,6 @@ import {
   ExclamationCircleSolid,
   Spinner,
 } from "@medusajs/icons"
-import { listDesignConversations } from "../lib/design-conversations"
 
 /**
  * Tool-part renderers for the design chat.

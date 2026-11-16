@@ -61,10 +61,56 @@ import { foldSystemForProvider } from "./system-fold-lib"
 import { parseChatProvider } from "./chat-usage-lib"
 import { logAiUsage } from "../../../../mastra/services/ai-platforms"
 import type { StoreAiChatReq } from "./validators"
+import {
+  DESIGN_ACCESS_DENIED_CODE,
+  DESIGN_ACCESS_DENIED_MESSAGE,
+  readDesignCredentials,
+  resolveDesignAccess,
+} from "../../../../lib/design-access/authorize"
+import { clientIpOf } from "../../../../lib/design-access/rate-limits"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
   const body = (req as any).validatedBody as StoreAiChatReq
+
+  // ── Design-editor mode ──
+  // When the request carries a design context (the chat runs inside
+  // /products/:handle/design or /design), the route server-resolves the
+  // referenced product + design (never trusting client prose), switches the
+  // agent into designer-guide mode, and binds the design tools. The concierge
+  // tools stay bound — makers wander into shopping mid-flow.
+  //
+  // 🔴 #2543: the context is assembled HERE, not trusted wholesale. The token
+  // comes from the storefront; the customer id and IP are server-derived; and
+  // a design id the caller cannot prove access to is refused before the
+  // design is read into the prompt or any tool is bound to it.
+  const designContext: DesignContext | undefined = body.context
+    ? {
+        product_id: body.context.product_id,
+        design_id: body.context.design_id,
+        email: body.context.email,
+        // Body context (what the storefront's chat transport sends) or the
+        // x-design-token header — same token either way.
+        design_token:
+          body.context.design_token ?? readDesignCredentials(req).token ?? undefined,
+        customer_id: readDesignCredentials(req).customerId ?? undefined,
+        client_ip: clientIpOf(req),
+      }
+    : undefined
+
+  if (designContext?.design_id) {
+    const grant = await resolveDesignAccess(req.scope as any, designContext.design_id, {
+      token: designContext.design_token,
+      customerId: designContext.customer_id,
+    })
+    if (!grant) {
+      res.status(403).json({
+        code: DESIGN_ACCESS_DENIED_CODE,
+        message: DESIGN_ACCESS_DENIED_MESSAGE,
+      })
+      return
+    }
+  }
 
   const resolved = await resolveStorefrontChatModel(req.scope as any)
   if (!resolved) {
@@ -75,13 +121,6 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  // ── Design-editor mode ──
-  // When the request carries a design context (the chat runs inside
-  // /products/:handle/design or /design), the route server-resolves the
-  // referenced product + design (never trusting client prose), switches the
-  // agent into designer-guide mode, and binds the design tools. The concierge
-  // tools stay bound — makers wander into shopping mid-flow.
-  const designContext: DesignContext | undefined = body.context
   const system = designContext
     ? await buildDesignChatSystemResolved(
         req.scope as any,
@@ -108,9 +147,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             req.scope as any,
             designContext
           ),
-          set_active_canvas: createSetActiveCanvasTool(req.scope as any),
-          get_design_state: createGetDesignStateTool(req.scope as any),
-          save_moodboard: createSaveMoodboardTool(req.scope as any),
+          set_active_canvas: createSetActiveCanvasTool(
+            req.scope as any,
+            designContext
+          ),
+          get_design_state: createGetDesignStateTool(
+            req.scope as any,
+            designContext
+          ),
+          save_moodboard: createSaveMoodboardTool(
+            req.scope as any,
+            designContext
+          ),
         }
       : {}),
   }

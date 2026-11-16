@@ -10,7 +10,7 @@ import { sdk } from "@lib/config"
  * API uses as `thread_key`): `product:{id}` for product-variant designs,
  * `custom` for standalone designs at /design. Messages persist to localStorage
  * so a returning maker resumes their board instantly, and are mirrored to the
- * server-backed conversation store (email-scoped, see design-conversations.ts)
+ * server-backed conversation store (token-scoped, see design-conversations.ts)
  * after each completed turn so threads survive localStorage clears and follow
  * the maker across devices.
  *
@@ -26,8 +26,15 @@ export type DesignThreadMeta = {
   email?: string
   /** Backend conversation id once the thread is mirrored. */
   conversationId?: string
+  /** Conversation access token (#2543) — every server read/write needs it. */
+  conversationToken?: string
   /** Design id once first generation creates it. */
   designId?: string
+  /**
+   * Design access token (#2543), minted by the backend with the design. Sent
+   * on every design-scoped call; cleared with the thread by "new design".
+   */
+  designToken?: string
   /** Human-readable label (seeded from the first user message). */
   title?: string
 }

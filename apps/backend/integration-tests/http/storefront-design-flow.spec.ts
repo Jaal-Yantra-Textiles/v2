@@ -12,9 +12,13 @@ import {
 import {
   runCreateDesign,
   runGenerateDesignImage,
+  runGetDesignState,
+  runSetActiveCanvas,
   findOpenChatDesign,
   runEnsureGuestCustomer,
 } from "../../src/mastra/agents/tools/storefront-design-flow"
+import { runSaveMoodboard } from "../../src/mastra/agents/tools/storefront-design-moodboard"
+import { verifyDesignAccessToken } from "../../src/lib/design-access/token"
 import { PARTNER_MODULE } from "../../src/modules/partner"
 import { DESIGN_MODULE } from "../../src/modules/designs"
 
@@ -242,25 +246,47 @@ setupSharedTestSuite(() => {
         expect(context.design_id).toBe(first.design_id)
       })
 
-      it("a NEXT turn with an empty context still finds the maker's open design", async () => {
+      /**
+       * #2543: adopting "the maker's open design" from an email alone handed
+       * any visitor who typed someone's email that maker's board AND a fresh
+       * token for it. Only a signed-in session that IS the customer adopts.
+       */
+      it("a NEXT turn adopts the open design only for the signed-in customer", async () => {
         const first = await runCreateDesign(
           container,
           { email: "nextturn@jyt.test", name: "Indigo Kurta", brief: { ...BRIEF, product_type: "kurta" } },
-          // No context at all — the client never told us the design id.
           undefined
         )
+        const { customer_id } = await runEnsureGuestCustomer(container, "nextturn@jyt.test")
 
+        const signedIn: any = { email: "nextturn@jyt.test", customer_id }
         const second = await runCreateDesign(
           container,
           { email: "nextturn@jyt.test", name: "Indigo Kurta", brief: { ...BRIEF, product_type: "kurta" } },
-          undefined
+          signedIn
         )
-
         expect(second.created).toBe(false)
         expect(second.design_id).toBe(first.design_id)
+        expect(verifyDesignAccessToken(second.design_token, first.design_id)).toBeTruthy()
       })
 
-      it("generate_design_image lands on the design create_design just made", async () => {
+      it("🔴 a guest typing someone's email does NOT get their open design", async () => {
+        const victim = await runCreateDesign(
+          container,
+          { email: "victim@jyt.test", name: "Secret Kurta", brief: { ...BRIEF, product_type: "kurta" } },
+          undefined
+        )
+        const attacker = await runCreateDesign(
+          container,
+          { email: "victim@jyt.test", name: "Mine now", brief: { ...BRIEF, product_type: "kurta" } },
+          { email: "victim@jyt.test" } as any
+        )
+        expect(attacker.created).toBe(true)
+        expect(attacker.design_id).not.toBe(victim.design_id)
+        expect(verifyDesignAccessToken(attacker.design_token, victim.design_id)).toBeNull()
+      })
+
+      it("generate_design_image lands on the design create_design just made (token carried)", async () => {
         const context: any = { email: "gen-once@jyt.test" }
 
         const created = await runCreateDesign(
@@ -268,6 +294,7 @@ setupSharedTestSuite(() => {
           { email: "gen-once@jyt.test", name: "Indigo Kurta", brief: { ...BRIEF, product_type: "kurta" } },
           context
         )
+        expect(created.design_token).toBeTruthy()
 
         const generated = await runGenerateDesignImage(
           container,
@@ -276,13 +303,18 @@ setupSharedTestSuite(() => {
             name: "Indigo Kurta",
             brief: { ...BRIEF, product_type: "kurta" },
           },
-          // 🔴 A FRESH context — the shape a client that missed the tool
-          // output actually sends. This is where the second design was born.
-          { email: "gen-once@jyt.test" }
+          // The NEXT request's context, as the storefront now builds it: the
+          // design id and the token it kept from create_design.
+          {
+            email: "gen-once@jyt.test",
+            design_id: created.design_id,
+            design_token: created.design_token,
+          }
         )
 
         expect(generated.created_design).toBe(false)
         expect(generated.design_id).toBe(created.design_id)
+        expect(generated.design_token).toBe(created.design_token)
         expect(generated.candidates).toHaveLength(2)
       })
 
@@ -321,6 +353,94 @@ setupSharedTestSuite(() => {
       it("a maker with no design at all gets one", async () => {
         const { customer_id } = await runEnsureGuestCustomer(container, "brand-new@jyt.test")
         expect(await findOpenChatDesign(container, customer_id)).toBeNull()
+      })
+    })
+
+    /**
+     * ── #2543: every design-scoped tool checks the token / session ─────────
+     *
+     * The model passes `design_id` as a tool argument, and the model can be
+     * talked into any id. Each tool must refuse a design the request's
+     * credentials do not cover — before reading or writing anything.
+     */
+    describe("🔴 design-scoped tools refuse a design the request cannot prove", () => {
+      const BRIEF = {
+        product_type: "kurta",
+        concept_theme: "Owned",
+        aesthetic_keywords: ["plain"],
+        color_palette: [{ name: "ecru", code: "#e8e0cf" }],
+      }
+      let owned: { design_id: string; design_token: string }
+      let other: { design_id: string; design_token: string }
+
+      // beforeEach, not beforeAll: the runner restores the DB snapshot
+      // before every test, which would erase designs made in a beforeAll.
+      beforeEach(async () => {
+        owned = await runCreateDesign(
+          container,
+          { email: "owner-2543@jyt.test", name: "Owned", brief: BRIEF },
+          { email: "owner-2543@jyt.test" } as any
+        )
+        other = await runCreateDesign(
+          container,
+          { email: "other-2543@jyt.test", name: "Other", brief: BRIEF },
+          { email: "other-2543@jyt.test" } as any
+        )
+      })
+
+      it("get_design_state: no token, another design's token → refused; own token → ok", async () => {
+        await expect(
+          runGetDesignState(container, owned.design_id, {})
+        ).rejects.toThrow(/belongs to another session/)
+        await expect(
+          runGetDesignState(container, owned.design_id, { design_token: other.design_token })
+        ).rejects.toThrow(/belongs to another session/)
+        const state = await runGetDesignState(container, owned.design_id, {
+          design_token: owned.design_token,
+        })
+        expect(state.design_id).toBe(owned.design_id)
+      })
+
+      it("set_active_canvas refuses without a token for that design", async () => {
+        await expect(
+          runSetActiveCanvas(
+            container,
+            { design_id: owned.design_id, canvas_id: "canvas_x" },
+            { design_token: other.design_token }
+          )
+        ).rejects.toThrow(/belongs to another session/)
+      })
+
+      it("save_moodboard refuses without a token for that design", async () => {
+        await expect(
+          runSaveMoodboard(container, owned.design_id, [SAMPLE_IMAGE_URL], {
+            token: other.design_token,
+          })
+        ).rejects.toThrow(/belongs to another session/)
+      })
+
+      it("generate_design_image refuses a model-supplied design id it cannot prove", async () => {
+        await expect(
+          runGenerateDesignImage(
+            container,
+            { design_id: owned.design_id, email: "x@jyt.test", brief: BRIEF },
+            { email: "x@jyt.test", design_token: other.design_token }
+          )
+        ).rejects.toThrow(/belongs to another session/)
+      })
+
+      it("a signed-in customer linked to the design is let in without a token", async () => {
+        const { customer_id } = await runEnsureGuestCustomer(container, "owner-2543@jyt.test")
+        const state = await runGetDesignState(container, owned.design_id, { customer_id })
+        expect(state.design_id).toBe(owned.design_id)
+        // …and a different signed-in customer is not.
+        const { customer_id: otherCustomer } = await runEnsureGuestCustomer(
+          container,
+          "other-2543@jyt.test"
+        )
+        await expect(
+          runGetDesignState(container, owned.design_id, { customer_id: otherCustomer })
+        ).rejects.toThrow(/belongs to another session/)
       })
     })
 

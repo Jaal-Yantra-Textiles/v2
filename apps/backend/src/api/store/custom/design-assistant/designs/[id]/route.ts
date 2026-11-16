@@ -18,28 +18,21 @@
  *
  * ## Ownership
  *
- * Scoped by the design↔customer link, resolved from the maker's email — the
- * same fact the flow already establishes when `create_design` links the guest
- * customer. That is deliberately stricter than the neighbouring `pick` route,
- * which treats knowledge of a `design_id` as sufficient: flipping the active
- * flag on a board you can already name is a much smaller disclosure than
- * handing over the whole scene, every prompt used and every image URL.
- *
- * 🔑 The customer is looked up, NEVER created. A read that creates a customer
- * row would let anyone mint guest accounts by GET, and would make the mere act
- * of loading a board change the data it reports on.
+ * 🔴 #2543: this used to be scoped by `?customer_email=` — the design↔customer
+ * link resolved from an email anyone can type. It now requires the design's
+ * access token (`x-design-token`) or a signed-in customer linked to the design
+ * (lib/design-access/authorize.ts). The check runs before the design is read,
+ * so "not yours" (403) says nothing about whether the id exists.
  */
 import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import {
-  ContainerRegistrationKeys,
-  MedusaError,
-  Modules,
-} from "@medusajs/framework/utils"
 
-import designCustomerLink from "../../../../../../links/design-customer-link"
+import {
+  assertDesignAccess,
+  readDesignCredentials,
+} from "../../../../../../lib/design-access/authorize"
 import { DESIGN_MODULE } from "../../../../../../modules/designs"
 
 export const GET = async (
@@ -47,48 +40,11 @@ export const GET = async (
   res: MedusaResponse
 ) => {
   const designId = String(req.params.id || "").trim()
-  const email = String((req.query as any)?.customer_email || "")
-    .trim()
-    .toLowerCase()
-
-  if (!email) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "customer_email is required to read a design board."
-    )
-  }
-
-  const customerService: any = req.scope.resolve(Modules.CUSTOMER)
-  const customers: any[] = await customerService
-    .listCustomers({ email }, { take: 10 })
-    .catch(() => [])
-
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
-
-  /**
-   * 🔴 "Not yours" and "not there" answer identically. A distinguishable 403
-   * would turn a design id into an oracle for whether an email owns it — the
-   * same reason `resolveDesignVariants` collapses the two.
-   */
-  const notFound = () =>
-    res.status(404).json({ message: "Design not found" })
-
-  if (!customers.length) return notFound()
-
-  const { data: links = [] } = await query.graph({
-    entity: designCustomerLink.entryPoint,
-    fields: ["design_id", "customer_id"],
-    filters: {
-      design_id: designId,
-      customer_id: customers.map((c) => c.id),
-    },
-  })
-
-  if (!links?.length) return notFound()
+  await assertDesignAccess(req.scope as any, designId, readDesignCredentials(req))
 
   const designService: any = req.scope.resolve(DESIGN_MODULE)
   const design = await designService.retrieveDesign(designId).catch(() => null)
-  if (!design) return notFound()
+  if (!design) return res.status(404).json({ message: "Design not found" })
 
   // Only what the board renders. The design row carries costs and partner
   // notes that a public read has no business returning.

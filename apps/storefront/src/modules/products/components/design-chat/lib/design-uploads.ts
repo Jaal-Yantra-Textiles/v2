@@ -1,5 +1,11 @@
 "use client"
 
+import {
+  DesignRequestError,
+  describeDesignError,
+  designTokenHeaders,
+} from "./design-access"
+
 /**
  * Design reference uploads — the chat's file-upload utility.
  *
@@ -89,7 +95,11 @@ export type UploadReferencesResult = {
   references: DesignReference[]
   /** The design the photos landed on — new when the chat had none yet. */
   designId: string | null
+  /** Access token for `designId` (#2543) — keep it with the thread. */
+  designToken: string | null
   createdDesign: boolean
+  /** Maker-ready reason the whole batch failed (403 / 429 / other), if it did. */
+  error?: string
 }
 
 /**
@@ -110,11 +120,19 @@ const backendUrl = (): string =>
  */
 export const uploadDesignReferences = async (
   refs: DesignReference[],
-  opts: { email?: string | null; designId?: string | null }
+  opts: {
+    email?: string | null
+    designId?: string | null
+    designToken?: string | null
+  }
 ): Promise<UploadReferencesResult> => {
   const pending = refs.filter((r) => !(r.status === "ready" && r.publicUrl))
+  const keep = {
+    designId: opts.designId ?? null,
+    designToken: opts.designToken ?? null,
+  }
   if (!pending.length) {
-    return { references: refs, designId: opts.designId ?? null, createdDesign: false }
+    return { references: refs, ...keep, createdDesign: false }
   }
 
   const email = (opts.email ?? "").trim().toLowerCase()
@@ -132,7 +150,7 @@ export const uploadDesignReferences = async (
               error: "Tell me your email first and I'll save these to your board.",
             }
       ),
-      designId: opts.designId ?? null,
+      ...keep,
       createdDesign: false,
     }
   }
@@ -153,17 +171,28 @@ export const uploadDesignReferences = async (
         headers: {
           "x-publishable-api-key":
             process.env.NEXT_PUBLIC_MEDUSA_PUBLISHABLE_KEY ?? "",
+          ...designTokenHeaders(opts.designToken),
         },
       }
     )
 
     if (!response.ok) {
       const text = await response.text().catch(() => "")
-      throw new Error(text || `HTTP ${response.status}`)
+      let message: string | undefined
+      try {
+        message = (JSON.parse(text) as { message?: string })?.message
+      } catch {
+        message = undefined
+      }
+      throw new DesignRequestError(
+        describeDesignError(response.status, message, "Upload failed — try again."),
+        response.status
+      )
     }
 
     const data = (await response.json()) as {
       design_id: string | null
+      design_token?: string | null
       created_design: boolean
       references: Array<{
         url: string
@@ -204,18 +233,22 @@ export const uploadDesignReferences = async (
     return {
       references: merged,
       designId: data.design_id ?? opts.designId ?? null,
+      designToken: data.design_token ?? opts.designToken ?? null,
       createdDesign: Boolean(data.created_design),
     }
   } catch (error: any) {
     console.error("[design-uploads] reference upload failed:", error?.message ?? error)
+    const message =
+      error instanceof DesignRequestError ? error.message : "Upload failed — try again."
     return {
       references: refs.map((r) =>
         r.status === "ready" && r.publicUrl
           ? r
-          : { ...r, status: "error" as const, error: "Upload failed — try again." }
+          : { ...r, status: "error" as const, error: message }
       ),
-      designId: opts.designId ?? null,
+      ...keep,
       createdDesign: false,
+      error: message,
     }
   }
 }

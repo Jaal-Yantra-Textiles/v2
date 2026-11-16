@@ -48,6 +48,14 @@ import { linkProductWithDesignWorkflow } from "../../../workflows/products/link-
 import { generateDesignAiImageWorkflow } from "../../../workflows/ai/generate-design-image"
 import { analyzeReferenceImages } from "./storefront-design-analysis"
 import designCustomerLink from "../../../links/design-customer-link"
+import {
+  DESIGN_ACCESS_DENIED_MESSAGE,
+  resolveDesignAccess,
+  type DesignAccessCredentials,
+  type DesignAccessGrant,
+} from "../../../lib/design-access/authorize"
+import { mintDesignAccessToken } from "../../../lib/design-access/token"
+import { consumeImageGeneration } from "../../../lib/design-access/rate-limits"
 
 // ── Shared resolvers ───────────────────────────────────────────────────
 
@@ -144,22 +152,44 @@ export const resolveOrCreateChatDesign = async (
     brief: DesignBrief
     context?: DesignContext
   }
-): Promise<{ design_id: string; created: boolean }> => {
+): Promise<{ design_id: string; created: boolean; design_token: string }> => {
   const { context, customerId, brief } = input
 
   const contextId = context?.design_id
   if (contextId) {
+    // 🔴 #2543: the context's design is only ours to reuse with a token for it
+    // (or a session that owns it). A design id alone is a string anyone types.
+    const grant = await assertToolDesignAccess(container, contextId, context)
     const designService = resolveDesignService(container)
     const existing = await designService
       .retrieveDesign(contextId)
       .catch(() => null)
-    if (existing) return { design_id: contextId, created: false }
+    if (existing) {
+      const token = tokenForGrant(contextId, grant, context)
+      return { design_id: contextId, created: false, design_token: token }
+    }
   }
 
-  const open = await findOpenChatDesign(container, customerId)
+  /**
+   * 🔴 #2543: adopting "the maker's open chat design" is keyed on the
+   * CUSTOMER — and for a guest the customer is whoever typed the email. Doing
+   * this for an email alone handed any visitor the design (and a fresh token
+   * for it) of whoever last chatted under that address. Only a signed-in
+   * session that IS that customer may adopt; a guest without a token gets a
+   * new design. (Same-turn duplicates (#1689) are still prevented by the
+   * context stamp below.)
+   */
+  const open =
+    context?.customer_id && context.customer_id === customerId
+      ? await findOpenChatDesign(container, customerId)
+      : null
   if (open) {
-    if (context) context.design_id = open
-    return { design_id: open, created: false }
+    const token = mintDesignAccessToken(open, customerId)
+    if (context) {
+      context.design_id = open
+      context.design_token = token
+    }
+    return { design_id: open, created: false, design_token: token }
   }
 
   const { result, errors } = await createDesignWorkflow(container as any).run({
@@ -186,8 +216,12 @@ export const resolveOrCreateChatDesign = async (
   if (errors?.length) throw errors[0]
 
   const designId = (result as any).id
-  if (context) context.design_id = designId
-  return { design_id: designId, created: true }
+  const token = mintDesignAccessToken(designId, customerId)
+  if (context) {
+    context.design_id = designId
+    context.design_token = token
+  }
+  return { design_id: designId, created: true, design_token: token }
 }
 
 /**
@@ -238,11 +272,73 @@ const resolveProductImages = async (
   return [...new Set(urls)]
 }
 
-/** Design context the tools carry per-turn (from the chat request context). */
+/**
+ * Design context the tools carry per-turn (from the chat request context).
+ *
+ * 🔑 Built by the ROUTE, never by the model: `design_token` comes from the
+ * storefront request (and is replaced when a tool mints a design), while
+ * `customer_id` / `client_ip` are server-derived. Tools check every design id
+ * — including one the model passes as an argument — against these.
+ */
 export type DesignContext = {
   product_id?: string
   design_id?: string
   email?: string
+  /** Capability token for `design_id` (see lib/design-access/token.ts). */
+  design_token?: string
+  /** Authenticated customer actor id, when the shopper is signed in. */
+  customer_id?: string
+  /** Shopper IP, for the image-generation rate limit. */
+  client_ip?: string
+}
+
+const credentialsOf = (
+  context?: DesignContext | DesignAccessCredentials
+): DesignAccessCredentials => {
+  const c: any = context ?? {}
+  return {
+    token: c.design_token ?? c.token ?? null,
+    customerId: c.customer_id ?? c.customerId ?? null,
+  }
+}
+
+/** The token to hand back for a granted design: the presented one, or a fresh
+ * one when access came through the signed-in customer instead. */
+const tokenForGrant = (
+  designId: string,
+  grant: DesignAccessGrant,
+  context?: DesignContext
+): string =>
+  grant.via === "token" && context?.design_token
+    ? context.design_token
+    : mintDesignAccessToken(designId, grant.customer_id)
+
+/**
+ * What the MODEL sees of a tool result that carries a design token (#2543).
+ * The UI stream still gets the full output — that is how the storefront
+ * receives the token — but the model has no use for it and every reason not
+ * to repeat it into prose, logs or a later tool argument.
+ */
+const withoutDesignToken = (output: unknown) => {
+  if (output && typeof output === "object" && "design_token" in output) {
+    const { design_token: _omit, ...rest } = output as Record<string, unknown>
+    return { type: "json" as const, value: rest as any }
+  }
+  return { type: "json" as const, value: (output ?? null) as any }
+}
+
+/**
+ * Tool-side ownership gate. Throws a plain Error (the AI SDK hands its message
+ * to the model, which relays it) rather than an HTTP error.
+ */
+const assertToolDesignAccess = async (
+  container: MedusaContainer,
+  designId: string,
+  context?: DesignContext | DesignAccessCredentials
+): Promise<DesignAccessGrant> => {
+  const grant = await resolveDesignAccess(container, designId, credentialsOf(context))
+  if (!grant) throw new Error(DESIGN_ACCESS_DENIED_MESSAGE)
+  return grant
 }
 
 /** Load a design with its canvas scene (null when absent or not owned). */
@@ -473,6 +569,8 @@ const CreateDesignSchema = z.object({
 export type CreateDesignResult = {
   design_id: string
   created: boolean
+  /** Capability token the storefront must keep and send back (#2543). */
+  design_token: string
 }
 
 export const runCreateDesign = async (
@@ -518,6 +616,7 @@ export const createCreateDesignTool = (
       "Create the maker's design record NOW (before any image generation). Call once the maker has expressed their design (brief) and given an email — it registers a guest customer by email and links them to the design. Idempotent — returns the existing design_id if one is already in context. Do NOT call generate_design_image until the design exists and the maker has explicitly said to generate.",
     inputSchema: CreateDesignSchema,
     execute: async (args) => runCreateDesign(container, args, context),
+    toModelOutput: withoutDesignToken,
   })
 
 // ── generate_design_image ──────────────────────────────────────────────
@@ -586,6 +685,8 @@ const GenerateSchema = z.object({
 
 export type GenerateResult = {
   design_id: string
+  /** Capability token for the design (#2543) — the storefront keeps it. */
+  design_token: string
   created_design: boolean
   kind: string
   reference_used: string | null
@@ -644,7 +745,15 @@ export const runGenerateDesignImage = async (
   }
   brief = briefResult.brief
 
+  let designToken: string | null = null
+  let grantCustomerId: string | null = null
+
   if (designId) {
+    // 🔴 #2543: a model-supplied (or client-supplied) design id is checked
+    // against the request's token / session before anything is read or spent.
+    const grant = await assertToolDesignAccess(container, designId, context)
+    grantCustomerId = grant.customer_id
+    designToken = tokenForGrant(designId, grant, context)
     const loaded = await loadDesignScene(container, designId)
     if (!loaded) {
       throw new Error(`Design ${designId} not found or not accessible.`)
@@ -669,6 +778,8 @@ export const runGenerateDesignImage = async (
       context,
     })
     designId = resolvedDesign.design_id
+    designToken = resolvedDesign.design_token
+    grantCustomerId = customer_id
     createdDesign = resolvedDesign.created
     if (createdDesign) missingSetup.push("design")
 
@@ -771,12 +882,23 @@ export const runGenerateDesignImage = async (
   // only needs the prompt fragments).
   const materialsPrompt = args.materials_prompt
 
+  // ── Rate limit (#2543) — each call is two paid generations ──
+  consumeImageGeneration({ designId: designId as string, ip: context?.client_ip })
+
   // ── Generate TWO candidates (A/B) ──
   const generatedAt = new Date().toISOString()
+  const generationCustomerId =
+    grantCustomerId ??
+    (email ? (await runEnsureGuestCustomer(container, email)).customer_id : null)
+  if (!generationCustomerId) {
+    throw new Error(
+      "I need your email to save the design before I can generate. What email should I use?"
+    )
+  }
   const runGeneration = async () =>
     generateDesignAiImageWorkflow(container as any).run({
       input: {
-        customer_id: (await runEnsureGuestCustomer(container, email as string)).customer_id,
+        customer_id: generationCustomerId,
         design_id: designId as string,
         mode: "commit",
         badges: args.badges,
@@ -864,6 +986,7 @@ export const runGenerateDesignImage = async (
 
   return {
     design_id: designId as string,
+    design_token: designToken as string,
     created_design: createdDesign,
     kind,
     reference_used: referenceUsed,
@@ -892,6 +1015,7 @@ export const createGenerateDesignImageTool = (container: MedusaContainer, contex
       "Generate TWO candidate design canvases (A/B takes) and add them to the design board. The design is created on first generation (requires the maker's email). For revision/layer, pick an active canvas first — iteration builds on the picked take. Long-running (~20s each): tell the maker what you're doing before calling.",
     inputSchema: GenerateSchema,
     execute: async (args) => runGenerateDesignImage(container, args, context),
+    toModelOutput: withoutDesignToken,
   })
 
 // ── set_active_canvas ──────────────────────────────────────────────────
@@ -903,8 +1027,11 @@ const SetActiveSchema = z.object({
 
 export const runSetActiveCanvas = async (
   container: MedusaContainer,
-  args: z.infer<typeof SetActiveSchema>
+  args: z.infer<typeof SetActiveSchema>,
+  /** Who is asking (#2543) — required; there is no unauthenticated pick. */
+  credentials: DesignContext | DesignAccessCredentials | undefined
 ): Promise<{ ok: boolean; thumbnail_url: string | null }> => {
+  await assertToolDesignAccess(container, args.design_id, credentials)
   const loaded = await loadDesignScene(container, args.design_id)
   if (!loaded) {
     throw new Error(`Design ${args.design_id} not found or not accessible.`)
@@ -934,12 +1061,15 @@ export const runSetActiveCanvas = async (
   return { ok: true, thumbnail_url: typeof imageUrl === "string" ? imageUrl : null }
 }
 
-export const createSetActiveCanvasTool = (container: MedusaContainer) =>
+export const createSetActiveCanvasTool = (
+  container: MedusaContainer,
+  context?: DesignContext
+) =>
   tool({
     description:
       "Record the maker's pick of one canvas take (A or B) as the active design. Call this when they choose a take — it stamps the picked image as the design's thumbnail and future iterations build on it.",
     inputSchema: SetActiveSchema,
-    execute: async (args) => runSetActiveCanvas(container, args),
+    execute: async (args) => runSetActiveCanvas(container, args, context),
   })
 
 // ── get_design_state ───────────────────────────────────────────────────
@@ -976,8 +1106,10 @@ export type DesignStateSummary = {
 
 export const runGetDesignState = async (
   container: MedusaContainer,
-  designId: string
+  designId: string,
+  credentials: DesignContext | DesignAccessCredentials | undefined
 ): Promise<DesignStateSummary> => {
+  await assertToolDesignAccess(container, designId, credentials)
   const loaded = await loadDesignScene(container, designId)
   if (!loaded) {
     throw new Error(`Design ${designId} not found or not accessible.`)
@@ -1036,10 +1168,14 @@ export const runGetDesignState = async (
   }
 }
 
-export const createGetDesignStateTool = (container: MedusaContainer) =>
+export const createGetDesignStateTool = (
+  container: MedusaContainer,
+  context?: DesignContext
+) =>
   tool({
     description:
       "Load a design's current state — brief, active canvas and the full take history on its board. Call this when resuming or editing an existing design so your guidance is grounded in what's already there.",
     inputSchema: GetStateSchema,
-    execute: async (args) => runGetDesignState(container, args.design_id),
+    execute: async (args) =>
+      runGetDesignState(container, args.design_id, context),
   })

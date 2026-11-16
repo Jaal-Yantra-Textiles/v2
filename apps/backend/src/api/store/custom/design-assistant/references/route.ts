@@ -41,14 +41,20 @@
  * be about what it can actually see, rather than asking a maker who has just
  * uploaded five pictures of a jacket what they would like to design.
  *
- * Public and email-scoped, matching the rest of this mount (conversations,
- * pick, the board read).
+ * Public. 🔴 #2543: pinning onto an EXISTING design needs that design's access
+ * token (`x-design-token` header or a `design_token` form field) or a signed-in
+ * customer linked to it. The email only names the guest customer a NEW design
+ * is filed under; it never unlocks one. A new design's token is returned.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { MedusaError } from "@medusajs/framework/utils"
 import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows"
 
-import designCustomerLink from "../../../../../links/design-customer-link"
+import {
+  assertDesignAccess,
+  readDesignCredentials,
+} from "../../../../../lib/design-access/authorize"
+import { mintDesignAccessToken } from "../../../../../lib/design-access/token"
 import { DESIGN_MODULE } from "../../../../../modules/designs"
 import {
   appendInspirationElements,
@@ -112,26 +118,28 @@ export const POST = async (
     )
   }
 
-  const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
-  const { customer_id } = await runEnsureGuestCustomer(req.scope as any, email)
+  const credentials = readDesignCredentials(req)
 
   // ── 1. Resolve or create the design the photos belong to ────────────────
   let designId = String(body.design_id ?? "").trim() || null
   let createdDesign = false
+  let designToken: string | null = null
 
   if (designId) {
-    // 🔴 Ownership, not just existence. A design id in a public body is a
-    // string anyone can type; without this, photos could be pinned onto
-    // someone else's board.
-    const { data: links = [] } = await query.graph({
-      entity: designCustomerLink.entryPoint,
-      fields: ["design_id", "customer_id"],
-      filters: { design_id: designId, customer_id },
-    })
-    if (!links?.length) {
-      throw new MedusaError(MedusaError.Types.NOT_FOUND, "Design not found")
-    }
-  } else {
+    // 🔴 Ownership, not just existence — and not an email (#2543). A design id
+    // in a public body is a string anyone can type; without this, photos could
+    // be pinned onto someone else's board. Checked before the guest customer
+    // is resolved, so a denied call creates nothing.
+    const grant = await assertDesignAccess(req.scope as any, designId, credentials)
+    designToken =
+      grant.via === "token" && credentials.token
+        ? credentials.token
+        : mintDesignAccessToken(designId, grant.customer_id)
+  }
+
+  const { customer_id } = await runEnsureGuestCustomer(req.scope as any, email)
+
+  if (!designId && credentials.customerId && credentials.customerId === customer_id) {
     /**
      * No design id supplied — but that does not mean there is no design.
      *
@@ -139,10 +147,14 @@ export const POST = async (
      * the CLIENT only learns its id by reading the finished turn's tool
      * output. A maker who drags photos in before that has landed sends no
      * `design_id`, and this branch would mint a SECOND design beside the one
-     * they are talking to — the same two-designs-from-one-ask defect, through
-     * a different door. Ask for their open chat design first.
+     * they are talking to. Ask for their open chat design first.
+     *
+     * 🔴 #2543: only for a SIGNED-IN customer who is that email. For a guest
+     * "the open design of whoever typed this email" handed any visitor a
+     * stranger's board (and a token for it).
      */
     designId = await findOpenChatDesign(req.scope as any, customer_id)
+    if (designId) designToken = mintDesignAccessToken(designId, customer_id)
   }
 
   if (!designId) {
@@ -171,6 +183,7 @@ export const POST = async (
     if (errors?.length) throw errors[0]
     designId = (result as any).id
     createdDesign = true
+    designToken = mintDesignAccessToken(designId as string, customer_id)
   }
 
   // ── 2. Upload the bytes SERVER-SIDE ─────────────────────────────────────
@@ -272,6 +285,7 @@ export const POST = async (
 
   return res.status(201).json({
     design_id: designId,
+    design_token: designToken,
     created_design: createdDesign,
     references,
   })

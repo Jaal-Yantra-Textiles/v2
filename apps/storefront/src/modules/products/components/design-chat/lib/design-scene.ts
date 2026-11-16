@@ -1,8 +1,8 @@
 "use client"
 
 import { sdk } from "@lib/config"
-import { loadDesignerEmail } from "@lib/util/designer-email"
 import { normalizeScene, type CanvasScene } from "../components/scene-panel"
+import { designTokenHeaders, toDesignRequestError } from "./design-access"
 
 /**
  * Board loader — reads the design's moodboard scene + thumbnail after a
@@ -22,27 +22,22 @@ import { normalizeScene, type CanvasScene } from "../components/scene-panel"
  * — and nothing anywhere failed loudly enough to notice. Fifteen backend tests
  * pass either way; the only instrument that sees it is a rendered page.
  *
- * The read now goes through the assistant's own email-scoped mount, which is
- * the auth model the rest of this feature already uses.
+ * The read goes through the assistant's own mount, which (#2543) is gated on
+ * the design token this browser was given when the design was made — not on
+ * an email, which anyone can type.
  *
- * ⚠️ Still `catch`-to-null, deliberately: a board that cannot refresh must not
- * take the chat down with it. But a null now means a real failure rather than
- * the design of the thing.
+ * Throws a `DesignRequestError` with maker-ready copy so the caller can show
+ * WHY the board did not refresh (403: another session's design; 429: slow
+ * down) instead of a silent stale board.
  */
 export const getDesignScene = async (
   designId: string,
-  /** The maker's email. Falls back to the remembered one. */
-  customerEmail?: string | null
+  designToken?: string | null
 ): Promise<{
   design_id: string
   thumbnail_url: string | null
   scene: CanvasScene | null
-} | null> => {
-  const email = (customerEmail || loadDesignerEmail() || "").trim()
-  // Without an email the read cannot be scoped, and an unscoped board read is
-  // not something to fall back to.
-  if (!email) return null
-
+}> => {
   try {
     const data = await sdk.client.fetch<{
       design: {
@@ -52,8 +47,10 @@ export const getDesignScene = async (
       }
     }>(`/store/custom/design-assistant/designs/${designId}`, {
       method: "GET",
-      query: { customer_email: email },
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...designTokenHeaders(designToken),
+      },
     })
     const design = data.design
     return {
@@ -61,7 +58,7 @@ export const getDesignScene = async (
       thumbnail_url: design.thumbnail_url ?? null,
       scene: normalizeScene(design.moodboard),
     }
-  } catch {
-    return null
+  } catch (error) {
+    throw toDesignRequestError(error, "Couldn't refresh your board.")
   }
 }

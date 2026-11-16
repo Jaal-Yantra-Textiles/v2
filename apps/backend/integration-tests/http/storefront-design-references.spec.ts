@@ -8,7 +8,14 @@ import {
   linkSalesChannelsToApiKeyWorkflow,
 } from "@medusajs/medusa/core-flows"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
+import jwt from "jsonwebtoken"
+
 import { DESIGN_MODULE } from "../../src/modules/designs"
+import { verifyDesignAccessToken } from "../../src/lib/design-access/token"
+import {
+  runCreateDesign,
+  runEnsureGuestCustomer,
+} from "../../src/mastra/agents/tools/storefront-design-flow"
 
 jest.setTimeout(240 * 1000)
 
@@ -69,9 +76,19 @@ setupSharedTestSuite(() => {
       storeHeaders = { "x-publishable-api-key": pubKey.token }
     })
 
+    /** A customer bearer exactly as the storefront forwards a signed-in session. */
+    const customerBearer = (customerId: string) => ({
+      authorization: `Bearer ${jwt.sign(
+        { actor_id: customerId, actor_type: "customer", auth_identity_id: "authid_test_2543" },
+        process.env.JWT_SECRET || "supersecret",
+        { expiresIn: "1h" }
+      )}`,
+    })
+
     const upload = async (
       fields: Record<string, string>,
-      files: Array<{ buf: Buffer; name: string; type?: string }>
+      files: Array<{ buf: Buffer; name: string; type?: string }>,
+      extraHeaders: Record<string, string> = {}
     ) => {
       const { api } = getSharedTestEnv()
       const form = new FormData()
@@ -84,7 +101,7 @@ setupSharedTestSuite(() => {
       }
       return api
         .post("/store/custom/design-assistant/references", form, {
-          headers: { ...form.getHeaders(), ...storeHeaders },
+          headers: { ...form.getHeaders(), ...storeHeaders, ...extraHeaders },
         })
         .catch((e: any) => e.response)
     }
@@ -137,9 +154,16 @@ setupSharedTestSuite(() => {
       ])
       expect(first.status).toBe(201)
 
+      // #2543: the new design's token comes back with it, and adding to the
+      // design needs it.
+      expect(
+        verifyDesignAccessToken(first.data.design_token, first.data.design_id)
+      ).toBeTruthy()
+
       const second = await upload(
         { customer_email: email, design_id: first.data.design_id },
-        [{ buf: PNG_1X1, name: "b.png" }]
+        [{ buf: PNG_1X1, name: "b.png" }],
+        { "x-design-token": first.data.design_token }
       )
 
       expect(second.status).toBe(201)
@@ -162,35 +186,57 @@ setupSharedTestSuite(() => {
      * only learns its id from the finished turn's tool output. A maker who
      * drags photos in before that lands sends no `design_id` — and this route
      * used to mint a SECOND design beside the one they were talking to.
+     *
+     * 🔴 #2543: adoption by email alone handed any visitor a stranger's open
+     * board. It now happens only for the SIGNED-IN customer who owns it; a
+     * guest with just the email gets a new design of their own.
      */
-    it("🔴 pins onto the maker's OPEN chat design when no design_id is sent", async () => {
-      const openEmail = `open-${Date.now()}@jyt.test`
-      const { runCreateDesign } = await import(
-        "../../src/mastra/agents/tools/storefront-design-flow"
-      )
-      const created = await runCreateDesign(
-        container(),
-        {
-          email: openEmail,
-          name: "Indigo Kurta",
-          brief: {
-            product_type: "kurta",
-            concept_theme: "Indigo handwoven",
-            aesthetic_keywords: ["handwoven"],
-            color_palette: [{ name: "indigo", code: "#1e3a5f" }],
-          },
-        },
-        undefined
-      )
+    describe("open chat design, no design_id sent", () => {
+      const brief = {
+        product_type: "kurta",
+        concept_theme: "Indigo handwoven",
+        aesthetic_keywords: ["handwoven"],
+        color_palette: [{ name: "indigo", code: "#1e3a5f" }],
+      }
 
-      // The client has not learned the id yet — no design_id in the body.
-      const res = await upload({ customer_email: openEmail }, [
-        { buf: PNG_1X1, name: "swatch.png" },
-      ])
+      it("pins onto it for the signed-in customer who owns it", async () => {
+        const openEmail = `open-${Date.now()}@jyt.test`
+        const created = await runCreateDesign(
+          container(),
+          { email: openEmail, name: "Indigo Kurta", brief },
+          undefined
+        )
+        const { customer_id } = await runEnsureGuestCustomer(container(), openEmail)
 
-      expect(res.status).toBe(201)
-      expect(res.data.created_design).toBe(false)
-      expect(res.data.design_id).toBe(created.design_id)
+        const res = await upload(
+          { customer_email: openEmail },
+          [{ buf: PNG_1X1, name: "swatch.png" }],
+          customerBearer(customer_id)
+        )
+
+        expect(res.status).toBe(201)
+        expect(res.data.created_design).toBe(false)
+        expect(res.data.design_id).toBe(created.design_id)
+        expect(verifyDesignAccessToken(res.data.design_token, created.design_id)).toBeTruthy()
+      })
+
+      it("🔴 does NOT hand a guest who types the email the owner's board", async () => {
+        const openEmail = `open-guest-${Date.now()}@jyt.test`
+        const created = await runCreateDesign(
+          container(),
+          { email: openEmail, name: "Indigo Kurta", brief },
+          undefined
+        )
+
+        const res = await upload({ customer_email: openEmail }, [
+          { buf: PNG_1X1, name: "swatch.png" },
+        ])
+
+        expect(res.status).toBe(201)
+        expect(res.data.created_design).toBe(true)
+        expect(res.data.design_id).not.toBe(created.design_id)
+        expect(verifyDesignAccessToken(res.data.design_token, created.design_id)).toBeNull()
+      })
     })
 
     /**
@@ -212,22 +258,43 @@ setupSharedTestSuite(() => {
       ])
     })
 
-    it("🔴 refuses a design that is not this maker's", async () => {
+    it("🔴 refuses a design the caller holds no token for (403, nothing pinned)", async () => {
       const mine = await upload({ customer_email: email }, [
         { buf: PNG_1X1, name: "mine.png" },
       ])
       expect(mine.status).toBe(201)
+      const other = await upload({ customer_email: `other-${Date.now()}@jyt.test` }, [
+        { buf: PNG_1X1, name: "other.png" },
+      ])
+      expect(other.status).toBe(201)
+      const before = (await sceneOf(mine.data.design_id))?.elements?.length ?? 0
 
-      // A design_id in a public body is a string anyone can type.
-      const theirs = await upload(
-        {
-          customer_email: `someone-else-${Date.now()}@jyt.test`,
-          design_id: mine.data.design_id,
-        },
+      // A design_id in a public body is a string anyone can type — and so is
+      // the owner's email (#2543).
+      const noToken = await upload(
+        { customer_email: email, design_id: mine.data.design_id },
         [{ buf: PNG_1X1, name: "theirs.png" }]
       )
+      expect(noToken.status).toBe(403)
 
-      expect(theirs.status).toBe(404)
+      // A real token — for a DIFFERENT design.
+      const wrongToken = await upload(
+        { customer_email: email, design_id: mine.data.design_id },
+        [{ buf: PNG_1X1, name: "theirs.png" }],
+        { "x-design-token": other.data.design_token }
+      )
+      expect(wrongToken.status).toBe(403)
+
+      // A tampered token.
+      const tampered = await upload(
+        { customer_email: email, design_id: mine.data.design_id },
+        [{ buf: PNG_1X1, name: "theirs.png" }],
+        { "x-design-token": `${mine.data.design_token.slice(0, -2)}xx` }
+      )
+      expect(tampered.status).toBe(403)
+
+      const after = (await sceneOf(mine.data.design_id))?.elements?.length ?? 0
+      expect(after).toBe(before)
     })
 
     it("requires an email, and requires an image", async () => {

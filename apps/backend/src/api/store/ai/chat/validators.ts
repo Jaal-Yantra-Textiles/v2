@@ -68,6 +68,10 @@ const DesignContextSchema = z.object({
   // The maker's email once they have shared it in the flow (guest-customer
   // resolution on first generation). Optional — the agent asks when needed.
   email: z.string().max(200).optional(),
+  // Capability token for `design_id` (#2543), minted by create_design /
+  // generate_design_image and kept by the storefront. Required whenever
+  // `design_id` is sent by a guest — the route 403s a design id without it.
+  design_token: z.string().max(400).optional(),
 })
 
 export const StoreAiChatSchema = z.object({
