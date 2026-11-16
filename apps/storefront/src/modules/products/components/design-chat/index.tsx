@@ -804,8 +804,14 @@ export default function DesignChat({
     }
   }
 
+  // Tool results that already triggered a board refresh. The effect below runs
+  // on every streamed chunk (messages changes many times a second); without
+  // this, ANY earlier completed tool re-fired refreshScene per chunk: ~3
+  // GET /design-assistant/designs/:id a second for the rest of the session.
+  const refreshedToolCallsRef = React.useRef<Set<string>>(new Set())
+
   React.useEffect(() => {
-    // Refresh the board whenever a board-mutating tool completes — generation,
+    // Refresh the board when a board-mutating tool NEWLY completes — generation,
     // moodboard pin, or design creation — so the "Your board" panel always
     // reflects what the model just did. create_design also hands us the
     // design id, which we adopt before refreshing.
@@ -833,7 +839,11 @@ export default function DesignChat({
             p?.type === "tool-create_design") &&
           p?.state === "output-available"
         ) {
-          shouldRefresh = true
+          const key = String(p?.toolCallId ?? `${m.id}:${p.type}`)
+          if (!refreshedToolCallsRef.current.has(key)) {
+            refreshedToolCallsRef.current.add(key)
+            shouldRefresh = true
+          }
         }
       }
     }
