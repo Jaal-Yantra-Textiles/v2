@@ -16,6 +16,11 @@ import type DesignService from "../../../modules/designs/service"
 import { DESIGN_MODULE } from "../../../modules/designs"
 import { normalizeCanvasScene, type CanvasScene } from "../../../modules/designs/lib/canvas-scene"
 import { analyzeReferenceImages } from "./storefront-design-analysis"
+import {
+  DESIGN_ACCESS_DENIED_MESSAGE,
+  resolveDesignAccess,
+  type DesignAccessCredentials,
+} from "../../../lib/design-access/authorize"
 
 const resolveDesignService = (container: MedusaContainer): DesignService =>
   container.resolve(DESIGN_MODULE) as unknown as DesignService
@@ -23,8 +28,13 @@ const resolveDesignService = (container: MedusaContainer): DesignService =>
 export const runSaveMoodboard = async (
   container: MedusaContainer,
   designId: string,
-  inspirationImages: string[]
+  inspirationImages: string[],
+  /** Who is asking (#2543): the chat request's design token / session. */
+  credentials: DesignAccessCredentials | undefined
 ): Promise<{ added: number }> => {
+  const grant = await resolveDesignAccess(container, designId, credentials)
+  if (!grant) throw new Error(DESIGN_ACCESS_DENIED_MESSAGE)
+
   const designService = resolveDesignService(container)
   const design = await designService.retrieveDesign(designId).catch(() => null)
   if (!design) {
@@ -104,11 +114,17 @@ const SaveMoodboardSchema = z.object({
     .describe("Uploaded reference image URLs (persistent http URLs from the uploads API)."),
 })
 
-export const createSaveMoodboardTool = (container: MedusaContainer) =>
+export const createSaveMoodboardTool = (
+  container: MedusaContainer,
+  context?: { design_token?: string; customer_id?: string }
+) =>
   tool({
     description:
       "Add the maker's uploaded reference images to the design board as inspirations. Call this when they upload moodboard references for an existing design — they render on the board and shape generation.",
     inputSchema: SaveMoodboardSchema,
     execute: async (args) =>
-      runSaveMoodboard(container, args.design_id, args.inspiration_images),
+      runSaveMoodboard(container, args.design_id, args.inspiration_images, {
+        token: context?.design_token ?? null,
+        customerId: context?.customer_id ?? null,
+      }),
   })

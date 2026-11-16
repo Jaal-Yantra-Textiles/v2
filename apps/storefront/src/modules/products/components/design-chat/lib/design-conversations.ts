@@ -2,18 +2,21 @@
 
 import { sdk } from "@lib/config"
 
+import { conversationTokenHeaders, designTokenHeaders } from "./design-access"
+
 /**
  * Client for the server-backed design conversation store
  * (`/store/custom/design-assistant/conversations`).
  *
- * The design chat is public and gated on the maker's EMAIL (no login — the
- * same gate the backend flow uses). Threads scope by normalised email +
- * thread key server-side; the client mirrors the localStorage design thread
- * here after each completed turn so threads survive storage clears and follow
- * the maker across devices.
+ * #2543: threads are NOT email-scoped any more. Creating one returns a
+ * conversation token, kept in the local thread; every later read/write
+ * presents it (`x-conversation-token`). Linking a design to a thread also
+ * presents that design's token. A signed-in maker's list is read server-side
+ * (`@lib/data/design-conversations`) because it needs the session cookie.
  *
- * All calls return friendly nulls on failure — the localStorage thread is the
- * primary store, the server mirror is the durable backstop.
+ * The localStorage thread is the primary store, the server mirror is the
+ * durable backstop — but a failed mirror is now REPORTED (not swallowed) so
+ * the chat can say the thread did not save.
  */
 
 export type StoredUIMessage = {
@@ -36,43 +39,22 @@ export type DesignConversation = {
 
 // The SDK is configured with the publishable key at construction and sends
 // it on every fetch — /store/* public routes need nothing extra.
-const headers = () => ({
+const headers = (extra: Record<string, string> = {}) => ({
   "Content-Type": "application/json",
+  ...extra,
 })
 
-/** List the maker's threads for one thread key (light — no bodies). */
-export const listDesignConversations = async (
-  email: string,
-  threadKey: string
-): Promise<DesignConversation[]> => {
-  try {
-    const data = await sdk.client.fetch<{ conversations: DesignConversation[] }>(
-      `/store/custom/design-assistant/conversations`,
-      {
-        method: "GET",
-        query: { customer_email: email, thread_key: threadKey, limit: 20 },
-        headers: headers(),
-      }
-    )
-    return data.conversations ?? []
-  } catch {
-    return []
-  }
-}
-
-/** Fetch one thread with its full message array. */
+/** Fetch one thread with its full message array (needs its token). */
 export const getDesignConversation = async (
-  email: string,
-  threadKey: string,
-  conversationId: string
+  conversationId: string,
+  conversationToken: string
 ): Promise<DesignConversation | null> => {
   try {
     const data = await sdk.client.fetch<{ conversation: DesignConversation }>(
       `/store/custom/design-assistant/conversations/${conversationId}`,
       {
         method: "GET",
-        query: { customer_email: email, thread_key: threadKey },
-        headers: headers(),
+        headers: headers(conversationTokenHeaders(conversationToken)),
       }
     )
     return data.conversation ?? null
@@ -81,93 +63,93 @@ export const getDesignConversation = async (
   }
 }
 
-/** Create the server mirror for a thread. */
-export const createDesignConversation = async (
-  input: {
-    customer_email: string
-    thread_key: string
-    title?: string
-    design_id?: string
-    messages?: StoredUIMessage[]
-  }
-): Promise<DesignConversation | null> => {
-  try {
-    const data = await sdk.client.fetch<{ conversation: DesignConversation }>(
-      `/store/custom/design-assistant/conversations`,
-      {
-        method: "POST",
-        body: input,
-        headers: headers(),
-      }
-    )
-    return data.conversation ?? null
-  } catch {
-    return null
-  }
+export type MirrorInput = {
+  conversationId?: string
+  conversationToken?: string
+  designToken?: string
+  customer_email: string
+  thread_key: string
+  title?: string
+  design_id?: string
+  messages: StoredUIMessage[]
 }
 
-/** Persist messages / title / design link after each completed turn. */
-export const updateDesignConversation = async (
-  conversationId: string,
-  input: {
-    customer_email: string
-    thread_key: string
-    title?: string
-    design_id?: string
-    messages?: StoredUIMessage[]
+export type MirrorResult =
+  | { ok: true; conversationId: string; conversationToken: string }
+  | { ok: false; status?: number }
+
+/**
+ * Mirror a thread to the server: create once (receiving the token), update
+ * after. A thread held without a token (saved before #2543) is re-created
+ * rather than written blind — the old row is unreachable without one.
+ */
+export const mirrorDesignThread = async (
+  input: MirrorInput
+): Promise<MirrorResult> => {
+  const body = {
+    customer_email: input.customer_email,
+    thread_key: input.thread_key,
+    title: input.title,
+    design_id: input.design_id,
+    messages: input.messages,
   }
-): Promise<boolean> => {
+  const designHeaders = input.design_id ? designTokenHeaders(input.designToken) : {}
+
   try {
-    await sdk.client.fetch(
-      `/store/custom/design-assistant/conversations/${conversationId}`,
-      {
-        method: "PATCH",
-        body: input,
-        headers: headers(),
+    if (input.conversationId && input.conversationToken) {
+      await sdk.client.fetch(
+        `/store/custom/design-assistant/conversations/${input.conversationId}`,
+        {
+          method: "PATCH",
+          body,
+          headers: headers({
+            ...conversationTokenHeaders(input.conversationToken),
+            ...designHeaders,
+          }),
+        }
+      )
+      return {
+        ok: true,
+        conversationId: input.conversationId,
+        conversationToken: input.conversationToken,
       }
-    )
-    return true
-  } catch {
-    return false
+    }
+
+    const data = await sdk.client.fetch<{
+      conversation: DesignConversation
+      conversation_token: string
+    }>(`/store/custom/design-assistant/conversations`, {
+      method: "POST",
+      body,
+      headers: headers(designHeaders),
+    })
+    if (!data?.conversation?.id || !data.conversation_token) return { ok: false }
+    return {
+      ok: true,
+      conversationId: data.conversation.id,
+      conversationToken: data.conversation_token,
+    }
+  } catch (error) {
+    const status = (error as { status?: number } | null)?.status
+    return { ok: false, status: typeof status === "number" ? status : undefined }
   }
 }
 
 export const deleteDesignConversation = async (
   conversationId: string,
-  email: string,
-  threadKey: string
+  conversationToken: string
 ): Promise<boolean> => {
   try {
     await sdk.client.fetch(
       `/store/custom/design-assistant/conversations/${conversationId}`,
       {
         method: "DELETE",
-        body: { customer_email: email, thread_key: threadKey },
-        headers: headers(),
+        body: {},
+        headers: headers(conversationTokenHeaders(conversationToken)),
       }
     )
     return true
   } catch {
     return false
   }
-}
-
-/**
- * Mirror a thread to the server: create once, update after. Returns the
- * conversation id (null on failure — the caller keeps the local thread).
- */
-export const mirrorDesignThread = async (input: {
-  conversationId?: string
-  customer_email: string
-  thread_key: string
-  title?: string
-  design_id?: string
-  messages: StoredUIMessage[]
-}): Promise<string | null> => {
-  if (input.conversationId) {
-    const ok = await updateDesignConversation(input.conversationId, input)
-    return ok ? input.conversationId : null
-  }
-  const created = await createDesignConversation(input)
-  return created?.id ?? null
 }

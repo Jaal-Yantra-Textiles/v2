@@ -54,15 +54,21 @@ import {
 } from "./lib/design-thread"
 import {
   mirrorDesignThread,
-  listDesignConversations,
+  getDesignConversation,
   type StoredUIMessage,
 } from "./lib/design-conversations"
 import { pickDesignCanvas } from "./lib/design-pick"
+import {
+  DESIGN_FORBIDDEN_MESSAGE,
+  describeChatError,
+  isDesignForbiddenChatError,
+} from "./lib/design-access"
 import {
   countPendingToolParts,
   sealPendingToolParts,
 } from "./lib/incomplete-turn"
 import { retrieveCustomerFresh } from "@lib/data/customer"
+import { listMyDesignConversations } from "@lib/data/design-conversations"
 
 /**
  * Chat-based design editor — replaces the Konva editor on the design routes.
@@ -76,7 +82,7 @@ import { retrieveCustomerFresh } from "@lib/data/customer"
  * Streams from /api/ai-chat via useChat (same proxy as the concierge chat —
  * the proxy forwards the raw body verbatim, so `context` flows through to the
  * backend's design-editor mode). Threads persist to localStorage per base
- * product and mirror to the server-backed conversation store (email-scoped)
+ * product and mirror to the server-backed conversation store (token-scoped)
  * after each completed turn.
  */
 
@@ -126,6 +132,13 @@ export default function DesignChat({
   const [designId, setDesignId] = React.useState<string | null>(
     initialDesign?.id ?? null
   )
+  // #2543: the capability for `designId` — minted by the backend when the
+  // design was made for this browser, kept with the thread, sent on every
+  // design-scoped call. Without it the backend answers 403.
+  const [designToken, setDesignToken] = React.useState<string | null>(null)
+  // Inline, non-blocking notice for side-calls that failed (pick, board
+  // refresh, thread save/restore). The chat keeps working underneath.
+  const [notice, setNotice] = React.useState<string | null>(null)
   // The design's thumbnail (active pick) — refreshed after picks/generations.
   const [thumbnailUrl, setThumbnailUrl] = React.useState<string | null>(
     initialDesign?.thumbnail_url ?? null
@@ -152,6 +165,9 @@ export default function DesignChat({
   const scrollAnchorRef = React.useRef<HTMLDivElement>(null)
   const restoredRef = React.useRef(false)
   const persistedRef = React.useRef<string | null>(null)
+  // A create (POST) still in flight — a second save must not POST again and
+  // mint a duplicate server thread; the next completed turn PATCHes instead.
+  const mirrorInFlightRef = React.useRef(false)
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
   const pendingSendRef = React.useRef<DesignReference[] | null>(null)
   const seenUserMsgIdsRef = React.useRef<Set<string>>(new Set())
@@ -176,11 +192,12 @@ export default function DesignChat({
           context: {
             ...(product?.id ? { product_id: product.id } : {}),
             ...(designId ? { design_id: designId } : {}),
+            ...(designId && designToken ? { design_token: designToken } : {}),
             ...(meta.email ? { email: meta.email } : {}),
           },
         }),
       }),
-    [prefs, product?.id, designId, meta.email]
+    [prefs, product?.id, designId, designToken, meta.email]
   )
 
   const {
@@ -262,6 +279,7 @@ export default function DesignChat({
       setMeta({ ...local.meta, email: local.meta.email ?? rememberedEmail ?? undefined })
       setMessages(local.messages)
       if (local.meta.designId) setDesignId(local.meta.designId)
+      if (local.meta.designToken) setDesignToken(local.meta.designToken)
     } else {
       if (rememberedEmail) setMeta((prev) => ({ ...prev, email: rememberedEmail }))
       // Fresh thread — run onboarding first, then the greeting.
@@ -289,23 +307,48 @@ export default function DesignChat({
       const email = (customer as any)?.email as string | undefined
       if (email) {
         setMeta((prev) => ({ ...prev, email }))
-        listDesignConversations(email, threadKey).then((conversations) => {
+        // #2543: the list answers only to the session (read server-side);
+        // each row brings the tokens this browser needs for it.
+        listMyDesignConversations(threadKey).then(async (conversations) => {
           const latest = conversations[0]
-          if (
-            latest?.id &&
-            latest.id !== local?.meta.conversationId &&
-            latest.messages?.length
-          ) {
-            // Server thread is fresher than local — replay it.
+          if (!latest?.id) return
+          if (latest.id === local?.meta.conversationId) {
+            // Same thread as local — just pick up tokens a thread saved before
+            // #2543 does not have.
             setMeta((prev) => ({
               ...prev,
-              conversationId: latest.id,
-              designId: latest.design_id ?? prev.designId,
-              title: latest.title,
+              conversationToken: prev.conversationToken ?? latest.conversation_token,
+              designToken: prev.designToken ?? latest.design_token ?? undefined,
             }))
-            setMessages(latest.messages as any)
-            if (latest.design_id) setDesignId(latest.design_id)
+            if (latest.design_token && latest.design_id === local?.meta.designId) {
+              setDesignToken((prev) => prev ?? latest.design_token)
+            }
+            return
           }
+          // A local thread in progress wins; the server copy is the backstop
+          // for a cleared browser or another device.
+          if (local?.messages?.length) return
+          const full = await getDesignConversation(
+            latest.id,
+            latest.conversation_token
+          )
+          if (!full) {
+            setNotice("Couldn't load your saved design chat — carrying on with this one.")
+            return
+          }
+          if (!full.messages?.length) return
+          // Server thread is fresher than local — replay it.
+          setMeta((prev) => ({
+            ...prev,
+            conversationId: latest.id,
+            conversationToken: latest.conversation_token,
+            designId: latest.design_id ?? prev.designId,
+            designToken: latest.design_token ?? prev.designToken,
+            title: latest.title,
+          }))
+          setMessages(full.messages as any)
+          if (latest.design_id) setDesignId(latest.design_id)
+          if (latest.design_token) setDesignToken(latest.design_token)
         })
       }
     }).catch(() => {})
@@ -318,7 +361,10 @@ export default function DesignChat({
     // call (#1725) changes neither the message count nor the id, and without
     // it the mirror would persist the spinning version forever.
     const last = (messages as any).at(-1)
-    const signature = `${messages.length}:${last?.id ?? ""}:${countPendingToolParts(last)}`
+    // The design + token are in it too (#2543): the token usually lands from
+    // the turn's tool output a render AFTER the turn ends, and a save keyed
+    // only on messages would skip it — a reload would then lose the design.
+    const signature = `${messages.length}:${last?.id ?? ""}:${countPendingToolParts(last)}:${designId ?? ""}:${designToken ?? ""}`
     if (persistedRef.current === signature) return
     persistedRef.current = signature
 
@@ -329,25 +375,51 @@ export default function DesignChat({
         ?.content?.slice(0, 60) ??
       "New design"
 
-    const nextMeta: DesignThreadMeta = { ...meta, title }
+    const nextMeta: DesignThreadMeta = {
+      ...meta,
+      title,
+      designId: designId ?? undefined,
+      designToken: designToken ?? undefined,
+    }
     saveDesignThread({ meta: nextMeta, messages })
     setMeta(nextMeta)
 
-    if (nextMeta.email) {
+    const creating = !(nextMeta.conversationId && nextMeta.conversationToken)
+    if (nextMeta.email && !(creating && mirrorInFlightRef.current)) {
+      if (creating) mirrorInFlightRef.current = true
       mirrorDesignThread({
         conversationId: nextMeta.conversationId,
+        conversationToken: nextMeta.conversationToken,
+        designToken: designToken ?? undefined,
         customer_email: nextMeta.email,
         thread_key: threadKey,
         title,
-        design_id: designId ?? undefined,
+        // Only link a design this browser can prove — else the save 403s.
+        design_id: designId && designToken ? designId : undefined,
         messages: toStored(messages),
-      }).then((conversationId) => {
-        if (conversationId) {
-          setMeta((prev) => ({ ...prev, conversationId }))
+      }).then((result) => {
+        if (creating) mirrorInFlightRef.current = false
+        if (result.ok) {
+          setMeta((prev) => {
+            const merged = {
+              ...prev,
+              conversationId: result.conversationId,
+              conversationToken: result.conversationToken,
+            }
+            // Keep the token with the local thread, or a reload loses it.
+            saveDesignThread({ meta: merged, messages })
+            return merged
+          })
+        } else {
+          setNotice(
+            result.status === 429
+              ? "Too many requests — this chat will save again in a few minutes. It's still kept in this browser."
+              : "Couldn't save this chat to your account — it's still kept in this browser."
+          )
         }
       })
     }
-  }, [messages, isStreaming, meta, threadKey, designId])
+  }, [messages, isStreaming, meta, threadKey, designId, designToken])
 
   // ── Attach reference thumbnails to the just-sent user message ──
   // `sendMessage` doesn't give us the message id, so after the send we scan
@@ -469,15 +541,27 @@ export default function DesignChat({
       ],
     } as UIMessage
     setMessages([greeting])
-    setMeta((prev) => ({ ...prev, conversationId: undefined, title: undefined }))
+    // #2543: a new design is a new capability — drop the old design and the
+    // tokens with the thread, so nothing of the last board is sent again.
+    setDesignId(null)
+    setDesignToken(null)
+    setNotice(null)
+    setMeta((prev) => ({
+      ...prev,
+      conversationId: undefined,
+      conversationToken: undefined,
+      designId: undefined,
+      designToken: undefined,
+      title: undefined,
+    }))
     setScene(normalizeScene(initialDesign?.moodboard))
     setThumbnailUrl(initialDesign?.thumbnail_url ?? null)
     persistedRef.current = null
     saveDesignThread({
-      meta: { threadKey, conversationId: undefined, title: undefined },
+      meta: { threadKey, email: meta.email },
       messages: [greeting],
     })
-  }, [stop, product?.title, initialDesign, threadKey, setMessages])
+  }, [stop, product?.title, initialDesign, threadKey, setMessages, meta.email])
 
   // ── Attachments ──
   const addFiles = React.useCallback((files: File[]) => {
@@ -541,6 +625,7 @@ export default function DesignChat({
       const upload = await uploadDesignReferences(attachments, {
         email,
         designId,
+        designToken,
       })
       resolved = upload.references
       // The photos may have brought the design into existence. Adopt it, or
@@ -548,6 +633,10 @@ export default function DesignChat({
       if (upload.designId && upload.designId !== designId) {
         setDesignId(upload.designId)
       }
+      if (upload.designToken && upload.designToken !== designToken) {
+        setDesignToken(upload.designToken)
+      }
+      if (upload.error) setNotice(upload.error)
       setUploading(false)
 
       /**
@@ -561,7 +650,7 @@ export default function DesignChat({
        * is made of.
        */
       if (upload.references.some((r) => r.publicUrl)) {
-        refreshScene(upload.designId ?? undefined)
+        refreshScene(upload.designId ?? undefined, upload.designToken)
       }
     }
 
@@ -650,7 +739,13 @@ export default function DesignChat({
   const handlePickCanvas = async (canvasId: string) => {
     if (!designId || picking) return
     setPicking(true)
-    const result = await pickDesignCanvas(designId, canvasId).catch(() => null)
+    const result = await pickDesignCanvas(designId, canvasId, designToken).catch(
+      (error: Error) => {
+        setNotice(error.message || "Couldn't save that pick — try again.")
+        return null
+      }
+    )
+    if (result) setNotice(null)
     if (result?.thumbnail_url) {
       setThumbnailUrl(result.thumbnail_url)
       setScene((prev) =>
@@ -678,7 +773,7 @@ export default function DesignChat({
     setPicking(false)
   }
 
-  const refreshScene = async (id?: string) => {
+  const refreshScene = async (id?: string, token?: string | null) => {
     // After a generation / moodboard pin / design create, the scene lives on
     // the design — a light reload via get_design_state keeps the board current
     // without a full page nav.
@@ -686,14 +781,15 @@ export default function DesignChat({
     if (!target) return
     try {
       const { getDesignScene } = await import("./lib/design-scene")
-      // The board read is email-scoped — a guest maker has no customer session,
-      // which is exactly why the old customer-authenticated read 401'd.
-      const next = await getDesignScene(target, meta.email)
+      // #2543: the board read is gated on the design token, not an email.
+      const next = await getDesignScene(target, token ?? designToken)
       if (next?.scene) setScene(next.scene)
       if (next?.thumbnail_url) setThumbnailUrl(next.thumbnail_url)
       if (next?.design_id) setDesignId(next.design_id)
-    } catch {
-      /* board refresh is best-effort */
+    } catch (error) {
+      // Best-effort for the chat, but no longer silent: a board that will not
+      // refresh says why (another session's design, rate limit, network).
+      setNotice((error as Error)?.message || "Couldn't refresh your board.")
     }
   }
 
@@ -704,16 +800,21 @@ export default function DesignChat({
     // design id, which we adopt before refreshing.
     if (isGenerating) return
     let createdId: string | null = null
+    let createdToken: string | null = null
     let shouldRefresh = false
     for (const m of messages) {
       if (m.role !== "assistant") continue
       for (const p of ((m as any).parts ?? []) as any[]) {
+        // Both tools can mint the design; both hand back its token (#2543).
         if (
-          p?.type === "tool-create_design" &&
+          (p?.type === "tool-create_design" ||
+            p?.type === "tool-generate_design_image") &&
           p?.state === "output-available" &&
           p?.output?.design_id
         ) {
           createdId = p.output.design_id
+          createdToken =
+            typeof p.output.design_token === "string" ? p.output.design_token : null
         }
         if (
           (p?.type === "tool-generate_design_image" ||
@@ -726,8 +827,9 @@ export default function DesignChat({
       }
     }
     if (createdId && createdId !== designId) setDesignId(createdId)
-    if (shouldRefresh) refreshScene(createdId ?? undefined)
-  }, [messages, isGenerating, designId])
+    if (createdToken && createdToken !== designToken) setDesignToken(createdToken)
+    if (shouldRefresh) refreshScene(createdId ?? undefined, createdToken)
+  }, [messages, isGenerating, designId, designToken])
 
   // ── Message rendering ──
   const renderMessage = (msg: UIMessage) => {
@@ -925,14 +1027,55 @@ export default function DesignChat({
           <div className="flex flex-1 flex-col gap-3 px-4 py-4 sm:px-6">
             <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
               {messages.map(renderMessage)}
+              {notice && (
+                <div
+                  role="status"
+                  className="flex flex-wrap items-center gap-2 rounded-xl border border-ui-tag-orange-border bg-ui-tag-orange-bg px-3 py-2 text-xs text-ui-tag-orange-text"
+                  data-testid="design-chat-notice"
+                >
+                  <span>{notice}</span>
+                  {notice === DESIGN_FORBIDDEN_MESSAGE && !isStreaming && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        startNewDesign()
+                        setShowOnboarding(true)
+                      }}
+                      className="rounded-md border border-ui-tag-orange-border px-2 py-0.5 font-medium"
+                    >
+                      Start a new design
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    aria-label="Dismiss"
+                    onClick={() => setNotice(null)}
+                    className="ml-auto px-1 font-medium"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
               {(error || turnIncomplete) && (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ui-tag-red-border bg-ui-tag-red-bg px-3 py-2 text-xs text-ui-tag-red-text">
                   <span>
                     {error
-                      ? "Something went wrong — try again."
+                      ? describeChatError(error) ?? "Something went wrong — try again."
                       : "That turn was cut short — some steps never ran, so anything the reply claims to have saved may not exist. Send it again."}
                   </span>
-                  {lastUserText && !isStreaming && (
+                  {isDesignForbiddenChatError(error) && !isStreaming && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        startNewDesign()
+                        setShowOnboarding(true)
+                      }}
+                      className="rounded-md border border-ui-tag-red-border px-2 py-0.5 font-medium hover:bg-ui-tag-red-bg-hover"
+                    >
+                      Start a new design
+                    </button>
+                  )}
+                  {lastUserText && !isStreaming && !isDesignForbiddenChatError(error) && (
                     <button
                       type="button"
                       onClick={handleRetry}

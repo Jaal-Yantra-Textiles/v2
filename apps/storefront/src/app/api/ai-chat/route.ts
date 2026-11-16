@@ -23,6 +23,8 @@
  * back. Node runtime supports streaming Responses just fine.
  */
 
+import { cookies } from "next/headers"
+
 const BACKEND_URL =
   process.env.MEDUSA_BACKEND_URL ??
   process.env.NEXT_PUBLIC_MEDUSA_BACKEND_URL ??
@@ -48,6 +50,30 @@ export async function POST(req: Request) {
   }
   if (PUBLISHABLE_KEY) {
     headers["x-publishable-api-key"] = PUBLISHABLE_KEY
+  }
+
+  /**
+   * #2543: the backend rate-limits the chat per visitor AND per IP, and
+   * every request from here would otherwise arrive from this server's own
+   * address — one shared bucket for every shopper. Forward the shopper's IP
+   * (Vercel sets x-forwarded-for / x-real-ip on the inbound request).
+   */
+  const shopperIp =
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req.headers.get("x-real-ip")?.trim() ||
+    ""
+  if (shopperIp) headers["x-forwarded-for"] = shopperIp
+
+  /**
+   * A signed-in shopper's session, so the backend can let them into designs
+   * linked to their account (the guest path is the design token in the body
+   * context). The session cookie is httpOnly — only this server can read it.
+   */
+  try {
+    const jwt = (await cookies()).get("_medusa_jwt")?.value
+    if (jwt) headers["authorization"] = `Bearer ${jwt}`
+  } catch {
+    // No request scope (should not happen in a route handler) — guest.
   }
 
   let upstream: Response

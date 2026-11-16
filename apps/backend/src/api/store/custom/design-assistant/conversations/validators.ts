@@ -33,7 +33,12 @@ export const CreateDesignConversationSchema = ScopeSchema.and(
   })
 )
 
-export const UpdateDesignConversationSchema = ScopeSchema.and(
+/**
+ * #2543: the scope fields are accepted but no longer authorise anything on
+ * the single-thread ops — the conversation token / customer session does.
+ * Optional so a client that only holds the token can still write.
+ */
+export const UpdateDesignConversationSchema = ScopeSchema.partial().and(
   z
     .object({
       title: z.string().trim().min(1).max(200).optional(),
@@ -49,7 +54,7 @@ export const UpdateDesignConversationSchema = ScopeSchema.and(
     )
 )
 
-export const DeleteDesignConversationSchema = ScopeSchema
+export const DeleteDesignConversationSchema = ScopeSchema.partial()
 
 export type CreateDesignConversationInput = z.infer<
   typeof CreateDesignConversationSchema
