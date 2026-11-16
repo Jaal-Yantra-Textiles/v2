@@ -12,6 +12,8 @@ import { test, expect, type Page, type Route } from "@playwright/test"
  *    design_id/design_token at null. The next turn's tools refused the guest's
  *    own design.
  *  - 🔴 Invisible errors: the 403/429 JSON never reached the buyer.
+ *  - (#2543 phase 2) Email sign-in: the verify panel's code flow, and a tool
+ *    answering sign_in_required must open it.
  *
  * Every /api/ai-chat and /design-assistant call is mocked, and any other
  * browser write to the backend is aborted, so this is safe to point at a
@@ -157,6 +159,74 @@ test.describe("Design studio guards (#2543) @storefront @localstack", () => {
     const meta = await page.evaluate(() => JSON.parse(localStorage.getItem("jyt:design-thread:custom") || "{}").meta ?? {})
     expect(meta.designId).toBeUndefined()
     expect(meta.designToken).toBeUndefined()
+  })
+
+  /**
+   * #2543 phase 2: a guest verifies their email with a 6-digit code before a
+   * design is saved. Both auth calls are mocked at the browser — nothing
+   * reaches a backend, no email is sent.
+   */
+  test("verify panel: email → code (wrong, then right) → signed in", async ({ page }) => {
+    await mockBackend(page)
+    await page.route("**/api/ai-chat", (route) => sse(route, uiStream({ text: "Lovely — a kurta." })))
+    const codeCalls: any[] = []
+    const verifyCalls: any[] = []
+    await page.route("**/api/design-auth/code", (route) => {
+      codeCalls.push(route.request().postDataJSON())
+      return route.fulfill({ json: { sent: true } })
+    })
+    await page.route("**/api/design-auth/verify", (route) => {
+      const body = route.request().postDataJSON()
+      verifyCalls.push(body)
+      return body.code === "424242"
+        ? route.fulfill({ json: { email: body.email, customer_id: "cus_e2e", adopted_design_ids: [] } })
+        : route.fulfill({ status: 400, json: { code: "invalid_code" } })
+    })
+
+    await page.goto(STUDIO_URL, { waitUntil: "load" })
+    await page.getByTestId("design-chat-garment-kurta").click()
+    await page.getByTestId("design-chat-onboarding-start").click()
+
+    const panel = page.getByTestId("design-chat-verify-email")
+    await expect(panel).toBeVisible()
+    // The old onboarding email field is gone — the address is verified, not typed.
+    await expect(page.getByTestId("design-chat-onboarding-email")).toHaveCount(0)
+
+    await page.getByTestId("design-chat-verify-email-input").fill("Maker@Example.com")
+    await page.getByTestId("design-chat-verify-send").click()
+    await expect(page.getByTestId("design-chat-verify-code-input")).toBeVisible()
+    expect(codeCalls).toEqual([{ email: "maker@example.com" }])
+    await expect(page.getByTestId("design-chat-verify-resend")).toBeDisabled()
+
+    await page.getByTestId("design-chat-verify-code-input").fill("111111")
+    await expect(page.getByTestId("design-chat-verify-error")).toContainText(/isn't right/i)
+
+    await page.getByTestId("design-chat-verify-code-input").fill("424 242")
+    await expect(page.getByTestId("design-chat-signed-in")).toContainText("maker@example.com")
+    await expect(panel).toHaveCount(0)
+    expect(verifyCalls.at(-1)).toEqual({ email: "maker@example.com", code: "424242" })
+  })
+
+  test("🔴 a tool answering sign_in_required opens the verify panel", async ({ page }) => {
+    await mockBackend(page)
+    await page.route("**/api/ai-chat", (route) =>
+      sse(
+        route,
+        uiStream({
+          tool: {
+            name: "create_design",
+            output: { sign_in_required: true, action: "create_design", message: "verify first" },
+          },
+          text: "Please verify your email so I can save your design.",
+        })
+      )
+    )
+    await openStudioSkippingOnboarding(page)
+    await expect(page.getByTestId("design-chat-verify-email")).toHaveCount(0)
+    await send(page, "A linen kurta please")
+    await expect(page.getByText("Please verify your email").first()).toBeVisible()
+    await expect(page.getByTestId("design-chat-verify-email")).toBeVisible()
+    await expect(page.getByTestId("design-chat-verify-email")).toContainText(/save your design/i)
   })
 
   test("🔴 a rate-limited chat tells the buyer when to try again", async ({ page }) => {

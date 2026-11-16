@@ -201,3 +201,44 @@ export const referencesRateLimitMiddleware = createKeyedRateLimitMiddleware([
 export const analyzeRateLimitMiddleware = createKeyedRateLimitMiddleware([
   { limiter: analyzeIpLimiter, keyOf: (req) => `ip:${clientIpOf(req)}` },
 ])
+
+// ── Email sign-in codes (#2543 phase 2) ─────────────────────────────────
+
+/** POST /auth/customer/email-otp `{ email }` — code sends per address. */
+export const EMAIL_OTP_SEND_LIMIT_PER_EMAIL: RateLimitConfig = { windowMs: 15 * MINUTE, max: 3 }
+/** …and per client IP (one script cannot mail-bomb many inboxes). */
+export const EMAIL_OTP_SEND_LIMIT_PER_IP: RateLimitConfig = { windowMs: HOUR, max: 10 }
+
+export const emailOtpEmailLimiter = createFixedWindowLimiter(EMAIL_OTP_SEND_LIMIT_PER_EMAIL)
+export const emailOtpIpLimiter = createFixedWindowLimiter(EMAIL_OTP_SEND_LIMIT_PER_IP)
+
+/** The address a send is for, normalised the way the provider does. */
+const otpSendEmailOf = (req: any): string | null => {
+  const raw = req?.body?.email
+  return typeof raw === "string" && raw.trim() ? raw.trim().toLowerCase().slice(0, 254) : null
+}
+
+const isOtpSend = (req: any): boolean => {
+  const code = req?.body?.code
+  return !(typeof code === "string" && code.trim())
+}
+
+const emailOtpSendLimiter = createKeyedRateLimitMiddleware([
+  {
+    limiter: emailOtpEmailLimiter,
+    keyOf: (req) => {
+      const email = otpSendEmailOf(req)
+      return email ? `email:${email}` : null
+    },
+  },
+  { limiter: emailOtpIpLimiter, keyOf: (req) => `ip:${clientIpOf(req)}` },
+])
+
+/**
+ * Caps code SENDS only. A verify (`{ email, code }`) passes straight through:
+ * guesses are bounded per code by the provider's attempt counter, and a send
+ * cap of 3 per 15 min bounds how many fresh codes (and so guesses) one address
+ * can be given.
+ */
+export const emailOtpSendRateLimitMiddleware = (req: any, res: any, next: (err?: any) => void) =>
+  isOtpSend(req) ? emailOtpSendLimiter(req, res, next) : next()

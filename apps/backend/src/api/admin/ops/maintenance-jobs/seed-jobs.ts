@@ -21,6 +21,7 @@ import { quoteEmailTemplates } from "../../../../scripts/seed-quote-email-templa
 import { visualFlowLifecycleTemplates } from "../../../../scripts/seed-visual-flow-lifecycle-email-templates"
 import { designMaterialsDeliveredEmailTemplates } from "../../../../scripts/seed-design-materials-delivered-email"
 import { orderApprovalEmailTemplates } from "../../../../scripts/seed-order-approval-emails"
+import { customerLoginCodeEmailTemplates } from "../../../../scripts/seed-customer-login-code-email"
 
 /**
  * #457 Data Plumbing — SEED jobs.
@@ -131,6 +132,12 @@ export const EMAIL_TEMPLATE_SETS: Array<{
     key: "order-approval",
     label: "finished-goods approval templates",
     specs: orderApprovalEmailTemplates as EmailTemplateSpec[],
+  },
+  // #2543 — the design-studio email sign-in code.
+  {
+    key: "customer-login-code",
+    label: "design-studio sign-in code template",
+    specs: customerLoginCodeEmailTemplates as EmailTemplateSpec[],
   },
 ]
 

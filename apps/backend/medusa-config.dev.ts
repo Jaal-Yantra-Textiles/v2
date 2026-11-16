@@ -1,5 +1,6 @@
 import { loadEnv, defineConfig, Modules } from "@medusajs/framework/utils";
 import path from "path";
+import { authModuleConfig } from "./src/lib/auth/auth-module-config";
 
 loadEnv("production", process.cwd());
 
@@ -64,6 +65,9 @@ module.exports = defineConfig({
   ],
 
   modules: [
+    // Auth: emailpass + phone-pin (#2320) + email-otp (#2543). Declaring the
+    // Auth module replaces the default providers — see the helper.
+    authModuleConfig(),
     // Custom app modules
     {
       resolve: "./src/modules/census",

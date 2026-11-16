@@ -15,8 +15,9 @@ import {
  * were in the message that prompted the question.
  *
  * These assert the SETTLED block: what the record already establishes is
- * stated back as given, and the standing "ask for their email early"
- * instruction is switched off once there is nothing to ask for.
+ * stated back as given, and the standing "verify your email" instruction is
+ * switched off once the maker is signed in (#2543 phase 2: the email is the
+ * session's, never one typed into the chat).
  *
  * ⚠️ Each assertion below was checked against the pre-fix prompt and FAILED
  * there — the settled block did not exist and the email instruction was
@@ -30,34 +31,51 @@ const msg = (text: string) => ({
 describe("design chat — settled facts", () => {
   const ONBOARDING = "Design a kurta. Save my designs to maker@example.com."
 
-  it("states an email given in the transcript back as settled", () => {
-    const plan = planDesignTurn([msg(ONBOARDING)])
+  const SIGNED_IN: DesignChatContext = { signed_in: true, email: "maker@example.com" }
 
-    expect(plan.has_email).toBe(true)
+  it("states the SIGNED-IN email back as settled", () => {
+    const plan = planDesignTurn([msg(ONBOARDING)], SIGNED_IN)
+
+    expect(plan.signed_in).toBe(true)
     expect(plan.settled).toContain("maker@example.com")
-    expect(plan.settled).toMatch(/Do NOT ask for it/)
+    expect(plan.settled).toMatch(/Do NOT ask for an email/)
   })
 
   it("🔴 stops telling the model to ask for an email it already has", () => {
-    const withEmail = buildDesignChatSystem(undefined, undefined, [
-      msg(ONBOARDING),
-    ])
+    const signedIn = buildDesignChatSystem(undefined, SIGNED_IN, [msg(ONBOARDING)])
 
     // The instruction that produced "just to confirm: is that the one?"
-    expect(withEmail).not.toMatch(/ask for it EARLY/)
-    expect(withEmail).toMatch(/already in hand/)
+    expect(signedIn).not.toMatch(/they are NOT signed in/)
+    expect(signedIn).toMatch(/signed in with a verified email/)
 
-    // …and it is still asked for when it genuinely has not been given.
-    const withoutEmail = buildDesignChatSystem(undefined, undefined, [
-      msg("Design a kurta."),
-    ])
-    expect(withoutEmail).toMatch(/ask for it EARLY/)
-    expect(withoutEmail).not.toMatch(/already in hand/)
+    // …and a guest is sent to the verify panel instead.
+    const guest = buildDesignChatSystem(undefined, undefined, [msg("Design a kurta.")])
+    expect(guest).toMatch(/they are NOT signed in/)
+    expect(guest).not.toMatch(/signed in with a verified email/)
+  })
+
+  /**
+   * #2543 phase 2: an email TYPED into the chat proves nothing. Treating it
+   * as settled told the model the design would save under it — the exact
+   * unverified-email path this phase closes.
+   */
+  it("🔴 a typed email is NOT settled and does not unlock create_design", () => {
+    const plan = planDesignTurn([msg(ONBOARDING)])
+
+    expect(plan.signed_in).toBe(false)
+    expect(plan.settled).not.toContain("maker@example.com")
+    expect(plan.directive).toMatch(/NOT SIGNED IN/)
+    expect(plan.directive).toMatch(/Verify your email/)
+    expect(plan.directive).not.toMatch(/call create_design \(once\)/)
+
+    const prompt = buildDesignChatSystem(undefined, undefined, [msg(ONBOARDING)])
+    expect(prompt).toMatch(/Do NOT ask them to type their email in the chat/)
   })
 
   it("🔴 forbids a second create_design once the design exists", () => {
     const context: DesignChatContext = {
       design_id: "design_01ABC",
+      signed_in: true,
       email: "maker@example.com",
       design: {
         name: "Post-Industrial Trousers",

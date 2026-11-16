@@ -22,7 +22,13 @@ import { formatPrefs } from "./storefront-chat"
 export type DesignChatContext = {
   product_id?: string
   design_id?: string
+  /**
+   * The SIGNED-IN customer's email (server-resolved from the session, #2543
+   * phase 2). Never a client-sent or typed address — those prove nothing.
+   */
   email?: string
+  /** True when the request carries a customer session (verified email). */
+  signed_in?: boolean
   // Server-resolved product summary (route injects — never client prose).
   product?: {
     title?: string
@@ -138,11 +144,10 @@ const GARMENT_KEYWORDS = [
   "top", "blouse", "kaftan", "caftan", "skirt", "skirt-set", "coordinates", "set", "hoodie", "sweater", "cardigan",
   "tunic", "kimono", "robe", "vest", "shorts", "jumpsuit", "playsuit",
 ]
-const EMAIL_RE = /[\w.+-]+@[\w-]+\.[\w.]{2,}/
-
 export type PlannedTurn = {
   garment_type: string | null
-  has_email: boolean
+  /** Signed in with a verified email (#2543 phase 2) — designs can save. */
+  signed_in: boolean
   directive: string
   /** Everything already established, stated back to the model as given. */
   settled: string
@@ -179,7 +184,10 @@ const buildSettledFacts = (
   const d = context?.design
   const facts: string[] = []
 
-  if (email) facts.push(`- Email: **${email}** — already given. Use it. Do NOT ask for it or ask them to confirm it.`)
+  if (email)
+    facts.push(
+      `- Signed in as **${email}** (verified). Designs save to this account. Do NOT ask for an email or ask them to confirm it.`
+    )
   const garmentType = d?.product_type || garment
   if (garmentType) facts.push(`- Garment: **${garmentType}** — already decided. Do NOT re-ask what they are designing.`)
   if (d?.concept_theme) facts.push(`- Concept: **${d.concept_theme}** — already agreed.`)
@@ -233,14 +241,13 @@ export const planDesignTurn = (
     new RegExp(`\\b${escapeRegExp(k)}\\b`).test(userText)
   )
   /**
-   * The email as a VALUE, not just a boolean. The settled-facts block states
-   * it back verbatim, which is what stops "you mentioned X, but just to
-   * confirm: is that the one?" — a question whose answer was already in the
-   * message that prompted it.
+   * #2543 phase 2: only a SIGNED-IN maker saves designs, and their email comes
+   * from the session. An address typed into the chat is no longer "the email"
+   * — it proved nothing, and treating it as settled told the model the design
+   * would save under it.
    */
-  const resolvedEmail =
-    context?.email?.trim().toLowerCase() || userText.match(EMAIL_RE)?.[0] || null
-  const hasEmail = Boolean(resolvedEmail)
+  const signedIn = Boolean(context?.signed_in)
+  const resolvedEmail = signedIn ? context?.email?.trim().toLowerCase() || null : null
 
   const lines: string[] = ["", "# TURN PLAN (route-computed — follow EXACTLY)"]
   if (!garment) {
@@ -252,20 +259,20 @@ export const planDesignTurn = (
       `- Garment on the board: ${garment}. You may lock the brief with product_type='${garment}'. Still confirm style/keywords conversationally — but never re-ask the garment.`
     )
   }
-  if (!hasEmail) {
+  if (!signedIn) {
     lines.push(
-      "- Email not shared yet: do NOT call create_design, capture_contact or generate_design_image (the design can't save). You may brief, browse fabrics and partners. Ask for the email once, naturally, right after the brief."
+      "- 🔴 NOT SIGNED IN: do NOT call create_design or generate_design_image (they return sign_in_required). You may brief, browse fabrics and partners. Once the brief is locked, ask the maker ONCE to verify their email with the \"Verify your email\" panel under the chat (they get a 6-digit code). NEVER ask them to type their email in the chat, and never treat an email written in the chat as where the design is saved."
     )
   } else if (context?.design_id) {
     // The design exists. Saying "call create_design" here is how one ask
     // produced two designs (#1689) — the tool now refuses to duplicate, but
     // the instruction should not be asking for it either.
     lines.push(
-      "- Email captured AND the design is already saved. Do NOT call create_design again. capture_contact may run (once)."
+      "- Signed in AND the design is already saved. Do NOT call create_design again."
     )
   } else {
     lines.push(
-      "- Email captured: once the brief is locked, call create_design (once) to save + associate the design, and capture_contact may run (once)."
+      "- Signed in: once the brief is locked, call create_design (once) to save the design to their account."
     )
   }
   lines.push(
@@ -274,7 +281,7 @@ export const planDesignTurn = (
 
   return {
     garment_type: garment ?? null,
-    has_email: hasEmail,
+    signed_in: signedIn,
     directive: lines.join("\n"),
     settled: buildSettledFacts(garment ?? null, resolvedEmail, context),
   }
@@ -294,7 +301,7 @@ export const buildDesignChatSystem = (
 # The flow (walk it in their order, never interrogate)
 0. Intro — on first touch, greet them and, in one breath, show how it works: brief → fabrics → partner → a couple of generated takes they pick from. Then ask what garment they're designing.
 1. Brief — what do they want? Lock the garment category (product_type — REQUIRED, estimates and production derive from it: ask once if unknown, never leave blank), concept theme, 3-5 aesthetic keywords, palette. 🔴 NEVER call save_brief until the maker has told you the garment type — a premature call returns needs='product_type' and wastes a turn. ASK, then call.
-2. Save it — once the brief is locked AND you have their email, call create_design. This registers the maker (a guest customer by email) and links them to the design BEFORE any generation. From here the design exists and everything else attaches to it.
+2. Save it — once the brief is locked AND the maker is signed in (verified email), call create_design. This saves the design to their account BEFORE any generation. From here the design exists and everything else attaches to it.
 3. Moodboard — invite uploaded references ("upload a few inspirations and I'll pin them to your board"). Each uploaded reference is analysed on the fly and pinned with its description — board references shape generation.
 4. Fabrics — call list_raw_materials and suggest a SHORT list of what we can make it from (composition, color, swatch). Render fabric chips. Keep it to a handful (default 6) — only list more when the maker asks to see all fabrics.
 5. Partner — call list_partners to walk the production path: a Fabric Seller SOURCES the material, a Manufacturer CUTS & SEWS it. Each result carries its path role. Guide them source → make. Keep the list SHORT (default 6) — only list more when the maker asks to see all partners.
@@ -307,7 +314,7 @@ export const buildDesignChatSystem = (
 - Render tool results as the UI cards (fabric chips, partner cards, canvas A/B) — never list them in prose by hand.
 - The board is the maker's: canvas takes, inspirations and the active pick all live on one Excalidraw board they can see. Describe state in board terms ("your board now has two takes — A indigo, B natural").
 - Uploaded references are pre-analysed (vision) and carry their description on the board — call get_design_state and read the inspirations' descriptions/suggestions instead of re-analysing the same image.
-- Email: ${plan.has_email ? "already in hand (see SETTLED below) — use it silently. Do NOT ask for it and do NOT ask them to confirm it." : "ask for it EARLY — right after the brief, because the design saves under it. Ask once, naturally (\"what email should I save this design under?\")."} Call create_design once the brief is locked; call capture_contact once.
+- Email: ${plan.signed_in ? "they are signed in with a verified email (see SETTLED below) — designs save to it. Do NOT ask for an email and do NOT ask them to confirm it." : "they are NOT signed in. Designs save only to a verified email: right after the brief, ask them once to verify their email with the \"Verify your email\" panel under the chat (a 6-digit code arrives by email). Do NOT ask them to type their email in the chat. If a tool returns sign_in_required, say exactly that and stop."} Call create_design once the brief is locked and they are signed in.
 - 🔴 NEVER auto-generate: image generation costs real quota and ~20s. Always ask for an explicit yes first ("ready for me to generate two takes on this?") and only call generate_design_image after they confirm. If they describe changes instead of confirming, treat it as a revision request and confirm again.
 - Estimates/checkout come later: once a take is active and fabric + partner are chosen, point them to Checkout (the estimate renders there from the design + selected fabric + partner). Don't fabricate prices.
 - Match their energy. Short paragraphs. You suggest; they decide.
@@ -315,13 +322,13 @@ export const buildDesignChatSystem = (
 # Design tools (server-bound, write the maker's real design)
 - analyze_product_image — vision read of a garment image + design directions.
 - save_brief — validate the brief (product_type REQUIRED).
-- create_design — create the design record NOW (registers a guest customer by email + links them). Call after brief + email, BEFORE generation.
+- create_design — create the design record NOW, saved to the signed-in maker. Call after the brief, BEFORE generation. Returns sign_in_required when they have not verified their email.
 - list_raw_materials — our fabrics (composition, color, swatch).
 - list_partners — verified partners across the path (Fabric Seller → source, Manufacturer → make, Designer, Independent). Returns a SHORT list (6) by default; use a higher limit only when the maker asks to see everyone.
-- generate_design_image — TWO A/B takes per call; requires an existing design + explicit maker consent; revision/layer build on the active take.
+- generate_design_image — TWO A/B takes per call; requires a signed-in maker, an existing design + explicit maker consent; revision/layer build on the active take.
 - set_active_canvas — record their pick; it becomes the design's thumbnail.
 - get_design_state — board + brief state (call when resuming/editing).
-- capture_contact — save their email as a lead.
+- capture_contact — save an email the shopper volunteers for follow-up as a marketing lead (NOT an account, and NOT how designs are saved).
 - search_products — if they wander into shopping, search the catalogue (they may want a base product).
 ${hasProduct ? PRODUCT_CONTEXT(context!) : ""}${hasDesign ? DESIGN_CONTEXT(context!) : ""}
 

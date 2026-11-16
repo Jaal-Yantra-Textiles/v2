@@ -246,10 +246,11 @@ setupSharedTestSuite(() => {
 
     it("PATCH links a design only with that design's token", async () => {
       const email = uniqueEmail("linker")
-      const design = await runCreateDesign(
+      // #2543 phase 2: designs are made for a signed-in customer.
+      const { customer_id } = await runEnsureGuestCustomer(getContainer(), email)
+      const design: any = await runCreateDesign(
         getContainer(),
         {
-          email,
           name: "Indigo Kurta",
           brief: {
             product_type: "kurta",
@@ -258,7 +259,7 @@ setupSharedTestSuite(() => {
             color_palette: [{ name: "indigo", code: "#1e3a5f" }],
           },
         },
-        { email } as any
+        { customer_id }
       )
       const post = await create({ customer_email: email, thread_key: THREAD_KEY, title: "Draft" })
       const id = post.data.conversation.id
@@ -332,10 +333,11 @@ setupSharedTestSuite(() => {
       expect(unknown.status).toBe(403)
 
       const email = uniqueEmail("picker")
-      const design = await runCreateDesign(
+      // #2543 phase 2: designs are made for a signed-in customer.
+      const { customer_id } = await runEnsureGuestCustomer(getContainer(), email)
+      const design: any = await runCreateDesign(
         getContainer(),
         {
-          email,
           name: "Pick Kurta",
           brief: {
             product_type: "kurta",
@@ -344,7 +346,7 @@ setupSharedTestSuite(() => {
             color_palette: [{ name: "ecru", code: "#e8e0cf" }],
           },
         },
-        { email } as any
+        { customer_id }
       )
       const real = await api
         .post(
@@ -369,10 +371,11 @@ setupSharedTestSuite(() => {
 
     it("🔴 board read needs the design's token (email query no longer works)", async () => {
       const email = uniqueEmail("board")
-      const design = await runCreateDesign(
+      // #2543 phase 2: designs are made for a signed-in customer.
+      const { customer_id } = await runEnsureGuestCustomer(getContainer(), email)
+      const design: any = await runCreateDesign(
         getContainer(),
         {
-          email,
           name: "Board Kurta",
           brief: {
             product_type: "kurta",
@@ -381,7 +384,7 @@ setupSharedTestSuite(() => {
             color_palette: [{ name: "ecru", code: "#e8e0cf" }],
           },
         },
-        { email } as any
+        { customer_id }
       )
       const byEmail = await api
         .get(

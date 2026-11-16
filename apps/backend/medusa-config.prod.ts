@@ -114,7 +114,7 @@ module.exports = defineConfig({
   ],
 
   modules: [
-    // Auth: emailpass + phone-pin (#2320). Re-declares emailpass — see the helper.
+    // Auth: emailpass + phone-pin (#2320) + email-otp (#2543). Re-declares emailpass — see the helper.
     authModuleConfig(),
     // Custom app modules
     {
