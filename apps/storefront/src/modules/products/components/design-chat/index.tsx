@@ -182,22 +182,33 @@ export default function DesignChat({
 
   // Chat transport — same proxy as the concierge chat; the body carries the
   // design context that switches the backend into designer-guide mode.
+  // useChat (@ai-sdk/react) builds its Chat once and IGNORES a new transport
+  // on later renders, so `body` must read live values from a ref. Closing over
+  // state here froze design_id/design_token at their first-render null: the
+  // design id never reached /store/ai/chat, and after #2543 a guest's token
+  // never did either, so the next turn's tools refused their own design.
+  const bodyRef = React.useRef({ prefs, productId: product?.id, designId, designToken, email: meta.email })
+  bodyRef.current = { prefs, productId: product?.id, designId, designToken, email: meta.email }
+
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/ai-chat",
-        body: () => ({
-          visitor_id: visitorIdRef.current ?? "anonymous",
-          prefs: toWireFormat(prefs),
-          context: {
-            ...(product?.id ? { product_id: product.id } : {}),
-            ...(designId ? { design_id: designId } : {}),
-            ...(designId && designToken ? { design_token: designToken } : {}),
-            ...(meta.email ? { email: meta.email } : {}),
-          },
-        }),
+        body: () => {
+          const live = bodyRef.current
+          return {
+            visitor_id: visitorIdRef.current ?? "anonymous",
+            prefs: toWireFormat(live.prefs),
+            context: {
+              ...(live.productId ? { product_id: live.productId } : {}),
+              ...(live.designId ? { design_id: live.designId } : {}),
+              ...(live.designId && live.designToken ? { design_token: live.designToken } : {}),
+              ...(live.email ? { email: live.email } : {}),
+            },
+          }
+        },
       }),
-    [prefs, product?.id, designId, designToken, meta.email]
+    []
   )
 
   const {
