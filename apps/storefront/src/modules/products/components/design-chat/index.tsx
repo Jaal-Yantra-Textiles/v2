@@ -69,6 +69,8 @@ import {
 } from "./lib/incomplete-turn"
 import { retrieveCustomerFresh } from "@lib/data/customer"
 import { listMyDesignConversations } from "@lib/data/design-conversations"
+import { collectBoardToolEvents } from "./lib/board-refresh"
+import { makeDesignChatBody, type DesignChatLive } from "./lib/chat-request"
 
 /**
  * Chat-based design editor — replaces the Konva editor on the design routes.
@@ -187,26 +189,20 @@ export default function DesignChat({
   // state here froze design_id/design_token at their first-render null: the
   // design id never reached /store/ai/chat, and after #2543 a guest's token
   // never did either, so the next turn's tools refused their own design.
-  const bodyRef = React.useRef({ prefs, productId: product?.id, designId, designToken, email: meta.email })
-  bodyRef.current = { prefs, productId: product?.id, designId, designToken, email: meta.email }
+  const bodyRef = React.useRef<DesignChatLive>({ prefs: null })
+  bodyRef.current = {
+    prefs: toWireFormat(prefs),
+    productId: product?.id,
+    designId,
+    designToken,
+    email: meta.email,
+  }
 
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/ai-chat",
-        body: () => {
-          const live = bodyRef.current
-          return {
-            visitor_id: visitorIdRef.current ?? "anonymous",
-            prefs: toWireFormat(live.prefs),
-            context: {
-              ...(live.productId ? { product_id: live.productId } : {}),
-              ...(live.designId ? { design_id: live.designId } : {}),
-              ...(live.designId && live.designToken ? { design_token: live.designToken } : {}),
-              ...(live.email ? { email: live.email } : {}),
-            },
-          }
-        },
+        body: makeDesignChatBody(() => bodyRef.current, () => visitorIdRef.current),
       }),
     []
   )
@@ -816,37 +812,10 @@ export default function DesignChat({
     // reflects what the model just did. create_design also hands us the
     // design id, which we adopt before refreshing.
     if (isGenerating) return
-    let createdId: string | null = null
-    let createdToken: string | null = null
-    let shouldRefresh = false
-    for (const m of messages) {
-      if (m.role !== "assistant") continue
-      for (const p of ((m as any).parts ?? []) as any[]) {
-        // Both tools can mint the design; both hand back its token (#2543).
-        if (
-          (p?.type === "tool-create_design" ||
-            p?.type === "tool-generate_design_image") &&
-          p?.state === "output-available" &&
-          p?.output?.design_id
-        ) {
-          createdId = p.output.design_id
-          createdToken =
-            typeof p.output.design_token === "string" ? p.output.design_token : null
-        }
-        if (
-          (p?.type === "tool-generate_design_image" ||
-            p?.type === "tool-save_moodboard" ||
-            p?.type === "tool-create_design") &&
-          p?.state === "output-available"
-        ) {
-          const key = String(p?.toolCallId ?? `${m.id}:${p.type}`)
-          if (!refreshedToolCallsRef.current.has(key)) {
-            refreshedToolCallsRef.current.add(key)
-            shouldRefresh = true
-          }
-        }
-      }
-    }
+    const { createdId, createdToken, shouldRefresh } = collectBoardToolEvents(
+      messages as any,
+      refreshedToolCallsRef.current
+    )
     if (createdId && createdId !== designId) setDesignId(createdId)
     if (createdToken && createdToken !== designToken) setDesignToken(createdToken)
     if (shouldRefresh) refreshScene(createdId ?? undefined, createdToken)

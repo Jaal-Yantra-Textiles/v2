@@ -24,6 +24,7 @@
  */
 
 import { cookies } from "next/headers"
+import { toClientHeaders } from "@lib/util/proxy-headers"
 
 const BACKEND_URL =
   process.env.MEDUSA_BACKEND_URL ??
@@ -103,17 +104,11 @@ export async function POST(req: Request) {
     )
   }
 
-  // Re-emit the upstream response. The upstream sets the proper SSE
-  // Content-Type and framing; we pass body + headers + status through, EXCEPT
-  // content-encoding/length: fetch has already decompressed the body, so
-  // forwarding `content-encoding: gzip` made the browser fail to decode every
-  // compressed (non-stream) reply, e.g. the 403/429 JSON errors (#2543).
-  const outHeaders = new Headers(upstream.headers)
-  outHeaders.delete("content-encoding")
-  outHeaders.delete("content-length")
+  // Re-emit the upstream response (SSE framing intact) minus the encoding
+  // headers fetch has already undone; see toClientHeaders (#2543).
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
-    headers: outHeaders,
+    headers: toClientHeaders(upstream.headers),
   })
 }
