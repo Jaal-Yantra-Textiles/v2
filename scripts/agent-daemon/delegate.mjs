@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * delegate.mjs — hand a well-scoped, low-risk subtask to a FREE opencode model
- * (default: cloudflare-workers-ai/@cf/zai-org/glm-5.3) instead of spending Claude tokens.
+ * (default: opencode/glm-5.3-flash-free) instead of spending Claude tokens.
  *
  * The opencode sub-agent is a DRAFTER, not a shipper:
  *   - runs SEQUENTIALLY in this same workspace (the caller blocks on it — no
@@ -38,7 +38,7 @@ const LOG_DIR = join(HERE, "delegate-logs")
 const CONFIG_DRAFTER = join(HERE, "opencode-drafter.json")
 const CONFIG_IMPLEMENTER = join(HERE, "opencode-implementer.json")
 const MODEL_DEFAULT =
-  process.env.DAEMON_DELEGATE_MODEL || "cloudflare-workers-ai/@cf/zai-org/glm-5.3"
+  process.env.DAEMON_DELEGATE_MODEL || "opencode/glm-5.3-flash-free"
 
 // ── args ──────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2)

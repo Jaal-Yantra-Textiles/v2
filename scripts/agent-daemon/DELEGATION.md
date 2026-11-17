@@ -1,7 +1,7 @@
 # Free-model delegation (opencode drafter)
 
 The PR daemon can hand **well-scoped, low-risk subtasks** to a **free** opencode
-model (`cloudflare-workers-ai/@cf/zai-org/glm-5.3` by default) instead of spending Claude
+model (`opencode/glm-5.3-flash-free` by default) instead of spending Claude
 subscription tokens. The free model is a **drafter**; the Claude daemon (or you,
 interactively) is the **verifier** and owns correctness.
 
@@ -32,9 +32,11 @@ node scripts/agent-daemon/delegate.mjs \
   this file's default for months and **no longer exists** — `opencode models` no
   longer lists it, so every delegate call would have failed at the first hop.
   **Always run `opencode models` before trusting a model name written down here.**
-  Current default is `cloudflare-workers-ai/@cf/zai-org/glm-5.3` (paid, capable).
-  Other capable picks: `cloudflare-workers-ai/@cf/deepseek-ai/deepseek-v4-pro-0813`,
-  `cloudflare-workers-ai/@cf/moonshotai/kimi-k2.7-code`, `kimi-for-coding/k3-256k`.
+  Current default is `opencode/glm-5.3-flash-free` (OpenCode's free tier, no key
+  needed). Moved off Cloudflare Workers AI on 2026-11-17: its usage was not
+  covered by our credits. Other free picks: `opencode/deepseek-v4.1-flash-free`,
+  `opencode/nemotron-3.5-lightning-free` (`opencode models | grep free`).
+  Free tiers may log prompts — don't feed them customer data.
   Still-free tier: `opencode/nemotron-3-ultra-free`, `opencode/mimo-v2.5-free`,
   `opencode/muse-spark-1.3-contributor-free`.
 - `--timeout <minutes>` (default **40**, or `$DELEGATE_TIMEOUT_MIN`): a hard

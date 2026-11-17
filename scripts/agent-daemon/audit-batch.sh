@@ -35,7 +35,7 @@
 set -uo pipefail   # NOT -e: one bad issue must not kill the batch
 
 cd "$(dirname "$0")/../.."
-MODEL="${AUDIT_MODEL:-cloudflare-workers-ai/@cf/zai-org/glm-5.3}"
+MODEL="${AUDIT_MODEL:-opencode/glm-5.3-flash-free}"
 REPORT=".audit/BATCH-REPORT.md"
 
 BATCH_NAME="${AUDIT_BATCH_NAME:-batch-$$}"
