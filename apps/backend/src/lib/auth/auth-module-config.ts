@@ -10,6 +10,8 @@ import { Modules } from "@medusajs/framework/utils"
  * not restated here.
  *
  * `phone-pin` (#2320): partner admins log in with their phone number + a PIN.
+ * `email-otp` (#2543): design-studio buyers (customer actor) sign in with a
+ * 6-digit code emailed to them — no password.
  */
 export function authModuleConfig() {
   return {
@@ -24,6 +26,10 @@ export function authModuleConfig() {
         {
           resolve: "./src/modules/phone-pin-auth",
           id: "phone-pin",
+        },
+        {
+          resolve: "./src/modules/email-otp-auth",
+          id: "email-otp",
         },
       ],
     },

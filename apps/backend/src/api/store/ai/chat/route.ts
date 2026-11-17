@@ -68,6 +68,7 @@ import {
   resolveDesignAccess,
 } from "../../../../lib/design-access/authorize"
 import { clientIpOf } from "../../../../lib/design-access/rate-limits"
+import { sessionCustomerEmail } from "../../../../lib/design-access/conversations"
 
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
@@ -320,10 +321,15 @@ const buildDesignChatSystemResolved = async (
   context: DesignContext,
   messages?: StoreAiChatReq["messages"]
 ): Promise<string> => {
+  // #2543 phase 2: the prompt's email is the SIGNED-IN customer's, read from
+  // the session server-side. A client-sent `context.email` is a typed address
+  // nobody verified, so it never reaches the prompt as "where designs save".
+  const sessionEmail = await sessionCustomerEmail(container, context.customer_id)
   const promptContext: DesignChatContext = {
     product_id: context.product_id,
     design_id: context.design_id,
-    email: context.email,
+    signed_in: Boolean(context.customer_id),
+    email: sessionEmail ?? undefined,
   }
 
   if (context.product_id) {

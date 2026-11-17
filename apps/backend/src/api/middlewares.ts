@@ -227,6 +227,7 @@ import { PickDesignCanvasSchema } from "./store/custom/design-assistant/pick/val
 import {
   analyzeRateLimitMiddleware,
   chatRateLimitMiddleware,
+  emailOtpSendRateLimitMiddleware,
   referencesRateLimitMiddleware,
 } from "../lib/design-access/rate-limits";
 import { BulkHsCodesSchema } from "./admin/customs/hs-codes/validators";
@@ -3016,6 +3017,36 @@ export default defineMiddlewares({
       method: "PATCH",
       middlewares: [
         validateAndTransformBody(wrapSchema(AdminAssistantUpdateConversationSchema)),
+      ],
+    },
+    // Design-studio email sign-in (#2543 phase 2). The `email-otp` auth
+    // provider issues/verifies codes; code SENDS are capped per email and per
+    // IP here (429 + Retry-After) — numbers in lib/design-access/rate-limits.ts.
+    // `/register` runs the same provider path, so it is capped too.
+    {
+      matcher: "/auth/customer/email-otp",
+      method: "POST",
+      middlewares: [emailOtpSendRateLimitMiddleware],
+    },
+    {
+      matcher: "/auth/customer/email-otp/register",
+      method: "POST",
+      middlewares: [emailOtpSendRateLimitMiddleware],
+    },
+    {
+      // The signed-in buyer's open studio design (or a new one) + its token,
+      // for photos attached before the chat made a design (#2543 phase 2).
+      matcher: "/store/custom/design-assistant/designs",
+      method: "POST",
+      middlewares: [createCorsMiddleware(), authenticate("customer", ["session", "bearer"])],
+    },
+    {
+      // Attach/create the customer for the verified email + adopt guest
+      // studio designs. Takes the actorless token a first sign-in returns.
+      matcher: "/store/custom/auth/email-otp/complete",
+      method: "POST",
+      middlewares: [
+        authenticate("customer", ["session", "bearer"], { allowUnregistered: true }),
       ],
     },
     // Storefront design-assistant (chat design editor). Public — guest makers

@@ -29,7 +29,7 @@
  * The maker's opening move is often just photographs — no brief, no garment
  * named. So:
  *
- *   1. resolve the guest customer from the email,
+ *   1. resolve the maker — the SIGNED-IN customer (#2543 phase 2),
  *   2. **resolve or CREATE the design** — the photos need somewhere to live,
  *      and the design is that place,
  *   3. upload the bytes server-side (`uploadFilesWorkflow`), which is what
@@ -43,8 +43,11 @@
  *
  * Public. 🔴 #2543: pinning onto an EXISTING design needs that design's access
  * token (`x-design-token` header or a `design_token` form field) or a signed-in
- * customer linked to it. The email only names the guest customer a NEW design
- * is filed under; it never unlocks one. A new design's token is returned.
+ * customer linked to it. A NEW design is only made for a signed-in customer
+ * (#2543 phase 2 — an email typed into a public form proved nothing, and
+ * filed designs under any address); without a session and without a design
+ * the route answers 401 `sign_in_required` and creates nothing. A new
+ * design's token is returned.
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
@@ -62,10 +65,9 @@ import {
 } from "../../../../../modules/designs/lib/canvas-scene"
 import { analyzeReferenceImages } from "../../../../../mastra/agents/tools/storefront-design-analysis"
 import {
-  findOpenChatDesign,
-  runEnsureGuestCustomer,
+  resolveOrCreateStudioDesignForCustomer,
+  SIGN_IN_REQUIRED_MESSAGE,
 } from "../../../../../mastra/agents/tools/storefront-design-flow"
-import { createDesignWorkflow } from "../../../../../workflows/designs/create-design"
 
 /** Images only. A maker's "reference" is a picture, and nothing here reads a PDF. */
 const ALLOWED = /^image\/(png|jpe?g|webp|gif|avif|heic|heif)$/i
@@ -92,14 +94,6 @@ export const POST = async (
   res: MedusaResponse
 ) => {
   const body = (req.body ?? {}) as Record<string, any>
-  const email = String(body.customer_email ?? "").trim().toLowerCase()
-
-  if (!email) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      "customer_email is required — references are saved against the maker's designs."
-    )
-  }
 
   const files = (Array.isArray(req.files) ? req.files : []).filter((f) =>
     ALLOWED.test(f?.mimetype ?? "")
@@ -137,53 +131,40 @@ export const POST = async (
         : mintDesignAccessToken(designId, grant.customer_id)
   }
 
-  const { customer_id } = await runEnsureGuestCustomer(req.scope as any, email)
+  // 🔴 #2543 phase 2: a NEW design belongs to the signed-in customer, never to
+  // a guest customer conjured from a typed `customer_email`.
+  const customer_id = credentials.customerId
+  if (!designId && !customer_id) {
+    res.status(401).json({
+      code: "sign_in_required",
+      sign_in_required: true,
+      message: SIGN_IN_REQUIRED_MESSAGE,
+    })
+    return
+  }
 
-  if (!designId && credentials.customerId && credentials.customerId === customer_id) {
+  if (!designId && customer_id) {
     /**
      * No design id supplied — but that does not mean there is no design.
      *
      * 🔴 #1689: the chat mints a design the moment the brief is locked, and
      * the CLIENT only learns its id by reading the finished turn's tool
      * output. A maker who drags photos in before that has landed sends no
-     * `design_id`, and this branch would mint a SECOND design beside the one
-     * they are talking to. Ask for their open chat design first.
+     * `design_id`, and minting here would put a SECOND design beside the one
+     * they are talking to. Their open chat design wins; only when there is
+     * none is a new one made (named from the upload, not left "Untitled").
      *
-     * 🔴 #2543: only for a SIGNED-IN customer who is that email. For a guest
-     * "the open design of whoever typed this email" handed any visitor a
-     * stranger's board (and a token for it).
+     * 🔴 #2543: only for a SIGNED-IN customer — a guest typing an email got a
+     * stranger's open board (and a token for it).
      */
-    designId = await findOpenChatDesign(req.scope as any, customer_id)
-    if (designId) designToken = mintDesignAccessToken(designId, customer_id)
-  }
-
-  if (!designId) {
-    /**
-     * Genuinely nothing open — this IS the opening move. Named from the upload
-     * rather than left blank, because "Untitled" is what the maker will see on
-     * their board before the assistant has asked them anything.
-     *
-     * 🔑 Deliberately NOT inferring a `product_type` here. That field is
-     * load-bearing — the production spec and the cost estimate derive from it
-     * — and guessing "jacket" from a filename would put a wrong,
-     * confident-looking value where `save_brief` belongs. The analysis below
-     * gives the assistant what it needs to ASK.
-     */
-    const { result, errors } = await createDesignWorkflow(req.scope as any).run({
-      input: {
-        name: String(body.name ?? "").trim() || "New design from your photos",
-        description: "",
-        design_type: "Custom",
-        status: "Conceptual",
-        origin_source: "ai-other",
-        customer_id_for_link: customer_id,
-        tags: ["custom", "customer-design", "chat-editor"],
-      } as any,
-    })
-    if (errors?.length) throw errors[0]
-    designId = (result as any).id
-    createdDesign = true
-    designToken = mintDesignAccessToken(designId as string, customer_id)
+    const resolved = await resolveOrCreateStudioDesignForCustomer(
+      req.scope as any,
+      customer_id,
+      String(body.name ?? "")
+    )
+    designId = resolved.design_id
+    designToken = resolved.design_token
+    createdDesign = resolved.created
   }
 
   // ── 2. Upload the bytes SERVER-SIDE ─────────────────────────────────────

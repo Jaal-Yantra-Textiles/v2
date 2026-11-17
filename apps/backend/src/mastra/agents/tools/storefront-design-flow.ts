@@ -7,8 +7,8 @@
  *   - save_brief          — validate + normalise the brief (product_type is
  *                           load-bearing: estimate + production spec derive from it)
  *   - generate_design_image — THE heart: resolves or creates the design (first
- *                           generation creates it — guest customer by email +
- *                           product-design link + moodboard seed), generates TWO
+ *                           generation creates it — for the SIGNED-IN customer
+ *                           (#2543 phase 2) + product-design link + moodboard seed), generates TWO
  *                           candidate canvases (A/B) and appends them to the
  *                           Excalidraw scene on design.moodboard
  *   - set_active_canvas   — the pick: scene marker + design.thumbnail_url
@@ -135,6 +135,39 @@ export const findOpenChatDesign = async (
 }
 
 /**
+ * The signed-in customer's open studio design, or a fresh empty one (#2543
+ * phase 2). Used where photos arrive before the chat has made a design — the
+ * reference upload route and `POST /store/custom/design-assistant/designs`.
+ *
+ * 🔑 Deliberately NOT inferring a `product_type`: that field is load-bearing
+ * (production spec and estimate derive from it) and belongs to `save_brief`.
+ */
+export const resolveOrCreateStudioDesignForCustomer = async (
+  container: MedusaContainer,
+  customerId: string,
+  name?: string
+): Promise<{ design_id: string; design_token: string; created: boolean }> => {
+  const open = await findOpenChatDesign(container, customerId)
+  if (open) {
+    return { design_id: open, design_token: mintDesignAccessToken(open, customerId), created: false }
+  }
+  const { result, errors } = await createDesignWorkflow(container as any).run({
+    input: {
+      name: name?.trim() || "New design from your photos",
+      description: "",
+      design_type: "Custom",
+      status: "Conceptual",
+      origin_source: "ai-other",
+      customer_id_for_link: customerId,
+      tags: ["custom", "customer-design", "chat-editor"],
+    } as any,
+  })
+  if (errors?.length) throw errors[0]
+  const designId = (result as any).id as string
+  return { design_id: designId, design_token: mintDesignAccessToken(designId, customerId), created: true }
+}
+
+/**
  * Resolve the design this turn should write to, creating one only if the maker
  * genuinely has none open.
  *
@@ -226,6 +259,10 @@ export const resolveOrCreateChatDesign = async (
 
 /**
  * Find-or-create the guest customer keyed on the maker's email.
+ *
+ * ⚠️ #2543 phase 2: the chat tools and the reference-upload route no longer
+ * call this — an email typed into a public chat proves nothing. Kept for
+ * tests and for callers that already hold a verified address.
  * Pattern mirrors partner-quote mint-quote (#1507): exact email lookup,
  * adopt-or-create, never overwrite an adopted profile.
  */
@@ -542,21 +579,44 @@ export const createSaveBriefTool = () =>
     execute: async (args) => runSaveBrief(args as any),
   })
 
+// ── Sign-in gate (#2543 phase 2) ───────────────────────────────────────
+//
+// Creating a design and generating images are tied to a VERIFIED buyer: the
+// signed-in customer the chat route reads from the session
+// (`context.customer_id`). They used to find-or-create a guest customer from
+// whatever email the model passed — an address nobody had proven, which let
+// any visitor file designs (and paid generations) under someone else's email.
+// Without a session these tools now return this result instead of acting; the
+// storefront shows its "Verify your email" panel when it sees it.
+
+export const SIGN_IN_REQUIRED_MESSAGE =
+  "The maker needs to verify their email before I can save or generate a design. Ask them to use the \"Verify your email\" panel (they'll get a 6-digit code), then continue. Do NOT ask them to type their email in the chat."
+
+export type SignInRequiredResult = {
+  sign_in_required: true
+  action: "create_design" | "generate_design_image"
+  message: string
+}
+
+const signInRequired = (
+  action: SignInRequiredResult["action"]
+): SignInRequiredResult => ({
+  sign_in_required: true,
+  action,
+  message: SIGN_IN_REQUIRED_MESSAGE,
+})
+
+export const isSignInRequired = (value: unknown): value is SignInRequiredResult =>
+  !!value && typeof value === "object" && (value as any).sign_in_required === true
+
 // ── create_design ──────────────────────────────────────────────────────
 //
 // Creates the design record EARLY — the moment the maker has expressed their
-// design (brief) and given an email — rather than lazily at first generation.
-// The email find-or-creates a guest customer and the workflow links it, so the
-// maker is "registered" + associated with the design before any expensive
-// image generation runs. Idempotent: if a design_id is already in context it
+// design (brief) — rather than lazily at first generation, linked to the
+// signed-in customer. Idempotent: if a design_id is already in context it
 // returns it without creating a duplicate.
 
 const CreateDesignSchema = z.object({
-  email: z
-    .string()
-    .max(200)
-    .optional()
-    .describe("The maker's email — REQUIRED to save + associate the design."),
   name: z
     .string()
     .min(1)
@@ -577,21 +637,16 @@ export const runCreateDesign = async (
   container: MedusaContainer,
   args: z.infer<typeof CreateDesignSchema>,
   context?: DesignContext
-): Promise<CreateDesignResult> => {
-  const email = (args.email ?? context?.email)?.trim().toLowerCase()
-  if (!email) {
-    throw new Error(
-      "I need your email to save the design before we go further. What email should I use?"
-    )
-  }
+): Promise<CreateDesignResult | SignInRequiredResult> => {
+  // 🔴 #2543 phase 2: the customer is the SESSION's, never an email argument.
+  const customer_id = context?.customer_id
+  if (!customer_id) return signInRequired("create_design")
 
   const briefResult = await runSaveBrief(args.brief)
   if (!briefResult.ok) {
     throw new Error(briefResult.message)
   }
   const brief = briefResult.brief
-
-  const { customer_id } = await runEnsureGuestCustomer(container, email)
 
   /**
    * The resolver checks the context, then the maker's open chat design, then
@@ -613,7 +668,7 @@ export const createCreateDesignTool = (
 ) =>
   tool({
     description:
-      "Create the maker's design record NOW (before any image generation). Call once the maker has expressed their design (brief) and given an email — it registers a guest customer by email and links them to the design. Idempotent — returns the existing design_id if one is already in context. Do NOT call generate_design_image until the design exists and the maker has explicitly said to generate.",
+      "Create the maker's design record NOW (before any image generation), saved to the SIGNED-IN maker's account. Call once the maker has expressed their design (brief). If the maker has not verified their email yet it returns sign_in_required — then ask them to verify their email with the panel shown under the chat (never ask them to type an email in the chat) and stop. Idempotent — returns the existing design_id if one is already in context. Do NOT call generate_design_image until the design exists and the maker has explicitly said to generate.",
     inputSchema: CreateDesignSchema,
     execute: async (args) => runCreateDesign(container, args, context),
     toModelOutput: withoutDesignToken,
@@ -630,11 +685,6 @@ const GenerateSchema = z.object({
     .string()
     .optional()
     .describe("Base product the design is a variant of (its image seeds initial generation)."),
-  email: z
-    .string()
-    .max(200)
-    .optional()
-    .describe("The maker's email — REQUIRED when creating the design now."),
   name: z
     .string()
     .min(1)
@@ -711,7 +761,15 @@ export const runGenerateDesignImage = async (
    */
   args: z.input<typeof GenerateSchema>,
   context?: DesignContext
-): Promise<GenerateResult> => {
+): Promise<GenerateResult | SignInRequiredResult> => {
+  /**
+   * 🔴 #2543 phase 2: every call is two PAID generations. Only a signed-in
+   * customer generates — a design token alone (the guest capability) still
+   * reads and picks, but no longer spends.
+   */
+  const sessionCustomerId = context?.customer_id
+  if (!sessionCustomerId) return signInRequired("generate_design_image")
+
   const designService = resolveDesignService(container)
   const missingSetup: string[] = []
 
@@ -731,7 +789,6 @@ export const runGenerateDesignImage = async (
   const kind = args.kind ?? "initial"
 
   const productId = args.product_id ?? context?.product_id
-  const email = args.email ?? context?.email
 
   // ── Resolve or create the design ──
   let designId = args.design_id ?? context?.design_id
@@ -750,8 +807,12 @@ export const runGenerateDesignImage = async (
 
   if (designId) {
     // 🔴 #2543: a model-supplied (or client-supplied) design id is checked
-    // against the request's token / session before anything is read or spent.
-    const grant = await assertToolDesignAccess(container, designId, context)
+    // against the SESSION before anything is read or spent — the signed-in
+    // customer must be linked to the design. A token alone does not pay for
+    // generations (phase 2).
+    const grant = await assertToolDesignAccess(container, designId, {
+      customer_id: sessionCustomerId,
+    })
     grantCustomerId = grant.customer_id
     designToken = tokenForGrant(designId, grant, context)
     const loaded = await loadDesignScene(container, designId)
@@ -764,12 +825,7 @@ export const runGenerateDesignImage = async (
     // (#1689): the branch minted unconditionally, so any turn that reached it
     // with an empty context made another one. It now resolves the maker's
     // open chat design first and only creates when there genuinely is none.
-    if (!email) {
-      throw new Error(
-        "I need your email to save the design before I can generate. What email should I use?"
-      )
-    }
-    const { customer_id } = await runEnsureGuestCustomer(container, email)
+    const customer_id = sessionCustomerId
 
     const resolvedDesign = await resolveOrCreateChatDesign(container, {
       customerId: customer_id,
@@ -887,14 +943,7 @@ export const runGenerateDesignImage = async (
 
   // ── Generate TWO candidates (A/B) ──
   const generatedAt = new Date().toISOString()
-  const generationCustomerId =
-    grantCustomerId ??
-    (email ? (await runEnsureGuestCustomer(container, email)).customer_id : null)
-  if (!generationCustomerId) {
-    throw new Error(
-      "I need your email to save the design before I can generate. What email should I use?"
-    )
-  }
+  const generationCustomerId = grantCustomerId ?? sessionCustomerId
   const runGeneration = async () =>
     generateDesignAiImageWorkflow(container as any).run({
       input: {
@@ -1012,7 +1061,7 @@ export const runGenerateDesignImage = async (
 export const createGenerateDesignImageTool = (container: MedusaContainer, context?: DesignContext) =>
   tool({
     description:
-      "Generate TWO candidate design canvases (A/B takes) and add them to the design board. The design is created on first generation (requires the maker's email). For revision/layer, pick an active canvas first — iteration builds on the picked take. Long-running (~20s each): tell the maker what you're doing before calling.",
+      "Generate TWO candidate design canvases (A/B takes) and add them to the design board. The design is created on first generation, saved to the SIGNED-IN maker (returns sign_in_required if they have not verified their email — then ask them to verify with the panel under the chat, and stop). For revision/layer, pick an active canvas first — iteration builds on the picked take. Long-running (~20s each): tell the maker what you're doing before calling.",
     inputSchema: GenerateSchema,
     execute: async (args) => runGenerateDesignImage(container, args, context),
     toModelOutput: withoutDesignToken,

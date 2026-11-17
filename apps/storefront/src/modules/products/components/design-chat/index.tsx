@@ -71,6 +71,13 @@ import { retrieveCustomerFresh } from "@lib/data/customer"
 import { listMyDesignConversations } from "@lib/data/design-conversations"
 import { collectBoardToolEvents } from "./lib/board-refresh"
 import { makeDesignChatBody, type DesignChatLive } from "./lib/chat-request"
+import { findSignInRequired } from "./lib/email-otp"
+import {
+  SignedInBar,
+  VerifyEmailPanel,
+  type VerifiedSession,
+} from "./components/verify-email-panel"
+import { ensureStudioDesign } from "@lib/data/design-studio"
 
 /**
  * Chat-based design editor — replaces the Konva editor on the design routes.
@@ -158,7 +165,14 @@ export default function DesignChat({
   // asking). Skippable: "Let Cici ask me" hands it to the model.
   const [showOnboarding, setShowOnboarding] = React.useState(false)
   const [onboardingGarment, setOnboardingGarment] = React.useState("")
-  const [onboardingEmail, setOnboardingEmail] = React.useState("")
+  // #2543 phase 2: designs save (and images generate) only for a buyer who
+  // verified their email. `signedInEmail` is the session's address — never
+  // one typed into the chat.
+  const [signedInEmail, setSignedInEmail] = React.useState<string | null>(null)
+  const [showVerify, setShowVerify] = React.useState(false)
+  const [verifyReason, setVerifyReason] = React.useState<string | null>(null)
+  // A tool asked for sign-in: carry on with the turn once they verify.
+  const resumeAfterVerifyRef = React.useRef(false)
   const [attachments, setAttachments] = React.useState<DesignReference[]>([])
   const [uploading, setUploading] = React.useState(false)
 
@@ -313,6 +327,7 @@ export default function DesignChat({
     retrieveCustomerFresh().then((customer) => {
       const email = (customer as any)?.email as string | undefined
       if (email) {
+        setSignedInEmail(email.toLowerCase())
         setMeta((prev) => ({ ...prev, email }))
         // #2543: the list answers only to the session (read server-side);
         // each row brings the tokens this browser needs for it.
@@ -493,22 +508,52 @@ export default function DesignChat({
     return () => window.removeEventListener("scroll", onScroll)
   }, [])
 
+  // ── Email verification (#2543 phase 2) ──
+  // A create_design / generate_design_image that came back sign_in_required
+  // opens the panel; the reply already asked them to verify.
+  React.useEffect(() => {
+    if (isStreaming || signedInEmail) return
+    if (findSignInRequired(messages as any)) {
+      resumeAfterVerifyRef.current = true
+      setVerifyReason(
+        "Verify your email to save your design — we'll send a 6-digit code. Then I'll carry on."
+      )
+      setShowVerify(true)
+    }
+  }, [messages, isStreaming, signedInEmail])
+
+  const handleVerified = React.useCallback((session: VerifiedSession) => {
+    const email = session.email.toLowerCase()
+    setSignedInEmail(email)
+    setMeta((prev) => ({ ...prev, email }))
+    saveDesignerEmail(email)
+    setShowVerify(false)
+    setVerifyReason(null)
+    if (resumeAfterVerifyRef.current) {
+      resumeAfterVerifyRef.current = false
+      setStickToBottom(true)
+      sendMessage({ text: "I've verified my email — please carry on." })
+    }
+  }, [sendMessage])
+
+  const handleSignOut = React.useCallback(async () => {
+    await fetch("/api/design-auth/session", { method: "DELETE" }).catch(() => null)
+    setSignedInEmail(null)
+    setMeta((prev) => ({ ...prev, email: undefined }))
+    setVerifyReason(null)
+    setShowVerify(true)
+  }, [])
+
   // ── Onboarding submit ──
   const handleOnboardingStart = (e: React.FormEvent) => {
     e.preventDefault()
     const garment = onboardingGarment.trim()
-    const email = onboardingEmail.trim().toLowerCase()
     setShowOnboarding(false)
-    if (email) {
-      setMeta((prev) => ({ ...prev, email }))
-      saveDesignerEmail(email)
-    }
+    if (!signedInEmail) setShowVerify(true)
     if (!garment) return // skipped garment — greeting already asked
     // Compose the first user turn so the guide has the garment type
     // explicitly — save_brief succeeds on the first try.
-    const seed = email
-      ? `Design a ${garment}. Save my designs to ${email}.`
-      : `Design a ${garment}.`
+    const seed = `Design a ${garment}.`
     setInput("")
     setStickToBottom(true)
     sendMessage({ text: seed })
@@ -602,11 +647,13 @@ export default function DesignChat({
       setShowOnboarding(true)
       return
     }
-    // If the text carries an email, seed it into the context gate.
-    const emailMatch = text.match(/[\w.+-]+@[\w-]+\.[\w.]+/)
-    if (emailMatch && !meta.email) {
-      setMeta((prev) => ({ ...prev, email: emailMatch[0].toLowerCase() }))
-      saveDesignerEmail(emailMatch[0].toLowerCase())
+    // #2543 phase 2: photos land on a design, and a design is only made for
+    // a buyer who verified their email. A guest keeps the photos in the tray
+    // and gets the verify panel; nothing is sent yet.
+    if (attachments.length && !designId && !signedInEmail) {
+      setVerifyReason("Verify your email and I'll save these photos to your board.")
+      setShowVerify(true)
+      return
     }
     setInput("")
     setStickToBottom(true)
@@ -618,22 +665,30 @@ export default function DesignChat({
       setUploading(true)
       setAttachments((prev) => prev.map((a) => ({ ...a, status: "uploading" })))
       /**
-       * ONE request for the whole batch, carrying the maker's email and the
-       * design if there is one. The route resolves-or-CREATES the design, so
-       * a per-file fan-out would mint a design per photo — the same shape as
-       * the two-designs-from-one-ask defect this issue opens with.
-       *
-       * `emailMatch` is read rather than `meta.email` because the state set
-       * above has not flushed yet: on the turn where the maker first types
-       * their email, `meta.email` is still undefined.
+       * ONE request for the whole batch, onto ONE design. A per-file fan-out
+       * would land photos on several designs — the same shape as the
+       * two-designs-from-one-ask defect (#1689).
        */
-      const email =
-        meta.email ?? (emailMatch ? emailMatch[0].toLowerCase() : null)
+      let uploadDesignId = designId
+      let uploadDesignToken = designToken
+      if (!uploadDesignId) {
+        // Signed in, no design yet: resolve it server-side (the session is
+        // httpOnly), then upload onto it from here with its token.
+        const opened = await ensureStudioDesign()
+        if (opened) {
+          uploadDesignId = opened.design_id
+          uploadDesignToken = opened.design_token
+        }
+      }
       const upload = await uploadDesignReferences(attachments, {
-        email,
-        designId,
-        designToken,
+        email: meta.email ?? null,
+        designId: uploadDesignId,
+        designToken: uploadDesignToken,
       })
+      if (upload.signInRequired) {
+        setVerifyReason("Verify your email and I'll save these photos to your board.")
+        setShowVerify(true)
+      }
       resolved = upload.references
       // The photos may have brought the design into existence. Adopt it, or
       // the next turn asks the model to create one and we are back to two.
@@ -1118,9 +1173,9 @@ export default function DesignChat({
                   Let&apos;s start your board
                 </Text>
                 <Text size="xsmall" className="mb-3 text-ui-fg-subtle">
-                  {meta.email
-                    ? "What garment are we designing? Your designs save to the email on file."
-                    : "Two quick things — the garment and an email to save your designs under."}
+                  {signedInEmail
+                    ? "What garment are we designing? Your designs save to your account."
+                    : "What garment are we designing? You'll verify your email next so your designs are saved to you."}
                 </Text>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
@@ -1132,17 +1187,6 @@ export default function DesignChat({
                   className="min-w-0 flex-1 rounded-full border border-ui-border-base bg-ui-bg-field px-3.5 py-2 text-sm outline-none focus:border-ui-border-strong"
                   data-testid="design-chat-onboarding-garment"
                 />
-                {!meta.email && (
-                  <input
-                    type="email"
-                    value={onboardingEmail}
-                    onChange={(e) => setOnboardingEmail(e.target.value)}
-                    placeholder="Email (saves your designs)"
-                    maxLength={200}
-                    className="min-w-0 flex-1 rounded-full border border-ui-border-base bg-ui-bg-field px-3.5 py-2 text-sm outline-none focus:border-ui-border-strong"
-                    data-testid="design-chat-onboarding-email"
-                  />
-                )}
               </div>
               {/*
                 The garment as choices, not a blank field.
@@ -1197,6 +1241,26 @@ export default function DesignChat({
             </div>
           )}
 
+          {/* Verify your email (#2543 phase 2) / signed-in line */}
+          {!signedInEmail && showVerify && !isStreaming && (
+            <div className="mx-auto mb-2 w-full max-w-3xl px-4">
+              <VerifyEmailPanel
+                initialEmail={meta.email ?? loadDesignerEmail()}
+                reason={verifyReason}
+                onVerified={handleVerified}
+                onDismiss={() => {
+                  resumeAfterVerifyRef.current = false
+                  setShowVerify(false)
+                }}
+              />
+            </div>
+          )}
+          {signedInEmail && (
+            <div className="mx-auto mb-1 w-full max-w-3xl px-5">
+              <SignedInBar email={signedInEmail} onSignOut={handleSignOut} />
+            </div>
+          )}
+
           {/* Composer — sticky to the viewport bottom; the page scrolls behind it */}
           <form
             onSubmit={handleSubmit}
@@ -1236,11 +1300,6 @@ export default function DesignChat({
                 value={input}
                 onChange={(e) => {
                   setInput(e.target.value)
-const emailMatch = e.target.value.match(/[\w.+-]+@[\w-]+\.[\w.]+/)
-                    if (emailMatch && !meta.email) {
-                      setMeta((prev) => ({ ...prev, email: emailMatch[0].toLowerCase() }))
-                      saveDesignerEmail(emailMatch[0].toLowerCase())
-                    }
                 }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {

@@ -12,10 +12,7 @@ import jwt from "jsonwebtoken"
 
 import { DESIGN_MODULE } from "../../src/modules/designs"
 import { verifyDesignAccessToken } from "../../src/lib/design-access/token"
-import {
-  runCreateDesign,
-  runEnsureGuestCustomer,
-} from "../../src/mastra/agents/tools/storefront-design-flow"
+import { runCreateDesign } from "../../src/mastra/agents/tools/storefront-design-flow"
 
 jest.setTimeout(240 * 1000)
 
@@ -85,6 +82,19 @@ setupSharedTestSuite(() => {
       )}`,
     })
 
+    /**
+     * #2543 phase 2: a NEW design is only made for a signed-in customer. The
+     * account customer for `email`, as a bearer the storefront would forward.
+     */
+    const asMaker = async (makerEmail: string) => {
+      const customers: any = container().resolve(Modules.CUSTOMER)
+      const [existing] = await customers.listCustomers({ email: makerEmail, has_account: true })
+      const id =
+        existing?.id ??
+        (await customers.createCustomers({ email: makerEmail, has_account: true })).id
+      return customerBearer(id)
+    }
+
     const upload = async (
       fields: Record<string, string>,
       files: Array<{ buf: Buffer; name: string; type?: string }>,
@@ -114,10 +124,14 @@ setupSharedTestSuite(() => {
       ((await designOf(designId))?.moodboard as any) ?? null
 
     it("🔴 photos with no brief CREATE the design and land on its board", async () => {
-      const res = await upload({ customer_email: email }, [
-        { buf: PNG_1X1, name: "jacket-front.png" },
-        { buf: PNG_1X1, name: "jacket-back.png" },
-      ])
+      const res = await upload(
+        { customer_email: email },
+        [
+          { buf: PNG_1X1, name: "jacket-front.png" },
+          { buf: PNG_1X1, name: "jacket-back.png" },
+        ],
+        await asMaker(email)
+      )
 
       expect([res.status, String(res.data?.message ?? "")]).toEqual([201, ""])
       expect(res.data.created_design).toBe(true)
@@ -149,9 +163,11 @@ setupSharedTestSuite(() => {
     })
 
     it("adds to an EXISTING design rather than minting a second", async () => {
-      const first = await upload({ customer_email: email }, [
-        { buf: PNG_1X1, name: "a.png" },
-      ])
+      const first = await upload(
+        { customer_email: email },
+        [{ buf: PNG_1X1, name: "a.png" }],
+        await asMaker(email)
+      )
       expect(first.status).toBe(201)
 
       // #2543: the new design's token comes back with it, and adding to the
@@ -201,12 +217,16 @@ setupSharedTestSuite(() => {
 
       it("pins onto it for the signed-in customer who owns it", async () => {
         const openEmail = `open-${Date.now()}@jyt.test`
-        const created = await runCreateDesign(
+        const customers: any = container().resolve(Modules.CUSTOMER)
+        const { id: customer_id } = await customers.createCustomers({
+          email: openEmail,
+          has_account: true,
+        })
+        const created: any = await runCreateDesign(
           container(),
-          { email: openEmail, name: "Indigo Kurta", brief },
-          undefined
+          { name: "Indigo Kurta", brief },
+          { customer_id }
         )
-        const { customer_id } = await runEnsureGuestCustomer(container(), openEmail)
 
         const res = await upload(
           { customer_email: openEmail },
@@ -220,22 +240,25 @@ setupSharedTestSuite(() => {
         expect(verifyDesignAccessToken(res.data.design_token, created.design_id)).toBeTruthy()
       })
 
-      it("🔴 does NOT hand a guest who types the email the owner's board", async () => {
+      /**
+       * #2543 phase 2: a guest who types the email gets neither the owner's
+       * board NOR a design of their own — they are asked to verify their
+       * email, and nothing (no design, no guest customer) is created.
+       */
+      it("🔴 a guest who types the email is asked to sign in — no board, nothing created", async () => {
         const openEmail = `open-guest-${Date.now()}@jyt.test`
-        const created = await runCreateDesign(
-          container(),
-          { email: openEmail, name: "Indigo Kurta", brief },
-          undefined
-        )
+        const customers: any = container().resolve(Modules.CUSTOMER)
+        const { id: owner } = await customers.createCustomers({ email: openEmail, has_account: true })
+        await runCreateDesign(container(), { name: "Indigo Kurta", brief }, { customer_id: owner })
 
         const res = await upload({ customer_email: openEmail }, [
           { buf: PNG_1X1, name: "swatch.png" },
         ])
 
-        expect(res.status).toBe(201)
-        expect(res.data.created_design).toBe(true)
-        expect(res.data.design_id).not.toBe(created.design_id)
-        expect(verifyDesignAccessToken(res.data.design_token, created.design_id)).toBeNull()
+        expect(res.status).toBe(401)
+        expect(res.data.code).toBe("sign_in_required")
+        expect(res.data.design_id).toBeUndefined()
+        expect(await customers.listCustomers({ email: openEmail, has_account: false })).toHaveLength(0)
       })
     })
 
@@ -246,10 +269,15 @@ setupSharedTestSuite(() => {
      * wrong photo — silently, since both are strings.
      */
     it("echoes each uploaded filename so the client can match them back", async () => {
-      const res = await upload({ customer_email: `names-${Date.now()}@jyt.test` }, [
-        { buf: PNG_1X1, name: "front.png" },
-        { buf: PNG_1X1, name: "back.png" },
-      ])
+      const namesEmail = `names-${Date.now()}@jyt.test`
+      const res = await upload(
+        { customer_email: namesEmail },
+        [
+          { buf: PNG_1X1, name: "front.png" },
+          { buf: PNG_1X1, name: "back.png" },
+        ],
+        await asMaker(namesEmail)
+      )
 
       expect(res.status).toBe(201)
       expect(res.data.references.map((r: any) => r.name)).toEqual([
@@ -259,13 +287,18 @@ setupSharedTestSuite(() => {
     })
 
     it("🔴 refuses a design the caller holds no token for (403, nothing pinned)", async () => {
-      const mine = await upload({ customer_email: email }, [
-        { buf: PNG_1X1, name: "mine.png" },
-      ])
+      const mine = await upload(
+        { customer_email: email },
+        [{ buf: PNG_1X1, name: "mine.png" }],
+        await asMaker(email)
+      )
       expect(mine.status).toBe(201)
-      const other = await upload({ customer_email: `other-${Date.now()}@jyt.test` }, [
-        { buf: PNG_1X1, name: "other.png" },
-      ])
+      const otherEmail = `other-${Date.now()}@jyt.test`
+      const other = await upload(
+        { customer_email: otherEmail },
+        [{ buf: PNG_1X1, name: "other.png" }],
+        await asMaker(otherEmail)
+      )
       expect(other.status).toBe(201)
       const before = (await sceneOf(mine.data.design_id))?.elements?.length ?? 0
 
@@ -297,9 +330,12 @@ setupSharedTestSuite(() => {
       expect(after).toBe(before)
     })
 
-    it("requires an email, and requires an image", async () => {
-      const noEmail = await upload({}, [{ buf: PNG_1X1, name: "x.png" }])
-      expect(noEmail.status).toBe(400)
+    it("asks a guest with no design to sign in, and requires an image", async () => {
+      // #2543 phase 2: no session + no design → 401 sign_in_required (an
+      // email field no longer stands in for an account).
+      const guest = await upload({ customer_email: email }, [{ buf: PNG_1X1, name: "x.png" }])
+      expect(guest.status).toBe(401)
+      expect(guest.data.sign_in_required).toBe(true)
 
       const noFiles = await upload({ customer_email: email }, [])
       expect(noFiles.status).toBe(400)

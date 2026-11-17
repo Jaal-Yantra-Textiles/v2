@@ -100,7 +100,13 @@ export type UploadReferencesResult = {
   createdDesign: boolean
   /** Maker-ready reason the whole batch failed (403 / 429 / other), if it did. */
   error?: string
+  /** #2543 phase 2: the buyer must verify their email before photos can land. */
+  signInRequired?: boolean
 }
+
+export const SIGN_IN_TO_UPLOAD_MESSAGE =
+  "Verify your email first and I'll save these to your board."
+
 
 /**
  * ⚠️ `sdk.client.fetch` is not usable here: it defaults `content-type` to
@@ -135,28 +141,30 @@ export const uploadDesignReferences = async (
     return { references: refs, ...keep, createdDesign: false }
   }
 
-  const email = (opts.email ?? "").trim().toLowerCase()
-  if (!email) {
-    // The route saves references against the maker's design, and a design
-    // belongs to a maker. Without an email there is nowhere to put them —
-    // say so rather than degrading to a preview that looks like it worked.
+  /**
+   * #2543 phase 2: photos land on a DESIGN, and a new design is only made for
+   * a signed-in buyer — which this browser-side call cannot prove (the
+   * session cookie is httpOnly). The caller resolves the design first
+   * (ensureStudioDesign, server-side) and uploads onto it with its token; no
+   * design here means the buyer has not verified their email yet.
+   */
+  if (!opts.designId) {
     return {
       references: refs.map((r) =>
         r.status === "ready" && r.publicUrl
           ? r
-          : {
-              ...r,
-              status: "error" as const,
-              error: "Tell me your email first and I'll save these to your board.",
-            }
+          : { ...r, status: "error" as const, error: SIGN_IN_TO_UPLOAD_MESSAGE }
       ),
       ...keep,
       createdDesign: false,
+      error: SIGN_IN_TO_UPLOAD_MESSAGE,
+      signInRequired: true,
     }
   }
+  const email = (opts.email ?? "").trim().toLowerCase()
 
   const form = new FormData()
-  form.append("customer_email", email)
+  if (email) form.append("customer_email", email)
   if (opts.designId) form.append("design_id", opts.designId)
   for (const ref of pending) {
     form.append("files", ref.file, ref.file.name || "reference.jpg")
@@ -185,7 +193,9 @@ export const uploadDesignReferences = async (
         message = undefined
       }
       throw new DesignRequestError(
-        describeDesignError(response.status, message, "Upload failed — try again."),
+        response.status === 401
+          ? SIGN_IN_TO_UPLOAD_MESSAGE
+          : describeDesignError(response.status, message, "Upload failed — try again."),
         response.status
       )
     }
@@ -249,6 +259,7 @@ export const uploadDesignReferences = async (
       ...keep,
       createdDesign: false,
       error: message,
+      signInRequired: error instanceof DesignRequestError && error.status === 401,
     }
   }
 }
