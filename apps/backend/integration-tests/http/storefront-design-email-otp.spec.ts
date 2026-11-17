@@ -15,6 +15,7 @@ import {
 } from "../../src/mastra/agents/tools/storefront-design-flow"
 import { mintDesignAccessToken } from "../../src/lib/design-access/token"
 import { OTP_MAX_ATTEMPTS } from "../../src/modules/email-otp-auth/otp-code"
+import { REDACTED_LOGIN_CODE } from "../../src/workflows/email/workflows/send-customer-login-code-email"
 
 jest.setTimeout(240 * 1000)
 
@@ -23,9 +24,9 @@ jest.setTimeout(240 * 1000)
  *
  * `POST /auth/customer/email-otp` is the stock Medusa auth route driving the
  * custom `email-otp` provider. The code reaches the buyer by email; here the
- * test environment's `notification-local` provider persists every send, so
- * the test reads the code back from the notification row — the same way a
- * buyer reads it from their inbox. No real email is sent.
+ * test watches what is handed to the notification module (the email the
+ * buyer would read) — the stored notification row has the code redacted, so
+ * it cannot be read back from there. No real email is sent.
  */
 
 const decodeJwt = (token: string): Record<string, any> =>
@@ -73,15 +74,37 @@ setupSharedTestSuite(() => {
         .api.post("/auth/customer/email-otp", body, { headers: { "x-forwarded-for": ip } })
         .catch((e: any) => e.response)
 
+    /** Every code email handed to the notification module, oldest first. */
+    let sentEmails: { to: string; code: string }[] = []
+    let sendSpy: jest.SpyInstance | undefined
+
+    beforeAll(() => {
+      const notifications: any = container().resolve(Modules.NOTIFICATION)
+      const original = notifications.createNotifications.bind(notifications)
+      sendSpy = jest
+        .spyOn(notifications, "createNotifications")
+        .mockImplementation(async (data: any, ...rest: any[]) => {
+          for (const n of Array.isArray(data) ? data : [data]) {
+            if (n?.template === "customer-login-code") sentEmails.push({ to: n.to, code: n.data?.code })
+          }
+          return original(data, ...rest)
+        })
+    })
+
+    afterAll(() => sendSpy?.mockRestore())
+
     /** The code from the email the buyer was sent (latest one). */
     const codeFromEmail = async (email: string, after = 0): Promise<string> => {
       const notifications: any = container().resolve(Modules.NOTIFICATION)
       for (let i = 0; i < 50; i++) {
-        const rows: any[] = await notifications.listNotifications(
-          { to: email, template: "customer-login-code" },
-          { order: { created_at: "DESC" } }
-        )
-        if (rows.length > after) return rows[0].data.code
+        const mine = sentEmails.filter((e) => e.to === email)
+        const rows: any[] = await notifications.listNotifications({
+          to: email,
+          template: "customer-login-code",
+        })
+        // Wait for the row's redaction too, so callers see the settled row.
+        const settled = rows.length > after && rows.every((r) => r.data?.code === REDACTED_LOGIN_CODE)
+        if (mine.length > after && settled) return mine[mine.length - 1].code
         await sleep(100)
       }
       throw new Error(`no sign-in code email reached ${email}`)
@@ -151,6 +174,18 @@ setupSharedTestSuite(() => {
       expect(identity.provider_metadata.code_hash).toMatch(/^scrypt\$/)
       expect(JSON.stringify(identity.provider_metadata)).not.toContain(code)
       expect(identity.provider_metadata.attempts).toBe(0)
+    })
+
+    it("🔴 the email log keeps no plaintext code (code, subject and body redacted)", async () => {
+      const email = uniqueEmail("log")
+      const code = await sendCode(email)
+
+      const notifications: any = container().resolve(Modules.NOTIFICATION)
+      const [row] = await notifications.listNotifications({ to: email, template: "customer-login-code" })
+      expect(row.status).toBe("success")
+      expect(row.data.code).toBe(REDACTED_LOGIN_CODE)
+      expect(row.data._template_subject).toContain(REDACTED_LOGIN_CODE)
+      expect(JSON.stringify(row.data)).not.toContain(code)
     })
 
     it("answers a known and an unknown email the same way", async () => {

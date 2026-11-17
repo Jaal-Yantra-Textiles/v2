@@ -1,3 +1,6 @@
+import { randomUUID } from "crypto"
+
+import { Modules } from "@medusajs/framework/utils"
 import {
   createStep,
   createWorkflow,
@@ -12,7 +15,9 @@ import {
   customerLoginCodeEmailTemplates,
 } from "../../../scripts/seed-customer-login-code-email"
 import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
-import { sendNotificationEmailStep } from "../steps/send-notification-email"
+import { redactLoginCode } from "./send-customer-login-code-email-lib"
+
+export { REDACTED_LOGIN_CODE } from "./send-customer-login-code-email-lib"
 
 /**
  * Create the `customer-login-code` template from its seed spec when the
@@ -35,6 +40,46 @@ export const ensureCustomerLoginCodeTemplateStep = createStep(
   }
 )
 
+/**
+ * Sends the code email, then scrubs the code from the `notification` row.
+ *
+ * The notification module persists `data` (code + rendered subject/HTML)
+ * before it calls the provider, so the only way to keep the plaintext out of
+ * the email log is to rewrite the row after the send — on failure too, which
+ * is why the row is found by a one-off idempotency key rather than the
+ * (thrown-away) return value.
+ */
+export const sendCustomerLoginCodeNotificationStep = createStep(
+  "send-customer-login-code-notification",
+  async (
+    input: { to: string; code: string; data: Record<string, any> },
+    { container }
+  ) => {
+    const notifications: any = container.resolve(Modules.NOTIFICATION)
+    const idempotencyKey = `customer-login-code:${randomUUID()}`
+
+    try {
+      const sent = await notifications.createNotifications({
+        to: input.to,
+        channel: "email",
+        template: CUSTOMER_LOGIN_CODE_TEMPLATE_KEY,
+        data: input.data,
+        idempotency_key: idempotencyKey,
+      })
+      return new StepResponse({ id: sent?.id as string, status: sent?.status as string })
+    } finally {
+      const rows: any[] = await notifications.listNotifications({
+        idempotency_key: idempotencyKey,
+      })
+      if (rows.length) {
+        await notifications.updateNotifications(
+          rows.map((row) => ({ id: row.id, data: redactLoginCode(row.data, input.code) }))
+        )
+      }
+    }
+  }
+)
+
 export type SendCustomerLoginCodeEmailInput = {
   email: string
   code: string
@@ -46,7 +91,8 @@ export type SendCustomerLoginCodeEmailInput = {
  *
  * Triggered by the `auth.email_otp_requested` subscriber. Deliberately NOT a
  * stored workflow: its input holds the plaintext code, and a stored execution
- * would keep it in `workflow_execution` long after it expired.
+ * would keep it in `workflow_execution` long after it expired. For the same
+ * reason the send step redacts the code from the `notification` row.
  */
 export const sendCustomerLoginCodeEmailWorkflow = createWorkflow(
   "send-customer-login-code-email",
@@ -66,12 +112,19 @@ export const sendCustomerLoginCodeEmailWorkflow = createWorkflow(
 
     const email = transform({ input, emailData, templateData }, (d) => ({
       to: d.input.email,
-      template: CUSTOMER_LOGIN_CODE_TEMPLATE_KEY,
-      data: d.emailData,
-      templateData: d.templateData,
+      code: d.input.code,
+      data: {
+        ...d.emailData,
+        ...(d.templateData && {
+          _template_subject: d.templateData.subject,
+          _template_html_content: d.templateData.html_content,
+          _template_from: d.templateData.from,
+          _template_processed: d.templateData.processed,
+        }),
+      },
     }))
 
-    const notification = sendNotificationEmailStep(email as any)
+    const notification = sendCustomerLoginCodeNotificationStep(email)
     return new WorkflowResponse(notification)
   }
 )
