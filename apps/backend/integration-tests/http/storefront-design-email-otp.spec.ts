@@ -16,6 +16,7 @@ import {
 import { mintDesignAccessToken } from "../../src/lib/design-access/token"
 import { OTP_MAX_ATTEMPTS } from "../../src/modules/email-otp-auth/otp-code"
 import { REDACTED_LOGIN_CODE } from "../../src/workflows/email/workflows/send-customer-login-code-email"
+import { redactLoginCodeNotificationsJob } from "../../src/api/admin/ops/maintenance-jobs/redact-login-code-notifications-job"
 
 jest.setTimeout(240 * 1000)
 
@@ -186,6 +187,36 @@ setupSharedTestSuite(() => {
       expect(row.data.code).toBe(REDACTED_LOGIN_CODE)
       expect(row.data._template_subject).toContain(REDACTED_LOGIN_CODE)
       expect(JSON.stringify(row.data)).not.toContain(code)
+    })
+
+    it("🔴 the redact job scrubs a pre-fix row; preview writes nothing; never echoes the code", async () => {
+      const email = uniqueEmail("legacy")
+      const notifications: any = container().resolve(Modules.NOTIFICATION)
+      // A row as the old send step left it: plaintext code in data, subject, body.
+      const legacy = await notifications.createNotifications({
+        to: email,
+        channel: "email",
+        template: "customer-login-code",
+        data: {
+          code: "482913",
+          _template_subject: "482913 is your Cici Label sign-in code",
+          _template_html_content: "<p>482913</p>",
+        },
+      })
+      const read = async () => (await notifications.retrieveNotification(legacy.id)).data
+
+      const preview = await redactLoginCodeNotificationsJob.run(container(), { dry_run: true, params: {} })
+      expect(preview.changes.map((c) => c.id)).toContain(legacy.id)
+      expect(JSON.stringify(preview)).not.toContain("482913")
+      expect((await read()).code).toBe("482913")
+
+      const applied = await redactLoginCodeNotificationsJob.run(container(), { dry_run: false, params: {} })
+      expect(applied.errors).toEqual([])
+      expect(JSON.stringify(await read())).not.toContain("482913")
+      expect((await read()).code).toBe(REDACTED_LOGIN_CODE)
+
+      const again = await redactLoginCodeNotificationsJob.run(container(), { dry_run: false, params: {} })
+      expect(again.changes.map((c) => c.id)).not.toContain(legacy.id)
     })
 
     it("answers a known and an unknown email the same way", async () => {
