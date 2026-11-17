@@ -119,6 +119,14 @@ export type AiPlatformConfig = {
   defaultModel: string | null
   /** Only set for provider_type=cloudflare. */
   accountId?: string
+  /**
+   * `api_config.extra_body` — provider-specific request fields added to every
+   * chat-completions call, e.g. `{ "thinking": { "type": "disabled" } }` for
+   * Z.ai GLM (a reasoning model that otherwise thinks for 15–50 s per call on
+   * the free tier). See `mergeExtraBody`. Not applied on the `openrouter`
+   * path, which uses its own SDK.
+   */
+  extraBody?: Record<string, unknown>
 }
 
 export const PROVIDER_DEFAULTS: Record<
@@ -294,8 +302,12 @@ const buildPlatformConfig = async (
     baseUrl: baseUrl ?? "",
     defaultModel: apiConfig.default_model ?? meta.default_model ?? null,
     accountId,
+    extraBody: isPlainObject(apiConfig.extra_body) ? apiConfig.extra_body : undefined,
   }
 }
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !Array.isArray(v)
 
 /**
  * Resolve an AI platform from the DB for the given role. Returns null
@@ -477,6 +489,50 @@ const systemRoleFetch: typeof fetch = async (input: any, init?: any) => {
 }
 
 /**
+ * Adds a platform's `extra_body` fields to an outgoing chat-completions body.
+ * Fields the SDK already set (model, messages, tools, …) win — `extra_body`
+ * only fills in what the request does not carry, so a row can never replace
+ * the conversation. Exported for the unit tests.
+ */
+export const mergeExtraBody = (
+  body: string,
+  extra?: Record<string, unknown> | null
+): string => {
+  if (!extra || !Object.keys(extra).length) return body
+  try {
+    const parsed = JSON.parse(body)
+    if (!isPlainObject(parsed)) return body
+    let changed = false
+    for (const [key, value] of Object.entries(extra)) {
+      if (!(key in parsed)) {
+        parsed[key] = value
+        changed = true
+      }
+    }
+    return changed ? JSON.stringify(parsed) : body
+  } catch {
+    return body
+  }
+}
+
+/** `systemRoleFetch` (when needed) plus the platform's `extra_body`. */
+const platformFetch = (
+  config: Pick<AiPlatformConfig, "baseUrl" | "extraBody">
+): typeof fetch | undefined => {
+  const rewriteRole = !isOpenAiHost(config.baseUrl)
+  const extra = config.extraBody
+  if (!rewriteRole && !extra) return undefined
+  return async (input: any, init?: any) => {
+    if (init?.body && typeof init.body === "string") {
+      let next = mergeExtraBody(init.body, extra)
+      if (rewriteRole) next = rewriteDeveloperRole(next)
+      if (next !== init.body) init = { ...init, body: next }
+    }
+    return fetch(input, init)
+  }
+}
+
+/**
  * Build an AI SDK chat/language model from a resolved platform config.
  * Used with generateObject, generateText, streamText.
  *
@@ -498,12 +554,14 @@ export const buildChatModel = (
     const router = createOpenRouter({ apiKey: config.apiKey })
     return router.chat(id)
   }
+  const fetchImpl = platformFetch(config)
   const client = createOpenAI({
     baseURL: config.baseUrl,
     apiKey: config.apiKey,
     // See `rewriteDeveloperRole` above: everything here is an OpenAI-COMPATIBLE
     // endpoint, not OpenAI, and the SDK's `developer` role breaks Groq outright.
-    ...(isOpenAiHost(config.baseUrl) ? {} : { fetch: systemRoleFetch }),
+    // The same fetch adds the platform's `extra_body` (see `mergeExtraBody`).
+    ...(fetchImpl ? { fetch: fetchImpl } : {}),
   })
   // Use the chat-completions API explicitly. In @ai-sdk/openai v2 the default
   // callable `client(id)` targets the Responses API (sends an `input` field),
