@@ -6,7 +6,7 @@ import FaireSyncService from "../../../../modules/faire-sync/service"
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const service: FaireSyncService = req.scope.resolve(FAIRE_SYNC_MODULE)
   const account = await service.ensureFreshToken()
-  const client = service.getClient()
+  const client = service.getClient(account.auth_mode)
   const brand = await client.getBrand(account.access_token)
   res.json({ brand })
 }
