@@ -13,8 +13,10 @@ import { FAIRE_SYNC_MODULE } from "../modules/faire-sync"
 import FaireSyncService from "../modules/faire-sync/service"
 import {
   CreateProductInput,
+  FaireGeoConstraint,
   ProductResponse,
 } from "../lib/types"
+import { FAIRE_SUPPORTED_CURRENCIES, geoForCurrency } from "../lib/faire-geo"
 
 export const SYNC_PRODUCT_TO_FAIRE = "faire-sync-product"
 
@@ -54,33 +56,6 @@ const productDisplayUrl = (product: ProductResponse): string | null => {
   if (product.url) return product.url
   if (!product.product_token) return null
   return `https://www.faire.com/brand/products/${product.product_token}`
-}
-
-/**
- * Faire variant prices are geo-scoped (`geo_constraint`). Derive a sensible
- * default from the brand's currency (and country when known). Eurozone brands
- * map to the EUROPEAN_UNION country_group; otherwise scope to a single country.
- */
-const geoForCurrency = (
-  currency: string,
-  country: string | null
-): { country?: string; country_group?: string } => {
-  switch (currency) {
-    case "EUR":
-      return { country_group: "EUROPEAN_UNION" }
-    case "GBP":
-      return { country: "GB" }
-    case "USD":
-      return { country: "US" }
-    case "INR":
-      return { country: "IN" }
-    case "CAD":
-      return { country: "CA" }
-    case "AUD":
-      return { country: "AU" }
-    default:
-      return country ? { country } : { country_group: "EUROPEAN_UNION" }
-  }
 }
 
 // ── Step 1: resolve account (fresh token) + settings ─────────────────────
@@ -186,10 +161,17 @@ const prepareProductStep = createStep(
         input.currency ||
         (variants.flatMap((v) => v.prices || [])[0]?.currency_code ?? "EUR")
     ).toUpperCase()
-    const geoConstraint: { country?: string; country_group?: string } =
+    const geoConstraint: FaireGeoConstraint | null =
       metadata.faire_geo_constraint && typeof metadata.faire_geo_constraint === "object"
         ? metadata.faire_geo_constraint
-        : geoForCurrency(currency, input.country)
+        : geoForCurrency(currency)
+    if (!geoConstraint) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Faire does not sell in ${currency}. Price the product in one of ` +
+          `${FAIRE_SUPPORTED_CURRENCIES.join(", ")} or set metadata.faire_currency.`
+      )
+    }
 
     // Medusa v2 stores money as a whole decimal in the price's currency; Faire
     // wants integer minor units (cents), so round.
@@ -199,10 +181,11 @@ const prepareProductStep = createStep(
       Number(metadata.faire_wholesale_markup_percent ?? settings.default_wholesale_markup_percent) ||
       0
 
-    // Pick the price row matching the chosen currency (fall back to first).
+    // Pick the price row matching the chosen currency. Never fall back to another
+    // currency's row: its amount would be sent labelled as `currency` (₹10,000
+    // published as €10,000).
     const pickPrice = (prices: any[]): any =>
       prices.find((p) => String(p.currency_code || "").toUpperCase() === currency) ??
-      prices[0] ??
       null
 
     // Available quantity for Faire. Medusa v2 has no `variant.inventory_quantity`
@@ -242,10 +225,11 @@ const prepareProductStep = createStep(
         : retailMinor
 
     // Faire prices are geo-scoped and a variant may carry several — one per
-    // currency the product is priced in. Emit a price for EVERY currency present
-    // (INR → India, USD → US, EUR → the EU group, etc.) so buyers in each region
-    // see their own currency, and fall back to the chosen/default currency +
-    // geo (EUR by default) when the product has no multi-currency prices.
+    // currency the product is priced in that Faire sells into (USD → USA, EUR →
+    // the EU group, etc.) so buyers in each region see their own currency.
+    // Currencies with no Faire market (INR, AED, CHF, …) are left out — Faire
+    // refuses the whole product otherwise. Falls back to the chosen currency's
+    // price when no row qualifies.
     const buildPrices = (variantPrices: any[]) => {
       const byCurrency = new Map<string, any>()
       for (const p of variantPrices || []) {
@@ -256,7 +240,7 @@ const prepareProductStep = createStep(
       }
 
       const rows: {
-        geo_constraint: { country?: string; country_group?: string }
+        geo_constraint: FaireGeoConstraint
         wholesale_price: { amount_minor: number; currency: string }
         retail_price: { amount_minor: number; currency: string }
       }[] = []
@@ -265,8 +249,8 @@ const prepareProductStep = createStep(
         if (retailMinor <= 0) continue
         // The explicit metadata override only applies to the brand's primary
         // currency; every other currency is scoped by its natural geo.
-        const geo =
-          c === currency ? geoConstraint : geoForCurrency(c, input.country)
+        const geo = c === currency ? geoConstraint : geoForCurrency(c)
+        if (!geo) continue
         rows.push({
           geo_constraint: geo,
           wholesale_price: { amount_minor: wholesaleFrom(retailMinor), currency: c },
