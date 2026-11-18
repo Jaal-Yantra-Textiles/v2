@@ -60,7 +60,64 @@ export type DesignChatContext = {
       }>
     }
   } | null
+  /**
+   * Every design the conversation holds (route-resolved), the active one
+   * marked. Absent or a single entry when the chat is on one design.
+   */
+  designs?: Array<{
+    design_id: string
+    name: string | null
+    product_type: string | null
+    status: string | null
+    takes: number
+    references: number
+    picked_take: string | null
+    active: boolean
+  }>
 }
+
+const DESIGNS_LIST = (ctx: DesignChatContext): string => {
+  const list = ctx.designs ?? []
+  if (list.length < 2) return ""
+  const lines = ["", `# Designs in this conversation (${list.length}) — work on ONE at a time`]
+  for (const d of list) {
+    const bits = [
+      d.product_type ?? "garment not set",
+      `${d.takes} take(s)`,
+      `${d.references} reference(s)`,
+      d.picked_take ? `take ${d.picked_take} picked` : null,
+    ].filter(Boolean)
+    lines.push(
+      `- ${d.active ? "▶ ACTIVE " : ""}"${d.name ?? "Untitled"}" (${d.design_id}) — ${bits.join(", ")}`
+    )
+  }
+  lines.push(
+    "Everything you do applies to the ACTIVE design. When the maker talks about another one, call switch_design first. When they finish one, offer the next step for the others (\"your trousers still need a fabric\")."
+  )
+  return lines.join("\n")
+}
+
+/** Words that name no piece on their own ("set" as in "set up"). */
+const GENERIC_GARMENT_WORDS = new Set(["set", "coordinates", "skirt-set"])
+const GARMENT_SYNONYMS: Record<string, string> = {
+  sari: "saree", tshirt: "t-shirt", pants: "trousers", caftan: "kaftan",
+}
+
+/**
+ * The distinct pieces among matched garment words: synonyms folded, generic
+ * words dropped, and a word inside a longer match dropped ("kurta" when
+ * "kurta set" matched).
+ */
+export const distinctPieces = (matches: string[]): string[] => {
+  const words = matches.filter((w) => w && !GENERIC_GARMENT_WORDS.has(w))
+  const kept = words.filter(
+    (w) => !words.some((other) => other !== w && other.includes(w))
+  )
+  return [...new Set(kept.map((w) => GARMENT_SYNONYMS[w] ?? w))]
+}
+
+/** A link in the maker's own words — pasted references are read, never asked about. */
+const LINK_RE = /\bhttps?:\/\/[^\s<>"')]+/i
 
 const PRODUCT_CONTEXT = (ctx: DesignChatContext): string => {
   const p = ctx.product
@@ -197,7 +254,7 @@ const buildSettledFacts = (
     facts.push(`- Palette: **${d.color_palette.join(", ")}** — already agreed.`)
   if (context?.design_id)
     facts.push(
-      `- The design is ALREADY SAVED (${context.design_id})${d?.name ? ` as "${d.name}"` : ""}. Do NOT call create_design again — calling it a second time is the exact defect this rule exists to stop.`
+      `- The design is ALREADY SAVED (${context.design_id})${d?.name ? ` as "${d.name}"` : ""}. Do NOT call create_design again — calling it a second time is the exact defect this rule exists to stop. If the maker wants ANOTHER piece, call start_new_design instead.`
     )
   if (d?.board?.inspirations?.length)
     facts.push(
@@ -237,9 +294,21 @@ export const planDesignTurn = (
   const escapeRegExp = (value: string): string =>
     value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-  const garment = GARMENT_KEYWORDS.find((k) =>
+  const garments = GARMENT_KEYWORDS.filter((k) =>
     new RegExp(`\\b${escapeRegExp(k)}\\b`).test(userText)
   )
+  // The active design's own garment wins over whatever the transcript named
+  // first — with several designs, the first garment mentioned is usually
+  // another piece.
+  const garment = context?.design?.product_type || garments[0]
+  const lastUser = [...(messages || [])].reverse().find((m) => m?.role === "user")
+  const lastUserText = lastUser
+    ? Array.isArray(lastUser.parts)
+      ? lastUser.parts.filter((p) => p?.type === "text").map((p) => p?.text ?? "").join(" ")
+      : String(lastUser.content ?? "")
+    : ""
+  const pastedLink = LINK_RE.test(lastUserText)
+  const hasReferences = Boolean(context?.design?.board?.inspirations?.length)
   /**
    * #2543 phase 2: only a SIGNED-IN maker saves designs, and their email comes
    * from the session. An address typed into the chat is no longer "the email"
@@ -250,9 +319,16 @@ export const planDesignTurn = (
   const resolvedEmail = signedIn ? context?.email?.trim().toLowerCase() || null : null
 
   const lines: string[] = ["", "# TURN PLAN (route-computed — follow EXACTLY)"]
+  if (pastedLink) {
+    lines.push(
+      "- 🔗 The maker pasted a link this turn: call add_reference_link with it FIRST (no question before it), then describe what you see and ground your next step in it."
+    )
+  }
   if (!garment) {
     lines.push(
-      "- 🔴 ONBOARDING REQUIRED: no garment named anywhere in this conversation. Your ONLY move this turn is ONE short question asking what they are designing. Do NOT call save_brief, create_design, list_raw_materials, list_partners, analyze_product_image or generate_design_image until a garment is named."
+      hasReferences || pastedLink
+        ? "- 🔴 No garment named yet, but they are working from references. Read the references, then ask ONE short question: which garment do they want from them (it may be more than one piece). Do NOT call save_brief, create_design or generate_design_image until a garment is named."
+        : "- 🔴 ONBOARDING REQUIRED: no garment named anywhere in this conversation. Your ONLY move this turn is ONE short question asking what they are designing — or invite them to paste links or upload photos of what they love. Do NOT call save_brief, create_design, list_raw_materials, list_partners, analyze_product_image or generate_design_image until a garment is named."
     )
   } else {
     lines.push(
@@ -273,6 +349,15 @@ export const planDesignTurn = (
   } else {
     lines.push(
       "- Signed in: once the brief is locked, call create_design (once) to save the design to their account."
+    )
+  }
+  const active = garment ? (distinctPieces([garment])[0] ?? garment) : ""
+  const otherGarments = distinctPieces(garments).filter(
+    (g) => !active || (!g.includes(active) && !active.includes(g))
+  )
+  if (garment && otherGarments.length) {
+    lines.push(
+      `- The maker has mentioned more than one piece (${[garment, ...otherGarments].join(", ")}). Each piece is its OWN design: finish the brief for the active one, then call start_new_design for the next (when signed in). Never merge two garments into one brief.`
     )
   }
   lines.push(
@@ -299,14 +384,15 @@ export const buildDesignChatSystem = (
   return `You are Cici's designer — a warm, hands-on design guide for Cici Label, a slow-fashion brand under Jaal Yantra Textiles (JYT). You help a maker design a real garment: you ground everything in their product or brief, our fabrics, and our production partners, and you keep the iteration loop going until they love a take.
 
 # The flow (walk it in their order, never interrogate)
-0. Intro — on first touch, greet them and, in one breath, show how it works: brief → fabrics → partner → a couple of generated takes they pick from. Then ask what garment they're designing.
+0. Intro — on first touch, greet them and, in one breath, show how it works: references → brief → fabrics → partner → a couple of generated takes they pick from. They can work on SEVERAL designs here (a kurta and its trousers, a family of shawls). Then ask what they're designing, or invite them to paste links / upload photos of what they love.
 1. Brief — what do they want? Lock the garment category (product_type — REQUIRED, estimates and production derive from it: ask once if unknown, never leave blank), concept theme, 3-5 aesthetic keywords, palette. 🔴 NEVER call save_brief until the maker has told you the garment type — a premature call returns needs='product_type' and wastes a turn. ASK, then call.
 2. Save it — once the brief is locked AND the maker is signed in (verified email), call create_design. This saves the design to their account BEFORE any generation. From here the design exists and everything else attaches to it.
-3. Moodboard — invite uploaded references ("upload a few inspirations and I'll pin them to your board"). Each uploaded reference is analysed on the fly and pinned with its description — board references shape generation.
+3. References — invite photos or links ("upload a few photos, or paste Pinterest / Instagram / shop links, and I'll pin them to your board"). A pasted link → add_reference_link straight away. Each reference is analysed on the fly and pinned with its description — references shape generation.
 4. Fabrics — call list_raw_materials and suggest a SHORT list of what we can make it from (composition, color, swatch). Render fabric chips. Keep it to a handful (default 6) — only list more when the maker asks to see all fabrics.
 5. Partner — call list_partners to walk the production path: a Fabric Seller SOURCES the material, a Manufacturer CUTS & SEWS it. Each result carries its path role. Guide them source → make. Keep the list SHORT (default 6) — only list more when the maker asks to see all partners.
 6. Generate — 🔴 ONLY after the maker explicitly says to generate. Ask clearly ("Ready for me to generate two takes?") and wait for a YES before calling generate_design_image. Each call is long (~20s per image — say "Generating two takes…" first). Both takes land on their board; the maker picks one.
 7. Iterate — after the pick (set_active_canvas), keep the loop going: revision (re-imagine the active take) or layer (add a motif, change a detail). Ask before each generation, same as step 6.
+8. More pieces — when they want another piece, start_new_design (the earlier ones stay saved); switch_design to go back to one. Walk EACH design through the same steps, and when you switch, say where that design stands ("your kurta has take B picked; the trousers still need a brief").
 
 # How to behave
 - Analysis first: ${hasProduct ? "analyse the product image with analyze_product_image before suggesting anything — ground every direction in what you see (construction, palette, mood)." : "this flow has no base product — ground directions in the brief and any uploaded inspirations; generation creates the design from the brief."}
@@ -327,10 +413,14 @@ export const buildDesignChatSystem = (
 - list_partners — verified partners across the path (Fabric Seller → source, Manufacturer → make, Designer, Independent). Returns a SHORT list (6) by default; use a higher limit only when the maker asks to see everyone.
 - generate_design_image — TWO A/B takes per call; requires a signed-in maker, an existing design + explicit maker consent; revision/layer build on the active take.
 - set_active_canvas — record their pick; it becomes the design's thumbnail.
+- add_reference_link — read a pasted link (Pinterest, Instagram, a shop page, an image) and pin its pictures to the board, analysed. Call it whenever a link appears — don't ask.
+- start_new_design — start ANOTHER piece in this conversation (only when they ask for another piece; never to redo the current one).
+- switch_design — make another of their designs the active one.
+- list_my_designs — their designs with garment, takes and references.
 - get_design_state — board + brief state (call when resuming/editing).
 - capture_contact — save an email the shopper volunteers for follow-up as a marketing lead (NOT an account, and NOT how designs are saved).
 - search_products — if they wander into shopping, search the catalogue (they may want a base product).
-${hasProduct ? PRODUCT_CONTEXT(context!) : ""}${hasDesign ? DESIGN_CONTEXT(context!) : ""}
+${hasProduct ? PRODUCT_CONTEXT(context!) : ""}${hasDesign ? DESIGN_CONTEXT(context!) : ""}${context ? DESIGNS_LIST(context) : ""}
 
 # Maker preferences (from onboarding)
 ${formatPrefs(prefs)}

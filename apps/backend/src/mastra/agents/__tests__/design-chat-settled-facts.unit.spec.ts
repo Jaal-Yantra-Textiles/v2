@@ -128,3 +128,56 @@ describe("design chat — settled facts", () => {
     expect(plan.settled).toMatch(/PREFER ACTING OVER ASKING/)
   })
 })
+
+describe("design chat — several designs and links", () => {
+  const SIGNED_IN: DesignChatContext = { signed_in: true, email: "maker@example.com" }
+
+  it("🔗 a pasted link is read first, with no question before it", () => {
+    const plan = planDesignTurn(
+      [msg("love this https://www.pinterest.com/pin/123/")],
+      SIGNED_IN
+    )
+    expect(plan.directive).toMatch(/call add_reference_link with it FIRST/)
+    // No garment yet — but references are not an onboarding dead end.
+    expect(plan.directive).not.toMatch(/ONBOARDING REQUIRED/)
+  })
+
+  it("two pieces named → one design each, never one merged brief", () => {
+    const plan = planDesignTurn([msg("a kurta and matching trousers")], SIGNED_IN)
+    expect(plan.directive).toMatch(/more than one piece/)
+    expect(plan.directive).toMatch(/start_new_design/)
+  })
+
+  it("'kurta set' is ONE piece, and synonyms fold ('saree' + 'sari')", () => {
+    expect(
+      planDesignTurn([msg("a kurta set")], SIGNED_IN).directive
+    ).not.toMatch(/more than one piece/)
+    expect(
+      planDesignTurn([msg("a saree, I mean sari")], SIGNED_IN).directive
+    ).not.toMatch(/more than one piece/)
+  })
+
+  it("the ACTIVE design's garment wins over the first one in the transcript", () => {
+    const plan = planDesignTurn([msg("a kurta, then trousers")], {
+      ...SIGNED_IN,
+      design_id: "design_2",
+      design: { product_type: "trousers" },
+    })
+    expect(plan.garment_type).toBe("trousers")
+    expect(plan.settled).toMatch(/call start_new_design instead/)
+  })
+
+  it("lists every design with the active one marked", () => {
+    const prompt = buildDesignChatSystem(undefined, {
+      ...SIGNED_IN,
+      design_id: "design_2",
+      designs: [
+        { design_id: "design_2", name: "Trousers", product_type: "trousers", status: "Conceptual", takes: 0, references: 1, picked_take: null, active: true },
+        { design_id: "design_1", name: "Kurta", product_type: "kurta", status: "Conceptual", takes: 2, references: 3, picked_take: "B", active: false },
+      ],
+    }, [msg("hi")])
+    expect(prompt).toMatch(/Designs in this conversation \(2\)/)
+    expect(prompt).toMatch(/▶ ACTIVE "Trousers"/)
+    expect(prompt).toMatch(/"Kurta" \(design_1\) — kurta, 2 take\(s\), 3 reference\(s\), take B picked/)
+  })
+})

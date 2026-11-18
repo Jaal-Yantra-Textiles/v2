@@ -50,6 +50,14 @@ import {
   type DesignContext,
 } from "../../../../mastra/agents/tools/storefront-design-flow"
 import { createSaveMoodboardTool } from "../../../../mastra/agents/tools/storefront-design-moodboard"
+import {
+  createAddReferenceLinkTool,
+  createListMyDesignsTool,
+  createStartNewDesignTool,
+  createSwitchDesignTool,
+  MAX_DESIGNS_PER_CONVERSATION,
+  summarizeDesign,
+} from "../../../../mastra/agents/tools/storefront-design-multi"
 import { createSearchProductsTool } from "../../../../mastra/agents/tools/storefront-search-products"
 import {
   createGetCategoriesTool,
@@ -113,6 +121,24 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  // The conversation's other designs: keep the ones this caller can prove,
+  // drop the rest. A stale token for one old tab must not refuse the turn —
+  // only the ACTIVE design is a hard gate (above).
+  if (designContext && body.context?.designs?.length) {
+    const seen = new Set<string>(designContext.design_id ? [designContext.design_id] : [])
+    const kept: NonNullable<DesignContext["designs"]> = []
+    for (const d of body.context.designs) {
+      if (seen.has(d.design_id) || kept.length >= MAX_DESIGNS_PER_CONVERSATION - 1) continue
+      seen.add(d.design_id)
+      const grant = await resolveDesignAccess(req.scope as any, d.design_id, {
+        token: d.design_token,
+        customerId: designContext.customer_id,
+      })
+      if (grant) kept.push({ design_id: d.design_id, design_token: d.design_token })
+    }
+    designContext.designs = kept
+  }
+
   const resolved = await resolveStorefrontChatModel(req.scope as any)
   if (!resolved) {
     res.status(503).json({
@@ -160,6 +186,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             req.scope as any,
             designContext
           ),
+          start_new_design: createStartNewDesignTool(req.scope as any, designContext),
+          switch_design: createSwitchDesignTool(req.scope as any, designContext),
+          list_my_designs: createListMyDesignsTool(req.scope as any, designContext),
+          add_reference_link: createAddReferenceLinkTool(req.scope as any, designContext),
         }
       : {}),
   }
@@ -410,6 +440,20 @@ const buildDesignChatSystemResolved = async (
         inspirations,
       }
     }
+  }
+
+  // Every design this conversation holds, so the model knows which piece is
+  // which and can switch by name. The active one is marked.
+  const otherIds = (context.designs ?? []).map((d) => d.design_id)
+  if (otherIds.length) {
+    const designService: any = container.resolve("design" as any)
+    const rows: any[] = await designService
+      .listDesigns({ id: [context.design_id, ...otherIds].filter(Boolean) }, { take: 20 })
+      .catch(() => [])
+    const byId = new Map(rows.map((r) => [r.id, r]))
+    promptContext.designs = [context.design_id, ...otherIds]
+      .filter((id): id is string => !!id && byId.has(id))
+      .map((id) => summarizeDesign(byId.get(id), id === context.design_id))
   }
 
   return buildDesignChatSystem(prefs, promptContext, messages)

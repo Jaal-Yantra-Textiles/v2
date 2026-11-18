@@ -51,19 +51,18 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { MedusaError } from "@medusajs/framework/utils"
-import { uploadFilesWorkflow } from "@medusajs/medusa/core-flows"
 
 import {
   assertDesignAccess,
   readDesignCredentials,
 } from "../../../../../lib/design-access/authorize"
 import { mintDesignAccessToken } from "../../../../../lib/design-access/token"
-import { DESIGN_MODULE } from "../../../../../modules/designs"
 import {
-  appendInspirationElements,
-  normalizeCanvasScene,
-} from "../../../../../modules/designs/lib/canvas-scene"
-import { analyzeReferenceImages } from "../../../../../mastra/agents/tools/storefront-design-analysis"
+  analyzeStoredReferences,
+  encodeUploadContent as encodeContent,
+  pinReferencesToDesign,
+  storeReferenceFiles,
+} from "../../../../../lib/design-references/pin-references"
 import {
   resolveOrCreateStudioDesignForCustomer,
   SIGN_IN_REQUIRED_MESSAGE,
@@ -86,8 +85,7 @@ const MAX_FILES = 8
  * fixed on the admin media routes; see
  * workflows/whatsapp/whatsapp-media-helper.ts for the full autopsy.
  */
-export const encodeUploadContent = (buffer: Buffer): string =>
-  buffer.toString("base64")
+export const encodeUploadContent = encodeContent
 
 export const POST = async (
   req: MedusaRequest & { files?: Express.Multer.File[] },
@@ -168,25 +166,14 @@ export const POST = async (
   }
 
   // ── 2. Upload the bytes SERVER-SIDE ─────────────────────────────────────
-  const uploaded: Array<{ url: string; name: string }> = []
-  for (const file of files) {
-    const out = await uploadFilesWorkflow(req.scope as any).run({
-      input: {
-        files: [
-          {
-            filename: file.originalname,
-            mimeType: file.mimetype,
-            content: encodeUploadContent(file.buffer),
-            access: "public" as const,
-          },
-        ],
-      },
-    })
-    const result: any = out.result
-    const arr = Array.isArray(result) ? result : (result?.files ?? [])
-    const url = arr?.[0]?.url ?? arr?.[0]?.location
-    if (url) uploaded.push({ url, name: file.originalname })
-  }
+  const uploaded = await storeReferenceFiles(
+    req.scope as any,
+    files.map((file) => ({
+      filename: file.originalname,
+      mimeType: file.mimetype,
+      buffer: file.buffer,
+    }))
+  )
 
   if (!uploaded.length) {
     throw new MedusaError(
@@ -195,74 +182,12 @@ export const POST = async (
     )
   }
 
-  // ── 3. Analyse, then 4. pin to the board ────────────────────────────────
-  // Analysis is best-effort by construction: a picture that cannot be read is
-  // still the maker's picture and still belongs on their board.
-  const analyses = await analyzeReferenceImages(
-    req.scope as any,
-    uploaded.map((u) => u.url)
-  ).catch(() => new Map())
-
-  const references = uploaded.map((u) => {
-    const a: any = analyses.get(u.url) ?? null
-    return {
-      url: u.url,
-      name: u.name,
-      media_id: a?.media_id ?? null,
-      analysis: a
-        ? {
-            title: a.title ?? "",
-            description: a.description ?? "",
-            suggestions: a.suggestions ?? [],
-            analyzed_at: a.analyzed_at ?? null,
-          }
-        : null,
-    }
-  })
-
-  const designService: any = req.scope.resolve(DESIGN_MODULE)
-  const design = await designService.retrieveDesign(designId).catch(() => null)
-
-  const scene = appendInspirationElements(
-    normalizeCanvasScene(design?.moodboard),
-    references
-  )
-
-  /**
-   * The design's GALLERY, as well as the chat board.
-   *
-   * 🔑 Two different surfaces, and the photos belong on both. `moodboard` is
-   * the Excalidraw scene the chat's board panel renders; `media_files` is the
-   * `{ id, url, isThumbnail }` gallery the admin design page and the design
-   * detail read. Writing only the scene would leave a design whose photos are
-   * visible in the chat and invisible everywhere the business looks at it.
-   *
-   * Appended and deduped by url — `media_files` already holds anything the
-   * production-run attach path put there, and replacing the array would drop
-   * it. Same reason `metadata` writes have hurt elsewhere: a shared bag with
-   * more than one writer.
-   */
-  const existingMedia: any[] = Array.isArray(design?.media_files)
-    ? (design!.media_files as any[])
-    : []
-  const seenUrls = new Set(existingMedia.map((m) => m?.url).filter(Boolean))
-  const media_files = [
-    ...existingMedia,
-    ...references
-      .filter((r) => !seenUrls.has(r.url))
-      .map((r) => ({
-        ...(r.media_id ? { id: r.media_id } : {}),
-        url: r.url,
-        isThumbnail: false,
-      })),
-  ]
-
-  await designService
-    .updateDesigns({ id: designId, moodboard: scene as any, media_files })
-    .catch(() => {
-      // The photos are uploaded and analysed; a write failure here must not
-      // lose them. The client still receives the analysis.
-    })
+  // ── 3. Analyse, then 4. pin to the board + the design's gallery ────────
+  // Shared with the chat's add_reference_link — see lib/design-references.
+  // A failed design write does not lose the photos: they are stored and
+  // analysed, and the client still receives the analysis.
+  const references = await analyzeStoredReferences(req.scope as any, uploaded)
+  await pinReferencesToDesign(req.scope as any, designId as string, references)
 
   return res.status(201).json({
     design_id: designId,

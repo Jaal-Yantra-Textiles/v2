@@ -72,6 +72,18 @@ const DesignContextSchema = z.object({
   // generate_design_image and kept by the storefront. Required whenever
   // `design_id` is sent by a guest — the route 403s a design id without it.
   design_token: z.string().max(400).optional(),
+  // The conversation's OTHER designs (the active one is `design_id`). Each
+  // carries its own token; the route keeps only the ones the caller can prove
+  // access to, and drops the rest rather than failing the turn.
+  designs: z
+    .array(
+      z.object({
+        design_id: z.string().min(1).max(60),
+        design_token: z.string().max(400).optional(),
+      })
+    )
+    .max(12)
+    .optional(),
 })
 
 export const StoreAiChatSchema = z.object({
