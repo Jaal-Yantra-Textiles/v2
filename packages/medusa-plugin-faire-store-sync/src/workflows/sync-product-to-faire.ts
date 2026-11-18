@@ -17,6 +17,7 @@ import {
   ProductResponse,
 } from "../lib/types"
 import { FAIRE_SUPPORTED_CURRENCIES, geoForCurrency } from "../lib/faire-geo"
+import { inventoryLevelsToPush } from "../lib/faire-inventory"
 
 export const SYNC_PRODUCT_TO_FAIRE = "faire-sync-product"
 
@@ -421,25 +422,17 @@ const syncProductStep = createStep(
       throw err
     }
 
-    // Push inventory levels — but ONLY for variants with a real SKU. When a
-    // Medusa variant has no SKU we fall back to its id for the create payload
-    // (Faire needs *something*), but that synthetic id (`variant_…` / `prod_…`)
-    // is NOT a Faire SKU, so `PATCH product-inventory/by-skus` 404s on it. Those
-    // variants are already stocked via the create payload's `available_quantity`,
-    // so skip them here rather than push an id Faire will reject.
-    if (product_input.variants?.length) {
-      const levels = product_input.variants
-        .filter((v) => v.sku && !/^(prod|variant)_/.test(v.sku))
-        .map((v) => ({
-          sku: v.sku,
-          on_hand_quantity: v.available_quantity ?? 0,
-        }))
-      if (levels.length) {
-        try {
-          await client.updateInventory(access_token, levels)
-        } catch (err: any) {
-          warnings.push(`Inventory push failed: ${err?.message || err}`)
-        }
+    // Push inventory levels — on UPDATE only, real SKUs only (see
+    // inventoryLevelsToPush for why a create and synthetic SKUs are skipped).
+    const levels = inventoryLevelsToPush(
+      product_input.variants,
+      !existing_product_token
+    )
+    if (levels.length) {
+      try {
+        await client.updateInventory(access_token, levels)
+      } catch (err: any) {
+        warnings.push(`Inventory push failed: ${err?.message || err}`)
       }
     }
 

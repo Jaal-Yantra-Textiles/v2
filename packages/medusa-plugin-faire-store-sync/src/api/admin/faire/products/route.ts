@@ -8,7 +8,7 @@ import FaireSyncService from "../../../../modules/faire-sync/service"
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const service: FaireSyncService = req.scope.resolve(FAIRE_SYNC_MODULE)
   const account = await service.ensureFreshToken()
-  const client = service.getClient()
+  const client = service.getClient(account.auth_mode)
   const limit = Number(req.query.limit) || 50
   const page = typeof req.query.page === "string" ? req.query.page : undefined
   const updated_at_min =
