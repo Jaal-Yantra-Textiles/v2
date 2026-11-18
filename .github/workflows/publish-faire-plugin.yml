@@ -94,15 +94,18 @@ jobs:
   # After a real publish, refloat the backend's pnpm-lock.yaml to the new version
   # and commit it to main. The backend depends on this plugin at `latest`, but a
   # frozen lockfile keeps prod pinned to the OLD version until the lock entry is
-  # bumped — this was the manual `pnpm update … --latest` + commit step. The
-  # lockfile push to main auto-triggers deploy-to-aws (which watches pnpm-lock.yaml),
-  # so the full chain bump → publish → refloat → deploy is hands-off.
+  # bumped — this was the manual `pnpm update … --latest` + commit step.
+  # A push made with GITHUB_TOKEN does NOT trigger other workflows, so the
+  # lockfile push alone never deployed (0.2.15 sat undeployed). The last step
+  # dispatches deploy-to-aws explicitly — workflow_dispatch is the one event
+  # GITHUB_TOKEN is allowed to fire.
   refloat-lockfile:
     needs: publish
     if: needs.publish.outputs.published == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: write
     concurrency:
       # Serialize with any other lockfile-refloat pusher (e.g. the etsy plugin)
       # so two publishes can't race a push to main.
@@ -147,12 +150,14 @@ jobs:
         run: |
           NAME="@jytextiles/medusa-plugin-faire-store-sync"
           # --latest ignores the existing lock and pulls the newest published
-          # version; --lockfile-only avoids a full install. The backend spec is
-          # already `latest`, so package.json shouldn't change — restore it
-          # defensively and stage ONLY the lockfile.
+          # version; --lockfile-only avoids a full install. --latest ALSO bumps
+          # the backend's caret spec (^0.2.14 → ^0.2.15) and records that spec
+          # in the lockfile, so package.json must be committed with it —
+          # restoring it made the Docker build's --frozen-lockfile install fail
+          # with ERR_PNPM_OUTDATED_LOCKFILE.
           pnpm --filter @jyt/backend update "${NAME}" --latest --lockfile-only
-          git checkout -- apps/backend/package.json 2>/dev/null || true
-          if git diff --quiet -- pnpm-lock.yaml; then
+          pnpm install --frozen-lockfile --lockfile-only
+          if git diff --quiet -- pnpm-lock.yaml apps/backend/package.json; then
             echo "::notice::Lockfile already resolves ${NAME}@${VERSION} — nothing to commit."
             echo "changed=false" >> "$GITHUB_OUTPUT"
           else
@@ -166,9 +171,15 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add pnpm-lock.yaml
+          git add pnpm-lock.yaml apps/backend/package.json
           git commit -m "chore(faire): refloat backend lockfile to faire-store-sync@${VERSION}" \
             -m "Automated by publish-faire-plugin.yml so prod (deploy-to-aws watches pnpm-lock.yaml) picks up the new version."
           # Rebase onto any concurrent main pushes, then push.
           git pull --rebase origin main
           git push origin HEAD:main
+
+      - name: Deploy the refloated backend
+        if: steps.refloat.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy-to-aws.yml --repo "${GITHUB_REPOSITORY}" --ref main -f deploy_services=true
