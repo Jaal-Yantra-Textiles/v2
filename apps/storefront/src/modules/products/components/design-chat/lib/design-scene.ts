@@ -35,6 +35,7 @@ export const getDesignScene = async (
   designToken?: string | null
 ): Promise<{
   design_id: string
+  name: string | null
   thumbnail_url: string | null
   scene: CanvasScene | null
 }> => {
@@ -42,6 +43,7 @@ export const getDesignScene = async (
     const data = await sdk.client.fetch<{
       design: {
         id: string
+        name?: string | null
         thumbnail_url?: string | null
         moodboard?: unknown
       }
@@ -55,6 +57,7 @@ export const getDesignScene = async (
     const design = data.design
     return {
       design_id: design.id,
+      name: design.name ?? null,
       thumbnail_url: design.thumbnail_url ?? null,
       scene: normalizeScene(design.moodboard),
     }

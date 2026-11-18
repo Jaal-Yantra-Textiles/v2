@@ -471,6 +471,50 @@ export const ConversationCall = ({ part }: { part: any }) => {
   return null
 }
 
+// ── add_reference_link ─────────────────────────────────────────────────
+
+/** A pasted link: what was pinned (with thumbnails), or why it wasn't. */
+export const LinkReferenceCall = ({ part }: { part: any }) => {
+  const state = part?.state as string | undefined
+  if (state === "input-streaming" || state === "input-available") {
+    return <ToolStatusChip label="Reading your link…" />
+  }
+  if (state === "output-error") {
+    return <ToolStatusChip label="Couldn't read that link." tone="error" />
+  }
+  if (state !== "output-available") return null
+  const out = part.output ?? {}
+  if (out.sign_in_required) return null
+  if (out.ok === false) {
+    return <ToolStatusChip label={out.message ?? "Couldn't read that link."} tone="error" />
+  }
+  const refs: Array<{ image_url: string; title?: string | null }> = Array.isArray(out.references)
+    ? out.references
+    : []
+  return (
+    <div className="mt-2 flex flex-col gap-2">
+      <ToolStatusChip
+        label={`Pinned ${out.added ?? refs.length} picture${(out.added ?? refs.length) === 1 ? "" : "s"}${out.page_title ? ` from “${out.page_title}”` : ""}`}
+        tone="done"
+      />
+      {refs.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {refs.map((r) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={r.image_url}
+              src={r.image_url}
+              alt={r.title ?? "Reference"}
+              title={r.title ?? undefined}
+              className="h-16 w-16 rounded-lg border border-ui-border-base object-cover"
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── dispatch map ───────────────────────────────────────────────────────
 
 /**
@@ -485,15 +529,34 @@ export const DESIGN_TOOL_PARTS: Record<string, React.ComponentType<any>> = {
   "tool-generate_design_image": GenerateCall,
   "tool-save_brief": SaveBriefCall,
   "tool-set_active_canvas": SetActiveCall,
-  "tool-save_moodboard": (part) => (
+  "tool-save_moodboard": ({ part }: { part: any }) => (
     <QuietCall part={part} running="Pinning inspirations…" done="Inspirations pinned" />
   ),
-  "tool-create_design": (part) => (
+  "tool-create_design": ({ part }: { part: any }) => (
     <QuietCall part={part} running="Saving your design…" done="Design saved to your account" />
   ),
-  "tool-get_design_state": (part) => (
+  "tool-get_design_state": ({ part }: { part: any }) => (
     <QuietCall part={part} running="Loading your board…" done={null} />
   ),
+  // #2556 — several designs, references from links
+  "tool-start_new_design": ({ part }: { part: any }) => (
+    <QuietCall
+      part={part}
+      running="Starting another design…"
+      done={part?.output?.design_id ? "New design started — your others are kept" : null}
+    />
+  ),
+  "tool-switch_design": ({ part }: { part: any }) => (
+    <QuietCall
+      part={part}
+      running="Switching design…"
+      done={`Now on ${part?.output?.name ?? "that design"}`}
+    />
+  ),
+  "tool-list_my_designs": ({ part }: { part: any }) => (
+    <QuietCall part={part} running="Looking up your designs…" done={null} />
+  ),
+  "tool-add_reference_link": LinkReferenceCall,
 }
 
 /** Product tools (concierge, shared with the concierge chat) render rows. */

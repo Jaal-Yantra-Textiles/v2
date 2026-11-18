@@ -14,6 +14,8 @@ export type DesignChatLive = {
   designId?: string | null
   designToken?: string | null
   email?: string | null
+  /** The chat's OTHER designs (#2556), each with its token. */
+  designs?: Array<{ design_id: string; design_token?: string }>
 }
 
 export function buildDesignChatBody(live: DesignChatLive, visitorId: string | null) {
@@ -26,6 +28,7 @@ export function buildDesignChatBody(live: DesignChatLive, visitorId: string | nu
       // A token without its design id means nothing; never send it alone.
       ...(live.designId && live.designToken ? { design_token: live.designToken } : {}),
       ...(live.email ? { email: live.email } : {}),
+      ...(live.designs?.length ? { designs: live.designs.slice(0, 12) } : {}),
     },
   }
 }
