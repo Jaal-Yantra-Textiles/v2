@@ -69,7 +69,13 @@ import {
 } from "./lib/incomplete-turn"
 import { retrieveCustomerFresh } from "@lib/data/customer"
 import { listMyDesignConversations } from "@lib/data/design-conversations"
-import { collectBoardToolEvents } from "./lib/board-refresh"
+import { collectBoardToolEvents, primeActivated } from "./lib/board-refresh"
+import {
+  designTabLabel,
+  mergeDesignTabs,
+  otherDesigns,
+  type DesignTab,
+} from "./lib/design-tabs"
 import { makeDesignChatBody, type DesignChatLive } from "./lib/chat-request"
 import { findSignInRequired } from "./lib/email-otp"
 import {
@@ -114,7 +120,7 @@ type DesignChatProps = {
   isMobileLayout?: boolean
 }
 
-const PLACEHOLDER = "Describe what you want to design…"
+const PLACEHOLDER = "Describe what you want to design, or paste a Pinterest / Instagram / shop link…"
 
 const toStored = (messages: UIMessage[]): StoredUIMessage[] =>
   messages.map((m) => {
@@ -145,6 +151,12 @@ export default function DesignChat({
   // design was made for this browser, kept with the thread, sent on every
   // design-scoped call. Without it the backend answers 403.
   const [designToken, setDesignToken] = React.useState<string | null>(null)
+  // #2556: every design this chat holds (the active one included), as tabs on
+  // the board. The non-active ones ride along on each request.
+  const [tabs, setTabs] = React.useState<DesignTab[]>([])
+  // Tool calls that already moved the active design — so clicking a tab is not
+  // undone by the next streamed chunk re-reading an older tool result.
+  const activatedToolCallsRef = React.useRef<Set<string>>(new Set())
   // Inline, non-blocking notice for side-calls that failed (pick, board
   // refresh, thread save/restore). The chat keeps working underneath.
   const [notice, setNotice] = React.useState<string | null>(null)
@@ -210,6 +222,7 @@ export default function DesignChat({
     designId,
     designToken,
     email: meta.email,
+    designs: otherDesigns(tabs, designId),
   }
 
   const transport = React.useMemo(
@@ -298,9 +311,11 @@ export default function DesignChat({
     const rememberedEmail = loadDesignerEmail()
     if (local?.messages?.length) {
       setMeta({ ...local.meta, email: local.meta.email ?? rememberedEmail ?? undefined })
+      primeActivated(local.messages as any, activatedToolCallsRef.current)
       setMessages(local.messages)
       if (local.meta.designId) setDesignId(local.meta.designId)
       if (local.meta.designToken) setDesignToken(local.meta.designToken)
+      if (local.meta.designs?.length) setTabs(local.meta.designs)
     } else {
       if (rememberedEmail) setMeta((prev) => ({ ...prev, email: rememberedEmail }))
       // Fresh thread — run onboarding first, then the greeting.
@@ -368,6 +383,7 @@ export default function DesignChat({
             designToken: latest.design_token ?? prev.designToken,
             title: latest.title,
           }))
+          primeActivated(full.messages as any, activatedToolCallsRef.current)
           setMessages(full.messages as any)
           if (latest.design_id) setDesignId(latest.design_id)
           if (latest.design_token) setDesignToken(latest.design_token)
@@ -386,7 +402,7 @@ export default function DesignChat({
     // The design + token are in it too (#2543): the token usually lands from
     // the turn's tool output a render AFTER the turn ends, and a save keyed
     // only on messages would skip it — a reload would then lose the design.
-    const signature = `${messages.length}:${last?.id ?? ""}:${countPendingToolParts(last)}:${designId ?? ""}:${designToken ?? ""}`
+    const signature = `${messages.length}:${last?.id ?? ""}:${countPendingToolParts(last)}:${designId ?? ""}:${designToken ?? ""}:${tabs.map((t) => t.design_id).join(",")}`
     if (persistedRef.current === signature) return
     persistedRef.current = signature
 
@@ -402,6 +418,7 @@ export default function DesignChat({
       title,
       designId: designId ?? undefined,
       designToken: designToken ?? undefined,
+      designs: tabs.length ? tabs : undefined,
     }
     saveDesignThread({ meta: nextMeta, messages })
     setMeta(nextMeta)
@@ -441,7 +458,17 @@ export default function DesignChat({
         }
       })
     }
-  }, [messages, isStreaming, meta, threadKey, designId, designToken])
+  }, [messages, isStreaming, meta, threadKey, designId, designToken, tabs])
+
+  // The active design is always one of the tabs.
+  React.useEffect(() => {
+    if (!designId) return
+    setTabs((prev) =>
+      mergeDesignTabs(prev, [
+        { design_id: designId, ...(designToken ? { design_token: designToken } : {}) },
+      ])
+    )
+  }, [designId, designToken])
 
   // ── Attach reference thumbnails to the just-sent user message ──
   // `sendMessage` doesn't give us the message id, so after the send we scan
@@ -597,6 +624,8 @@ export default function DesignChat({
     // tokens with the thread, so nothing of the last board is sent again.
     setDesignId(null)
     setDesignToken(null)
+    setTabs([])
+    activatedToolCallsRef.current = new Set()
     setNotice(null)
     setMeta((prev) => ({
       ...prev,
@@ -604,6 +633,7 @@ export default function DesignChat({
       conversationToken: undefined,
       designId: undefined,
       designToken: undefined,
+      designs: undefined,
       title: undefined,
     }))
     setScene(normalizeScene(initialDesign?.moodboard))
@@ -835,6 +865,21 @@ export default function DesignChat({
     setPicking(false)
   }
 
+  /**
+   * Click a design's tab (#2556). Local only: the next request carries the
+   * new active design, and the prompt is rebuilt around it — no model turn
+   * is spent just to switch.
+   */
+  const switchToTab = (tab: DesignTab) => {
+    if (tab.design_id === designId || isStreaming) return
+    setDesignId(tab.design_id)
+    setDesignToken(tab.design_token ?? null)
+    setThumbnailUrl(tab.thumbnail_url ?? null)
+    setScene(normalizeScene(null))
+    setNotice(null)
+    refreshScene(tab.design_id, tab.design_token ?? null)
+  }
+
   const refreshScene = async (id?: string, token?: string | null) => {
     // After a generation / moodboard pin / design create, the scene lives on
     // the design — a light reload via get_design_state keeps the board current
@@ -847,7 +892,18 @@ export default function DesignChat({
       const next = await getDesignScene(target, token ?? designToken)
       if (next?.scene) setScene(next.scene)
       if (next?.thumbnail_url) setThumbnailUrl(next.thumbnail_url)
-      if (next?.design_id) setDesignId(next.design_id)
+      if (next?.design_id) {
+        setDesignId(next.design_id)
+        setTabs((prev) =>
+          mergeDesignTabs(prev, [
+            {
+              design_id: next.design_id,
+              name: next.name ?? null,
+              thumbnail_url: next.thumbnail_url ?? null,
+            },
+          ])
+        )
+      }
     } catch (error) {
       // Best-effort for the chat, but no longer silent: a board that will not
       // refresh says why (another session's design, rate limit, network).
@@ -867,10 +923,17 @@ export default function DesignChat({
     // reflects what the model just did. create_design also hands us the
     // design id, which we adopt before refreshing.
     if (isGenerating) return
-    const { createdId, createdToken, shouldRefresh } = collectBoardToolEvents(
+    const { createdId, createdToken, shouldRefresh, designs } = collectBoardToolEvents(
       messages as any,
-      refreshedToolCallsRef.current
+      refreshedToolCallsRef.current,
+      activatedToolCallsRef.current
     )
+    if (designs.length) {
+      setTabs((prev) => {
+        const next = mergeDesignTabs(prev, designs)
+        return JSON.stringify(next) === JSON.stringify(prev) ? prev : next
+      })
+    }
     if (createdId && createdId !== designId) setDesignId(createdId)
     if (createdToken && createdToken !== designToken) setDesignToken(createdToken)
     if (shouldRefresh) refreshScene(createdId ?? undefined, createdToken)
@@ -949,8 +1012,70 @@ export default function DesignChat({
   }
 
   // ── Layout ──
+  // "Another design" asks the guide, so the brief for the new piece is
+  // started in the conversation (start_new_design). Only once a design exists:
+  // before that the first design is simply the one being made.
+  const canAddDesign = Boolean(designId && signedInEmail) && tabs.length < 12
+  const addAnotherDesign = () =>
+    handleChoice("I'd like to start another design — keep my current one saved.")
+
   const boardPanel = (
     <div className="flex flex-col gap-4">
+      {(tabs.length > 1 || canAddDesign) && (
+        <div className="flex flex-col gap-2" data-testid="design-chat-tabs">
+          <Text
+            weight="plus"
+            size="xsmall"
+            className="uppercase tracking-widest text-ui-fg-muted"
+          >
+            Your designs
+          </Text>
+          <div role="tablist" className="flex flex-wrap gap-1.5">
+            {tabs.map((tab, i) => {
+              const active = tab.design_id === designId
+              return (
+                <button
+                  key={tab.design_id}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  disabled={isStreaming && !active}
+                  onClick={() => switchToTab(tab)}
+                  title={tab.name ?? undefined}
+                  className={clsx(
+                    "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition",
+                    active
+                      ? "border-ui-border-interactive bg-ui-bg-interactive font-medium text-white"
+                      : "border-ui-border-base bg-ui-bg-base text-ui-fg-subtle hover:border-ui-border-interactive hover:text-ui-fg-base disabled:opacity-50"
+                  )}
+                  data-testid={`design-chat-tab-${i}`}
+                >
+                  {tab.thumbnail_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={tab.thumbnail_url}
+                      alt=""
+                      className="h-4 w-4 shrink-0 rounded-full object-cover"
+                    />
+                  )}
+                  <span className="truncate">{designTabLabel(tab, i)}</span>
+                </button>
+              )
+            })}
+            {canAddDesign && (
+              <button
+                type="button"
+                onClick={addAnotherDesign}
+                disabled={isStreaming || uploading}
+                className="rounded-full border border-dashed border-ui-border-strong px-2.5 py-1 text-[11px] text-ui-fg-subtle transition hover:border-ui-border-interactive hover:text-ui-fg-base disabled:opacity-50"
+                data-testid="design-chat-add-design"
+              >
+                + Another design
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <Text
           weight="plus"
@@ -1058,7 +1183,7 @@ export default function DesignChat({
             }}
             className="shrink-0 rounded-full border border-ui-border-base px-3 py-1.5 text-xs font-medium text-ui-fg-subtle transition-colors hover:border-ui-border-strong hover:text-ui-fg-base"
           >
-            New design
+            Start over
           </button>
         </div>
       </header>
@@ -1146,7 +1271,7 @@ export default function DesignChat({
                 </Text>
                 <ol className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {[
-                    "Tell me the garment — I lock the brief",
+                    "Tell me the garment(s), or share photos and links you love",
                     "We pick your fabrics",
                     "We match an artisan partner",
                     "I generate two takes, you pick one",
@@ -1174,16 +1299,16 @@ export default function DesignChat({
                 </Text>
                 <Text size="xsmall" className="mb-3 text-ui-fg-subtle">
                   {signedInEmail
-                    ? "What garment are we designing? Your designs save to your account."
-                    : "What garment are we designing? You'll verify your email next so your designs are saved to you."}
+                    ? "What are we designing? Name one piece or several (\"a kurta and matching trousers\"), or paste a Pinterest / Instagram / shop link in the chat. Your designs save to your account."
+                    : "What are we designing? Name one piece or several, or paste a Pinterest / Instagram / shop link in the chat. You'll verify your email next so your designs are saved to you."}
                 </Text>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   type="text"
                   value={onboardingGarment}
                   onChange={(e) => setOnboardingGarment(e.target.value)}
-                  placeholder="What are we designing? (kurta, trousers…)"
-                  maxLength={60}
+                  placeholder="What are we designing? (a kurta, or a kurta and trousers…)"
+                  maxLength={80}
                   className="min-w-0 flex-1 rounded-full border border-ui-border-base bg-ui-bg-field px-3.5 py-2 text-sm outline-none focus:border-ui-border-strong"
                   data-testid="design-chat-onboarding-garment"
                 />
@@ -1348,6 +1473,12 @@ export default function DesignChat({
             {uploading && (
               <p className="mt-2 text-[11px] text-ui-fg-muted">
                 Uploading references…
+              </p>
+            )}
+            {!uploading && /\bhttps?:\/\/\S+/i.test(input) && (
+              <p className="mt-2 text-[11px] text-ui-fg-muted" data-testid="design-chat-link-hint">
+                🔗 I&apos;ll pin the pictures from this link to your board
+                {signedInEmail || designId ? "." : " once you verify your email."}
               </p>
             )}
           </form>

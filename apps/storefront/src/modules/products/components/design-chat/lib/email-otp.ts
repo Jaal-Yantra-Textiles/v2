@@ -75,7 +75,12 @@ export const describeOtpError = (
 export const needsNewCode = (code: string | null | undefined): boolean =>
   code === "code_expired" || code === "too_many_attempts"
 
-const SIGN_IN_TOOLS = new Set(["tool-create_design", "tool-generate_design_image"])
+const SIGN_IN_TOOLS = new Set([
+  "tool-create_design",
+  "tool-generate_design_image",
+  "tool-start_new_design",
+  "tool-add_reference_link",
+])
 
 /**
  * Did the LATEST assistant turn hit a tool that needs a verified email?

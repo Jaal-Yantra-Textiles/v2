@@ -35,6 +35,14 @@ export type DesignThreadMeta = {
    * on every design-scoped call; cleared with the thread by "new design".
    */
   designToken?: string
+  /** Every design this chat holds, for the board's tabs (#2556). */
+  designs?: Array<{
+    design_id: string
+    design_token?: string
+    name?: string | null
+    product_type?: string | null
+    thumbnail_url?: string | null
+  }>
   /** Human-readable label (seeded from the first user message). */
   title?: string
 }
