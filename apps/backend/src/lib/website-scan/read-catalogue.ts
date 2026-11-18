@@ -60,7 +60,7 @@ export const htmlToText = (html: string): string =>
     .replace(/\n\s*\n+/g, "\n")
     .trim()
 
-const absolutize = (src: unknown, base: string): string | null => {
+export const absolutize = (src: unknown, base: string): string | null => {
   if (typeof src !== "string" || !src.trim()) return null
   try {
     const u = new URL(src.trim().startsWith("//") ? `https:${src.trim()}` : src.trim(), base)
@@ -328,7 +328,7 @@ export const extractJsonLdProducts = (
       }
     })
 
-const metaContent = (html: string, prop: string): string | null => {
+export const metaContent = (html: string, prop: string): string | null => {
   const re = new RegExp(
     `<meta[^>]+(?:property|name)=["']${prop}["'][^>]*content=["']([^"']+)["']|<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${prop}["']`,
     "i"

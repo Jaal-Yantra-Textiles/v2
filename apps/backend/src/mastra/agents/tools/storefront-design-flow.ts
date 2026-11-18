@@ -225,36 +225,56 @@ export const resolveOrCreateChatDesign = async (
     return { design_id: open, created: false, design_token: token }
   }
 
-  const { result, errors } = await createDesignWorkflow(container as any).run({
-    input: {
-      name:
-        input.name?.trim() ||
-        brief.concept_theme ||
-        `${brief.product_type} design`,
-      description: brief.concept_theme || undefined,
-      design_type: "Custom",
-      status: "Conceptual",
-      origin_source: "ai-other",
-      concept_theme: brief.concept_theme || undefined,
-      aesthetic_keywords: brief.aesthetic_keywords.length
-        ? (brief.aesthetic_keywords as unknown as Record<string, any>)
-        : undefined,
-      color_palette: brief.color_palette.length
-        ? (brief.color_palette as unknown as Record<string, any>)
-        : undefined,
-      customer_id_for_link: customerId,
-      tags: ["custom", "customer-design", "chat-editor"],
-    } as any,
+  const designId = await createChatDesign(container, {
+    customerId,
+    name: input.name,
+    brief,
   })
-  if (errors?.length) throw errors[0]
-
-  const designId = (result as any).id
   const token = mintDesignAccessToken(designId, customerId)
   if (context) {
     context.design_id = designId
     context.design_token = token
   }
   return { design_id: designId, created: true, design_token: token }
+}
+
+/**
+ * Mint a chat design for the signed-in customer — no reuse, no lookup. The
+ * callers decide whether a new one is wanted: `resolveOrCreateChatDesign`
+ * only after finding none open, `start_new_design` because the maker asked
+ * for another piece.
+ */
+export const createChatDesign = async (
+  container: MedusaContainer,
+  input: { customerId: string; name?: string; brief?: DesignBrief | null }
+): Promise<string> => {
+  const brief = input.brief
+  const { result, errors } = await createDesignWorkflow(container as any).run({
+    input: {
+      name:
+        input.name?.trim() ||
+        brief?.concept_theme ||
+        (brief?.product_type ? `${brief.product_type} design` : "New design"),
+      // Required column — "" when the maker has not given a concept yet (it
+      // used to be `undefined` here, and a brief without one failed to save).
+      description: brief?.concept_theme || "",
+      design_type: "Custom",
+      status: "Conceptual",
+      origin_source: "ai-other",
+      ...(brief?.product_type ? { product_type: brief.product_type } : {}),
+      concept_theme: brief?.concept_theme || undefined,
+      aesthetic_keywords: brief?.aesthetic_keywords.length
+        ? (brief.aesthetic_keywords as unknown as Record<string, any>)
+        : undefined,
+      color_palette: brief?.color_palette.length
+        ? (brief.color_palette as unknown as Record<string, any>)
+        : undefined,
+      customer_id_for_link: input.customerId,
+      tags: ["custom", "customer-design", "chat-editor"],
+    } as any,
+  })
+  if (errors?.length) throw errors[0]
+  return (result as any).id as string
 }
 
 /**
@@ -327,6 +347,12 @@ export type DesignContext = {
   customer_id?: string
   /** Shopper IP, for the image-generation rate limit. */
   client_ip?: string
+  /**
+   * The OTHER designs this conversation holds, each already access-checked
+   * by the route. `design_id` above is the active one; `start_new_design` and
+   * `switch_design` move designs between the two.
+   */
+  designs?: Array<{ design_id: string; design_token?: string }>
 }
 
 const credentialsOf = (
@@ -341,7 +367,7 @@ const credentialsOf = (
 
 /** The token to hand back for a granted design: the presented one, or a fresh
  * one when access came through the signed-in customer instead. */
-const tokenForGrant = (
+export const tokenForGrant = (
   designId: string,
   grant: DesignAccessGrant,
   context?: DesignContext
@@ -356,7 +382,7 @@ const tokenForGrant = (
  * receives the token — but the model has no use for it and every reason not
  * to repeat it into prose, logs or a later tool argument.
  */
-const withoutDesignToken = (output: unknown) => {
+export const withoutDesignToken = (output: unknown) => {
   if (output && typeof output === "object" && "design_token" in output) {
     const { design_token: _omit, ...rest } = output as Record<string, unknown>
     return { type: "json" as const, value: rest as any }
@@ -368,7 +394,7 @@ const withoutDesignToken = (output: unknown) => {
  * Tool-side ownership gate. Throws a plain Error (the AI SDK hands its message
  * to the model, which relays it) rather than an HTTP error.
  */
-const assertToolDesignAccess = async (
+export const assertToolDesignAccess = async (
   container: MedusaContainer,
   designId: string,
   context?: DesignContext | DesignAccessCredentials
@@ -594,11 +620,15 @@ export const SIGN_IN_REQUIRED_MESSAGE =
 
 export type SignInRequiredResult = {
   sign_in_required: true
-  action: "create_design" | "generate_design_image"
+  action:
+    | "create_design"
+    | "generate_design_image"
+    | "start_new_design"
+    | "add_reference_link"
   message: string
 }
 
-const signInRequired = (
+export const signInRequired = (
   action: SignInRequiredResult["action"]
 ): SignInRequiredResult => ({
   sign_in_required: true,

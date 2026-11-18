@@ -34,6 +34,8 @@ export type SafeFetchOptions = {
   timeoutMs?: number
   maxRedirects?: number
   accept?: string
+  /** Defaults to the capability-scan agent; other callers name themselves. */
+  userAgent?: string
 }
 
 export type SafeFetchResult = {
@@ -163,6 +165,7 @@ const requestOnce = (
   url: URL,
   opts: Required<Pick<SafeFetchOptions, "maxBytes" | "timeoutMs">> & {
     accept?: string
+    userAgent?: string
   }
 ): Promise<{ status: number; location?: string; contentType: string; body: Buffer }> =>
   new Promise((resolve, reject) => {
@@ -174,7 +177,7 @@ const requestOnce = (
         lookup: guardedLookup,
         timeout: opts.timeoutMs,
         headers: {
-          "user-agent": USER_AGENT,
+          "user-agent": opts.userAgent ?? USER_AGENT,
           accept: opts.accept ?? "*/*",
           // No compression: a byte cap on a gzip stream caps the WIRE, not what
           // it inflates to.
@@ -235,6 +238,7 @@ export const safeFetch = async (
       maxBytes: options.maxBytes,
       timeoutMs,
       accept: options.accept,
+      userAgent: options.userAgent,
     })
     if (res.status >= 300 && res.status < 400) {
       if (!res.location) throw new Error(`Redirect ${res.status} without a Location`)
