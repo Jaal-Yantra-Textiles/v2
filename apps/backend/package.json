@@ -74,7 +74,7 @@
     "@hookform/resolvers": "^5.0.1",
     "@jytextiles/medusa-plugin-dtdc-shipping": "^0.3.1",
     "@jytextiles/medusa-plugin-etsy-sync": "^0.1.6",
-    "@jytextiles/medusa-plugin-faire-store-sync": "^0.2.15",
+    "@jytextiles/medusa-plugin-faire-store-sync": "^0.2.16",
     "@jytextiles/mikrohyperbee": "workspace:*",
     "@mastra/core": "^1.52.1",
     "@mastra/evals": "^1.6.0",
