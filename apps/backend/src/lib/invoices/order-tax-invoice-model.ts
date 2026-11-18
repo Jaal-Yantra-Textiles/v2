@@ -1,3 +1,5 @@
+import { MedusaError } from "@medusajs/framework/utils"
+
 import { amountInWords } from "./amount-in-words"
 import { gstinStateCode, stateCodeOf, stateName } from "./gst-state"
 
@@ -58,6 +60,12 @@ export type OrderTaxInvoiceInput = {
     /** Medusa's order `total` — what the customer was charged. */
     total: number
     paid_total: number
+    /**
+     * Sum of the order's credit lines. Medusa nets them off `total` but not off
+     * any line, so without this the lines out-add the order. Treated as a
+     * discount given at the time of supply: it lowers taxable value AND tax.
+     */
+    credit_total?: number
   }
   seller: { legal_name: string; gstin: string | null; address: TaxInvoiceParty }
   bill_to: TaxInvoiceParty | null
@@ -266,6 +274,27 @@ export function buildOrderTaxInvoiceModel(
     push("charge", charge.name, "", 1, charge.total, charge.tax_total, charge.tax_rate)
   }
 
+  // An order credit (e.g. the ₹500 that made order #123's ₹10,000 GST-inclusive)
+  // is a discount at the time of supply, so under GST it reduces the taxable
+  // value, and the tax with it. Scale every row by the same share rather than
+  // printing "₹500 GST, less ₹500 credit", which would declare tax that was
+  // never collected. Proportional scaling keeps each row's own rate.
+  const credit = round2(num(input.order.credit_total))
+  const gross = round2(rows.reduce((acc, r) => acc + r.total, 0))
+  if (credit > 0 && gross > 0) {
+    const share = Math.max(0, gross - credit) / gross
+    for (const r of rows) {
+      const taxable = round2(r.taxable * share)
+      const tax = round2((r.cgst + r.sgst + r.igst) * share)
+      Object.assign(r, {
+        taxable,
+        unit_rate: r.quantity > 0 ? round2(taxable / r.quantity) : taxable,
+        ...splitTax(tax, r.tax_rate, supply_type),
+        total: round2(taxable + tax),
+      })
+    }
+  }
+
   const sum = (pick: (r: TaxInvoiceRow) => number) =>
     round2(rows.reduce((acc, r) => acc + pick(r), 0))
   const taxable = sum((r) => r.taxable)
@@ -277,7 +306,8 @@ export function buildOrderTaxInvoiceModel(
   const grand_total = round2(num(input.order.total))
   const round_off = round2(grand_total - (taxable + tax))
   if (Math.abs(round_off) > MAX_ROUND_OFF) {
-    throw new Error(
+    throw new MedusaError(
+      MedusaError.Types.INVALID_DATA,
       `Invoice lines add up to ${round2(taxable + tax)} but the order total is ${grand_total}. Not issuing an invoice that disagrees with what was charged.`
     )
   }
@@ -286,6 +316,11 @@ export function buildOrderTaxInvoiceModel(
   const balance_due = round2(Math.max(0, grand_total - paid))
 
   const notes: string[] = []
+  if (credit > 0) {
+    notes.push(
+      `Values are after a discount of ${credit.toFixed(2)} ${String(input.order.currency_code).toUpperCase()} on this order, applied before tax.`
+    )
+  }
   if (supply_type === "export") {
     notes.push(
       tax === 0

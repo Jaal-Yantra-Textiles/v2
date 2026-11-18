@@ -43,6 +43,7 @@ export async function gatherOrderTaxInvoice(
       "sales_channel_id",
       "total",
       "summary",
+      "credit_lines.amount",
       "items.title",
       "items.variant_title",
       "items.variant_sku",
@@ -170,6 +171,10 @@ export async function gatherOrderTaxInvoice(
       currency_code: order.currency_code,
       total: Number(order.total ?? 0),
       paid_total: Number(order.summary?.paid_total ?? 0),
+      credit_total: ((order.credit_lines ?? []) as any[]).reduce(
+        (acc, c) => acc + Number(c?.amount ?? 0),
+        0
+      ),
     },
     seller: { legal_name: identity.legal_name, gstin: identity.tax_id, address: seller },
     bill_to: party(order.billing_address),

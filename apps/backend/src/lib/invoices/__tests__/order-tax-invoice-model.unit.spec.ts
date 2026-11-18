@@ -144,6 +144,51 @@ describe("buildOrderTaxInvoiceModel", () => {
     ).toThrow("order total is 3000")
   })
 
+  // Prod order #123 (2026-11-18): 2 shirts at a GST-exclusive ₹5,000, 5% GST,
+  // brought back to the ₹10,000 the buyer paid all-in with a ₹500 credit line.
+  // Without the credit the lines add up to 10,500 and the invoice is refused.
+  it("treats an order credit as a discount before tax (order #123)", () => {
+    const m = buildOrderTaxInvoiceModel(
+      input({
+        order: {
+          id: "order_123",
+          display_id: 123,
+          created_at: "2026-10-03T11:07:08.832Z",
+          currency_code: "inr",
+          total: 10000,
+          paid_total: 10000,
+          credit_total: 500,
+        },
+        lines: [
+          {
+            title: "Tibetan Chupa Style Shirt",
+            quantity: 2,
+            total: 10500,
+            tax_total: 500,
+            tax_rate: 5,
+          },
+        ],
+        charges: [],
+      })
+    )
+
+    expect(m.rows[0]).toMatchObject({
+      taxable: 9523.81,
+      unit_rate: 4761.91,
+      cgst: 238.1,
+      sgst: 238.09,
+      total: 10000,
+    })
+    expect(m.totals).toMatchObject({
+      taxable: 9523.81,
+      tax: 476.19,
+      round_off: 0,
+      grand_total: 10000,
+      balance_due: 0,
+    })
+    expect(m.notes.join(" ")).toContain("discount of 500.00 INR")
+  })
+
   it("notes a missing HSN", () => {
     const m = buildOrderTaxInvoiceModel(
       input({ lines: [{ ...input().lines[0], hs_code: null }] })
