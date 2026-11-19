@@ -84,6 +84,9 @@ const DesignContextSchema = z.object({
     )
     .max(12)
     .optional(),
+  // "+ Another design" was pressed (#2556): the route starts the new design
+  // itself instead of hoping the model calls start_new_design.
+  new_piece: z.boolean().optional(),
 })
 
 export const StoreAiChatSchema = z.object({

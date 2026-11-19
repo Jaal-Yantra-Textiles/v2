@@ -27,7 +27,12 @@
  */
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
-import { convertToModelMessages, streamText, stepCountIs } from "ai"
+import {
+  convertToModelMessages,
+  pipeUIMessageStreamToResponse,
+  streamText,
+  stepCountIs,
+} from "ai"
 import {
   buildStorefrontChatSystem,
   resolveStorefrontChatModel,
@@ -58,6 +63,11 @@ import {
   MAX_DESIGNS_PER_CONVERSATION,
   summarizeDesign,
 } from "../../../../mastra/agents/tools/storefront-design-multi"
+import {
+  startNewPieceIfAsked,
+  startedPieceNote,
+  startedPieceUIStream,
+} from "./new-piece-lib"
 import { createSearchProductsTool } from "../../../../mastra/agents/tools/storefront-search-products"
 import {
   createGetCategoriesTool,
@@ -148,7 +158,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return
   }
 
-  const system = designContext
+  // #2556: when the maker clearly asks for another piece (or pressed "+ Another
+  // design"), start it HERE, before the model runs. Left to the model, it
+  // wrote "Design created ✅" with a made-up id instead of calling
+  // start_new_design (prod, 2026-11-19). The result is streamed to the page as
+  // an ordinary start_new_design tool part, so the tab appears the usual way.
+  const startedPiece = designContext
+    ? await startNewPieceIfAsked(req.scope as any, designContext, body)
+    : null
+
+  const baseSystem = designContext
     ? await buildDesignChatSystemResolved(
         req.scope as any,
         body.prefs,
@@ -156,6 +175,9 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         body.messages
       )
     : buildStorefrontChatSystem(body.prefs)
+  const system = startedPiece
+    ? `${baseSystem}\n\n${startedPieceNote(startedPiece)}`
+    : baseSystem
 
   const tools = {
     search_products: createSearchProductsTool(req.scope as any),
@@ -186,7 +208,10 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             req.scope as any,
             designContext
           ),
-          start_new_design: createStartNewDesignTool(req.scope as any, designContext),
+          // Already started this turn: offering it again invites a duplicate.
+          ...(startedPiece
+            ? {}
+            : { start_new_design: createStartNewDesignTool(req.scope as any, designContext) }),
           switch_design: createSwitchDesignTool(req.scope as any, designContext),
           list_my_designs: createListMyDesignsTool(req.scope as any, designContext),
           add_reference_link: createAddReferenceLinkTool(req.scope as any, designContext),
@@ -315,26 +340,34 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // browser cannot tell apart from success (#1725). The status line is
   // already committed by the time anything can go wrong, so an error part is
   // the only channel left.
-  result.pipeUIMessageStreamToResponse(res as any, {
-    onError: (err: unknown) => {
-      logAiUsage(logger, {
-        feature: "store/ai/chat",
-        role: "ai_search_chat",
-        provider: usage.providerType,
-        source: usage.source,
-        platformId: usage.platformId,
-        model: usage.modelId,
-        ok: false,
-        ms: Date.now() - startedAt,
-        error: err,
-      })
-      // Deliberately generic: this reaches a shopper. The provider's own
-      // message is in the log line above.
-      return "The design assistant's connection dropped mid-turn. Please send that message again."
-    },
-  } as any)
-}
+  const onStreamError = (err: unknown) => {
+    logAiUsage(logger, {
+      feature: "store/ai/chat",
+      role: "ai_search_chat",
+      provider: usage.providerType,
+      source: usage.source,
+      platformId: usage.platformId,
+      model: usage.modelId,
+      ok: false,
+      ms: Date.now() - startedAt,
+      error: err,
+    })
+    // Deliberately generic: this reaches a shopper. The provider's own
+    // message is in the log line above.
+    return "The design assistant's connection dropped mid-turn. Please send that message again."
+  }
 
+  if (!startedPiece) {
+    result.pipeUIMessageStreamToResponse(res as any, { onError: onStreamError } as any)
+    return
+  }
+
+  // The design the route started goes out FIRST, as a finished
+  // start_new_design step, then the model's reply. The page treats it exactly
+  // like the model calling the tool: a new tab, made active.
+  const stream = startedPieceUIStream(result, startedPiece, onStreamError)
+  pipeUIMessageStreamToResponse({ response: res as any, stream })
+}
 
 // ── Server-resolved design context for the system prompt ───────────────
 

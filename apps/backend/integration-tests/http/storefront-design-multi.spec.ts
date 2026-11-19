@@ -12,6 +12,7 @@ import {
   runSwitchDesign,
 } from "../../src/mastra/agents/tools/storefront-design-multi"
 import type { DesignContext } from "../../src/mastra/agents/tools/storefront-design-flow"
+import { startNewPieceIfAsked } from "../../src/api/store/ai/chat/new-piece-lib"
 
 jest.setTimeout(240 * 1000)
 
@@ -124,6 +125,53 @@ setupSharedTestSuite(() => {
       // ── 5. 🔴 a stranger cannot switch onto either design ──
       const stranger: DesignContext = { customer_id: "cus_someone_else" }
       await expect(runSwitchDesign(container(), first, stranger)).rejects.toThrow()
+    })
+
+    // #2556: on prod the model wrote "Design created ✅" with a made-up id
+    // instead of calling start_new_design. The route now starts it itself.
+    it("the route starts 'the matching trousers' itself, once, and never for a guest", async () => {
+      const customers: any = container().resolve(Modules.CUSTOMER)
+      const { id: customer_id } = await customers.createCustomers({
+        email: `piece-${Date.now()}@jyt.test`,
+        has_account: true,
+      })
+      const designs: any = container().resolve(DESIGN_MODULE)
+      const ctx: DesignContext = { customer_id, client_ip: "203.0.113.8" }
+      const kurta: any = await runStartNewDesign(container(), { product_type: "kurta" }, ctx)
+      const say = (text: string, extra: Record<string, unknown> = {}) =>
+        ({
+          visitor_id: "v",
+          messages: [{ role: "user", parts: [{ type: "text", text }] }],
+          context: { ...extra },
+        }) as any
+
+      // A garment named without asking for more is left to the model.
+      expect(await startNewPieceIfAsked(container(), ctx, say("would it look good with trousers?"))).toBeNull()
+      expect(ctx.design_id).toBe(kurta.design_id)
+
+      const trousers = await startNewPieceIfAsked(container(), ctx, say("Now the matching trousers"))
+      expect(trousers).toMatchObject({ product_type: "trousers", previous_design_id: kurta.design_id })
+      expect(verifyDesignAccessToken(trousers!.design_token, trousers!.design_id)).toBeTruthy()
+      expect((await designs.retrieveDesign(trousers!.design_id)).product_type).toBe("trousers")
+      expect(ctx.design_id).toBe(trousers!.design_id)
+      expect(ctx.designs?.map((d) => d.design_id)).toEqual([kurta.design_id])
+
+      // Saying it again does not make a second trousers design — not while
+      // the trousers are active, and not after going back to the kurta tab
+      // (the trousers are still open there; the model switches instead).
+      expect(await startNewPieceIfAsked(container(), ctx, say("now the matching trousers"))).toBeNull()
+      await runSwitchDesign(container(), kurta.design_id, ctx)
+      expect(await startNewPieceIfAsked(container(), ctx, say("now the matching trousers"))).toBeNull()
+      expect(ctx.design_id).toBe(kurta.design_id)
+
+      // "+ Another design" always starts one.
+      const third = await startNewPieceIfAsked(container(), ctx, say("another one please", { new_piece: true }))
+      expect(third?.design_id).toBeTruthy()
+      expect(ctx.designs?.map((d) => d.design_id)).toEqual([kurta.design_id, trousers!.design_id])
+
+      // 🔴 A guest never gets a design started for them.
+      const guest: DesignContext = { design_id: kurta.design_id, design_token: kurta.design_token }
+      expect(await startNewPieceIfAsked(container(), guest, say("now the matching shawl", { new_piece: true }))).toBeNull()
     })
   })
 })

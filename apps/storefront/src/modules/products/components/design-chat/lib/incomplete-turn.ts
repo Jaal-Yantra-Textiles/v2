@@ -52,3 +52,42 @@ export const sealPendingToolParts = <T,>(m: T): T => {
     ),
   }
 }
+
+/**
+ * A reply that claims a design was saved when nothing was (#2556).
+ *
+ * Measured on prod (2026-11-19): asked for "the matching trousers", the model
+ * wrote "Design created ✅ Design ID 01M7RRB2…" three turns running without
+ * calling a tool, and that id never existed. Unlike a cut-short turn there is
+ * no pending tool part to see — only prose. So read the prose:
+ *
+ *   - a design id written next to the word "design" that no tool returned and
+ *     no tab holds, or
+ *   - "design created" in a reply where no design tool ran.
+ *
+ * Ids are matched only beside "design", because fabric and partner ids share
+ * the same 26-character shape.
+ */
+const DESIGN_ID_CLAIM_RE = /design[^\n]{0,40}?\b(01[0-9A-HJKMNP-TV-Z]{24})\b/gi
+const CREATED_CLAIM_RE = /\bdesign (?:record )?(?:created|started|saved)\b/i
+const DESIGN_TOOLS = new Set(["tool-create_design", "tool-start_new_design"])
+
+export const claimsUnsavedDesign = (m: any, knownDesignIds: Iterable<string>): boolean => {
+  if (m?.role !== "assistant") return false
+  const parts = ((m?.parts ?? []) as any[])
+  const known = new Set(knownDesignIds)
+  let designToolRan = false
+  for (const p of parts) {
+    if (typeof p?.type === "string" && p.type.startsWith("tool-") && p.output?.design_id) {
+      known.add(String(p.output.design_id))
+    }
+    if (DESIGN_TOOLS.has(p?.type) && p?.state === "output-available") designToolRan = true
+  }
+  const text = parts
+    .filter((p) => p?.type === "text" && typeof p.text === "string")
+    .map((p) => p.text)
+    .join("\n")
+  const claimedIds = Array.from(text.matchAll(DESIGN_ID_CLAIM_RE), (match) => match[1].toUpperCase())
+  if (claimedIds.some((id) => !known.has(id))) return true
+  return !designToolRan && CREATED_CLAIM_RE.test(text)
+}
