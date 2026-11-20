@@ -4,7 +4,7 @@
     "jyt-implementer": {
       "description": "Implementation sub-agent for the JYT daemon. Authors source + integration specs + Playwright e2e specs, and may RUN typecheck and per-file jest/integration specs to check its own work. It has NO git, NO gh, NO network, and NO installs: branch/commit/push/PR are done by the wrapper AFTER a human verifier reviews the diff. An unlisted bash command is DENIED, never queued for approval, so a headless run fails loudly instead of hanging.",
       "mode": "primary",
-      "model": "cloudflare-workers-ai/@cf/zai-org/glm-5.3",
+      "model": "opencode/glm-5.3-flash-free",
       "temperature": 0.1,
       "permission": {
         "edit": "allow",

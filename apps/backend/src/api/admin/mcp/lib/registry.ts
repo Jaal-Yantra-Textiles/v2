@@ -7446,7 +7446,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           "The specific question to ask about the image. Be narrow: broad prompts on reasoning models can exhaust the token budget before they answer."
         ),
         model: STR(
-          "Optional model override, e.g. '@cf/meta/llama-4-scout-17b-16e-instruct' for a fast read or '@cf/google/gemma-4-26b-a4b-it' for an accurate one. Omit to use the configured ai_image_extraction platform."
+          "Optional model override — a model id on the configured ai_image_extraction platform's provider (prod: OpenRouter, e.g. 'google/gemma-3-27b-it'). Omit to use that platform's default model."
         ),
       },
       ["image_url"]

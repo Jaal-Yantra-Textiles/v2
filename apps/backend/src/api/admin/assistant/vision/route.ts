@@ -71,8 +71,8 @@ export const POST = async (
     res.status(503).json({
       error:
         "No vision provider is configured. Add a platform with role " +
-        "ai_image_extraction in Settings → External Platforms (Cloudflare Workers " +
-        "AI works — e.g. @cf/google/gemma-4-26b-a4b-it), or set OPENROUTER_API_KEY.",
+        "ai_image_extraction in Settings → External Platforms (e.g. OpenRouter " +
+        "google/gemma-3-27b-it), or set OPENROUTER_API_KEY.",
     })
     return
   }
@@ -83,8 +83,8 @@ export const POST = async (
         `The model configured for image reading (${resolved.modelId}) is text-only — ` +
         `it accepts an image and silently ignores it, so any answer would be invented. ` +
         `Point the ai_image_extraction platform at a vision model ` +
-        `(e.g. @cf/google/gemma-4-26b-a4b-it for accuracy, ` +
-        `@cf/meta/llama-4-scout-17b-16e-instruct for speed).`,
+        `(e.g. google/gemma-3-27b-it on OpenRouter, or ` +
+        `meta/llama-3.2-90b-vision-instruct on NVIDIA).`,
       model: resolved.modelId,
     })
     return
