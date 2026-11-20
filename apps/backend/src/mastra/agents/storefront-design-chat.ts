@@ -202,6 +202,11 @@ const GARMENT_KEYWORDS = [
   "tunic", "kimono", "robe", "vest", "shorts", "jumpsuit", "playsuit",
 ]
 
+/** Every distinct piece the chat knows ("pants" folded into "trousers"). */
+export const GARMENT_PIECES: string[] = distinctPieces(
+  GARMENT_KEYWORDS.filter((k) => !k.includes(" "))
+)
+
 /** The distinct pieces a piece of text names ("the matching pants" → ["trousers"]). */
 export const garmentsIn = (text: string): string[] => {
   const t = (text || "").toLowerCase()

@@ -52,6 +52,7 @@ export type AiProviderType =
   | "typesafe"
   | "codiv"
   | "openjev"
+  | "featherless"
 
 export type AiRole =
   | "ai_search_chat"
@@ -197,6 +198,11 @@ export const PROVIDER_DEFAULTS: Record<
     // Keyless, self-hostable OpenJev (github.com/ekzhang/openjev-sglang).
     baseUrl: "https://ekzhang--openjev-sglang-openjev.us-west.modal.direct/v1/systemone",
     defaultModelHint: "jev-latest",
+  },
+  featherless: {
+    // Keyless public demo (github.com/featherless-ai/simple-jev), 2k context.
+    baseUrl: "https://simple-jev-demo-api.featherless.ai/v1/systemone",
+    defaultModelHint: "featherless-ai/gemma-4-26B-A4B-classifier",
   },
 }
 

@@ -55,12 +55,13 @@ const ProviderTypeEnum = z.enum([
   "typesafe",
   "codiv",
   "openjev",
+  "featherless",
 ])
 
 /** Providers that serve pre-classification rather than text generation. */
-const SYSTEM_ONE_PROVIDERS = ["typesafe", "codiv", "openjev"] as const
-/** Keyless System One servers (self-hosted OpenJev). */
-const isKeyless = (p: string) => p === "openjev"
+const SYSTEM_ONE_PROVIDERS = ["typesafe", "codiv", "openjev", "featherless"] as const
+/** Keyless System One servers (self-hosted OpenJev, the Featherless demo). */
+const isKeyless = (p: string) => p === "openjev" || p === "featherless"
 const isSystemOne = (p: string) => (SYSTEM_ONE_PROVIDERS as readonly string[]).includes(p)
 
 const Schema = z.object({
@@ -151,6 +152,7 @@ const PROVIDER_LABELS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   typesafe: "TypeSafe — System One (Jev)",
   codiv: "Codiv — System One (OpenJev)",
   openjev: "OpenJev — self-hosted, no key",
+  featherless: "Featherless demo — no key, 2k context, no privacy promise",
 }
 
 const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
@@ -168,6 +170,7 @@ const DEFAULT_MODEL_HINTS: Record<z.infer<typeof ProviderTypeEnum>, string> = {
   typesafe: "jev-latest",
   codiv: "openjev-latest",
   openjev: "jev-latest",
+  featherless: "featherless-ai/gemma-4-26B-A4B-classifier",
 }
 
 export const CreateAiPlatformComponent = () => {

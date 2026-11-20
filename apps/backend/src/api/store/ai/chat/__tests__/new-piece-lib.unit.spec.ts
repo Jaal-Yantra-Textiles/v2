@@ -1,5 +1,5 @@
 import { readUIMessageStream, type UIMessageChunk } from "ai"
-import { startedPieceNote, startedPieceUIStream } from "../new-piece-lib"
+import { serverActionNote, serverActionUIStream, type ServerTurnAction } from "../new-piece-lib"
 
 // #2556: the route starts "the matching trousers" itself; the page must get it
 // as an ordinary, finished start_new_design tool part — that is what makes the
@@ -11,6 +11,23 @@ const started = {
   product_type: "trousers",
   previous_design_id: "01M7RRA9XAFNZE94DNGHEGZHDZ",
   open_designs: 2,
+}
+const startAction: ServerTurnAction = { tool: "start_new_design", output: started, decidedBy: "words" }
+const switchAction: ServerTurnAction = {
+  tool: "switch_design",
+  decidedBy: "judgment",
+  output: {
+    design_id: "01M7RRA9XAFNZE94DNGHEGZHDZ",
+    design_token: "dt1.kurta",
+    name: "Unlined & Unhurried Kurta",
+    product_type: "kurta",
+    status: "Conceptual",
+    thumbnail_url: null,
+    takes: 0,
+    references: 4,
+    picked_take: null,
+    active: true,
+  },
 }
 
 /** Stands in for streamText's result: a reply with one text part. */
@@ -36,10 +53,10 @@ const lastMessage = async (stream: ReadableStream<UIMessageChunk>) => {
   return last
 }
 
-describe("startedPieceUIStream", () => {
+describe("serverActionUIStream", () => {
   it("puts the started design first, as a finished start_new_design part, then the reply", async () => {
     const message = await lastMessage(
-      startedPieceUIStream(fakeModelReply("Your trousers are started."), started, () => "err")
+      serverActionUIStream(fakeModelReply("Your trousers are started."), startAction, () => "err")
     )
     const parts = message.parts.filter((p: any) => p.type !== "step-start")
     expect(parts.map((p: any) => p.type)).toEqual(["tool-start_new_design", "text"])
@@ -52,7 +69,7 @@ describe("startedPieceUIStream", () => {
 
   it("sends exactly one start (the page would otherwise begin a second message)", async () => {
     const chunks: UIMessageChunk[] = []
-    const reader = startedPieceUIStream(fakeModelReply("ok"), started, () => "err").getReader()
+    const reader = serverActionUIStream(fakeModelReply("ok"), startAction, () => "err").getReader()
     for (;;) {
       const { done, value } = await reader.read()
       if (done) break
@@ -60,13 +77,33 @@ describe("startedPieceUIStream", () => {
     }
     expect(chunks.filter((c) => c.type === "start")).toHaveLength(1)
   })
+
+  it("a switch goes out as a finished switch_design part (the page selects that tab)", async () => {
+    const message = await lastMessage(
+      serverActionUIStream(fakeModelReply("Back on your kurta."), switchAction, () => "err")
+    )
+    const tool = message.parts.find((p: any) => p.type === "tool-switch_design")
+    expect(tool).toMatchObject({
+      state: "output-available",
+      output: { design_id: switchAction.output.design_id, design_token: "dt1.kurta" },
+    })
+  })
 })
 
-describe("startedPieceNote", () => {
+describe("serverActionNote", () => {
   it("tells the model the piece exists and not to start or create it again", () => {
-    const note = startedPieceNote(started)
+    const note = serverActionNote(startAction)
     expect(note).toMatch(/for the trousers/)
     expect(note).toMatch(/Do NOT call start_new_design or create_design/)
     expect(note).not.toContain(started.design_id)
+  })
+})
+
+describe("serverActionNote — switch", () => {
+  it("names the design gone back to, not its id, and says not to switch again", () => {
+    const note = serverActionNote(switchAction)
+    expect(note).toMatch(/kurta design \("Unlined & Unhurried Kurta"\)/)
+    expect(note).toMatch(/Do NOT call switch_design/)
+    expect(note).not.toContain(switchAction.output.design_id)
   })
 })
