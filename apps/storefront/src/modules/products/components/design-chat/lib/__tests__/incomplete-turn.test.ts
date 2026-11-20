@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   INCOMPLETE_TOOL_ERROR,
+  claimsUnsavedDesign,
   countPendingToolParts,
   sealPendingToolParts,
 } from "../incomplete-turn"
@@ -144,5 +145,54 @@ describe("sealPendingToolParts", () => {
   it("does not mutate the message it was given", () => {
     sealPendingToolParts(runB)
     expect(runB.parts[0].state).toBe("input-streaming")
+  })
+})
+
+// #2556 — prod transcript, 2026-11-19. The real kurta design and the trousers
+// id the model made up (it 404s on prod).
+describe("claimsUnsavedDesign", () => {
+  const KURTA = "01M7RRA9XAFNZE94DNGHEGZHDZ"
+  const FAKE = "01M7RRB2QXK8YVJZQF3N4G6H9T"
+  const reply = (text: string, extra: any[] = []) => ({
+    role: "assistant",
+    parts: [{ type: "step-start" }, { type: "text", text }, ...extra],
+  })
+
+  it("flags the made-up trousers design (no tool ran, unknown id)", () => {
+    const m = reply(
+      `Creating fresh design…\n\nDesign created ✅  \n**Design ID**: \`${FAKE}\`  \n**Name**: *Unlined & Unhurried Trousers*`
+    )
+    expect(claimsUnsavedDesign(m, [KURTA])).toBe(true)
+  })
+
+  it("flags 'design created' with no design tool even without an id", () => {
+    expect(claimsUnsavedDesign(reply("Design created ✅ — on to fabrics."), [KURTA])).toBe(true)
+  })
+
+  it("passes the real create: the tool ran and returned that id", () => {
+    const m = reply(`Design created ✅  \n**Design ID**: \`${KURTA}\``, [
+      {
+        type: "tool-create_design",
+        state: "output-available",
+        output: { design_id: KURTA, created: true },
+      },
+    ])
+    expect(claimsUnsavedDesign(m, [])).toBe(false)
+  })
+
+  it("passes a reply that names a design already on a tab", () => {
+    expect(
+      claimsUnsavedDesign(reply(`your current design (Kurta, ID \`${KURTA}\`) is safely saved`), [KURTA])
+    ).toBe(false)
+  })
+
+  it("ignores fabric ids, which share the id shape", () => {
+    expect(
+      claimsUnsavedDesign(reply("Off White Linen — 100% Linen, id 01JW0YV5ZQ10AEC46VTFAS8QWE"), [KURTA])
+    ).toBe(false)
+  })
+
+  it("never flags the maker's own message", () => {
+    expect(claimsUnsavedDesign({ role: "user", parts: [{ type: "text", text: "Design created?" }] }, [])).toBe(false)
   })
 })

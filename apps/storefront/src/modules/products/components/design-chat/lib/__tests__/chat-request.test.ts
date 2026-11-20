@@ -33,4 +33,11 @@ describe("design chat request body (#2543)", () => {
       context: { design_id: "des_1", design_token: "dt1.x" },
     })
   })
+
+  it("sends new_piece only when '+ Another design' was pressed (#2556)", () => {
+    expect(buildDesignChatBody({ prefs: null, newPiece: true }, "v").context).toEqual({
+      new_piece: true,
+    })
+    expect(buildDesignChatBody({ prefs: null }, "v").context).toEqual({})
+  })
 })

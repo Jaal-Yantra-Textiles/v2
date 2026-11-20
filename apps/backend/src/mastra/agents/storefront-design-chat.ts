@@ -201,6 +201,17 @@ const GARMENT_KEYWORDS = [
   "top", "blouse", "kaftan", "caftan", "skirt", "skirt-set", "coordinates", "set", "hoodie", "sweater", "cardigan",
   "tunic", "kimono", "robe", "vest", "shorts", "jumpsuit", "playsuit",
 ]
+
+/** The distinct pieces a piece of text names ("the matching pants" → ["trousers"]). */
+export const garmentsIn = (text: string): string[] => {
+  const t = (text || "").toLowerCase()
+  return distinctPieces(
+    GARMENT_KEYWORDS.filter((k) =>
+      new RegExp(`\\b${k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(t)
+    )
+  )
+}
+
 export type PlannedTurn = {
   garment_type: string | null
   /** Signed in with a verified email (#2543 phase 2) — designs can save. */
@@ -419,6 +430,8 @@ export const buildDesignChatSystem = (
 - list_my_designs — their designs with garment, takes and references.
 - get_design_state — board + brief state (call when resuming/editing).
 - capture_contact — save an email the shopper volunteers for follow-up as a marketing lead (NOT an account, and NOT how designs are saved).
+- 🔴 Writing "Design created" does NOT create anything — only the tool does. Say a design was created or a picture pinned ONLY when the tool returned it in THIS turn. Earlier replies in this chat that say "Design created ✅" were each backed by a tool call you can no longer see; copying their wording without calling the tool tells the maker something false.
+- Never show the maker internals: no design ids, no tool names (save_brief, create_design…), no raw JSON. Colours by name ("ecru, oat"), never as code.
 - search_products — if they wander into shopping, search the catalogue (they may want a base product).
 ${hasProduct ? PRODUCT_CONTEXT(context!) : ""}${hasDesign ? DESIGN_CONTEXT(context!) : ""}${context ? DESIGNS_LIST(context) : ""}
 

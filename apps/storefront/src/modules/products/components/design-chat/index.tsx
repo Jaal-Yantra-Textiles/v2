@@ -64,6 +64,7 @@ import {
   isDesignForbiddenChatError,
 } from "./lib/design-access"
 import {
+  claimsUnsavedDesign,
   countPendingToolParts,
   sealPendingToolParts,
 } from "./lib/incomplete-turn"
@@ -225,11 +226,22 @@ export default function DesignChat({
     designs: otherDesigns(tabs, designId),
   }
 
+  // "+ Another design" (#2556): one-shot — the next request asks the backend
+  // to start the new design itself, then the flag clears.
+  const newPieceRef = React.useRef(false)
+
   const transport = React.useMemo(
     () =>
       new DefaultChatTransport({
         api: "/api/ai-chat",
-        body: makeDesignChatBody(() => bodyRef.current, () => visitorIdRef.current),
+        body: makeDesignChatBody(
+          () => {
+            const live = { ...bodyRef.current, newPiece: newPieceRef.current }
+            newPieceRef.current = false
+            return live
+          },
+          () => visitorIdRef.current
+        ),
       }),
     []
   )
@@ -283,9 +295,26 @@ export default function DesignChat({
     )
   }, [messages, isStreaming, setMessages])
 
+  // A reply that says a design was saved when no tool saved one (#2556).
+  const [unsavedClaim, setUnsavedClaim] = React.useState(false)
+  const claimCheckedRef = React.useRef<Set<string>>(new Set())
+  React.useEffect(() => {
+    if (isStreaming || messages.length === 0) return
+    const last = messages.at(-1) as any
+    if (!last || last.role !== "assistant" || claimCheckedRef.current.has(last.id)) return
+    claimCheckedRef.current.add(last.id)
+    const known = [designId, ...tabs.map((t) => t.design_id)].filter(
+      (id): id is string => typeof id === "string"
+    )
+    if (claimsUnsavedDesign(last, known)) setUnsavedClaim(true)
+  }, [messages, isStreaming, designId, tabs])
+
   // A fresh turn clears the warning — the maker acted on it.
   React.useEffect(() => {
-    if (isStreaming) setTurnIncomplete(false)
+    if (isStreaming) {
+      setTurnIncomplete(false)
+      setUnsavedClaim(false)
+    }
   }, [isStreaming])
 
   const isGenerating = messages.some(
@@ -671,6 +700,9 @@ export default function DesignChat({
     e.preventDefault()
     const text = input.trim()
     if ((!text && attachments.length === 0) || isStreaming || uploading) return
+    // The maker skipped the "Let's start your board" card and typed instead:
+    // it has done its job. Left up, it sat under the whole conversation.
+    setShowOnboarding(false)
     if (isNewDesignIntent(text)) {
       setInput("")
       startNewDesign()
@@ -795,6 +827,7 @@ export default function DesignChat({
   const handleChoice = React.useCallback(
     (text: string) => {
       if (isStreaming || uploading) return
+      setShowOnboarding(false)
       setStickToBottom(true)
       sendMessage({ text })
     },
@@ -1016,8 +1049,11 @@ export default function DesignChat({
   // started in the conversation (start_new_design). Only once a design exists:
   // before that the first design is simply the one being made.
   const canAddDesign = Boolean(designId && signedInEmail) && tabs.length < 12
-  const addAnotherDesign = () =>
+  const addAnotherDesign = () => {
+    if (isStreaming || uploading) return
+    newPieceRef.current = true
     handleChoice("I'd like to start another design — keep my current one saved.")
+  }
 
   const boardPanel = (
     <div className="flex flex-col gap-4">
@@ -1226,11 +1262,13 @@ export default function DesignChat({
                   </button>
                 </div>
               )}
-              {(error || turnIncomplete) && (
+              {(error || turnIncomplete || unsavedClaim) && (
                 <div className="flex flex-wrap items-center gap-2 rounded-xl border border-ui-tag-red-border bg-ui-tag-red-bg px-3 py-2 text-xs text-ui-tag-red-text">
                   <span>
                     {error
                       ? describeChatError(error) ?? "Something went wrong — try again."
+                      : unsavedClaim && !turnIncomplete
+                      ? "That reply says a design was saved, but nothing was saved. Tap “+ Another design” to start it, or ask again."
                       : "That turn was cut short — some steps never ran, so anything the reply claims to have saved may not exist. Send it again."}
                   </span>
                   {isDesignForbiddenChatError(error) && !isStreaming && (
