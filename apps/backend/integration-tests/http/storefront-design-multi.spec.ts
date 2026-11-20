@@ -12,7 +12,7 @@ import {
   runSwitchDesign,
 } from "../../src/mastra/agents/tools/storefront-design-multi"
 import type { DesignContext } from "../../src/mastra/agents/tools/storefront-design-flow"
-import { startNewPieceIfAsked } from "../../src/api/store/ai/chat/new-piece-lib"
+import { routeDesignTurn } from "../../src/api/store/ai/chat/new-piece-lib"
 
 jest.setTimeout(240 * 1000)
 
@@ -138,6 +138,13 @@ setupSharedTestSuite(() => {
       const designs: any = container().resolve(DESIGN_MODULE)
       const ctx: DesignContext = { customer_id, client_ip: "203.0.113.8" }
       const kurta: any = await runStartNewDesign(container(), { product_type: "kurta" }, ctx)
+      // No classifier row in the test DB: the judgment is off, so this is the
+      // word-rule fallback — the path live today when no provider answers.
+      const startNewPieceIfAsked = async (c: any, x: DesignContext, b: any) => {
+        const action = await routeDesignTurn(c, x, b)
+        if (action) expect(action.tool).toBe("start_new_design")
+        return action ? (action.output as any) : null
+      }
       const say = (text: string, extra: Record<string, unknown> = {}) =>
         ({
           visitor_id: "v",

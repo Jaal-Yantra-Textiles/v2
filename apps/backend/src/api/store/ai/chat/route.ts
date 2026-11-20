@@ -63,11 +63,7 @@ import {
   MAX_DESIGNS_PER_CONVERSATION,
   summarizeDesign,
 } from "../../../../mastra/agents/tools/storefront-design-multi"
-import {
-  startNewPieceIfAsked,
-  startedPieceNote,
-  startedPieceUIStream,
-} from "./new-piece-lib"
+import { routeDesignTurn, serverActionNote, serverActionUIStream } from "./new-piece-lib"
 import { createSearchProductsTool } from "../../../../mastra/agents/tools/storefront-search-products"
 import {
   createGetCategoriesTool,
@@ -163,8 +159,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // wrote "Design created ✅" with a made-up id instead of calling
   // start_new_design (prod, 2026-11-19). The result is streamed to the page as
   // an ordinary start_new_design tool part, so the tab appears the usual way.
-  const startedPiece = designContext
-    ? await startNewPieceIfAsked(req.scope as any, designContext, body)
+  const serverAction = designContext
+    ? await routeDesignTurn(req.scope as any, designContext, body)
     : null
 
   const baseSystem = designContext
@@ -175,8 +171,8 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
         body.messages
       )
     : buildStorefrontChatSystem(body.prefs)
-  const system = startedPiece
-    ? `${baseSystem}\n\n${startedPieceNote(startedPiece)}`
+  const system = serverAction
+    ? `${baseSystem}\n\n${serverActionNote(serverAction)}`
     : baseSystem
 
   const tools = {
@@ -209,10 +205,12 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
             designContext
           ),
           // Already started this turn: offering it again invites a duplicate.
-          ...(startedPiece
+          ...(serverAction
             ? {}
-            : { start_new_design: createStartNewDesignTool(req.scope as any, designContext) }),
-          switch_design: createSwitchDesignTool(req.scope as any, designContext),
+            : {
+                start_new_design: createStartNewDesignTool(req.scope as any, designContext),
+                switch_design: createSwitchDesignTool(req.scope as any, designContext),
+              }),
           list_my_designs: createListMyDesignsTool(req.scope as any, designContext),
           add_reference_link: createAddReferenceLinkTool(req.scope as any, designContext),
         }
@@ -357,7 +355,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     return "The design assistant's connection dropped mid-turn. Please send that message again."
   }
 
-  if (!startedPiece) {
+  if (!serverAction) {
     result.pipeUIMessageStreamToResponse(res as any, { onError: onStreamError } as any)
     return
   }
@@ -365,7 +363,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   // The design the route started goes out FIRST, as a finished
   // start_new_design step, then the model's reply. The page treats it exactly
   // like the model calling the tool: a new tab, made active.
-  const stream = startedPieceUIStream(result, startedPiece, onStreamError)
+  const stream = serverActionUIStream(result, serverAction, onStreamError)
   pipeUIMessageStreamToResponse({ response: res as any, stream })
 }
 

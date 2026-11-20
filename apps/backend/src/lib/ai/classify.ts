@@ -41,7 +41,7 @@ import { askSystemOne, type Question, type SystemOneResult } from "./typesafe"
 
 export const CLASSIFICATION_ROLE = "ai_classification"
 
-export type SystemOneProvider = "typesafe" | "codiv" | "openjev"
+export type SystemOneProvider = "typesafe" | "codiv" | "openjev" | "featherless"
 
 /**
  * Per-provider defaults. `options` are extra request fields the provider
@@ -97,6 +97,23 @@ export const SYSTEM_ONE_PROVIDERS: Record<
     allowed: [],
     maxQuestions: 27,
     keyless: true,
+    stringCriteria: true,
+  },
+  /**
+   * Featherless's public demo (github.com/featherless-ai/simple-jev, Gemma-4
+   * 26B classifier) — keyless, 2 req/s, a 2k-token context. Measured
+   * 2026-11-20: 7/7 design-chat intents right, ~2s; one 2-question request
+   * already used 1,987 input tokens, so keep requests to a few questions over
+   * a small state. No privacy or uptime statement: never on by default.
+   */
+  featherless: {
+    url: "https://simple-jev-demo-api.featherless.ai/v1/systemone",
+    model: "featherless-ai/gemma-4-26B-A4B-classifier",
+    options: {},
+    allowed: [],
+    maxQuestions: 3,
+    keyless: true,
+    // Probed with string criteria only; flatten to stay on the tested shape.
     stringCriteria: true,
   },
 }
