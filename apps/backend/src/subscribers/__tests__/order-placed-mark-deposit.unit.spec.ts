@@ -4,6 +4,11 @@ jest.mock("../../modules/payment_schedule", () => ({
   PAYMENT_SCHEDULE_MODULE: "payment_schedule",
 }))
 
+const deliverDepositReceivedEmail = jest.fn(async () => ({ sent: true, reason: null }))
+jest.mock("../../workflows/designs/deliver-deposit-received-email", () => ({
+  deliverDepositReceivedEmail: (...a: any[]) => (deliverDepositReceivedEmail as any)(...a),
+}))
+
 import markDepositPaidOnOrderPlaced from "../order-placed-mark-deposit"
 
 /**
@@ -85,5 +90,54 @@ describe("order.placed — re-basing a manual deposit on the real order", () => 
     })
     await run(container)
     expect(schedules.updatePaymentSchedules).not.toHaveBeenCalled()
+  })
+})
+
+describe("#2568 deposit-received email", () => {
+  beforeEach(() => deliverDepositReceivedEmail.mockClear())
+  const manual = {
+    id: "sched_1",
+    source_type: "manual",
+    deposit_status: "pending",
+    order_id: null,
+    total_due: 8000,
+    deposit_amount: 800,
+    balance_amount: 7200,
+  }
+
+  it("emails the RE-BASED figures once the deposit is marked paid", async () => {
+    const { container } = containerWith(manual, {
+      id: "order_1",
+      total: 8400,
+      payment_collections: [{ amount: 840 }],
+    })
+    await run(container)
+    expect(deliverDepositReceivedEmail).toHaveBeenCalledTimes(1)
+    expect((deliverDepositReceivedEmail.mock.calls[0] as any)[1]).toEqual({
+      orderId: "order_1",
+      depositAmount: 840,
+      total: 8400,
+      balanceAmount: 7560,
+    })
+  })
+
+  it("does not email again on a redelivered event (deposit already paid)", async () => {
+    const { container } = containerWith({ ...manual, deposit_status: "paid", order_id: "order_1" }, {
+      id: "order_1",
+      total: 8400,
+      payment_collections: [{ amount: 840 }],
+    })
+    await run(container)
+    expect(deliverDepositReceivedEmail).not.toHaveBeenCalled()
+  })
+
+  it("does not email a quote's buyer", async () => {
+    const { container } = containerWith({ ...manual, source_type: "quote" }, {
+      id: "order_1",
+      total: 8400,
+      payment_collections: [{ amount: 840 }],
+    })
+    await run(container)
+    expect(deliverDepositReceivedEmail).not.toHaveBeenCalled()
   })
 })
