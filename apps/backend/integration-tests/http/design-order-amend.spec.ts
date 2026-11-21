@@ -175,16 +175,80 @@ setupSharedTestSuite(() => {
       expect(empty.data.reason).toBe("would_empty")
     })
 
-    it("refuses once a deposit is set", async () => {
+    /**
+     * #2566 — Sreeni's order had a 70% deposit set at creation, so it could
+     * not take one more trouser. An UNPAID percentage deposit now follows the
+     * new total; a fixed amount still freezes the order.
+     */
+    it("re-splits an unpaid percentage deposit on amend and on reprice", async () => {
       const other = await api.post(
         "/admin/designs/draft-order",
         { design_ids: [trouserId], currency_code: "inr", country_code: "in" },
         adminHeaders
       )
+      const cartId = other.data.cart.id
+      const [anchor] = await lineIds(cartId)
+      const dep = await api.post(`/admin/designs/orders/${anchor}/deposit`, { deposit_pct: 70 }, adminHeaders)
+      expect(dep.status).toBe(200)
+      // 3000 + 5% = 3150 → 70% = 2205
+      expect(dep.data.design_order_deposit.deposit_amount).toBeCloseTo(2205, 2)
+
+      const amend = await api.post(
+        `/admin/designs/orders/${anchor}/items`,
+        { add_design_ids: [designId] },
+        adminHeaders
+      )
+      expect(amend.status).toBe(200)
+      // + 8000 → 11000 + 5% = 11550 → 70% = 8085
+      expect(amend.data.design_order_amend.total).toBeCloseTo(11550, 2)
+      expect(amend.data.design_order_amend.deposit).toEqual({
+        deposit_pct: 70,
+        deposit_amount: expect.closeTo(8085, 2),
+        balance_amount: expect.closeTo(3465, 2),
+      })
+
+      const reprice = await api.post(
+        `/admin/designs/orders/${anchor}/reprice`,
+        { unit_price: 4000 },
+        adminHeaders
+      )
+      expect(reprice.status).toBe(200)
+      // 4000 + 8000 = 12000 + 5% = 12600 → 70% = 8820
+      expect(reprice.data.design_order_reprice.deposit.deposit_amount).toBeCloseTo(8820, 2)
+
+      // Read the schedule back — the response is not the record.
+      const schedules: any = getContainer().resolve("payment_schedule")
+      const row = await schedules.findByCartId(cartId)
+      expect(Number(row.total_due)).toBeCloseTo(12600, 2)
+      expect(Number(row.deposit_amount)).toBeCloseTo(8820, 2)
+      expect(row.deposit_status).toBe("pending")
+    })
+
+    it("still refuses when the deposit is a fixed amount", async () => {
+      const fresh = (
+        await api.post(
+          "/admin/designs",
+          {
+            name: `Fixed Dep ${Date.now()}`,
+            description: "x",
+            design_type: "Custom",
+            status: "Conceptual",
+            priority: "Medium",
+            estimated_cost: 5000,
+            cost_currency: "inr",
+          },
+          adminHeaders
+        )
+      ).data.design.id
+      const other = await api.post(
+        "/admin/designs/draft-order",
+        { design_ids: [fresh], currency_code: "inr", country_code: "in" },
+        adminHeaders
+      )
       const [anchor] = await lineIds(other.data.cart.id)
-      await api.post(`/admin/designs/orders/${anchor}/deposit`, { deposit_pct: 10 }, adminHeaders)
+      await api.post(`/admin/designs/orders/${anchor}/deposit`, { deposit_amount: 500 }, adminHeaders)
       const refused = await api
-        .post(`/admin/designs/orders/${anchor}/items`, { add_design_ids: [designId] }, adminHeaders)
+        .post(`/admin/designs/orders/${anchor}/reprice`, { unit_price: 9000 }, adminHeaders)
         .catch((e: any) => e.response)
       expect(refused.status).toBe(409)
       expect(refused.data.reason).toBe("has_deposit")

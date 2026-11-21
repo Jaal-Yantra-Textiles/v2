@@ -5,6 +5,10 @@ import {
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
+import {
+  depositBlocksEdit,
+  resyncManualDeposit,
+} from "../../../../../../lib/payments/resync-manual-deposit"
 import { PAYMENT_SCHEDULE_MODULE } from "../../../../../../modules/payment_schedule"
 import { refreshDesignCartTax } from "../../../../../../workflows/designs/lib/refresh-design-cart-tax"
 import { hasLinkedSaleOrder } from "../../linked-sale-order"
@@ -89,16 +93,54 @@ export async function POST(
       return
     }
 
-    // A deposit's schedule froze the old total; repricing under it would charge
-    // a deposit and a balance that no longer add up to what the buyer owes.
-    if (cart && (await req.scope.resolve<any>(PAYMENT_SCHEDULE_MODULE).findByCartId(cart.id))) {
-      res.status(409).json({
-        reason: "has_deposit",
-        message:
-          "This design order has a deposit set, which fixed its total. Reprice it " +
-          "before setting the deposit, or cancel and re-issue it.",
-      })
+    /**
+     * A deposit's schedule records the split of the old total. An UNPAID
+     * percentage deposit is re-split below (#2566); a paid, quote or fixed one
+     * still refuses — see `depositBlocksEdit`.
+     */
+    const schedules: any = req.scope.resolve(PAYMENT_SCHEDULE_MODULE)
+    const schedule = cart ? await schedules.findByCartId(cart.id) : null
+    const blocked = depositBlocksEdit(schedule)
+    if (blocked) {
+      res.status(409).json({ reason: "has_deposit", message: blocked })
       return
+    }
+
+    /**
+     * With a deposit, the checkout's payment collection is checked against the
+     * schedule, so one opened for the old figure would be refused at checkout.
+     * Clear it if unpaid (as amend and deposit do); refuse if money is on it.
+     */
+    let clearedCollectionId: string | null = null
+    if (schedule) {
+      const { data: rows } = await query.graph({
+        entity: "cart",
+        fields: ["id", "payment_collection.id", "payment_collection.payments.id"],
+        filters: { id: cart!.id },
+      })
+      const collection = rows?.[0]?.payment_collection
+      if (collection?.payments?.length) {
+        res.status(409).json({
+          reason: "collection_has_payments",
+          message:
+            "The buyer's checkout already holds a payment against the current total. " +
+            "Resolve that payment before repricing.",
+        })
+        return
+      }
+      if (collection?.id) {
+        const link: any = req.scope.resolve(ContainerRegistrationKeys.LINK)
+        await link.dismiss([
+          {
+            [Modules.CART]: { cart_id: cart!.id },
+            [Modules.PAYMENT]: { payment_collection_id: collection.id },
+          },
+        ])
+        await (req.scope.resolve(Modules.PAYMENT) as any).deletePaymentCollections([
+          collection.id,
+        ])
+        clearedCollectionId = collection.id
+      }
     }
 
     await cartService.updateLineItems(
@@ -107,7 +149,15 @@ export async function POST(
     )
     // A cart minted before tax was computed at mint has no tax lines to carry
     // the new price; recompute so the buyer is charged GST on it.
-    await refreshDesignCartTax(req.scope, cart!.id)
+    const totals = await refreshDesignCartTax(req.scope, cart!.id)
+    const resynced = schedule
+      ? await resyncManualDeposit(
+          schedules,
+          schedule,
+          Number(totals.total),
+          (req as any).auth_context?.actor_id ?? null
+        )
+      : null
 
     logger?.info?.(
       `[admin] design order line ${lineItemId} repriced ${decision.previous} -> ` +
@@ -122,6 +172,16 @@ export async function POST(
         currency_code: cart!.currency_code,
         unit_price: decision.unit_price,
         previous_unit_price: decision.previous,
+        total: totals.total,
+        /** Null when the order has no deposit. Re-split on the new total (#2566). */
+        deposit: resynced
+          ? {
+              deposit_pct: Number(resynced.deposit_pct),
+              deposit_amount: Number(resynced.deposit_amount),
+              balance_amount: Number(resynced.balance_amount),
+            }
+          : null,
+        cleared_payment_collection_id: clearedCollectionId,
       },
     })
   } catch (e: any) {

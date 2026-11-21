@@ -678,9 +678,12 @@ describe("decideAmend — change what an unpaid design order holds", () => {
     expect(
       decideAmend({ ...add, cart: { ...openCart, metadata: { cancelled_at: "2026-11-01" } } })
     ).toMatchObject({ reason: "cancelled" })
-    expect(decideAmend({ ...add, cart: openCart, hasSchedule: true })).toMatchObject({
+    expect(decideAmend({ ...add, cart: openCart, depositBlock: "paid" })).toMatchObject({
       reason: "has_deposit",
+      message: "paid",
     })
+    // An unpaid percentage deposit does not block (#2566) — the route re-splits it.
+    expect(decideAmend({ ...add, cart: openCart, depositBlock: null }).ok).toBe(true)
     expect(
       decideAmend({ ...add, cart: openCart, collectionHasPayments: true })
     ).toMatchObject({ reason: "collection_has_payments" })
