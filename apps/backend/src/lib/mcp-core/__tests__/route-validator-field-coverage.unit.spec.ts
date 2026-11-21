@@ -134,6 +134,12 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
    */
   "admin:cancel_design_order",
   /**
+   * `orders/[lineItemId]/items/route.ts` hands the body to `decideAmend`, which
+   * refuses non-array ids, nothing-to-change, and any price override that is
+   * not > 0 (unit-tested in mutate-design-order.unit.spec.ts).
+   */
+  "admin:amend_design_order",
+  /**
    * `inventory-orders/[id]/cancel/route.ts` parses its body with an inline zod
    * `cancelBodySchema` (reason: trimmed string, max 1000).
    */

@@ -6766,6 +6766,62 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_design_order", "convert_design_order"],
   },
   {
+    name: "amend_design_order",
+    description: [
+      "Amend a design order the buyer has NOT paid yet: add designs as new lines and/or take lines off. Sensitive: requires confirm:true. `lineItemId` is any line of the order; it only identifies the cart.",
+      "",
+      "Added designs are priced like at creation: `price_overrides` { design_id: price } in MAJOR units of the CART's currency (override_currency defaults to the cart's), else the design's estimate. A design with no estimate is refused — pass a price. 🔑 Design-order prices are GST-exclusive: an all-in X goes in as X/1.05.",
+      "",
+      "Refuses (409) a converted or cancelled order, one with a deposit set (amend BEFORE set_design_order_deposit), or one whose checkout already holds a payment. Refuses (400) a design already on the order, a line not on it, or removing every line (cancel_design_order instead).",
+      "",
+      "🔴 The PayU link in the buyer's original email has the OLD amount fixed in it; a buyer who pays it after lines were added pays and gets no order. A fresh PayU link and checkout link are returned every time — pass `notify: true` to email them to the buyer. Without notify nothing is sent.",
+    ].join("\n"),
+    method: "POST",
+    path: "/admin/designs/orders/:lineItemId/items",
+    pathParams: ["lineItemId"],
+    write: true,
+    sensitive: true,
+    bodyParams: [
+      "add_design_ids",
+      "remove_line_item_ids",
+      "price_overrides",
+      "override_currency",
+      "notify",
+    ],
+    inputSchema: obj(
+      {
+        lineItemId: STR("Any cart line item id (`cali_...`) of the design order."),
+        add_design_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Designs to add, one line each.",
+        },
+        remove_line_item_ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Cart line item ids (`cali_...`) to take off the order.",
+        },
+        price_overrides: {
+          type: "object",
+          description:
+            "Per added design unit price, { design_id: price } in MAJOR units. Use when the agreed price is not the design's estimate.",
+        },
+        override_currency: STR(
+          "Currency the price_overrides are in. Defaults to the cart's own currency."
+        ),
+        notify: {
+          type: "boolean",
+          description:
+            "true emails the buyer the amended order with the fresh checkout link and PayU link.",
+        },
+      },
+      ["lineItemId"]
+    ),
+    sideEffects:
+      "Adds and/or soft-deletes design lines on the cart, recomputes tax, clears an unpaid checkout payment request, mints a fresh PayU link, and emails the buyer when notify is true.",
+    nextSteps: ["get_design_order", "set_design_order_deposit"],
+  },
+  {
     name: "set_design_order_deposit",
     description: [
       "Put a deposit on a design order: the buyer's EXISTING checkout link then collects `deposit_pct` of the total — or a fixed `deposit_amount` — now, and the rest is raised later as the balance with request_order_balance. Sensitive: requires confirm:true.",
