@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import type { Logger } from "@medusajs/types"
 
 import { PAYMENT_SCHEDULE_MODULE } from "../modules/payment_schedule"
+import { deliverDepositReceivedEmail } from "../workflows/designs/deliver-deposit-received-email"
 
 /**
  * Close the first half of a quote's payment schedule when its order is placed
@@ -77,6 +78,13 @@ export default async function markDepositPaidOnOrderPlaced({
      * difference — the same figure the order will report as outstanding, so
      * `request_order_balance` reconciles instead of refusing.
      */
+    // The figures the buyer is told about — re-based below when the order allows.
+    let figures = {
+      total: Number(schedule.total_due),
+      deposit: Number(schedule.deposit_amount),
+      balance: Number(schedule.balance_amount),
+    }
+
     if (schedule.source_type === "manual" && schedule.deposit_status === "pending") {
       const { data: orders } = await query.graph({
         entity: "order",
@@ -97,6 +105,7 @@ export default async function markDepositPaidOnOrderPlaced({
           deposit_amount: collected,
           balance_amount: balance,
         })
+        figures = { total, deposit: collected, balance }
         logger.info(
           `[deposit] schedule=${schedule.id} re-based on order=${data.id}: total ${total}, deposit ${collected}, balance ${balance}`
         )
@@ -108,6 +117,23 @@ export default async function markDepositPaidOnOrderPlaced({
       logger.info(
         `[deposit] schedule=${schedule.id} deposit marked paid for order=${data.id} (cart=${cartId})`
       )
+
+      /**
+       * #2568 — tell a design-order buyer what they paid and that the rest is
+       * due after delivery. Only on the pending → paid transition, so a
+       * redelivered event (schedule already paid) mails nothing. Manual
+       * (design-order) deposits only: a quote's buyer has the quote's terms.
+       * The helper never throws and skips when nothing is outstanding (an
+       * admin "prepaid" convert captures the full total).
+       */
+      if (schedule.source_type === "manual") {
+        await deliverDepositReceivedEmail(container, {
+          orderId: data.id,
+          depositAmount: figures.deposit,
+          total: figures.total,
+          balanceAmount: figures.balance,
+        })
+      }
     }
   } catch (e: any) {
     logger.warn(
