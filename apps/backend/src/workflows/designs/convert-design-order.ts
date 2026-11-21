@@ -14,6 +14,9 @@ import {
 import { DESIGN_MODULE } from "../../modules/designs"
 import designLineItemLink from "../../links/design-line-item-link"
 import { NO_AUTO_PRODUCE_METADATA_KEY } from "../../lib/resolve-line-item-production"
+import { planManualDeposit } from "../../lib/payments/manual-deposit"
+import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
+import { deliverDepositReceivedEmail } from "./deliver-deposit-received-email"
 
 /**
  * #404 (#31) PR-A — admin "Convert to Order" for a design order.
@@ -51,7 +54,12 @@ import { NO_AUTO_PRODUCE_METADATA_KEY } from "../../lib/resolve-line-item-produc
  *    an admin-initiated convert.
  */
 
-export type ConvertDesignOrderPaymentMode = "prepaid" | "cod"
+/**
+ * prepaid — the full total arrived; deposit — only the deposit arrived (bank
+ * transfer etc., #2570): capture it, leave the balance owed, email the buyer;
+ * cod — nothing arrived yet.
+ */
+export type ConvertDesignOrderPaymentMode = "prepaid" | "cod" | "deposit"
 
 export type ConvertDesignOrderResult = {
   order_id: string
@@ -60,6 +68,14 @@ export type ConvertDesignOrderResult = {
   payment_status?: string
   payment_mode: ConvertDesignOrderPaymentMode
   linked_design_ids: string[]
+  /** Set in deposit mode only. */
+  deposit?: {
+    deposit_amount: number
+    balance_amount: number
+    total: number
+    email_sent: boolean
+    email_reason: string | null
+  } | null
 }
 
 /** Cart/order address fields we carry over; strip ids/timestamps from the source row. */
@@ -93,6 +109,8 @@ export async function convertDesignOrderToOrder(
     lineItemId: string
     paymentMode?: ConvertDesignOrderPaymentMode
     capturedBy?: string
+    /** Deposit mode: what actually arrived. Defaults to the schedule's deposit. */
+    amountReceived?: number
   }
 ): Promise<ConvertDesignOrderResult> {
   const paymentMode: ConvertDesignOrderPaymentMode = input.paymentMode ?? "prepaid"
@@ -126,6 +144,7 @@ export async function convertDesignOrderToOrder(
       "email",
       "completed_at",
       "metadata",
+      "total",
       "shipping_address.*",
       "billing_address.*",
       "items.id",
@@ -166,6 +185,25 @@ export async function convertDesignOrderToOrder(
       MedusaError.Types.NOT_ALLOWED,
       `Design order (cart ${cartId}) was cancelled on ${cancelledAt} and cannot be converted`
     )
+  }
+
+  /**
+   * #2570 — deposit mode is checked BEFORE anything is created, against the
+   * cart's taxed total, so a refusal never leaves a half-made order behind.
+   * The final figures are re-planned on the converted order's own total.
+   */
+  const schedules: any =
+    paymentMode === "deposit" ? container.resolve(PAYMENT_SCHEDULE_MODULE) : null
+  const schedule = schedules ? await schedules.findByCartId(cart.id) : null
+  if (paymentMode === "deposit") {
+    const pre = planManualDeposit({
+      schedule,
+      taxedTotal: Number(cart.total),
+      amountReceived: input.amountReceived,
+    })
+    if (!pre.ok) {
+      throw new MedusaError(MedusaError.Types.NOT_ALLOWED, pre.message)
+    }
   }
 
   const lineItems: any[] = cart.items || []
@@ -272,13 +310,32 @@ export async function convertDesignOrderToOrder(
       (s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0),
       0
     )
+  /**
+   * Deposit mode collects only the deposit — the same shape a PayU deposit
+   * checkout leaves (a collection for the deposit; the order reports the rest
+   * outstanding), so `request_order_balance` raises the balance later.
+   */
+  const depositPlan =
+    paymentMode === "deposit"
+      ? planManualDeposit({ schedule, taxedTotal: total, amountReceived: input.amountReceived })
+      : null
+  if (depositPlan && !depositPlan.ok) {
+    // Passed the pre-check on the cart's total; the order's differs. The order
+    // exists unpaid — say so loudly rather than capture a wrong figure.
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Order ${order.id} was created but the deposit was NOT recorded: ${depositPlan.message}`
+    )
+  }
+  const collectAmount = depositPlan?.ok ? depositPlan.deposit : total
+
   const { result: pcRes }: any = await createOrderPaymentCollectionWorkflow(
     container
   ).run({
-    input: { order_id: order.id, amount: total },
+    input: { order_id: order.id, amount: collectAmount },
   })
   const paymentCollectionId = Array.isArray(pcRes) ? pcRes[0]?.id : pcRes?.id
-  if (paymentMode === "prepaid" && paymentCollectionId) {
+  if ((paymentMode === "prepaid" || paymentMode === "deposit") && paymentCollectionId) {
     await markPaymentCollectionAsPaid(container).run({
       input: {
         payment_collection_id: paymentCollectionId,
@@ -286,6 +343,40 @@ export async function convertDesignOrderToOrder(
         captured_by: input.capturedBy,
       },
     })
+  }
+
+  // 8b. Deposit mode: advance the schedule exactly as order-placed-mark-deposit
+  // does for a gateway deposit (that subscriber cannot see this order — a
+  // cartless draft has no order↔cart link), then tell the buyer.
+  let depositResult: ConvertDesignOrderResult["deposit"] = null
+  if (depositPlan?.ok) {
+    let emailed = { sent: false, reason: "no deposit schedule to advance" as string | null }
+    if (schedule) {
+      await schedules.attachOrder(schedule.id, order.id)
+      await schedules.updatePaymentSchedules({
+        id: schedule.id,
+        total_due: depositPlan.total,
+        deposit_amount: depositPlan.deposit,
+        balance_amount: depositPlan.balance,
+      })
+      await schedules.markDepositPaid(schedule.id, order.id)
+    }
+    emailed = await deliverDepositReceivedEmail(container, {
+      orderId: order.id,
+      depositAmount: depositPlan.deposit,
+      total: depositPlan.total,
+      balanceAmount: depositPlan.balance,
+    })
+    depositResult = {
+      deposit_amount: depositPlan.deposit,
+      balance_amount: depositPlan.balance,
+      total: depositPlan.total,
+      email_sent: emailed.sent,
+      email_reason: emailed.reason,
+    }
+    logger.info(
+      `[convert-design-order] deposit recorded on order ${order.id}: ${depositPlan.deposit} of ${depositPlan.total}, balance ${depositPlan.balance}`
+    )
   }
 
   // 9. Stamp the idempotency marker on the cart (last, so a mid-failure retry
@@ -333,5 +424,6 @@ export async function convertDesignOrderToOrder(
     payment_status: paymentStatus,
     payment_mode: paymentMode,
     linked_design_ids: designIds,
+    deposit: depositResult,
   }
 }

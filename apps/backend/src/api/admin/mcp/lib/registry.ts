@@ -6873,7 +6873,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     description: [
       "Turn a design order (a cart) into a REAL order, admin-side, without routing the customer through checkout. Sensitive: requires confirm:true.",
       "",
-      "`payment_mode: \"prepaid\"` (the default) marks the order paid via the system provider — use it when the money has already arrived. `\"cod\"` leaves it unpaid, to be reconciled on remittance.",
+      "`payment_mode: \"prepaid\"` (the default) marks the FULL total paid via the system provider — use it when all the money has arrived. `\"cod\"` leaves it unpaid, to be reconciled on remittance. `\"deposit\"` — only the deposit arrived (bank transfer, cash, UPI to our account): captures the order's deposit (or `amount_received`), leaves the balance owed for request_order_balance, marks the deposit paid and emails the buyer 'deposit received, balance due after delivery'.",
+      "",
+      "🔴 On an order with a deposit set, do NOT use 'prepaid' for a part payment — it records the whole total as paid.",
       "",
       "🔑 Converting does NOT start production. Every item is stamped `no_auto_produce`, so placement creates no runs — producing a converted design order is an explicit step (`produce_order_designs`). That is deliberate: a customer's design order must not spawn work-orders as a side effect of being converted.",
     ].join("\n"),
@@ -6882,21 +6884,26 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     pathParams: ["lineItemId"],
     write: true,
     sensitive: true,
-    bodyParams: ["payment_mode"],
+    bodyParams: ["payment_mode", "amount_received"],
     inputSchema: obj(
       {
         lineItemId: STR("The design order's cart line item id (`cali_...`)."),
         payment_mode: {
           type: "string",
-          enum: ["prepaid", "cod"],
+          enum: ["prepaid", "cod", "deposit"],
           description:
-            "'prepaid' (default) marks the order paid; 'cod' leaves it unpaid for later reconciliation.",
+            "'prepaid' (default) marks the full total paid; 'cod' leaves it unpaid; 'deposit' records only the deposit as paid and emails the buyer.",
+        },
+        amount_received: {
+          type: "number",
+          description:
+            "Deposit mode only: the amount that actually arrived, in the order's currency. Defaults to the order's deposit (its % of the taxed total). Must be below the total.",
         },
       },
       ["lineItemId"]
     ),
     sideEffects:
-      "Creates a real order from the cart and marks it paid when prepaid. Does NOT create production runs.",
+      "Creates a real order from the cart and marks it paid when prepaid (deposit mode: only the deposit, and emails the buyer). Does NOT create production runs.",
     nextSteps: ["list_order_designs", "produce_order_designs"],
   },
   {
