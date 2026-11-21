@@ -1,8 +1,17 @@
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { createPayuLink } from "../../api/admin/lib/create-payu-link"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { planCartCollection } from "./deposit-collection"
+import { deactivatePayuLink } from "./payu-link-admin"
+import {
+  formatExpiryForBuyer,
+  PAYU_LINK_METADATA_KEY,
+  payuLinkTtlHours,
+  readTrackedLink,
+  toPayuIstDateTime,
+  type TrackedPayuLink,
+} from "./payu-link-expiry"
 
 /**
  * A shareable PayU payment link for an existing cart.
@@ -29,12 +38,21 @@ export type PayuCartLink = {
   invoice_number: string | null
   /** Plain words for a human. Null on success. */
   reason: string | null
+  /** ISO instant the link stops working (#2564). Null when no link. */
+  expires_at?: string | null
+  /** The same instant in buyer words, IST. Null when no link. */
+  expires_label?: string | null
+  /** Invoice number of the previous link we switched off, if any. */
+  replaced_invoice_number?: string | null
 }
 
 const notLinked = (reason: string): PayuCartLink => ({
   payment_link: null,
   invoice_number: null,
   reason,
+  expires_at: null,
+  expires_label: null,
+  replaced_invoice_number: null,
 })
 
 /**
@@ -44,7 +62,7 @@ const notLinked = (reason: string): PayuCartLink => ({
 export const createPayuLinkForCart = async (
   scope: any,
   cartId: string,
-  opts?: { description?: string }
+  opts?: { description?: string; now?: Date }
 ): Promise<PayuCartLink> => {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
   const query: any = scope.resolve(ContainerRegistrationKeys.QUERY)
@@ -58,6 +76,7 @@ export const createPayuLinkForCart = async (
         "email",
         "currency_code",
         "total",
+        "metadata",
         "billing_address.first_name",
         "billing_address.last_name",
         "billing_address.phone",
@@ -111,10 +130,18 @@ export const createPayuLinkForCart = async (
     return notLinked("Could not work out what is due on this cart, so no payment link was created.")
   }
 
+  /**
+   * 🔴 #2564 — every link now expires. Without `expiryDate` PayU keeps a link
+   * open for 365 days, at the price it was minted with.
+   */
+  const now = opts?.now ?? new Date()
+  const expiresAt = new Date(now.getTime() + payuLinkTtlHours() * 3600 * 1000)
+
   const ba = cart.billing_address || {}
   const created = await createPayuLink(
     {
       amount,
+      expiryDate: toPayuIstDateTime(expiresAt),
       description: opts?.description || `Order ${cartId}`,
       customer: {
         name: [ba.first_name, ba.last_name].filter(Boolean).join(" ") || undefined,
@@ -135,9 +162,54 @@ export const createPayuLinkForCart = async (
     )
   }
 
+  /**
+   * Track the new link and switch the previous one off (#2564). A buyer must
+   * never hold two payable links for one cart — the older one quotes an older
+   * total. Best-effort: a failure here is logged loudly but does not cost the
+   * caller the link it just got; the sweep job retries closing the old link
+   * only through this record, so the record is written regardless.
+   */
+  const previous = readTrackedLink(cart.metadata)
+  let replaced: string | null = null
+  if (previous && !previous.closed_at && previous.invoice_number !== created.invoice_number) {
+    const off = await deactivatePayuLink(previous.invoice_number)
+    if (off.ok) {
+      replaced = previous.invoice_number
+    } else {
+      logger?.error?.(
+        `[payu-cart-link] could NOT switch off previous link ${previous.invoice_number} ` +
+          `on cart ${cartId}: ${off.error}. It stays payable until PayU's own expiry — close it in the PayU dashboard.`
+      )
+    }
+  }
+
+  const tracked: TrackedPayuLink = {
+    invoice_number: String(created.invoice_number ?? ""),
+    url: created.payment_link,
+    expires_at: expiresAt.toISOString(),
+    created_at: now.toISOString(),
+    closed_at: null,
+    closed_reason: null,
+    expiry_notified_at: null,
+  }
+  try {
+    const cartService: any = scope.resolve(Modules.CART)
+    await cartService.updateCarts(cartId, {
+      metadata: { ...(cart.metadata ?? {}), [PAYU_LINK_METADATA_KEY]: tracked },
+    })
+  } catch (e: any) {
+    logger?.error?.(
+      `[payu-cart-link] link ${created.invoice_number} minted but NOT tracked on cart ${cartId}: ` +
+        `${e?.message ?? e}. The expiry job will not see it.`
+    )
+  }
+
   return {
     payment_link: created.payment_link,
     invoice_number: created.invoice_number,
     reason: null,
+    expires_at: tracked.expires_at,
+    expires_label: formatExpiryForBuyer(expiresAt),
+    replaced_invoice_number: replaced,
   }
 }

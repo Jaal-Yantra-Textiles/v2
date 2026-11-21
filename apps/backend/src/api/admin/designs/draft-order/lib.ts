@@ -167,6 +167,7 @@ export const createDesignDraftOrder = async (
     cart,
     checkoutUrl: link.url,
     paymentLink: payu.payment_link,
+    paymentLinkExpiresLabel: payu.expires_label ?? null,
   })
 
   res.json({
@@ -178,5 +179,6 @@ export const createDesignDraftOrder = async (
     payment_link: payu.payment_link,
     /** Why there is no payment link — non-INR is the ordinary case. */
     payment_link_reason: payu.reason,
+    payment_link_expires_at: payu.expires_at ?? null,
   })
 }

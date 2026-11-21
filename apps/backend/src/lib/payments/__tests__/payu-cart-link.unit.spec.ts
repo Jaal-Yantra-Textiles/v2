@@ -3,15 +3,24 @@ jest.mock("../../../api/admin/lib/create-payu-link", () => ({
   createPayuLink: (...args: any[]) => createPayuLink(...args),
 }))
 
+const deactivatePayuLink = jest.fn()
+jest.mock("../payu-link-admin", () => ({
+  deactivatePayuLink: (...args: any[]) => deactivatePayuLink(...args),
+}))
+
 import { createPayuLinkForCart } from "../payu-cart-link"
 
+const updateCarts = jest.fn()
+const logger = { warn: jest.fn(), error: jest.fn() }
 const scopeWith = (cart: any, schedule: any = null) => ({
   resolve: (key: string) =>
     key === "logger"
-      ? { warn: jest.fn(), error: jest.fn() }
+      ? logger
       : key === "payment_schedule"
         ? { findByCartId: jest.fn(async () => schedule) }
-        : { graph: jest.fn(async () => ({ data: cart ? [cart] : [] })) },
+        : key === "cart"
+          ? { updateCarts }
+          : { graph: jest.fn(async () => ({ data: cart ? [cart] : [] })) },
 })
 
 const inrCart = (over: any = {}) => ({
@@ -24,6 +33,10 @@ const inrCart = (over: any = {}) => ({
 })
 
 beforeEach(() => {
+  updateCarts.mockReset()
+  logger.error.mockReset()
+  deactivatePayuLink.mockReset()
+  deactivatePayuLink.mockResolvedValue({ ok: true, error: null })
   createPayuLink.mockReset()
   createPayuLink.mockResolvedValue({
     payment_link: "https://v.payu.in/abc",
@@ -113,5 +126,85 @@ describe("createPayuLinkForCart", () => {
 
     expect(out.payment_link).toBeNull()
     expect(createPayuLink).not.toHaveBeenCalled()
+  })
+
+  describe("#2564 expiry", () => {
+    const NOW = new Date("2026-11-21T13:00:00.000Z") // 18:30 IST
+
+    it("🔴 sends PayU an expiryDate 48h out in IST, and tracks the link on the cart", async () => {
+      const out = await createPayuLinkForCart(scopeWith(inrCart({ metadata: { keep: 1 } })), "cart_01", {
+        now: NOW,
+      })
+
+      // Without expiryDate PayU keeps a link open for 365 days.
+      expect(createPayuLink.mock.calls[0][0].expiryDate).toBe("2026-11-23 18:30:00")
+      expect(out.expires_at).toBe("2026-11-23T13:00:00.000Z")
+      expect(out.expires_label).toBe("Mon 23 Nov 2026, 6:30 pm IST")
+
+      expect(updateCarts).toHaveBeenCalledTimes(1)
+      const [id, data] = updateCarts.mock.calls[0]
+      expect(id).toBe("cart_01")
+      expect(data.metadata.keep).toBe(1)
+      expect(data.metadata.payu_link).toEqual(
+        expect.objectContaining({
+          invoice_number: "inv1",
+          url: "https://v.payu.in/abc",
+          expires_at: "2026-11-23T13:00:00.000Z",
+          closed_at: null,
+        })
+      )
+    })
+
+    it("🔴 switches the PREVIOUS link off when a new one is minted (amend)", async () => {
+      const cart = inrCart({
+        metadata: {
+          payu_link: {
+            invoice_number: "inv_old",
+            url: "https://v.payu.in/old",
+            expires_at: "2026-11-22T00:00:00.000Z",
+            created_at: "2026-11-20T00:00:00.000Z",
+          },
+        },
+      })
+      const out = await createPayuLinkForCart(scopeWith(cart), "cart_01", { now: NOW })
+
+      expect(deactivatePayuLink).toHaveBeenCalledWith("inv_old")
+      expect(out.replaced_invoice_number).toBe("inv_old")
+      expect(updateCarts.mock.calls[0][1].metadata.payu_link.invoice_number).toBe("inv1")
+    })
+
+    it("still returns the new link when switching the old one off fails — and says so loudly", async () => {
+      deactivatePayuLink.mockResolvedValue({ ok: false, error: "boom" })
+      const cart = inrCart({
+        metadata: {
+          payu_link: {
+            invoice_number: "inv_old",
+            url: "u",
+            expires_at: "2026-11-22T00:00:00.000Z",
+            created_at: "x",
+          },
+        },
+      })
+      const out = await createPayuLinkForCart(scopeWith(cart), "cart_01", { now: NOW })
+      expect(out.payment_link).toBe("https://v.payu.in/abc")
+      expect(out.replaced_invoice_number).toBeNull()
+      expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("inv_old"))
+    })
+
+    it("does not try to close an already-closed previous link", async () => {
+      const cart = inrCart({
+        metadata: {
+          payu_link: {
+            invoice_number: "inv_old",
+            url: "u",
+            expires_at: "2026-11-22T00:00:00.000Z",
+            created_at: "x",
+            closed_at: "2026-11-21T00:00:00.000Z",
+          },
+        },
+      })
+      await createPayuLinkForCart(scopeWith(cart), "cart_01", { now: NOW })
+      expect(deactivatePayuLink).not.toHaveBeenCalled()
+    })
   })
 })
