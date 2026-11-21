@@ -7,6 +7,10 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import designLineItemLink from "../../../../../../links/design-line-item-link"
 import { resolveCartCheckoutLink } from "../../../../../../lib/carts/resolve-cart-link"
 import { createPayuLinkForCart } from "../../../../../../lib/payments/payu-cart-link"
+import {
+  depositBlocksEdit,
+  resyncManualDeposit,
+} from "../../../../../../lib/payments/resync-manual-deposit"
 import { PAYMENT_SCHEDULE_MODULE } from "../../../../../../modules/payment_schedule"
 import { amendDesignOrderWorkflow } from "../../../../../../workflows/designs/amend-design-order"
 import { deliverDesignOrderEmail } from "../../../../../../workflows/designs/deliver-design-order-email"
@@ -114,10 +118,11 @@ export async function POST(
       design_id: designByLine[i.id] ?? i.metadata?.design_id ?? null,
     }))
 
+    const schedule = cart ? await schedules.findByCartId(cart.id) : null
     const decision = decideAmend({
       cart,
       hasLinkedOrder: await hasLinkedSaleOrder(query, anchorLinks[0].design_id),
-      hasSchedule: cart ? Boolean(await schedules.findByCartId(cart.id)) : false,
+      depositBlock: depositBlocksEdit(schedule),
       collectionHasPayments: Boolean(cart?.payment_collection?.payments?.length),
       currentLines,
       addDesignIds: body.add_design_ids,
@@ -194,6 +199,20 @@ export async function POST(
 
     const totals = await refreshDesignCartTax(req.scope, cart.id)
 
+    /**
+     * #2566 — an unpaid percentage deposit follows the new total, so the
+     * checkout and the PayU link below ask for 70% of the RIGHT number.
+     * Re-split before minting the link: the link prices off the schedule.
+     */
+    const resynced = schedule
+      ? await resyncManualDeposit(
+          schedules,
+          schedule,
+          Number(totals.total),
+          (req as any).auth_context?.actor_id ?? null
+        )
+      : null
+
     const { link } = await resolveCartCheckoutLink(req.scope, cart.id)
     const payu = await createPayuLinkForCart(req.scope, cart.id, {
       description: `Design order ${cart.id}`,
@@ -236,6 +255,14 @@ export async function POST(
         })),
         tax_total: totals.tax_total,
         total: totals.total,
+        /** Null when the order has no deposit. */
+        deposit: resynced
+          ? {
+              deposit_pct: Number(resynced.deposit_pct),
+              deposit_amount: Number(resynced.deposit_amount),
+              balance_amount: Number(resynced.balance_amount),
+            }
+          : null,
         cleared_payment_collection_id: clearedCollectionId,
         checkout_url: link.url,
         checkout_url_reason: link.url ? null : link.reason,

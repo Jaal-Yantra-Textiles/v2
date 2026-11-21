@@ -637,8 +637,9 @@ export type AmendDecision =
  * - a CONVERTED order — the order is the live object; change it with an order
  *   edit, not the cart.
  * - a CANCELLED one — its link is dead.
- * - a cart with a DEPOSIT schedule — the schedule froze the total, the same
- *   reason reprice refuses. Amend first, then set the deposit.
+ * - a cart whose DEPOSIT cannot follow a new total — paid, from a quote, or a
+ *   fixed amount (`depositBlocksEdit`). An UNPAID percentage deposit is fine:
+ *   the route re-splits it on the new total (#2566).
  * - a cart whose checkout already HOLDS A PAYMENT — money was taken against
  *   the old total, and changing the total under it would leave the buyer
  *   having paid for a different order.
@@ -649,7 +650,11 @@ export type AmendDecision =
 export function decideAmend(input: {
   cart: DesignOrderCart | null | undefined
   hasLinkedOrder?: boolean
-  hasSchedule?: boolean
+  /**
+   * Why the cart's deposit cannot follow a new total, or null/absent when
+   * there is no deposit or it is an unpaid percentage (`depositBlocksEdit`).
+   */
+  depositBlock?: string | null
   collectionHasPayments?: boolean
   /** The order's current lines: cart line item id → design id. */
   currentLines: Array<{ line_item_id: string; design_id: string | null }>
@@ -678,14 +683,8 @@ export function decideAmend(input: {
       message: "This design order is cancelled. Create a new design order instead.",
     }
   }
-  if (input.hasSchedule) {
-    return {
-      ok: false,
-      reason: "has_deposit",
-      message:
-        "This design order has a deposit set, which fixed its total. Amend it " +
-        "before setting the deposit.",
-    }
+  if (input.depositBlock) {
+    return { ok: false, reason: "has_deposit", message: input.depositBlock }
   }
   if (input.collectionHasPayments) {
     return {
