@@ -41,7 +41,7 @@ type CreateDraftOrderFromDesignsInput = {
 
 import { resolveDesignThumbnail } from "../../lib/design-thumbnail"
 
-type DesignEstimate = {
+export type DesignEstimate = {
   design_id: string
   name: string
   unit_price: number
@@ -88,7 +88,7 @@ export function estimateSourceCurrency(
 
 // ─── Step 1: Estimate costs for each design ──────────────────────────────────
 
-const estimateDesignCostsStep = createStep(
+export const estimateDesignCostsStep = createStep(
   "estimate-design-costs-step",
   async (
     input: {
@@ -207,7 +207,7 @@ const estimateDesignCostsStep = createStep(
 //   - Estimated prices: assumed to be in store default currency
 //   - Manual overrides: in override_currency (if provided), else store default
 
-const convertEstimateCurrencyStep = createStep(
+export const convertEstimateCurrencyStep = createStep(
   "convert-estimate-currency-step",
   async (
     input: {
@@ -476,7 +476,7 @@ const createDesignCartStep = createStep(
 
 // ─── Step 4: Link designs to cart line items ─────────────────────────────────
 
-const linkDesignsToLineItemsStep = createStep(
+export const linkDesignsToLineItemsStep = createStep(
   "link-designs-to-line-items-step",
   async (
     input: {

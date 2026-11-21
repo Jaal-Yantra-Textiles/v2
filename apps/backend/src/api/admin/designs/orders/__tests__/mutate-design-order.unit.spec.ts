@@ -1,5 +1,6 @@
 import {
   blockingDesignIds,
+  decideAmend,
   decideCancel,
   decideCustomerAttach,
   decideDeposit,
@@ -591,5 +592,97 @@ describe("a cancelled design order refuses every mutation", () => {
       unitPrice: 70,
     })
     expect(d.ok).toBe(true)
+  })
+})
+
+describe("decideAmend — change what an unpaid design order holds", () => {
+  const lines = [
+    { line_item_id: "cali_a", design_id: "d_blazer" },
+    { line_item_id: "cali_b", design_id: "d_shirts" },
+  ]
+
+  it("adds new designs and reports the line count after", () => {
+    const d = decideAmend({
+      cart: openCart,
+      currentLines: lines,
+      addDesignIds: ["d_trouser", "d_wool_shirt", "d_trouser"],
+    })
+    expect(d).toEqual({
+      ok: true,
+      add_design_ids: ["d_trouser", "d_wool_shirt"],
+      remove_line_item_ids: [],
+      line_count_after: 4,
+    })
+  })
+
+  it("removes a line that is on the order", () => {
+    const d = decideAmend({ cart: openCart, currentLines: lines, removeLineItemIds: ["cali_b"] })
+    expect(d).toMatchObject({ ok: true, remove_line_item_ids: ["cali_b"], line_count_after: 1 })
+  })
+
+  it("refuses removing every line — that is a cancel", () => {
+    const d = decideAmend({
+      cart: openCart,
+      currentLines: lines,
+      removeLineItemIds: ["cali_a", "cali_b"],
+    })
+    expect(d).toMatchObject({ ok: false, reason: "would_empty" })
+  })
+
+  it("refuses a design already on the order, but allows swapping it back in", () => {
+    expect(
+      decideAmend({ cart: openCart, currentLines: lines, addDesignIds: ["d_blazer"] })
+    ).toMatchObject({ ok: false, reason: "already_in_order" })
+    expect(
+      decideAmend({
+        cart: openCart,
+        currentLines: lines,
+        addDesignIds: ["d_blazer"],
+        removeLineItemIds: ["cali_a"],
+      })
+    ).toMatchObject({ ok: true, line_count_after: 2 })
+  })
+
+  it("refuses a line that is not on the order", () => {
+    expect(
+      decideAmend({ cart: openCart, currentLines: lines, removeLineItemIds: ["cali_x"] })
+    ).toMatchObject({ ok: false, reason: "not_in_order" })
+  })
+
+  it("refuses nothing to change", () => {
+    expect(decideAmend({ cart: openCart, currentLines: lines })).toMatchObject({
+      ok: false,
+      reason: "nothing_to_change",
+    })
+    expect(
+      decideAmend({ cart: openCart, currentLines: lines, addDesignIds: "d_trouser" })
+    ).toMatchObject({ ok: false, reason: "nothing_to_change" })
+  })
+
+  it.each([0, -5, null, "", "100"])("refuses a price override of %p", (price) => {
+    const d = decideAmend({
+      cart: openCart,
+      currentLines: lines,
+      addDesignIds: ["d_trouser"],
+      priceOverrides: { d_trouser: price },
+    })
+    expect(d).toMatchObject({ ok: false, reason: "bad_price" })
+  })
+
+  it("refuses converted, cancelled, deposit and paid-into carts — in that order", () => {
+    const add = { currentLines: lines, addDesignIds: ["d_trouser"] }
+    expect(decideAmend({ ...add, cart: null })).toMatchObject({ reason: "no_cart" })
+    expect(decideAmend({ ...add, cart: openCart, hasLinkedOrder: true })).toMatchObject({
+      reason: "cart_completed",
+    })
+    expect(
+      decideAmend({ ...add, cart: { ...openCart, metadata: { cancelled_at: "2026-11-01" } } })
+    ).toMatchObject({ reason: "cancelled" })
+    expect(decideAmend({ ...add, cart: openCart, hasSchedule: true })).toMatchObject({
+      reason: "has_deposit",
+    })
+    expect(
+      decideAmend({ ...add, cart: openCart, collectionHasPayments: true })
+    ).toMatchObject({ reason: "collection_has_payments" })
   })
 })

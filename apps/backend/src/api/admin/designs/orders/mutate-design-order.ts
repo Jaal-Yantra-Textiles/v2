@@ -595,3 +595,175 @@ export function decideDeposit(input: {
     replaces_schedule: Boolean(input.hasSchedule),
   }
 }
+
+export type AmendRefusal =
+  | "no_cart"
+  | "cart_completed"
+  | "cancelled"
+  | "has_deposit"
+  | "collection_has_payments"
+  | "nothing_to_change"
+  | "already_in_order"
+  | "not_in_order"
+  | "would_empty"
+  | "bad_price"
+
+export type AmendDecision =
+  | {
+      ok: true
+      /** Designs to add as new lines, de-duplicated, in the order given. */
+      add_design_ids: string[]
+      /** Cart line items to remove. */
+      remove_line_item_ids: string[]
+      /** How many lines the order will hold afterwards. */
+      line_count_after: number
+    }
+  | { ok: false; reason: AmendRefusal; message: string }
+
+/**
+ * Add designs to, or take lines off, a design order the buyer has NOT paid yet.
+ *
+ * ## Why this exists
+ *
+ * A design order could be repriced, given a buyer, a deposit, or cancelled —
+ * but never given another garment. A buyer who asked for "one more trouser"
+ * before paying (Sreeni Vasan, 2026-11-21) meant cancelling the whole order and
+ * re-issuing it: a new link, the old one dead, the reminder emails pointing at
+ * nothing. The cart can hold the extra line perfectly well; nothing let an
+ * admin write it.
+ *
+ * ## What it refuses
+ *
+ * - a CONVERTED order — the order is the live object; change it with an order
+ *   edit, not the cart.
+ * - a CANCELLED one — its link is dead.
+ * - a cart with a DEPOSIT schedule — the schedule froze the total, the same
+ *   reason reprice refuses. Amend first, then set the deposit.
+ * - a cart whose checkout already HOLDS A PAYMENT — money was taken against
+ *   the old total, and changing the total under it would leave the buyer
+ *   having paid for a different order.
+ * - removing every line — that is a cancel, and cancel requires a reason.
+ * - a design already on this order, or a line that is not on it.
+ * - a price override that is not > 0 (`Number(null)` is 0).
+ */
+export function decideAmend(input: {
+  cart: DesignOrderCart | null | undefined
+  hasLinkedOrder?: boolean
+  hasSchedule?: boolean
+  collectionHasPayments?: boolean
+  /** The order's current lines: cart line item id → design id. */
+  currentLines: Array<{ line_item_id: string; design_id: string | null }>
+  addDesignIds?: unknown
+  removeLineItemIds?: unknown
+  priceOverrides?: unknown
+}): AmendDecision {
+  const { cart } = input
+
+  if (!cart) {
+    return { ok: false, reason: "no_cart", message: "This design order has no cart." }
+  }
+  if (isConverted({ cart, hasLinkedOrder: input.hasLinkedOrder })) {
+    return {
+      ok: false,
+      reason: "cart_completed",
+      message:
+        "This design order has already been converted to an order. Change it " +
+        "through an order edit, not the cart.",
+    }
+  }
+  if (isCancelled(cart)) {
+    return {
+      ok: false,
+      reason: "cancelled",
+      message: "This design order is cancelled. Create a new design order instead.",
+    }
+  }
+  if (input.hasSchedule) {
+    return {
+      ok: false,
+      reason: "has_deposit",
+      message:
+        "This design order has a deposit set, which fixed its total. Amend it " +
+        "before setting the deposit.",
+    }
+  }
+  if (input.collectionHasPayments) {
+    return {
+      ok: false,
+      reason: "collection_has_payments",
+      message:
+        "The buyer's checkout already holds a payment against the current total. " +
+        "Resolve that payment before changing what is on the order.",
+    }
+  }
+
+  const strings = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === "string").map((s) => s.trim()).filter(Boolean)
+      : []
+  const add = [...new Set(strings(input.addDesignIds))]
+  const remove = [...new Set(strings(input.removeLineItemIds))]
+
+  if (!add.length && !remove.length) {
+    return {
+      ok: false,
+      reason: "nothing_to_change",
+      message: "Give add_design_ids and/or remove_line_item_ids — there is nothing to change.",
+    }
+  }
+
+  const lineIds = new Set(input.currentLines.map((l) => l.line_item_id))
+  const missing = remove.filter((id) => !lineIds.has(id))
+  if (missing.length) {
+    return {
+      ok: false,
+      reason: "not_in_order",
+      message: `These lines are not on this design order: ${missing.join(", ")}.`,
+    }
+  }
+
+  // A design on a line being removed in the same call may be re-added.
+  const staying = input.currentLines.filter((l) => !remove.includes(l.line_item_id))
+  const present = new Set(staying.map((l) => l.design_id).filter(Boolean) as string[])
+  const dup = add.filter((id) => present.has(id))
+  if (dup.length) {
+    return {
+      ok: false,
+      reason: "already_in_order",
+      message:
+        `These designs are already on this order: ${dup.join(", ")}. ` +
+        "Reprice the existing line instead of adding a second one.",
+    }
+  }
+
+  const after = staying.length + add.length
+  if (after === 0) {
+    return {
+      ok: false,
+      reason: "would_empty",
+      message:
+        "That would leave the design order with no lines. Cancel it instead — a " +
+        "cancel records why.",
+    }
+  }
+
+  const overrides =
+    input.priceOverrides && typeof input.priceOverrides === "object"
+      ? (input.priceOverrides as Record<string, unknown>)
+      : {}
+  for (const [designId, price] of Object.entries(overrides)) {
+    if (!add.includes(designId)) continue
+    const n = typeof price === "number" ? price : NaN
+    if (!Number.isFinite(n) || n <= 0) {
+      return {
+        ok: false,
+        reason: "bad_price",
+        message:
+          `price_overrides[${designId}] must be a number greater than 0 — received ` +
+          `${JSON.stringify(price)}. A price of 0 is a claim, not a price.`,
+      }
+    }
+  }
+
+  return { ok: true, add_design_ids: add, remove_line_item_ids: remove, line_count_after: after }
+}
