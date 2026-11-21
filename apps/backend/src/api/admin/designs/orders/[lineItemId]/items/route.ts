@@ -205,6 +205,7 @@ export async function POST(
             cart,
             checkoutUrl: link.url,
             paymentLink: payu.payment_link,
+            paymentLinkExpiresLabel: payu.expires_label ?? null,
           })
         : null
 
@@ -240,6 +241,8 @@ export async function POST(
         checkout_url_reason: link.url ? null : link.reason,
         payment_link: payu.payment_link,
         payment_link_reason: payu.reason,
+        payment_link_expires_at: payu.expires_at ?? null,
+        replaced_payment_link_invoice: payu.replaced_invoice_number ?? null,
         /** Null when `notify` was not set — nothing was sent. */
         email,
       },

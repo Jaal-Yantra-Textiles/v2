@@ -24,6 +24,11 @@ import { sendDesignOrderCreatedEmailWorkflow } from "../email/workflows/send-des
  * treated as a failure here — "we chose not to mail this" and "the buyer has
  * their link" must not collapse into the same true.
  */
+/** Public URL of the PayU-link QR image for a cart (#2564). */
+export const payQrUrl = (cartId: string): string =>
+  `${(process.env.MEDUSA_BACKEND_URL || "https://v3.jaalyantra.com").replace(/\/+$/, "")}` +
+  `/r/cart/${encodeURIComponent(cartId)}/pay-qr`
+
 export type DesignOrderEmailDelivery = {
   /** True only when a provider accepted a real message. */
   sent: boolean
@@ -39,6 +44,8 @@ export const deliverDesignOrderEmail = async (
     cart: any
     checkoutUrl: string | null
     paymentLink?: string | null
+    /** Buyer-words expiry of `paymentLink`, e.g. "Mon 23 Nov 2026, 6:30 pm IST" (#2564). */
+    paymentLinkExpiresLabel?: string | null
   }
 ): Promise<DesignOrderEmailDelivery> => {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
@@ -130,6 +137,13 @@ export const deliverDesignOrderEmail = async (
           cart_id: cart?.id ?? null,
           checkout_url: input.checkoutUrl,
           payment_link: input.paymentLink ?? null,
+          // #2564 — a scannable QR of the PayU link, drawn by /r/cart/:id/pay-qr,
+          // and when the link stops working. Only with a link.
+          payment_qr_url:
+            input.paymentLink && cart?.id ? payQrUrl(cart.id) : null,
+          payment_link_expires_at: input.paymentLink
+            ? input.paymentLinkExpiresLabel ?? null
+            : null,
           currency_code: cart?.currency_code ?? null,
           total,
           item_count: itemCount,
