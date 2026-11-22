@@ -58,10 +58,10 @@ memory: 4096    # 4 GB. Was 2048 (bumped 2026-05-20 alongside the RDS
 # Autoscaling, re-enabled 2026-08-20 (was `count: 1`, disabled pending the
 # task #18 boot-stall investigation).
 #
-# The MIN of 2 is the part that matters for availability, and it is why this
-# changed. At count: 1 a single task death is a full outage — that is exactly
-# what the 23:42 OOM was: ~2 minutes of hard 503 on v3.jaalyantra.com while
-# ECS rescheduled. At min 2 the ALB simply stops routing to the dead target.
+# The MIN of 2 was the availability lesson of the 23:42 OOM (a single task
+# death at count: 1 was ~2 minutes of hard 503 on v3.jaalyantra.com).
+# Superseded 2026-11-22: min is back to 1 on a week of measured headroom —
+# see the note directly above `count:` for the data and the trade-off taken.
 #
 # Be honest about what the scaling rules do and do not cover: ECS target
 # tracking reacts over MINUTES. It would not have prevented either OOM, both of
@@ -70,10 +70,27 @@ memory: 4096    # 4 GB. Was 2048 (bumped 2026-05-20 alongside the RDS
 #
 # Connection math (the original reason autoscaling was switched off): observed
 # prod usage is 4-10 connections steady, 35 at its worst — against
-# max_connections 200. 4 server tasks + the worker + a rolling deploy's extra
+# max_connections 200. 2 server tasks + the worker + a rolling deploy's extra
 # task stays far inside that.
+# 2-4 → 1-2 on 2026-11-22, data-driven, cost-first. A week of CloudWatch
+# (Nov 15–22) says one task IS the whole load: service CPU average 3–7%,
+# per-task memory steady-state 27–33% of the 4 GB (~1.2 GB), with one spike
+# day (Nov 18) peaking at 69%. The second task is ~$28/mo of idle insurance.
+#
+# What min 1 gives up, honestly: the availability argument above was real in
+# August, but the *cause* (unbounded FX fanout) is fixed and bounded on the
+# worker, and memory now idles at ~1.2 GB against a 3072 heap cap. What
+# remains is the tail risk of a sudden task death = ~60–90s of 503s before
+# ECS reschedules, instead of zero impact with a warm spare. Accepted
+# deliberately: this cluster is scheduled to be decommissioned for the OCI
+# Ampere A1 migration (deploy/oracle), AWS credits cover the interim, and
+# capping max at 2 also bounds the worst-case bill at 2 × $27.76/mo (the old
+# max 4 was a $111/mo ceiling).
+#
+# Rollback: set range back to 2-4 and redeploy. Scale-in to 1 takes ~15 min
+# after deploy (300s cooldown + alarm evaluation), not instantly.
 count:
-  range: 2-4
+  range: 1-2
   cooldown:
     # Scale OUT fast, scale IN slowly: adding a task is cheap and reversible,
     # while dropping one under load is how you get a retry storm.
