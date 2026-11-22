@@ -46,6 +46,8 @@ export const deliverDesignOrderEmail = async (
     paymentLink?: string | null
     /** Buyer-words expiry of `paymentLink`, e.g. "Mon 23 Nov 2026, 6:30 pm IST" (#2564). */
     paymentLinkExpiresLabel?: string | null
+    /** #2572 — "upi" when the QR is a UPI intent any UPI app pays, else "link". */
+    paymentQrKind?: "upi" | "link" | null
   }
 ): Promise<DesignOrderEmailDelivery> => {
   const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
@@ -141,6 +143,10 @@ export const deliverDesignOrderEmail = async (
           // and when the link stops working. Only with a link.
           payment_qr_url:
             input.paymentLink && cart?.id ? payQrUrl(cart.id) : null,
+          // #2572 — lets the template say "any UPI app" only when it is true.
+          payment_qr_kind: input.paymentLink ? input.paymentQrKind ?? "link" : null,
+          // A plain boolean for `{{#if}}` — Handlebars cannot compare strings.
+          payment_qr_is_upi: Boolean(input.paymentLink) && input.paymentQrKind === "upi",
           payment_link_expires_at: input.paymentLink
             ? input.paymentLinkExpiresLabel ?? null
             : null,

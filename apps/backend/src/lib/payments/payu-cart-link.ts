@@ -4,6 +4,7 @@ import { createPayuLink } from "../../api/admin/lib/create-payu-link"
 import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { planCartCollection } from "./deposit-collection"
 import { deactivatePayuLink } from "./payu-link-admin"
+import { mintPayuUpiIntent } from "./payu-upi-intent"
 import {
   formatExpiryForBuyer,
   PAYU_LINK_METADATA_KEY,
@@ -44,6 +45,12 @@ export type PayuCartLink = {
   expires_label?: string | null
   /** Invoice number of the previous link we switched off, if any. */
   replaced_invoice_number?: string | null
+  /**
+   * #2572 — what the email QR encodes: "upi" when a UPI intent was minted (any
+   * UPI app pays it), "link" when it fell back to the payment-link URL (a phone
+   * camera opens the page). Null when no link.
+   */
+  qr_kind?: "upi" | "link" | null
 }
 
 const notLinked = (reason: string): PayuCartLink => ({
@@ -53,6 +60,7 @@ const notLinked = (reason: string): PayuCartLink => ({
   expires_at: null,
   expires_label: null,
   replaced_invoice_number: null,
+  qr_kind: null,
 })
 
 /**
@@ -183,6 +191,26 @@ export const createPayuLinkForCart = async (
     }
   }
 
+  /**
+   * #2572 — a UPI intent for the SAME amount, so the email QR is one any UPI
+   * app pays. Best-effort: without it the QR falls back to the link URL, which
+   * a phone camera still opens. `udf1` = cart id, exactly like the link, so
+   * the same webhook completes the cart.
+   */
+  const minted = await mintPayuUpiIntent({
+    cartId,
+    amount,
+    email: cart.email,
+    firstName: ba.first_name,
+    phone: ba.phone || cart.shipping_address?.phone,
+    now,
+  })
+  if (!minted.ok) {
+    logger?.warn?.(
+      `[payu-cart-link] no UPI intent for cart ${cartId} (QR falls back to the link): ${minted.error}`
+    )
+  }
+
   const tracked: TrackedPayuLink = {
     invoice_number: String(created.invoice_number ?? ""),
     url: created.payment_link,
@@ -191,6 +219,7 @@ export const createPayuLinkForCart = async (
     closed_at: null,
     closed_reason: null,
     expiry_notified_at: null,
+    upi_intent: minted.ok ? minted.intent : null,
   }
   try {
     const cartService: any = scope.resolve(Modules.CART)
@@ -211,5 +240,6 @@ export const createPayuLinkForCart = async (
     expires_at: tracked.expires_at,
     expires_label: formatExpiryForBuyer(expiresAt),
     replaced_invoice_number: replaced,
+    qr_kind: minted.ok ? "upi" : "link",
   }
 }

@@ -29,6 +29,35 @@ beforeEach(() => {
   runWorkflow.mockResolvedValue({ result: { id: "notif_1" } })
 })
 
+describe("deliverDesignOrderEmail — QR wording (#2572)", () => {
+  const send = async (over: any) => {
+    await deliverDesignOrderEmail(scopeWith(cart()), {
+      cart: cart(),
+      checkoutUrl: "https://x/checkout",
+      ...over,
+    })
+    return runWorkflow.mock.calls[0][0].input.data
+  }
+
+  it("says UPI only when the QR really is a UPI intent", async () => {
+    const data = await send({ paymentLink: "https://u.payu.in/a", paymentQrKind: "upi" })
+    expect(data.payment_qr_kind).toBe("upi")
+    expect(data.payment_qr_is_upi).toBe(true)
+  })
+
+  it("defaults to a link QR when the kind is not known (older callers)", async () => {
+    const data = await send({ paymentLink: "https://u.payu.in/a" })
+    expect(data.payment_qr_kind).toBe("link")
+    expect(data.payment_qr_is_upi).toBe(false)
+  })
+
+  it("has no QR kind at all without a payment link", async () => {
+    const data = await send({ paymentLink: null, paymentQrKind: "upi" })
+    expect(data.payment_qr_kind).toBeNull()
+    expect(data.payment_qr_is_upi).toBe(false)
+  })
+})
+
 describe("deliverDesignOrderEmail", () => {
   it("sends the checkout link to the buyer", async () => {
     const out = await deliverDesignOrderEmail(scopeWith(cart()), {

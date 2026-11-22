@@ -43,6 +43,27 @@ export type TrackedPayuLink = {
   closed_reason?: string | null
   /** Set once the buyer was emailed that the link expired. */
   expiry_notified_at?: string | null
+  /**
+   * #2572 — the UPI intent minted with this link, for the same amount. The
+   * email's QR encodes it so any UPI app can pay. Unlike the link it cannot be
+   * switched off at PayU; the webhook's amount check is the guard.
+   */
+  upi_intent?: {
+    txnid: string
+    uri: string
+    amount: number
+    payment_id: string | null
+    created_at: string
+  } | null
+}
+
+/** The QR payload for a tracked link: the UPI intent when we have one, else the link URL. */
+export const qrPayloadFor = (
+  link: TrackedPayuLink
+): { kind: "upi" | "link"; data: string } => {
+  const uri = link.upi_intent?.uri
+  if (typeof uri === "string" && /^upi:\/\/pay\?/i.test(uri)) return { kind: "upi", data: uri }
+  return { kind: "link", data: link.url }
 }
 
 const IST_OFFSET_MS = 330 * 60 * 1000

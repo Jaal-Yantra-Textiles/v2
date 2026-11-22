@@ -2,11 +2,17 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import QRCode from "qrcode"
 
-import { readTrackedLink } from "../../../../../lib/payments/payu-link-expiry"
+import { qrPayloadFor, readTrackedLink } from "../../../../../lib/payments/payu-link-expiry"
 
 /**
- * GET /r/cart/:id/pay-qr — a PNG QR of the cart's current PayU payment link,
- * for the design-order email (#2564).
+ * GET /r/cart/:id/pay-qr — a PNG QR for the cart's current PayU payment, for
+ * the design-order email (#2564).
+ *
+ * ## What it encodes (#2572)
+ *
+ * The UPI intent minted with the link (`upi://pay?pa=…&am=…`) when there is
+ * one — any UPI app pays that directly. Otherwise the payment-link URL, which
+ * a phone camera opens. The email words itself from `qr_kind` to match.
  *
  * ## Why a hosted image and not a data: URL
  *
@@ -20,8 +26,12 @@ import { readTrackedLink } from "../../../../../lib/payments/payu-link-expiry"
  * after they paid, sees no QR rather than a code that leads to a dead or
  * wrong-priced link. 410 Gone in those cases.
  *
+ * 🔴 Hiding the image is NOT a guard for the UPI intent: a buyer's screenshot
+ * or a mail client's cached copy can still be paid, and an intent cannot be
+ * switched off at PayU. The webhook's amount check is the guard.
+ *
  * Public, like `/r/cart/:id`: the cart id (a ULID) is the credential. The QR
- * only encodes the PayU link URL that is already in the same email as text.
+ * holds only a payment request for this cart (or the link already in the email).
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
@@ -50,7 +60,8 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       return
     }
 
-    const png = await QRCode.toBuffer(link!.url, { type: "png", margin: 2, width: 360 })
+    const payload = qrPayloadFor(link!)
+    const png = await QRCode.toBuffer(payload.data, { type: "png", margin: 2, width: 360 })
     res.setHeader("Content-Type", "image/png")
     // Short cache: the link can be replaced or expire at any moment.
     res.setHeader("Cache-Control", "public, max-age=300")

@@ -10,7 +10,7 @@
  * The inbound `hash` is verified best-effort by the route for logging only; it
  * never gates completion (a valid hash is also replay-able, so re-query wins).
  */
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   isLinkPaid,
   oneapiHosts,
@@ -21,6 +21,11 @@ import { verifyPayuTransaction, type VerifyResult } from "./verify-payment"
 import { scheduleIdFromLinkRef, settlePayuBalance } from "../../../../lib/payments/payu-balance"
 import { planCartCollection } from "../../../../lib/payments/deposit-collection"
 import { PAYMENT_SCHEDULE_MODULE } from "../../../../modules/payment_schedule"
+import {
+  isExtraPayment,
+  PAYU_COMPLETED_TXNID_KEY,
+  recordPayuPaymentIssue,
+} from "../../../../lib/payments/payu-payment-issues"
 
 export type ProcessResult = {
   completed: boolean
@@ -66,7 +71,13 @@ export async function processPayuLinkWebhook(
 
   const { data: carts } = await query.graph({
     entity: "cart",
-    fields: ["id", "total", "metadata"],
+    fields: [
+      "id",
+      "total",
+      "completed_at",
+      "metadata",
+      "payment_collection.payment_sessions.data",
+    ],
     filters: { id: cartId },
   })
   const cart = carts?.[0] as any
@@ -105,8 +116,10 @@ export async function processPayuLinkWebhook(
     })
 
   let paid = false
+  let verified: VerifyResult | null = null
   try {
     const v = await verify(txnid, minAmount)
+    verified = v
     if (v?.paid) paid = true
     else if (v) {
       logger.warn(
@@ -158,8 +171,55 @@ export async function processPayuLinkWebhook(
     }
   }
 
+  const paidAmount =
+    verified && Number.isFinite(Number(verified.amount)) ? Number(verified.amount) : null
+  const mihpayid = payload.mihpayid ? String(payload.mihpayid) : null
+
   if (!paid) {
+    /**
+     * 🔴 #2572 — PayU says SUCCESS but for less than is due now: an old UPI QR
+     * paid after a reprice or amend (an intent cannot be switched off). The
+     * refusal is right, but the money is with us — never let it be silent.
+     */
+    if (verified?.status === "success" && paidAmount !== null) {
+      await recordPayuPaymentIssue(scope, cartId, {
+        kind: "short",
+        txnid,
+        mihpayid,
+        paid: paidAmount,
+        due: minAmount ?? null,
+      })
+      return { completed: false, order_id: null, reason: "paid_short" }
+    }
     return { completed: false, order_id: null, reason: "not_verified" }
+  }
+
+  /**
+   * 🔴 #2572 — a real payment for a cart that a DIFFERENT payment already
+   * completed: the link and the UPI QR both paid, or checkout then QR.
+   * Completion is idempotent and would swallow it without a word.
+   */
+  if (
+    isExtraPayment({
+      completedAt: cart.completed_at,
+      knownTxnids: [
+        cart.metadata?.[PAYU_COMPLETED_TXNID_KEY],
+        // Carts completed before the stamp existed: the session carries it.
+        ...((cart.payment_collection?.payment_sessions ?? []) as any[]).map(
+          (ps) => ps?.data?.txnid
+        ),
+      ],
+      txnid,
+    })
+  ) {
+    await recordPayuPaymentIssue(scope, cartId, {
+      kind: "extra",
+      txnid,
+      mihpayid,
+      paid: paidAmount,
+      due: minAmount ?? null,
+    })
+    return { completed: false, order_id: null, reason: "extra_payment" }
   }
 
   // Verified by PayU → complete the cart into an order (idempotent).
@@ -170,5 +230,30 @@ export async function processPayuLinkWebhook(
     mode: payload.mode,
     bank_ref_num: payload.bank_ref_num,
   })
+
+  if (!result.already_completed) {
+    // Remember which payment completed it, so a repeat webhook for THIS txn is
+    // recognised and any other payment is flagged as extra.
+    try {
+      const cartService: any = scope.resolve(Modules.CART)
+      const [fresh] = await cartService.listCarts({ id: cartId }, { select: ["id", "metadata"] })
+      await cartService.updateCarts(cartId, {
+        metadata: { ...(fresh?.metadata ?? {}), [PAYU_COMPLETED_TXNID_KEY]: txnid },
+      })
+    } catch (e: any) {
+      logger.warn(`[PayU Webhook] could not stamp completing txn on cart ${cartId}: ${e.message}`)
+    }
+
+    // An old QR paid after the price went DOWN: completed, but overpaid.
+    if (paidAmount !== null && minAmount !== undefined && paidAmount > minAmount + 1) {
+      await recordPayuPaymentIssue(scope, cartId, {
+        kind: "over",
+        txnid,
+        mihpayid,
+        paid: paidAmount,
+        due: minAmount,
+      })
+    }
+  }
   return { completed: true, order_id: result.order_id }
 }
