@@ -37,8 +37,11 @@ type InjectedDependencies = {
 
 const PAYU_TEST_URL = "https://test.payu.in/_payment"
 const PAYU_LIVE_URL = "https://secure.payu.in/_payment"
-const PAYU_INFO_URL_TEST = "https://test.payu.in/merchant/postservice.php"
-const PAYU_INFO_URL_LIVE = "https://info.payu.in/merchant/postservice.php"
+// 🔴 `?form=2` makes PayU answer JSON. Without it the reply is PHP-serialised
+// (`a:3:{s:3:...`) and `response.json()` throws — that is how #158's refund
+// died silently (#2580); verify_payment through here was failing the same way.
+const PAYU_INFO_URL_TEST = "https://test.payu.in/merchant/postservice.php?form=2"
+const PAYU_INFO_URL_LIVE = "https://info.payu.in/merchant/postservice.php?form=2"
 
 class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
   static identifier = "payu"
