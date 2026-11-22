@@ -11,6 +11,8 @@ import {
   readTrackedLink,
   type TrackedPayuLink,
 } from "../lib/payments/payu-link-expiry"
+import { processPayuLinkWebhook } from "../api/store/payu/lib/process-link-webhook"
+import { verifyPayuTransaction } from "../api/store/payu/lib/verify-payment"
 import { sendDesignOrderPaymentExpiredEmailWorkflow } from "../workflows/email/workflows/send-design-order-payment-expired-email"
 
 /**
@@ -103,6 +105,50 @@ export default async function expireDesignOrderPayuLinks(container: MedusaContai
       let notify = action.kind === "notify_only"
 
       if (action.kind === "close") {
+        /**
+         * #2572 — the UPI intent minted with this link is a second way the
+         * buyer may have paid, and PayU's webhook can be late or lost. Ask
+         * PayU about it before closing as "expired". If it was paid, complete
+         * the cart through the same verified path the webhook uses (which
+         * also records a short or extra payment) — never email "expired".
+         */
+        if (action.reason === "expired" && link.upi_intent?.txnid) {
+          const key = process.env.PAYU_MERCHANT_KEY
+          const salt = process.env.PAYU_MERCHANT_SALT
+          let intentStatus: string | null = null
+          try {
+            if (key && salt) {
+              const v = await verifyPayuTransaction({
+                key,
+                salt,
+                mode: process.env.PAYU_MODE,
+                txnid: link.upi_intent.txnid,
+              })
+              intentStatus = v.status
+            }
+          } catch (e: any) {
+            logger.warn(
+              `[payu-link-sweep] could not check UPI intent ${link.upi_intent.txnid} (cart ${cart.id}): ${e?.message ?? e}; will retry`
+            )
+            held++
+            continue
+          }
+          if (intentStatus === "success") {
+            const out = await processPayuLinkWebhook(container, {
+              status: "success",
+              udf1: cart.id,
+              txnid: link.upi_intent.txnid,
+            })
+            logger.error(
+              `[payu-link-sweep] UPI intent ${link.upi_intent.txnid} on cart ${cart.id} was PAID but no webhook ` +
+                `completed it — completed by the sweep: ${out.completed ? `order ${out.order_id}` : out.reason}. Check the PayU webhook.`
+            )
+            await stamp({ closed_at: now.toISOString(), closed_reason: "paid" })
+            held++
+            continue
+          }
+        }
+
         if (action.reason === "expired") {
           const paid = await verifyBalanceLinkViaOneApi(link.invoice_number).catch(() => null)
           if (paid === null) {

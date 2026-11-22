@@ -8,6 +8,12 @@ jest.mock("../payu-link-admin", () => ({
   deactivatePayuLink: (...args: any[]) => deactivatePayuLink(...args),
 }))
 
+// #2572 — never let this spec reach PayU for real.
+const mintPayuUpiIntent = jest.fn()
+jest.mock("../payu-upi-intent", () => ({
+  mintPayuUpiIntent: (...args: any[]) => mintPayuUpiIntent(...args),
+}))
+
 import { createPayuLinkForCart } from "../payu-cart-link"
 
 const updateCarts = jest.fn()
@@ -41,6 +47,51 @@ beforeEach(() => {
   createPayuLink.mockResolvedValue({
     payment_link: "https://v.payu.in/abc",
     invoice_number: "inv1",
+  })
+  mintPayuUpiIntent.mockReset()
+  mintPayuUpiIntent.mockResolvedValue({ ok: false, error: "not in this test" })
+})
+
+describe("createPayuLinkForCart — UPI intent (#2572)", () => {
+  const intent = {
+    txnid: "upiT1",
+    uri: "upi://pay?pa=jy@indus&am=1100.00",
+    amount: 1100,
+    payment_id: "319",
+    created_at: "2026-11-22T00:00:00.000Z",
+  }
+
+  it("mints the intent for the SAME amount as the link, and the QR is a UPI one", async () => {
+    mintPayuUpiIntent.mockResolvedValue({ ok: true, intent })
+    const out = await createPayuLinkForCart(
+      scopeWith(inrCart(), {
+        id: "psch_1",
+        total_due: 11000,
+        deposit_amount: 1100,
+        deposit_status: "pending",
+        currency_code: "inr",
+      }),
+      "cart_01"
+    )
+    expect(out.qr_kind).toBe("upi")
+    const [mintInput] = mintPayuUpiIntent.mock.calls[0]
+    expect(mintInput).toMatchObject({ cartId: "cart_01", amount: 1100 })
+    expect(createPayuLink.mock.calls[0][0].amount).toBe(1100)
+    const saved = updateCarts.mock.calls[0][1].metadata.payu_link
+    expect(saved.upi_intent).toEqual(intent)
+  })
+
+  it("keeps the link and falls back to a link QR when the intent cannot be minted", async () => {
+    const out = await createPayuLinkForCart(scopeWith(inrCart()), "cart_01")
+    expect(out.payment_link).toBe("https://v.payu.in/abc")
+    expect(out.qr_kind).toBe("link")
+    expect(updateCarts.mock.calls[0][1].metadata.payu_link.upi_intent).toBeNull()
+  })
+
+  it("mints no intent when there is no link (non-INR cart)", async () => {
+    const out = await createPayuLinkForCart(scopeWith(inrCart({ currency_code: "eur" })), "cart_01")
+    expect(out.qr_kind).toBeNull()
+    expect(mintPayuUpiIntent).not.toHaveBeenCalled()
   })
 })
 

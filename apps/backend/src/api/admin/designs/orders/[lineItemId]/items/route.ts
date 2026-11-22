@@ -225,6 +225,7 @@ export async function POST(
             checkoutUrl: link.url,
             paymentLink: payu.payment_link,
             paymentLinkExpiresLabel: payu.expires_label ?? null,
+            paymentQrKind: payu.qr_kind ?? null,
           })
         : null
 
