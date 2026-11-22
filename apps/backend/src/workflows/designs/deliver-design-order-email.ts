@@ -24,6 +24,41 @@ import { sendDesignOrderCreatedEmailWorkflow } from "../email/workflows/send-des
  * treated as a failure here — "we chose not to mail this" and "the buyer has
  * their link" must not collapse into the same true.
  */
+export type EmailLineItem = {
+  title: string
+  thumbnail: string | null
+  quantity: number
+  unit_price: number
+  line_total: number
+}
+
+/**
+ * The cart's lines as the email shows them (#2576). A line with no readable
+ * price is dropped rather than shown as ₹0.00 — the same rule as the total:
+ * a silent wrong number is worse than a missing row. Only http(s) pictures
+ * are kept; a data: URL is stripped by Gmail and Outlook anyway.
+ */
+export const emailLineItems = (raw: unknown): EmailLineItem[] => {
+  if (!Array.isArray(raw)) return []
+  const out: EmailLineItem[] = []
+  for (const li of raw as any[]) {
+    // 🔴 Number(null) is 0 — an absent price must not become "₹0.00".
+    if (li?.unit_price === null || li?.unit_price === undefined || li?.unit_price === "") continue
+    const unit = Number(li.unit_price)
+    const qty = Number(li?.quantity ?? 1)
+    if (!Number.isFinite(unit) || !Number.isFinite(qty) || qty <= 0) continue
+    const thumb = typeof li?.thumbnail === "string" && /^https?:\/\//.test(li.thumbnail) ? li.thumbnail : null
+    out.push({
+      title: String(li?.title ?? "").trim() || "Your piece",
+      thumbnail: thumb,
+      quantity: qty,
+      unit_price: unit,
+      line_total: Math.round(unit * qty * 100) / 100,
+    })
+  }
+  return out
+}
+
 /** Public URL of the PayU-link QR image for a cart (#2564). */
 export const payQrUrl = (cartId: string): string =>
   `${(process.env.MEDUSA_BACKEND_URL || "https://v3.jaalyantra.com").replace(/\/+$/, "")}` +
@@ -68,7 +103,18 @@ export const deliverDesignOrderEmail = async (
   try {
     const { data } = await query.graph({
       entity: "cart",
-      fields: ["id", "email", "currency_code", "total", "items.id"],
+      fields: [
+        "id",
+        "email",
+        "currency_code",
+        "total",
+        "tax_total",
+        "items.id",
+        "items.title",
+        "items.thumbnail",
+        "items.quantity",
+        "items.unit_price",
+      ],
       filters: { id: input.cart?.id },
     })
     fresh = data?.[0] ?? null
@@ -130,6 +176,8 @@ export const deliverDesignOrderEmail = async (
   }
 
   const itemCount = Array.isArray(cart?.items) ? cart.items.length : null
+  const items = emailLineItems(cart?.items)
+  const taxTotal = Number(cart?.tax_total)
 
   try {
     const { result } = await sendDesignOrderCreatedEmailWorkflow(scope).run({
@@ -153,6 +201,11 @@ export const deliverDesignOrderEmail = async (
           currency_code: cart?.currency_code ?? null,
           total,
           item_count: itemCount,
+          // What the buyer is paying for, one row per design (#2576).
+          items,
+          // Shown only when GST is on the cart (design-order prices are
+          // GST-exclusive, so the lines alone would not add up to the total).
+          tax_total: Number.isFinite(taxTotal) && taxTotal > 0 ? taxTotal : null,
           current_year: `${new Date().getFullYear()}`,
         },
       },
