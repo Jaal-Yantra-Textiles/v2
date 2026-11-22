@@ -4,7 +4,7 @@ jest.mock("../../email/workflows/send-design-order-created-email", () => ({
 }))
 
 import { BOT_SUPPRESSED_SEND_ID } from "../../../lib/bot-recipients"
-import { deliverDesignOrderEmail } from "../deliver-design-order-email"
+import { deliverDesignOrderEmail, emailLineItems } from "../deliver-design-order-email"
 
 /** `graphCart` is what the cart reads back as — deliberately separate from the
  *  object handed in, because the caller's cart predates its own line items. */
@@ -27,6 +27,50 @@ const cart = (over: any = {}) => ({
 beforeEach(() => {
   runWorkflow.mockReset()
   runWorkflow.mockResolvedValue({ result: { id: "notif_1" } })
+})
+
+describe("emailLineItems (#2576)", () => {
+  it("shows each design with its picture, quantity and line price", () => {
+    expect(
+      emailLineItems([
+        { title: "Unlined Kurta", thumbnail: "https://cdn.x/k.webp", quantity: 2, unit_price: 1450.5 },
+      ])
+    ).toEqual([
+      { title: "Unlined Kurta", thumbnail: "https://cdn.x/k.webp", quantity: 2, unit_price: 1450.5, line_total: 2901 },
+    ])
+  })
+
+  it("drops a line with no readable price rather than showing ₹0.00", () => {
+    expect(emailLineItems([{ id: "li_1" }, { title: "A", unit_price: null, quantity: 1 }])).toEqual([])
+  })
+
+  it("keeps only http(s) pictures and names an untitled piece", () => {
+    const [li] = emailLineItems([{ title: " ", thumbnail: "data:image/png;base64,xx", unit_price: 10, quantity: 1 }])
+    expect(li.thumbnail).toBeNull()
+    expect(li.title).toBe("Your piece")
+  })
+
+  it("is empty for a cart without items", () => {
+    expect(emailLineItems(undefined)).toEqual([])
+  })
+})
+
+describe("deliverDesignOrderEmail — items and GST in the email (#2576)", () => {
+  it("passes the read-back lines and GST to the template", async () => {
+    const graph = cart({
+      tax_total: 72.53,
+      items: [{ id: "li_1", title: "Kurta", thumbnail: "https://cdn.x/k.webp", quantity: 1, unit_price: 1450.5 }],
+    })
+    await deliverDesignOrderEmail(scopeWith(graph), { cart: { id: "cart_01" }, checkoutUrl: "https://x/c" })
+    const data = runWorkflow.mock.calls[0][0].input.data
+    expect(data.items).toEqual([expect.objectContaining({ title: "Kurta", line_total: 1450.5 })])
+    expect(data.tax_total).toBe(72.53)
+  })
+
+  it("sends no GST row when the cart has no tax yet", async () => {
+    await deliverDesignOrderEmail(scopeWith(cart()), { cart: cart(), checkoutUrl: "https://x/c" })
+    expect(runWorkflow.mock.calls[0][0].input.data.tax_total).toBeNull()
+  })
 })
 
 describe("deliverDesignOrderEmail — QR wording (#2572)", () => {
