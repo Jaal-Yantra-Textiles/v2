@@ -22,6 +22,7 @@ import {
   WebhookActionResult,
 } from "@medusajs/framework/types"
 import { Logger } from "@medusajs/framework/types"
+import { newRefundToken, refundPayuPayment } from "../../lib/payments/payu-refund"
 
 type PayUOptions = {
   merchant_key: string
@@ -283,31 +284,26 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     const mihpayid = data?.mihpayid as string
     if (!mihpayid) throw new Error("PayU mihpayid required for refund")
 
-    const refundAmount = this.toAmount(amount)
-    const tokenId = `refund_${Date.now()}`
-    const hash = this.generateApiHashWithOpts(opts, "cancel_refund_transaction", mihpayid)
-
-    const params = new URLSearchParams({
-      key: opts.merchant_key,
-      command: "cancel_refund_transaction",
-      hash,
-      var1: mihpayid,
-      var2: tokenId,
-      var3: refundAmount,
-    })
-
-    const response = await fetch(this.getInfoUrl(opts), {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString(),
-    })
-    const result = await response.json()
-    this.logger_.info(`[PayU] Refund: ${JSON.stringify(result)}`)
-
-    if (result.status === 1 || result.msg === "Refund Initiated") {
-      return { data: { ...data, refund_id: tokenId, refund_amount: refundAmount } }
+    // #2580 — one implementation of PayU's refund API (docs-cited, token ≤ 23
+    // chars, PayU's own error codes in words), shared with the admin tools.
+    const out = await refundPayuPayment(
+      { key: opts.merchant_key, salt: opts.merchant_salt, mode: opts.mode },
+      { mihpayid, amount: Number(this.toAmount(amount)), token: newRefundToken("rf") }
+    )
+    this.logger_.info(
+      `[PayU] Refund: mihpayid=${mihpayid} accepted=${out.accepted} request_id=${out.request_id} code=${out.error_code} msg=${out.message}`
+    )
+    if (out.accepted) {
+      return {
+        data: {
+          ...data,
+          refund_id: out.token,
+          refund_request_id: out.request_id,
+          refund_amount: this.toAmount(amount),
+        },
+      }
     }
-    throw new Error(`PayU refund failed: ${result.msg || JSON.stringify(result)}`)
+    throw new Error(`PayU refund failed: ${out.message}`)
   }
 
   async cancelPayment(input: CancelPaymentInput): Promise<CancelPaymentOutput> {
