@@ -184,6 +184,7 @@ import { backfillParentRunProducedQuantityJob } from "./backfill-parent-run-prod
 import { backfillDesignOrderItemLinksJob } from "./backfill-design-order-item-links-job"
 import { redactLoginCodeNotificationsJob } from "./redact-login-code-notifications-job"
 import { refreshStaleDraftPayoutsJob } from "./refresh-stale-draft-payouts-job"
+import { settleOverstatedPaymentCollectionsJob } from "./settle-overstated-payment-collections-job"
 import {
   sweepAiPlatformsByCategory,
   AI_ROLES,
@@ -6563,6 +6564,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   propagateRegionsToAllPartnersJob,
   backfillPartnerStockLocationsJob,
   reconcileOrderBalancesJob,
+  settleOverstatedPaymentCollectionsJob,
   cancelInactiveProductionRunsJob,
   warnExpiringProductionRunsJob,
   remirrorCancelledRunStatusJob,
