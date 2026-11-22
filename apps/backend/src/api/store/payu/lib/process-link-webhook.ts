@@ -23,6 +23,7 @@ import { planCartCollection } from "../../../../lib/payments/deposit-collection"
 import { PAYMENT_SCHEDULE_MODULE } from "../../../../modules/payment_schedule"
 import {
   isExtraPayment,
+  PAYU_CLAIMED_TXNIDS_KEY,
   PAYU_COMPLETED_TXNID_KEY,
   recordPayuPaymentIssue,
 } from "../../../../lib/payments/payu-payment-issues"
@@ -194,24 +195,18 @@ export async function processPayuLinkWebhook(
     return { completed: false, order_id: null, reason: "not_verified" }
   }
 
-  /**
-   * 🔴 #2572 — a real payment for a cart that a DIFFERENT payment already
-   * completed: the link and the UPI QR both paid, or checkout then QR.
-   * Completion is idempotent and would swallow it without a word.
-   */
-  if (
-    isExtraPayment({
-      completedAt: cart.completed_at,
-      knownTxnids: [
-        cart.metadata?.[PAYU_COMPLETED_TXNID_KEY],
-        // Carts completed before the stamp existed: the session carries it.
-        ...((cart.payment_collection?.payment_sessions ?? []) as any[]).map(
-          (ps) => ps?.data?.txnid
-        ),
-      ],
-      txnid,
-    })
-  ) {
+  const cartService: any = scope.resolve(Modules.CART)
+  const readFresh = async (): Promise<Record<string, any>> => {
+    const [fresh] = await cartService.listCarts({ id: cartId }, { select: ["id", "metadata"] })
+    return (fresh?.metadata ?? {}) as Record<string, any>
+  }
+  const knownTxnids = (metadata: Record<string, any>): unknown[] => [
+    ...(Array.isArray(metadata[PAYU_CLAIMED_TXNIDS_KEY]) ? metadata[PAYU_CLAIMED_TXNIDS_KEY] : []),
+    metadata[PAYU_COMPLETED_TXNID_KEY],
+    // Carts completed before the stamps existed: the session carries it.
+    ...((cart.payment_collection?.payment_sessions ?? []) as any[]).map((ps) => ps?.data?.txnid),
+  ]
+  const flagExtra = async () => {
     await recordPayuPaymentIssue(scope, cartId, {
       kind: "extra",
       txnid,
@@ -219,7 +214,41 @@ export async function processPayuLinkWebhook(
       paid: paidAmount,
       due: minAmount ?? null,
     })
-    return { completed: false, order_id: null, reason: "extra_payment" }
+    return { completed: false, order_id: null, reason: "extra_payment" } as ProcessResult
+  }
+
+  /**
+   * 🔴 #2572 — a real payment for a cart that a DIFFERENT payment already
+   * completed: the link and the UPI QR both paid, or checkout then QR.
+   * Completion is idempotent and would swallow it without a word.
+   *
+   * PayU delivers the SAME payment's webhook more than once, ~1 s apart (seen
+   * live 2026-11-22). So the txn is CLAIMED on the cart before completing:
+   * any reader that can see `completed_at` can also see which txn did it, and
+   * a duplicate is never mistaken for a second payment.
+   */
+  if (
+    isExtraPayment({
+      completedAt: cart.completed_at,
+      knownTxnids: knownTxnids({ ...(cart.metadata ?? {}), ...(await readFresh().catch(() => ({}))) }),
+      txnid,
+    })
+  ) {
+    return flagExtra()
+  }
+
+  try {
+    const fresh = await readFresh()
+    const claimed: unknown[] = Array.isArray(fresh[PAYU_CLAIMED_TXNIDS_KEY])
+      ? fresh[PAYU_CLAIMED_TXNIDS_KEY]
+      : []
+    if (!claimed.includes(txnid)) {
+      await cartService.updateCarts(cartId, {
+        metadata: { ...fresh, [PAYU_CLAIMED_TXNIDS_KEY]: [...claimed, txnid] },
+      })
+    }
+  } catch (e: any) {
+    logger.warn(`[PayU Webhook] could not claim txn ${txnid} on cart ${cartId}: ${e.message}`)
   }
 
   // Verified by PayU → complete the cart into an order (idempotent).
@@ -231,29 +260,39 @@ export async function processPayuLinkWebhook(
     bank_ref_num: payload.bank_ref_num,
   })
 
-  if (!result.already_completed) {
-    // Remember which payment completed it, so a repeat webhook for THIS txn is
-    // recognised and any other payment is flagged as extra.
-    try {
-      const cartService: any = scope.resolve(Modules.CART)
-      const [fresh] = await cartService.listCarts({ id: cartId }, { select: ["id", "metadata"] })
-      await cartService.updateCarts(cartId, {
-        metadata: { ...(fresh?.metadata ?? {}), [PAYU_COMPLETED_TXNID_KEY]: txnid },
-      })
-    } catch (e: any) {
-      logger.warn(`[PayU Webhook] could not stamp completing txn on cart ${cartId}: ${e.message}`)
-    }
+  if (result.already_completed) {
+    /**
+     * Someone else completed it between our read and our completion. A repeat
+     * of OUR payment claimed only our txn; a different payment's claim sitting
+     * next to ours means this one is the second payment.
+     */
+    const fresh = await readFresh().catch(() => ({}) as Record<string, any>)
+    const others = knownTxnids(fresh).filter(
+      (t) => t !== null && t !== undefined && String(t) !== txnid
+    )
+    if (others.length) return flagExtra()
+    return { completed: true, order_id: result.order_id }
+  }
 
-    // An old QR paid after the price went DOWN: completed, but overpaid.
-    if (paidAmount !== null && minAmount !== undefined && paidAmount > minAmount + 1) {
-      await recordPayuPaymentIssue(scope, cartId, {
-        kind: "over",
-        txnid,
-        mihpayid,
-        paid: paidAmount,
-        due: minAmount,
-      })
-    }
+  // Remember which payment completed it.
+  try {
+    const fresh = await readFresh()
+    await cartService.updateCarts(cartId, {
+      metadata: { ...fresh, [PAYU_COMPLETED_TXNID_KEY]: txnid },
+    })
+  } catch (e: any) {
+    logger.warn(`[PayU Webhook] could not stamp completing txn on cart ${cartId}: ${e.message}`)
+  }
+
+  // An old QR paid after the price went DOWN: completed, but overpaid.
+  if (paidAmount !== null && minAmount !== undefined && paidAmount > minAmount + 1) {
+    await recordPayuPaymentIssue(scope, cartId, {
+      kind: "over",
+      txnid,
+      mihpayid,
+      paid: paidAmount,
+      due: minAmount,
+    })
   }
   return { completed: true, order_id: result.order_id }
 }
