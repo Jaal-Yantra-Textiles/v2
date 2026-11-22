@@ -94,7 +94,13 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Configure AWS credentials (OIDC)
+      # Multi-arch, added for the OCI Ampere A1 mirror (2026-11-22): the A1 is
+      # arm64, ECS Fargate stays amd64, so the image must carry both. The
+      # arm64 leg cross-builds under QEMU on the amd64 runner — expect the
+      # build job to take noticeably longer (the arm64 install/build layers run
+      # emulated). If that ever becomes unbearable, point buildx at the A1 box
+      # as a remote builder instead (native-speed arm64, amd64 stays local).
+      - uses: docker/setup-qemu-action@v3
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/jyt-github-actions
@@ -178,6 +184,10 @@ jobs:
           context: .
           file: ./apps/backend/Dockerfile
           push: true
+          # linux/amd64 for ECS Fargate, linux/arm64 for the OCI Ampere A1
+          # mirror/hosts. Both registries get the same multi-arch manifest:
+          # each runtime pulls its own architecture natively.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Baked into the Vite admin bundle at build time. Public URLs, not secrets.

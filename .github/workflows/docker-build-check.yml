@@ -39,6 +39,11 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
+      # Multi-arch parity with the deploy build: PRs that break the arm64 leg
+      # (an x86-only native dep, an arch-pinned script) must fail HERE, not on
+      # the next push to main. Same QEMU cross-build as deploy-to-aws.yml.
+      - uses: docker/setup-qemu-action@v3
+
       # Same build the deploy performs, minus the registries. The build args are
       # public URLs Vite inlines; dummy values are fine here because nothing
       # produced by this job is ever run or shipped.
@@ -48,6 +53,7 @@ jobs:
           context: .
           file: ./apps/backend/Dockerfile
           push: false
+          platforms: linux/amd64,linux/arm64
           build-args: |
             MEDUSA_BACKEND_URL=https://example.invalid
             VITE_MEDUSA_BACKEND_URL=https://example.invalid

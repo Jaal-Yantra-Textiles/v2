@@ -5,6 +5,11 @@
 # role to run (server runs migrations first; worker just starts).
 #
 # Built from the repo root context: `docker build -f apps/backend/Dockerfile .`
+#
+# Multi-arch since 2026-11-22: CI builds linux/amd64 (ECS Fargate) and
+# linux/arm64 (OCI Ampere A1 mirror). All bases and native deps are
+# multi-arch; this note also nudges deploy-to-aws's cache-refresh logic so
+# the arm64 leg gets its first cache export on the merge deploy.
 # -----------------------------------------------------------------------------
 
 FROM node:22-slim AS builder
