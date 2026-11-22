@@ -24,6 +24,13 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 export const PAYU_PAYMENT_ISSUES_KEY = "payu_payment_issues"
 /** The txnid whose payment completed this cart through the PayU webhook. */
 export const PAYU_COMPLETED_TXNID_KEY = "payu_completed_txnid"
+/**
+ * Txnids that set out to complete this cart, written BEFORE completion. PayU
+ * re-delivers one payment's webhook ~1 s apart; without the claim the second
+ * delivery saw a completed cart with no stamp yet and called it a second
+ * payment (false alarm on the live test, 2026-11-22).
+ */
+export const PAYU_CLAIMED_TXNIDS_KEY = "payu_claimed_txnids"
 
 export type PayuPaymentIssueKind = "short" | "over" | "extra"
 

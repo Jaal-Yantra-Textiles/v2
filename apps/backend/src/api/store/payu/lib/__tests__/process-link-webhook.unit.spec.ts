@@ -145,6 +145,62 @@ describe("processPayuLinkWebhook — #2572 guards", () => {
   })
 })
 
+describe("processPayuLinkWebhook — duplicate deliveries (live 2026-11-22)", () => {
+  it("🔴 a second delivery of the SAME payment, seen after completion, is not a second payment", async () => {
+    // The race seen live: delivery 2 reads the cart already completed by
+    // delivery 1, whose txn is on the cart only as a CLAIM (no stamp yet).
+    const { scope, metadata } = scopeWith({
+      id: "cart_1",
+      total: 1.05,
+      completed_at: "2026-11-22T07:17:28Z",
+      metadata: { payu_claimed_txnids: ["upiA"] },
+    })
+    completeCart.mockResolvedValue({ order_id: "order_1", already_completed: true })
+    const out = await processPayuLinkWebhook(
+      scope,
+      { status: "success", udf1: "cart_1", txnid: "upiA" },
+      { verifyTransaction: verified("success", 1.05, true) }
+    )
+    expect(out.completed).toBe(true)
+    expect(metadata().payu_payment_issues).toBeUndefined()
+    expect(createNotifications).not.toHaveBeenCalled()
+  })
+
+  it("claims the txn on the cart BEFORE completing it", async () => {
+    const { scope, metadata } = scopeWith({ id: "cart_1", total: 1100, metadata: {} })
+    let claimedAtCompletion: unknown = null
+    completeCart.mockImplementation(async () => {
+      claimedAtCompletion = metadata().payu_claimed_txnids
+      return { order_id: "order_1", already_completed: false }
+    })
+    await processPayuLinkWebhook(
+      scope,
+      { status: "success", udf1: "cart_1", txnid: "upiA" },
+      { verifyTransaction: verified("success", 1100, true) }
+    )
+    expect(claimedAtCompletion).toEqual(["upiA"])
+  })
+
+  it("flags a DIFFERENT payment that lost the race to complete the cart", async () => {
+    // Both read an open cart; the other payment completed it first.
+    const { scope, metadata } = scopeWith({
+      id: "cart_1",
+      total: 1100,
+      metadata: { payu_claimed_txnids: ["linkTxn"] },
+    })
+    completeCart.mockResolvedValue({ order_id: "order_1", already_completed: true })
+    const out = await processPayuLinkWebhook(
+      scope,
+      { status: "success", udf1: "cart_1", txnid: "upiB" },
+      { verifyTransaction: verified("success", 1100, true) }
+    )
+    expect(out.reason).toBe("extra_payment")
+    expect(metadata().payu_payment_issues).toEqual([
+      expect.objectContaining({ kind: "extra", txnid: "upiB" }),
+    ])
+  })
+})
+
 describe("isExtraPayment", () => {
   it("is false for an open cart and for a known txn, true otherwise", () => {
     expect(isExtraPayment({ completedAt: null, knownTxnids: [], txnid: "a" })).toBe(false)
