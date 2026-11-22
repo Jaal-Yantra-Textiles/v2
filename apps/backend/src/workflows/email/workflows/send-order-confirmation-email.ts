@@ -1,25 +1,54 @@
 import { createWorkflow, createStep, StepResponse, transform } from "@medusajs/framework/workflows-sdk"
-import { Modules } from "@medusajs/framework/utils"
-import type { IOrderModuleService } from "@medusajs/types"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
 import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
 import { PARTNER_MODULE } from "../../../modules/partner"
 import PartnerService from "../../../modules/partner/service"
 import { resolveRetailPartnerId } from "../../../modules/partner_billing/resolve-retail-partner"
+import {
+  confirmationDelivery,
+  confirmationLines,
+  confirmationPayment,
+  confirmationTotals,
+} from "./order-confirmation-email-lib"
 
 /**
- * Retrieve the order with the relations we need to render the confirmation.
- * Addresses give us the customer name (line items don't), items give us the
- * total and item count.
+ * Retrieve the order with what the confirmation renders (#2578): the lines,
+ * computed totals, addresses, the shipping method and the payments. Read via
+ * `query.graph` so totals come back calculated — the module's retrieveOrder
+ * left `total` empty and the email fell back to summing unit prices.
  */
 const retrieveOrderStep = createStep(
   { name: "retrieve-order", store: true },
   async ({ orderId }: { orderId: string }, { container }) => {
-    const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
-    const order = await orderService.retrieveOrder(orderId, {
-      relations: ["items", "shipping_address", "billing_address"],
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "display_id",
+        "email",
+        "currency_code",
+        "sales_channel_id",
+        "total",
+        "subtotal",
+        "item_subtotal",
+        "tax_total",
+        "shipping_total",
+        "discount_total",
+        "summary",
+        "items.*",
+        "shipping_address.*",
+        "billing_address.*",
+        "shipping_methods.name",
+        "payment_collections.captured_amount",
+        "payment_collections.authorized_amount",
+        "payment_collections.payments.provider_id",
+        "payment_collections.payments.data",
+      ],
+      filters: { id: orderId },
     })
-    return new StepResponse(order)
+    return new StepResponse(data?.[0] ?? null)
   }
 )
 
@@ -111,6 +140,11 @@ const buildOrderConfirmationVarsStep = createStep(
       partner_name: partnerName,
       store_url: storeUrl,
       current_year: String(new Date().getFullYear()),
+      // #2578 — what was bought, what was paid and how, how it will arrive.
+      items: confirmationLines(items, order?.currency_code),
+      ...confirmationTotals(order),
+      payment: confirmationPayment(order),
+      delivery: confirmationDelivery(order),
     }
 
     return new StepResponse(vars)
