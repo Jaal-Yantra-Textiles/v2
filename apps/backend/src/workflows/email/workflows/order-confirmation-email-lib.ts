@@ -159,3 +159,32 @@ export const confirmationDelivery = (order: any): ConfirmationDelivery => {
     items.length > 0 && items.every((li) => Boolean(li?.metadata?.design_id))
   return { method, address_lines, made_to_order }
 }
+
+/**
+ * The flat variables every customer order email shares (#2578): who, which
+ * order, what, and the money. The confirmation adds partner branding on top;
+ * the cancellation adds what will be refunded.
+ */
+export const orderEmailBasics = (order: any) => {
+  const money = formatMoneyFor(order?.currency_code)
+  const items: any[] = Array.isArray(order?.items) ? order.items : []
+  const total = readAmount(order?.total)
+  const firstName =
+    order?.shipping_address?.first_name ||
+    order?.billing_address?.first_name ||
+    (order?.email ? String(order.email).split("@")[0] : "") ||
+    "there"
+  return {
+    customer_first_name: firstName,
+    order_display_id: order?.display_id ? `#${order.display_id}` : order?.id || "",
+    order_id: order?.id || "",
+    order_email: order?.email || "",
+    order_total: total !== null ? money(total) : "",
+    item_count: String(items.length),
+    items: confirmationLines(items, order?.currency_code),
+    ...confirmationTotals(order),
+    payment: confirmationPayment(order),
+    delivery: confirmationDelivery(order),
+    current_year: String(new Date().getFullYear()),
+  }
+}

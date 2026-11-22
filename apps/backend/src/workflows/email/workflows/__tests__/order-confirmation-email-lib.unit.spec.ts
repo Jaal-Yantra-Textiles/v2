@@ -4,6 +4,7 @@ import {
   confirmationPayment,
   confirmationTotals,
   paymentMethodWords,
+  orderEmailBasics,
   readAmount,
 } from "../order-confirmation-email-lib"
 
@@ -150,5 +151,19 @@ describe("order confirmation details (#2578)", () => {
     expect(readAmount("")).toBeNull()
     expect(readAmount(0)).toBe(0)
     expect(readAmount({ value: "1.05" })).toBe(1.05)
+  })
+
+  it("🔴 the cancel email's flat fields are never blank (#158 went out as 'Hi ,' / 'Order #')", () => {
+    const v = orderEmailBasics({ ...order158, id: "order_1", display_id: 158, email: "saranshforgpay@gmail.com" })
+    expect(v.customer_first_name).toBe("saranshforgpay")
+    expect(v.order_display_id).toBe("#158")
+    expect(v.order_total).toBe("₹1.05")
+    expect(v.item_count).toBe("1")
+    expect(v.payment.paid).toBe("₹1.05")
+    expect(v.items).toHaveLength(1)
+  })
+
+  it("orderEmailBasics leaves an unreadable total blank rather than ₹0.00", () => {
+    expect(orderEmailBasics({ total: null, items: [] }).order_total).toBe("")
   })
 })

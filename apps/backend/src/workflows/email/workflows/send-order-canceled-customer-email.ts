@@ -1,18 +1,43 @@
 import { createWorkflow, createStep, StepResponse, transform } from "@medusajs/framework/workflows-sdk"
-import { Modules } from "@medusajs/framework/utils"
-import type { IOrderModuleService } from "@medusajs/types"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
 import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
 import { buildOrderCanceledCustomerEmailData } from "./order-canceled-customer-email-lib"
+import { orderEmailBasics } from "./order-confirmation-email-lib"
 
 const retrieveOrderStep = createStep(
   { name: "retrieve-order-for-cancellation", store: true },
   async ({ orderId }: { orderId: string }, { container }) => {
-    const orderService = container.resolve(Modules.ORDER) as IOrderModuleService
-    const order = await orderService.retrieveOrder(orderId, {
-      relations: ["items"],
+    // query.graph so totals and payments come back computed (#2578).
+    const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "display_id",
+        "email",
+        "currency_code",
+        "customer_id",
+        "canceled_at",
+        "total",
+        "subtotal",
+        "item_subtotal",
+        "tax_total",
+        "shipping_total",
+        "discount_total",
+        "summary",
+        "items.*",
+        "shipping_address.*",
+        "billing_address.*",
+        "shipping_methods.name",
+        "payment_collections.captured_amount",
+        "payment_collections.authorized_amount",
+        "payment_collections.payments.provider_id",
+        "payment_collections.payments.data",
+      ],
+      filters: { id: orderId },
     })
-    return new StepResponse(order)
+    return new StepResponse(data?.[0] ?? null)
   }
 )
 
@@ -28,9 +53,23 @@ export const sendOrderCanceledCustomerEmailWorkflow = createWorkflow(
   (input: { orderId: string }) => {
     const order = retrieveOrderStep(input)
 
-    const emailData = transform({ order }, (d) =>
-      buildOrderCanceledCustomerEmailData(d.order)
-    )
+    /**
+     * 🔴 #2578 — the `order-canceled` template reads FLAT variables
+     * ({{customer_first_name}}, {{order_display_id}}), but this sent only the
+     * nested `{ order, customer }`. Every cancellation went out as
+     * "Hi ," / "Your order # has been canceled" (seen on #158, 2026-11-22).
+     * The flat set is the same one the confirmation uses; the nested shape is
+     * kept alongside so nothing that reads it breaks.
+     */
+    const emailData = transform({ order }, (d) => {
+      const basics = orderEmailBasics(d.order)
+      return {
+        ...buildOrderCanceledCustomerEmailData(d.order),
+        ...basics,
+        // What we hold and owe back, if anything was paid.
+        refund_amount: basics.payment.paid,
+      }
+    })
 
     const templateData = fetchEmailTemplateStep({
       templateKey: "order-canceled",
