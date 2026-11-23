@@ -1,0 +1,113 @@
+# Medusa on the OCI Ampere A1 box (2 OCPU / 12 GB, Frankfurt).
+#
+# Mirrors the two ECS services in deploy/aws/copilot (medusa-server,
+# medusa-worker) on one host, plus what AWS provided as managed services:
+#   - valkey      replaces ElastiCache (VPC-only, unreachable from OCI)
+#   - cloudflared replaces the ALB: no inbound ports; TLS ends at Cloudflare
+#
+# The database is NOT here: DATABASE_URL comes from secrets.env. See README.md
+# for the options and why the choice matters (latency to us-east-1).
+#
+# Image: built by .github/workflows/build-arm64.yml on GitHub's ARM runner.
+# Nothing pulls automatically; deploy = `./deploy.sh` (pull + recreate).
+#
+# 🔴 Never run this stack's WORKER while the AWS worker is running against the
+# same database: two workers with separate Redis instances means every
+# scheduled job runs twice (payout sweeps, reminders, WhatsApp sends).
+
+name: jyt
+
+x-medusa: &medusa
+  image: ${JYT_IMAGE:-ghcr.io/jaal-yantra-textiles/v2:latest-arm64}
+  restart: unless-stopped
+  env_file:
+    # Rendered from SSM /jyt/prod by render-env.sh. `raw` = no ${...}
+    # interpolation and no quote handling, so secrets containing `$` or quotes
+    # arrive byte-for-byte (needs Compose >= 2.30).
+    - path: ./secrets.env
+      format: raw
+  depends_on:
+    valkey:
+      condition: service_healthy
+  logging:
+    driver: json-file
+    options: { max-size: "20m", max-file: "5" }
+
+services:
+  server:
+    <<: *medusa
+    environment:
+      # Same non-secret variables as deploy/aws/copilot/medusa-server/manifest.yml.
+      # Keep the two in step until AWS is decommissioned.
+      NODE_ENV: production
+      MEDUSA_WORKER_MODE: server
+      REDIS_URL: redis://valkey:6379
+      NODE_OPTIONS: --max-old-space-size=3072
+      WHATSAPP_FREEFORM_CHAT_ENABLED: "true"
+      WHATSAPP_NATURAL_RUN_ACKS_ENABLED: "true"
+      WORK_ORDER_READS: "true"
+      ADMIN_MCP_LOOPBACK_URL: http://127.0.0.1:9000
+      PARTNER_APP_URL: https://partner.jaalyantra.com
+      FEEDBACK_ARTWORK_ALBUM_ID: 01KS74M4JABCFKHB4WTF90KQYS
+      CORE_SALES_CHANNEL_ID: sc_01JNQG1YX5549246DFCKKFTE0W
+      CENSUS_READER_URL: https://census-node.jaalyantra.com
+      CRM_NODE_URL: https://crm-node.jaalyantra.com
+    # Loopback only: the outside world reaches it through cloudflared.
+    ports: ["127.0.0.1:9000:9000"]
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:9000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      # Medusa logs "ready" before module linking + workflow resume finish.
+      start_period: 240s
+
+  worker:
+    <<: *medusa
+    environment:
+      NODE_ENV: production
+      MEDUSA_WORKER_MODE: worker
+      REDIS_URL: redis://valkey:6379
+      NODE_OPTIONS: --max-old-space-size=1536
+      DISABLE_MEDUSA_ADMIN: "true"
+      WHATSAPP_FREEFORM_CHAT_ENABLED: "true"
+      WHATSAPP_NATURAL_RUN_ACKS_ENABLED: "true"
+      WORK_ORDER_READS: "true"
+      PARTNER_APP_URL: https://partner.jaalyantra.com
+      CORE_SALES_CHANNEL_ID: sc_01JNQG1YX5549246DFCKKFTE0W
+    mem_limit: 2g
+    # Started only on purpose: `docker compose --profile worker up -d`.
+    # See the 🔴 note at the top.
+    profiles: ["worker"]
+
+  valkey:
+    image: valkey/valkey:8.1-alpine
+    restart: unless-stopped
+    # Event bus, workflow engine and locks. AOF so a restart does not drop
+    # in-flight workflow state.
+    command: ["valkey-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "noeviction"]
+    volumes: ["valkey-data:/data"]
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cloudflared:
+    image: cloudflare/cloudflared:2025.11.1
+    restart: unless-stopped
+    # Remotely-managed tunnel: the public hostname → http://server:9000 route
+    # is set in the Cloudflare dashboard, not here.
+    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/tunnel_token"]
+    secrets: [tunnel_token]
+    depends_on: [server]
+    profiles: ["tunnel"]
+
+secrets:
+  tunnel_token:
+    file: ./tunnel.token
+
+volumes:
+  valkey-data:
