@@ -1,0 +1,96 @@
+name: Build ARM64 Image (A1 mirror)
+
+# Non-blocking companion to deploy-to-aws.yml. The ECS/Fargate deploy path is
+# untouched and still builds amd64-only on the GitHub-hosted runner. This
+# workflow builds the linux/arm64 image for the OCI Ampere A1 mirror box —
+# ON that box (self-hosted runner: native ARM speed, persistent local docker
+# cache, no QEMU emulation).
+#
+# Why separate instead of a multi-arch deploy build (founder review on #2585):
+# `COPY . .` precedes pnpm install/build in the Dockerfile, so those layers
+# rebuild on every commit; a QEMU arm64 leg measured 49+ min ONCE on that
+# closed PR — it would have paid that on EVERY deploy. Here the arm64 build
+# can never delay, block, or break the ECS deploy: separate workflow file,
+# separate runner, no shared state.
+#
+# Tags: `latest-arm64` + `sha-<hash>-arm64`. They never collide with the
+# amd64 tags the deploy pushes (separate tag namespace), and the mirror box
+# runs the locally-built `latest-arm64` image directly — the GHCR push is a
+# registry backup, not a deploy dependency.
+
+on:
+  push:
+    branches: [main]
+    # Only build when the image inputs can change — same shape as
+    # docker-build-check.yml's path filter.
+    paths:
+      - 'apps/backend/**'
+      - 'packages/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.npmrc'
+      - '.github/workflows/build-arm64.yml'
+  workflow_dispatch:
+
+concurrency:
+  # One arm64 build at a time — the box has 2 OCPU / 12 GB and also runs the
+  # mirror workload; a second concurrent build would thrash it. Last push wins.
+  group: build-arm64
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-arm64:
+    name: Build & push arm64 (self-hosted A1)
+    runs-on: [self-hosted, arm64]
+    # Native build on 2 OCPU; the pnpm install/build is the slow part and the
+    # box keeps its docker cache between runs, so only source layers rebuild.
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image vars (lowercase)
+        id: image-vars
+        run: |
+          REPO_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          {
+            echo "image=ghcr.io/${REPO_LC}"
+            echo "tag=sha-${{ github.sha }}-arm64"
+          } >> "$GITHUB_OUTPUT"
+
+      # Baked into the Vite admin bundle at build time. Public URLs, not
+      # secrets — same vars as deploy-to-aws.yml.
+      - name: Build image
+        run: |
+          docker build -f apps/backend/Dockerfile \
+            --build-arg MEDUSA_BACKEND_URL="${{ vars.MEDUSA_BACKEND_URL }}" \
+            --build-arg VITE_MEDUSA_BACKEND_URL="${{ vars.MEDUSA_BACKEND_URL }}" \
+            --build-arg VITE_MEDIA_GALLERY_BASE_URL="${{ vars.VITE_MEDIA_GALLERY_BASE_URL }}" \
+            --build-arg VITE_STOREFRONT_URL="${{ vars.VITE_STOREFRONT_URL }}" \
+            -t "${{ steps.image-vars.outputs.image }}:latest-arm64" \
+            -t "${{ steps.image-vars.outputs.image }}:${{ steps.image-vars.outputs.tag }}" \
+            .
+
+      # Registry backup only — the mirror runs the local latest-arm64 image.
+      - name: Push to GHCR
+        run: |
+          docker push "${{ steps.image-vars.outputs.image }}:latest-arm64"
+          docker push "${{ steps.image-vars.outputs.image }}:${{ steps.image-vars.outputs.tag }}"
+
+      # The boot volume is 50 GB total; builds would fill it in a few weeks.
+      # Keep latest-arm64 (the mirror runs it), drop this run's sha tag and
+      # any dangling layers.
+      - name: Prune local images
+        run: |
+          docker rmi "${{ steps.image-vars.outputs.image }}:${{ steps.image-vars.outputs.tag }}" || true
+          docker image prune -f
