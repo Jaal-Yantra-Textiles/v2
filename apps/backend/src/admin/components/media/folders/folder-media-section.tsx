@@ -1,6 +1,6 @@
 import { Badge, Button, CommandBar, Container, Heading, Text, Tooltip, clx, toast } from "@medusajs/ui";
 import { AdminMediaFolder, MediaFile } from "../../../hooks/api/media-folders";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { MediaPlay, ThumbnailBadge, Sparkles, ShoppingBag } from "@medusajs/icons";
 import { ActionMenu } from "../../common/action-menu";
 import { useMemo, useState } from "react";
@@ -90,6 +90,28 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
   }
 
   const clearSelection = () => setSelection({})
+
+  const navigate = useNavigate()
+
+  /**
+   * #2587 — a photo is clicked to be LOOKED AT: open it in the gallery (which
+   * shows its textile analysis). Selecting is the corner circle; once anything
+   * is selected, clicking more photos adds to the selection as before.
+   */
+  const openGallery = (mediaId?: string, index = 0) =>
+    navigate("media?view=gallery", { state: { curr: index, media_id: mediaId } })
+
+  const handleTileClick = (id: string | undefined, index: number) => (e: React.MouseEvent) => {
+    if (id && selectedCount > 0) return toggleSelect(id)(e)
+    e.preventDefault()
+    openGallery(id, index)
+  }
+
+  const handleOpenGallerySelected = () => {
+    const files = folder.media_files ?? []
+    const index = files.findIndex((m) => !!selection[m.id])
+    openGallery(index >= 0 ? files[index].id : undefined, Math.max(index, 0))
+  }
 
   const handleDeleteSelected = async () => {
     const ids = Object.keys(selection)
@@ -213,7 +235,7 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
             const analysis = id ? analysisByMediaId.get(id) : undefined
             const tile = (
               <div
-                onClick={id ? toggleSelect(id) : undefined}
+                onClick={handleTileClick(id, index)}
                 className={clx(
                   "shadow-elevation-card-rest hover:shadow-elevation-card-hover transition-fg group relative aspect-square size-full cursor-pointer overflow-hidden rounded-lg",
                   { "shadow-borders-focus ring-2 ring-ui-border-strong": isSelected }
@@ -248,31 +270,28 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                     )}
                   </div>
                 )}
-                {isSelected && (
-                  <div className="absolute inset-0 bg-black/20">
-                    <div className="absolute right-2 top-2 h-5 w-5 rounded-full border-2 border-white bg-emerald-400/90" />
-                  </div>
+                {isSelected && <div className="pointer-events-none absolute inset-0 bg-black/20" />}
+                {id && (
+                  <button
+                    type="button"
+                    aria-label={isSelected ? "Deselect photo" : "Select photo"}
+                    aria-pressed={isSelected}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      toggleSelect(id)(e)
+                    }}
+                    className={clx(
+                      "absolute right-2 top-2 h-5 w-5 rounded-full border-2 border-white shadow transition-opacity",
+                      isSelected
+                        ? "bg-emerald-400/90 opacity-100"
+                        : "bg-black/20 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                      selectedCount > 0 && "opacity-100"
+                    )}
+                  />
                 )}
               </div>
             )
-            return (
-              <div key={id || `media-${index}`}>
-                {id ? (
-                  selectedCount > 0 ? (
-                    tile
-                  ) : (
-                    <Link to="media?view=gallery" state={{ curr: index, media_id: id }}>
-                      {tile}
-                    </Link>
-                  )
-                ) : (
-                  // If the media has no id, disable selection and just show as a static tile/link
-                  <Link to="media?view=gallery" state={{ curr: index, media_id: id }}>
-                    {tile}
-                  </Link>
-                )}
-              </div>
-            )
+            return <div key={id || `media-${index}`}>{tile}</div>
           })}
         </div>
       ) : (
@@ -300,6 +319,8 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
       <CommandBar open={selectedCount > 0}>
         <CommandBar.Bar>
           <CommandBar.Value>{selectedCount} selected</CommandBar.Value>
+          <CommandBar.Seperator />
+          <CommandBar.Command action={handleOpenGallerySelected} label="Open gallery" shortcut="g" />
           <CommandBar.Seperator />
           <CommandBar.Command
             action={handleCreateProduct}
