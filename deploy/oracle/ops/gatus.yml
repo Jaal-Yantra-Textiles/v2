@@ -1,0 +1,43 @@
+# Uptime checks. Alerting is added once a channel is chosen (see README).
+storage:
+  type: sqlite
+  path: /data/data.db
+web:
+  port: 8080
+ui:
+  title: jyt status
+
+endpoints:
+  - name: server
+    group: a1
+    url: http://server:9000/health
+    interval: 1m
+    conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 3000"]
+  - name: admin
+    group: a1
+    url: http://server:9000/app
+    interval: 5m
+    conditions: ["[STATUS] == 200"]
+  - name: postgres
+    group: a1
+    url: tcp://postgres:5432
+    interval: 1m
+    conditions: ["[CONNECTED] == true"]
+  - name: valkey
+    group: a1
+    url: tcp://valkey:6379
+    interval: 1m
+    conditions: ["[CONNECTED] == true"]
+  - name: v3.jaalyantra.com
+    group: public
+    url: https://v3.jaalyantra.com/health
+    interval: 2m
+    conditions: ["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 168h"]
+
+external-endpoints:
+  # Pushed by pg-backup.sh after every run. No push for 26 h = failure.
+  - name: pg-backup
+    group: a1
+    token: "${GATUS_BACKUP_TOKEN}"
+    heartbeat:
+      interval: 26h

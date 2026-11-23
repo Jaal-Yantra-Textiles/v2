@@ -22,6 +22,8 @@ Moves the two ECS services (deploy/aws/copilot) to the Always Free A1 box:
 - `deploy.sh`: copies `compose.yml`, pulls the image, recreates, and waits for `/health`.
   On first run it also creates `/opt/jyt/.env` with a random Postgres password.
 - `copy-prod-db.sh`: copies the prod RDS database into the box's Postgres (see below).
+- `setup-backup-bucket.sh`, `install-backup.sh`, `verify-backup.sh`, `backup/`: nightly backups.
+- `ops/`, `deploy-ops.sh`, `logs.sh`: logs, uptime checks and metrics.
 
 ## One-time box setup
 ```bash
@@ -48,8 +50,56 @@ So the database moves onto the box:
 The first run (2026-11-23) produced a 103 MB dump with 618 tables. It restored with no
 errors, and its 154 non-draft orders and newest order (#158) matched the prod API.
 
-**Backups are now ours:** a nightly `pg_dump` to a private bucket.
-**Not set up yet. This must be in place before cutover.**
+## Backups (nightly, to S3)
+RDS took snapshots for us; on the box that is our job.
+- **Where:** `s3://jyt-oracle-pg-backups/pg/` in eu-central-1 (same region as the box),
+  private, encrypted, versioned. Kept 35 days.
+- **How:** `jyt-pg-backup.timer` runs `/opt/jyt/pg-backup.sh` daily at 21:00 UTC
+  (02:30 IST). It streams `pg_dump -Fc` straight to S3; nothing is written to disk.
+- **Box key:** the IAM user `jyt-oracle-backup` may only **PutObject** into that bucket.
+  It cannot list, read or delete, and versioning keeps anything overwritten, so a
+  compromised box cannot wipe the backups.
+- **Alarm:** every run pushes its result to Gatus (`a1_pg-backup`). A failed run, or
+  no run for 26 h, shows as a failure.
+
+Setup, once, from a laptop with admin AWS credentials:
+```bash
+deploy/oracle/setup-backup-bucket.sh   # bucket + put-only user; key goes straight to /opt/jyt/backup.env
+deploy/oracle/install-backup.sh        # timer + one backup now
+deploy/oracle/verify-backup.sh         # restores the newest backup into a scratch DB, compares counts
+```
+Run `verify-backup.sh` monthly. A backup nobody has restored is not a backup.
+
+Restore for real: download the dump (presigned URL from a laptop), then
+`docker compose cp` it into the postgres container and `pg_restore --clean --if-exists`,
+as `copy-prod-db.sh` does.
+
+## Logs, uptime and metrics (`ops/`)
+A separate compose project (`jyt-ops`, in `/opt/jyt-ops`), so redeploying Medusa never
+restarts monitoring. Everything binds to 127.0.0.1. About 110 MB RAM in use.
+
+| Tool | Replaces | What |
+|---|---|---|
+| Loki 3.6 + Alloy | CloudWatch Logs | every container + the systemd journal, kept 14 days |
+| `logs.sh` (logcli) | `aws logs tail` | query from a laptop through an SSH tunnel |
+| Gatus | ALB health checks + alarms | server, admin, postgres, valkey, public `/health` + TLS expiry, backup heartbeat |
+| Beszel (profile `metrics`) | Container Insights | CPU / memory / disk history per container |
+
+```bash
+deploy/oracle/deploy-ops.sh                       # (re)deploy
+brew install logcli                               # once
+deploy/oracle/logs.sh server                      # last hour of the Medusa server
+deploy/oracle/logs.sh server -f                   # follow
+deploy/oracle/logs.sh worker --since 6h --grep 'payu|error'
+deploy/oracle/logs.sh unit jyt-pg-backup.service --since 48h
+deploy/oracle/logs.sh query '{project="jyt"} |= "order_"' --since 24h
+ssh -L 8080:127.0.0.1:8080 ubuntu@130.61.141.163  # Gatus dashboard on localhost:8080
+```
+Beszel one-time setup: `deploy-ops.sh ubuntu@… metrics` starts the hub with an agent
+that has no key yet. Open it via `ssh -L 8090:127.0.0.1:8090 …`, create the admin user,
+"Add system" (host `127.0.0.1`, port `45876`), copy the key and token into
+`/opt/jyt-ops/.env` as `BESZEL_KEY=` / `BESZEL_TOKEN=`, then run `deploy-ops.sh … metrics` again.
+Later these UIs can go on the Cloudflare tunnel behind Cloudflare Access.
 
 ## Cutover runbook
 Rehearsal (safe while AWS serves prod):
@@ -73,8 +123,8 @@ Cutover (a maintenance window: writes must stop while the data moves):
 ## Not covered yet
 - Automatic deploy on image push (needs a pull trigger, or a webhook that
   doesn't reintroduce a runner on the box).
-- Log shipping and alerting (ECS had CloudWatch and deploy alerts).
+- Alert delivery: Gatus shows failures but sends them nowhere yet (pick a channel:
+  email via SES, Telegram, Slack…, then add an `alerting:` block to `ops/gatus.yml`).
 - Database migrations: `RUN_MIGRATIONS_ON_BOOT` stays off. After cutover they have to
   run on the box (`docker compose run --rm server pnpm predeploy:force`), since the
   Fargate migration task can no longer reach the database.
-- Nightly backups (see above).
