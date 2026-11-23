@@ -261,13 +261,13 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                   selectedCount > 0 ? (
                     tile
                   ) : (
-                    <Link to={`media`} state={{ curr: index }}>
+                    <Link to="media?view=gallery" state={{ curr: index, media_id: id }}>
                       {tile}
                     </Link>
                   )
                 ) : (
                   // If the media has no id, disable selection and just show as a static tile/link
-                  <Link to={`media`} state={{ curr: index }}>
+                  <Link to="media?view=gallery" state={{ curr: index, media_id: id }}>
                     {tile}
                   </Link>
                 )}

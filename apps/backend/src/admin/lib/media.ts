@@ -13,12 +13,34 @@ export function getThumbUrl(url?: string, opts?: { width?: number; quality?: num
   }
 }
 
+const pathOf = (url: string): string => {
+  try {
+    return new URL(url).pathname.toLowerCase()
+  } catch {
+    return url.toLowerCase().split("?")[0]
+  }
+}
+
+/**
+ * Photos a browser cannot draw itself. iPhone uploads are HEIC (269 of the
+ * folder photos on prod, #2587); Chrome and Firefox show nothing for them.
+ * Cloudflare's resizer reads HEIC and serves JPEG, so these must always go
+ * through it.
+ */
+const BROWSER_UNRENDERABLE = /\.(heic|heif)$/i
+
 export function isImageUrl(url?: string) {
   if (!url) return false
-  try {
-    const path = new URL(url).pathname.toLowerCase()
-    return /(\.avif|\.webp|\.jpg|\.jpeg|\.png|\.gif)$/i.test(path)
-  } catch {
-    return /(\.avif|\.webp|\.jpg|\.jpeg|\.png|\.gif)$/i.test(url.toLowerCase())
-  }
+  return /\.(avif|webp|jpg|jpeg|png|gif|heic|heif)$/i.test(pathOf(url))
+}
+
+/**
+ * The URL to put in a full-size <img>. The original for formats a browser can
+ * draw; a large converted JPEG for HEIC/HEIF, which it cannot.
+ */
+export function displayUrl(url?: string) {
+  if (!url) return ""
+  return BROWSER_UNRENDERABLE.test(pathOf(url))
+    ? getThumbUrl(url, { width: 1600, quality: 85, fit: "scale-down" })
+    : url
 }
