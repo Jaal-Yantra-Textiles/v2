@@ -23,7 +23,7 @@ Moves the two ECS services (deploy/aws/copilot) to the Always Free A1 box:
 
 ## One-time box setup
 ```bash
-ssh ubuntu@130.61.141.163 'sudo apt-get update && sudo apt-get install -y docker-compose-plugin && docker compose version'
+ssh ubuntu@130.61.141.163 'sudo apt-get update && sudo apt-get install -y docker-compose-v2 && docker compose version'
 ```
 Compose must be at least 2.30 (for `env_file: format: raw`).
 

@@ -18,8 +18,9 @@ OUT="$(mktemp)"
 trap 'rm -f "$OUT"' EXIT
 chmod 600 "$OUT"
 
-# Set by compose.yml instead: ElastiCache is unreachable from OCI.
-SKIP_RE='^(REDIS_URL)$'
+# Set by compose.yml instead: the stack runs its own Valkey and Postgres, so
+# the AWS ElastiCache / RDS URLs must never reach the box.
+SKIP_RE='^(REDIS_URL|DATABASE_URL)$'
 
 # `  NAME: /jyt/prod/PATH` lines inside the secrets: block, commented lines skipped.
 # (a while-read loop, not mapfile: macOS ships bash 3.2)

@@ -5,8 +5,12 @@
 #   - valkey      replaces ElastiCache (VPC-only, unreachable from OCI)
 #   - cloudflared replaces the ALB: no inbound ports; TLS ends at Cloudflare
 #
-# The database is NOT here: DATABASE_URL comes from secrets.env. See README.md
-# for the options and why the choice matters (latency to us-east-1).
+#   - postgres    replaces RDS (decided 2026-11-23: on-box, no transatlantic
+#                 latency, no RDS bill; backups are ours: backup.sh)
+#
+# DATABASE_URL and the Postgres password come from /opt/jyt/.env (generated
+# once on the box by deploy.sh), NOT from secrets.env: render-env.sh skips the
+# RDS URL so the two can never be confused.
 #
 # Image: built by .github/workflows/build-arm64.yml on GitHub's ARM runner.
 # Nothing pulls automatically; deploy = `./deploy.sh` (pull + recreate).
@@ -29,6 +33,8 @@ x-medusa: &medusa
   depends_on:
     valkey:
       condition: service_healthy
+    postgres:
+      condition: service_healthy
   logging:
     driver: json-file
     options: { max-size: "20m", max-file: "5" }
@@ -41,6 +47,7 @@ services:
       # Keep the two in step until AWS is decommissioned.
       NODE_ENV: production
       MEDUSA_WORKER_MODE: server
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD:?run deploy.sh to create /opt/jyt/.env}@postgres:5432/medusa
       REDIS_URL: redis://valkey:6379
       NODE_OPTIONS: --max-old-space-size=3072
       WHATSAPP_FREEFORM_CHAT_ENABLED: "true"
@@ -68,6 +75,7 @@ services:
     environment:
       NODE_ENV: production
       MEDUSA_WORKER_MODE: worker
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD:?run deploy.sh to create /opt/jyt/.env}@postgres:5432/medusa
       REDIS_URL: redis://valkey:6379
       NODE_OPTIONS: --max-old-space-size=1536
       DISABLE_MEDUSA_ADMIN: "true"
@@ -80,6 +88,43 @@ services:
     # Started only on purpose: `docker compose --profile worker up -d`.
     # See the 🔴 note at the top.
     profiles: ["worker"]
+
+  postgres:
+    # Same major as prod RDS (16.4). pgvector image, not stock postgres: Mastra
+    # keeps memory + RAG vectors in this database (src/mastra/memory.ts), so a
+    # restore without the `vector` extension fails. Also needs pg_trgm and
+    # unaccent (Medusa), which ship with every postgres image.
+    image: pgvector/pgvector:0.8.1-pg16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: medusa
+      POSTGRES_USER: medusa
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run deploy.sh to create /opt/jyt/.env}
+    # Sized for a 12 GB box shared with server (4 GB) + worker (2 GB).
+    # RDS allowed 200 connections; prod peaks at ~35.
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - work_mem=16MB
+      - -c
+      - maintenance_work_mem=256MB
+      - -c
+      - max_connections=100
+    volumes: ["pg-data:/var/lib/postgresql/data"]
+    # Loopback only, for SSH port-forwards and restores. Containers use the
+    # compose network.
+    ports: ["127.0.0.1:5432:5432"]
+    shm_size: 256m
+    mem_limit: 3g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medusa -d medusa"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   valkey:
     image: valkey/valkey:8.1-alpine
@@ -110,4 +155,5 @@ secrets:
     file: ./tunnel.token
 
 volumes:
+  pg-data:
   valkey-data:

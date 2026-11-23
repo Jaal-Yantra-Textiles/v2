@@ -15,6 +15,10 @@ ssh "$HOST" 'test -f /opt/jyt/secrets.env' \
   || { echo "no /opt/jyt/secrets.env on $HOST: run render-env.sh first" >&2; exit 1; }
 scp -q "$DIR/compose.yml" "$HOST:/opt/jyt/compose.yml"
 
+# First deploy only: the on-box Postgres password. Never overwritten, since
+# the data volume is initialised with it.
+ssh "$HOST" 'test -f /opt/jyt/.env || (umask 077 && printf "POSTGRES_PASSWORD=%s\n" "$(openssl rand -hex 24)" > /opt/jyt/.env && echo "created /opt/jyt/.env")'
+
 ssh "$HOST" "cd /opt/jyt && docker compose $PROFILES pull && docker compose $PROFILES up -d --remove-orphans && docker compose $PROFILES ps"
 
 echo "waiting for /health (Medusa takes 3-4 min to be fully ready)…"
