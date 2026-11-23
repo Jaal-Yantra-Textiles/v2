@@ -1,0 +1,9 @@
+[Unit]
+Description=Every 5 minutes: outside dead-man ping
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

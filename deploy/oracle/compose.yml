@@ -143,16 +143,13 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2025.11.1
     restart: unless-stopped
-    # Remotely-managed tunnel: the public hostname → http://server:9000 route
-    # is set in the Cloudflare dashboard, not here.
-    command: ["tunnel", "--no-autoupdate", "run", "--token-file", "/run/secrets/tunnel_token"]
-    secrets: [tunnel_token]
+    # Locally managed tunnel jyt-a1: hostnames → http://server:9000 are in cloudflared.yml.
+    command: ["tunnel", "--config", "/etc/cloudflared/config.yml", "run"]
+    volumes:
+      - ./cloudflared.yml:/etc/cloudflared/config.yml:ro
+      - ./tunnel-credentials.json:/etc/cloudflared/credentials.json:ro
     depends_on: [server]
     profiles: ["tunnel"]
-
-secrets:
-  tunnel_token:
-    file: ./tunnel.token
 
 volumes:
   pg-data:

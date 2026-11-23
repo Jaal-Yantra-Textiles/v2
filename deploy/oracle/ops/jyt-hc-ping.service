@@ -1,0 +1,9 @@
+[Unit]
+Description=Ping healthchecks.io if the jyt server is healthy
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/opt/jyt-ops/hc-ping.sh

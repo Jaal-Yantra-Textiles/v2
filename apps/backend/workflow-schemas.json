@@ -2153,6 +2153,49 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/design-inquiries/create-design-inquiry.ts"
   },
+  "amend-design-order": {
+    "fields": [
+      {
+        "name": "cart_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.cart_id }}"
+      },
+      {
+        "name": "currency_code",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.currency_code }}"
+      },
+      {
+        "name": "add_design_ids",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.add_design_ids }}"
+      },
+      {
+        "name": "remove_line_item_ids",
+        "type": "array",
+        "required": true,
+        "placeholder": "{{ $last.remove_line_item_ids }}"
+      },
+      {
+        "name": "price_overrides",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      },
+      {
+        "name": "override_currency",
+        "type": "string",
+        "required": false,
+        "placeholder": "{{ $last.override_currency }}",
+        "description": "Add designs to, and/or take lines off, an UNPAID design order's cart. The caller (`POST /admin/designs/orders/:lineItemId/items`) has already run `decideAmend`, so this only writes. Prices come from the same two steps the create workflow uses — the design's estimate, or an override — converted into the cart's own currency, so an added line is priced exactly as it would have been had it been on the order from the start. Tax lines and the checkout's payment collection are NOT handled here: the route recomputes both afterwards, once, for the final set of lines. / type AmendDesignOrderInput = { cart_id: string currency_code: string add_design_ids: string[] remove_line_item_ids: string[] price_overrides?: Record<string, number> /** Currency of `price_overrides`. Defaults to the cart's own currency."
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/designs/amend-design-order.ts"
+  },
   "cancel-partner-assignment": {
     "fields": [
       {
@@ -2981,6 +3024,42 @@
     ],
     "source": "custom_ts",
     "sourceFile": "src/workflows/designs/update-design.ts"
+  },
+  "send-customer-login-code-email": {
+    "fields": [
+      {
+        "name": "email",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.email }}"
+      },
+      {
+        "name": "code",
+        "type": "string",
+        "required": true,
+        "placeholder": "{{ $last.code }}"
+      },
+      {
+        "name": "expires_in_minutes",
+        "type": "number",
+        "required": true,
+        "placeholder": "0"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/email/workflows/send-customer-login-code-email.ts"
+  },
+  "complete-email-otp-sign-in": {
+    "fields": [
+      {
+        "name": "auth_identity_id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.auth_identity_id }}"
+      }
+    ],
+    "source": "custom_ts",
+    "sourceFile": "src/workflows/email-otp/complete-email-otp-sign-in.ts"
   },
   "create-email-template": {
     "fields": [
