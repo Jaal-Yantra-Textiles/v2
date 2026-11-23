@@ -38,8 +38,31 @@ function CheckoutItem({
     currency_code: currencyCode,
   })
 
+  /**
+   * A design-order line is a custom line: no product, no variant, so
+   * `product_title` and `product_handle` are null and the name lives in
+   * `title` (cart cart_01M7KWCZZJHZECV1965QQY53BD showed five blank rows).
+   * The cart page and order page already fall back the same way.
+   */
+  const title = item.product_title || item.title
   const variantTitle = item.variant?.title
   const maxQty = 10
+
+  const thumb = (
+    <div className="w-24 h-24 rounded-[6px] overflow-hidden bg-ui-bg-component shadow-elevation-card-rest flex items-center justify-center">
+      {imageUrl ? (
+        <Image
+          src={imageUrl}
+          alt={title ?? ""}
+          width={96}
+          height={96}
+          className="w-full h-full object-cover object-center"
+        />
+      ) : (
+        <PlaceholderImage size={24} />
+      )}
+    </div>
+  )
 
   const changeQuantity = async (quantity: number) => {
     setUpdating(true)
@@ -50,28 +73,21 @@ function CheckoutItem({
   return (
     <div className="flex items-center justify-between gap-x-4">
       <div className="flex items-center gap-x-4">
-        <LocalizedClientLink
-          href={`/products/${item.product_handle}`}
-          className="flex-shrink-0"
-        >
-          <div className="w-24 h-24 rounded-[6px] overflow-hidden bg-ui-bg-component shadow-elevation-card-rest flex items-center justify-center">
-            {imageUrl ? (
-              <Image
-                src={imageUrl}
-                alt={item.product_title ?? ""}
-                width={96}
-                height={96}
-                className="w-full h-full object-cover object-center"
-              />
-            ) : (
-              <PlaceholderImage size={24} />
-            )}
-          </div>
-        </LocalizedClientLink>
+        {item.product_handle ? (
+          <LocalizedClientLink
+            href={`/products/${item.product_handle}`}
+            className="flex-shrink-0"
+          >
+            {thumb}
+          </LocalizedClientLink>
+        ) : (
+          // No product page behind a custom line: linking it went to /products/undefined.
+          <div className="flex-shrink-0">{thumb}</div>
+        )}
 
         <div className="flex flex-col h-24 py-1 justify-between">
-          <span className="txt-medium text-ui-fg-base">
-            {item.product_title}
+          <span className="txt-medium text-ui-fg-base line-clamp-2">
+            {title}
           </span>
           {variantTitle && (
             <span className="txt-medium text-ui-fg-subtle">{variantTitle}</span>
@@ -179,8 +195,13 @@ export default function CheckoutItemList({ cart }: CheckoutItemListProps) {
         to nowhere.
       */}
       <div
-        className={scrolls ? "overflow-y-auto pe-4" : undefined}
+        className={scrolls ? "overflow-y-auto overscroll-contain pe-4" : undefined}
         style={scrolls ? { maxHeight: MAX_LIST_HEIGHT } : undefined}
+        // The whole app sits in <ReactLenis root> (smooth-scroll), which takes
+        // every wheel event for the PAGE, so this box never scrolled with a
+        // mouse or trackpad. data-lenis-prevent hands the wheel back to it,
+        // as the AI chat and design editor already do.
+        data-lenis-prevent={scrolls ? true : undefined}
         data-testid="checkout-item-list"
       >
         <ItemRows items={items} currencyCode={cart.currency_code} />
