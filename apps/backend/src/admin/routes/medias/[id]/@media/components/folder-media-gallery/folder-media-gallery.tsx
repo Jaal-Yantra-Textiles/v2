@@ -1,11 +1,12 @@
 import { ArrowDownTray, ChatBubble, Swatch, Tag, ThumbnailBadge, Trash, TriangleLeftMini, TriangleRightMini } from "@medusajs/icons"
 import { Button, IconButton, Text, Tooltip, clx } from "@medusajs/ui"
 import { useCallback, useEffect, useState } from "react"
+import { useLocation } from "react-router-dom"
 import { useTranslation } from "react-i18next"
 import { AdminMediaFolder, MediaFile } from "../../../../../../hooks/api/media-folders"
 import { useFolderMediaViewContext } from "../folder-media-view/folder-media-view"
 import { RouteFocusModal } from "../../../../../../components/modal/route-focus-modal"
-import { getThumbUrl, isImageUrl } from "../../../../../../lib/media"
+import { displayUrl, getThumbUrl, isImageUrl } from "../../../../../../lib/media"
 import { MediaCommentsSection } from "../../../../../../components/media/folders/folder-comments-section"
 import { BindRawMaterialSection } from "../../../../../../components/media/bind-raw-material-section"
 import { TextileAnalysisSection } from "../../../../../../components/media/textile-analysis-section"
@@ -15,14 +16,26 @@ export type FolderMediaGalleryProps = {
 }
 
 export const FolderMediaGallery = ({ folder }: FolderMediaGalleryProps) => {
-  const [curr, setCurr] = useState<number>(0)
-  const [commentsOpen, setCommentsOpen] = useState<boolean>(true)
-  const [bindOpen, setBindOpen] = useState<boolean>(false)
-  const [analysisOpen, setAnalysisOpen] = useState<boolean>(false)
   const { t } = useTranslation()
   const { goToEdit } = useFolderMediaViewContext()
+  const location = useLocation()
 
   const media = getMedia(folder.media_files || [])
+
+  // #2587 — open on the photo that was clicked in the folder grid. The tile
+  // passes its media id (and index as a fallback); before this the gallery
+  // always opened on the first photo, so its analysis was the wrong one.
+  const [curr, setCurr] = useState<number>(() => {
+    const state = (location.state ?? {}) as { curr?: number; media_id?: string }
+    const byId = state.media_id ? media.findIndex((m) => m.id === state.media_id) : -1
+    if (byId >= 0) return byId
+    const idx = Number(state.curr)
+    return Number.isInteger(idx) && idx >= 0 && idx < media.length ? idx : 0
+  })
+  const [commentsOpen, setCommentsOpen] = useState<boolean>(false)
+  const [bindOpen, setBindOpen] = useState<boolean>(false)
+  // The analysis is what a photo is opened for, so its panel starts open.
+  const [analysisOpen, setAnalysisOpen] = useState<boolean>(true)
 
   const next = useCallback(() => {
     if (!media.length) return
@@ -208,7 +221,7 @@ const Canvas = ({ media, curr }: { media: MediaView[]; curr: number }) => {
             </div>
           )}
           <img
-            src={media[curr].url}
+            src={displayUrl(media[curr].url)}
             alt=""
             className="object-fit shadow-elevation-card-rest max-h-[calc(100vh-200px)] w-auto rounded-xl object-contain"
           />
