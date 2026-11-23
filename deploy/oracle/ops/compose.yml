@@ -1,0 +1,91 @@
+# Logs, metrics and uptime for the A1 box. A separate compose project from the
+# Medusa stack, so redeploying one never restarts the other.
+# Everything listens on 127.0.0.1 only: reach it through an SSH tunnel (logs.sh)
+# or, later, Cloudflare Access hostnames on the existing tunnel.
+#
+#   Loki   :3100  log store, 14 days. Query from a laptop with logcli (logs.sh).
+#   Alloy         ships every container's logs + the systemd journal into Loki.
+#   Gatus  :8080  uptime checks + the nightly-backup heartbeat; alerts.
+#   Beszel :8090  CPU / memory / disk / per-container history (profile `metrics`,
+#                 needs a one-time key from its UI, see README).
+name: jyt-ops
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  loki:
+    image: grafana/loki:3.6.20
+    command: -config.file=/etc/loki/loki.yml
+    volumes:
+      - ./loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    ports: ["127.0.0.1:3100:3100"]
+    mem_limit: 512m
+    restart: unless-stopped
+    logging: *logging
+
+  alloy:
+    image: grafana/alloy:v1.21.3
+    command: run --server.http.listen-addr=127.0.0.1:12345 --storage.path=/var/lib/alloy/data /etc/alloy/config.alloy
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/log/journal:/var/log/journal:ro
+      - /run/log/journal:/run/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - alloy-data:/var/lib/alloy/data
+    depends_on: [loki]
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *logging
+
+  gatus:
+    image: twinproduction/gatus:v5.38.0
+    env_file: [{ path: ./.env, format: raw }]
+    volumes:
+      - ./gatus.yml:/config/config.yaml:ro
+      - gatus-data:/data
+    ports: ["127.0.0.1:8080:8080"]
+    networks: [default, jyt]
+    mem_limit: 128m
+    restart: unless-stopped
+    logging: *logging
+
+  beszel:
+    image: henrygd/beszel:0.21.1
+    profiles: [metrics]
+    volumes: [beszel-data:/beszel_data]
+    ports: ["127.0.0.1:8090:8090"]
+    mem_limit: 256m
+    restart: unless-stopped
+    logging: *logging
+
+  beszel-agent:
+    image: henrygd/beszel-agent:0.21.1
+    profiles: [metrics]
+    network_mode: host
+    environment:
+      LISTEN: 127.0.0.1:45876
+      HUB_URL: http://127.0.0.1:8090
+      KEY: ${BESZEL_KEY:-}   # from the Beszel UI, see README
+      TOKEN: ${BESZEL_TOKEN:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - beszel-agent-data:/var/lib/beszel-agent
+    mem_limit: 64m
+    restart: unless-stopped
+    logging: *logging
+
+networks:
+  jyt:
+    name: jyt_default   # the Medusa stack's network, so Gatus can reach server/postgres/valkey
+    external: true
+
+volumes:
+  loki-data:
+  alloy-data:
+  gatus-data:
+  beszel-data:
+  beszel-agent-data:
