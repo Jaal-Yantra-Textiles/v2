@@ -1,0 +1,14 @@
+# Tunnel jyt-a1 (created with `cloudflared tunnel create`, locally managed).
+# Its credentials live only on the box: /opt/jyt/tunnel-credentials.json (mode 600).
+# Add the public hostname here AND as a DNS route: cloudflared tunnel route dns jyt-a1 <host>
+tunnel: 9c46e910-fad4-40be-a34f-1b1970cdc0ec
+credentials-file: /etc/cloudflared/credentials.json
+no-autoupdate: true
+ingress:
+  - hostname: a1.jaalyantra.com      # test hostname until cutover
+    service: http://server:9000
+    originRequest: { connectTimeout: 10s }
+  # Cutover (25 Nov): uncomment, then route DNS for v3 to this tunnel.
+  # - hostname: v3.jaalyantra.com
+  #   service: http://server:9000
+  - service: http_status:404

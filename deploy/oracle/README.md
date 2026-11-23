@@ -101,6 +101,10 @@ Get the topic with `ssh ubuntu@130.61.141.163 'grep NTFY_TOPIC /opt/jyt-ops/.env
 subscribe in the ntfy app (iOS/Android, server `ntfy.sh`). Anyone with the topic name can
 read the alerts, so share it only with people on call.
 
+**Outside dead-man switch:** `jyt-hc-ping.timer` pings healthchecks.io (`HC_PING_URL` in
+`/opt/jyt-ops/.env`) every 5 min while `/health` answers, and `/fail` when it does not.
+If the box dies the pings stop and healthchecks.io alerts the same ntfy topic.
+
 Beszel one-time setup: `deploy-ops.sh ubuntu@… metrics` starts the hub with an agent
 that has no key yet. Open it via `ssh -L 8090:127.0.0.1:8090 …`, create the admin user,
 "Add system" (host `127.0.0.1`, port `45876`), copy the key and token into
@@ -115,11 +119,14 @@ Rehearsal (safe while AWS serves prod):
    (`ssh -L 9000:127.0.0.1:9000 ubuntu@…`): `/health`, admin login, `GET /store/products`.
 
 Cutover (a maintenance window: writes must stop while the data moves):
-1. Create the Cloudflare tunnel, route the public hostname to `http://server:9000`,
-   and save the token to `/opt/jyt/tunnel.token` (mode 600).
+1. Tunnel `jyt-a1` already exists (created 2026-11-23 with `cloudflared tunnel login`,
+   credentials at `/opt/jyt/tunnel-credentials.json`) and serves the test hostname
+   `a1.jaalyantra.com`. Uncomment the `v3.jaalyantra.com` ingress in `cloudflared.yml`.
 2. Scale **both** ECS services to 0. From here prod is down.
 3. Run `copy-prod-db.sh` for the final copy. Prod has nothing writing to it now.
-4. Run `deploy.sh ubuntu@… worker tunnel`, then point `v3.jaalyantra.com` at the tunnel.
+4. Run `deploy.sh ubuntu@… worker tunnel`, then point `v3.jaalyantra.com` at the tunnel:
+   `cloudflared tunnel route dns --overwrite-dns jyt-a1 v3.jaalyantra.com`
+   (replaces the CNAME to the ALB; note the old target first for rollback).
    Never run this stack's worker while an AWS worker is alive: two workers on separate
    Redis instances run every scheduled job twice.
 5. Rollback, before the box takes real writes: point DNS back at the ALB and scale ECS up.
@@ -129,8 +136,6 @@ Cutover (a maintenance window: writes must stop while the data moves):
 ## Not covered yet
 - Automatic deploy on image push (needs a pull trigger, or a webhook that
   doesn't reintroduce a runner on the box).
-- An outside check. Gatus runs on the box, so if the box dies nobody is told.
-  Add an external monitor (healthchecks.io / UptimeRobot) that also posts to the ntfy topic.
 - Database migrations: `RUN_MIGRATIONS_ON_BOOT` stays off. After cutover they have to
   run on the box (`docker compose run --rm server pnpm predeploy:force`), since the
   Fargate migration task can no longer reach the database.
