@@ -17,15 +17,27 @@ name: Build ARM64 Image (A1 mirror)
 # amd64 tags the deploy pushes (separate tag namespace), and the mirror box
 # runs the locally-built `latest-arm64` image directly — the GHCR push is a
 # registry backup, not a deploy dependency.
+#
+# ⚠️ The mirror does NOT restart itself: a build leaves `latest-arm64` in the
+# box's docker daemon, and the running mirror keeps the old image until its
+# stack is recreated by hand. Add a restart step here once the mirror's compose
+# file lives in this repo (it does not yet — nothing to point a step at).
+#
+# 🔴 SECURITY: this repo is PUBLIC and the runner shares a box with the
+# production mirror. Fork-PR workflows must never reach it, so the repo's fork
+# approval policy is `all_external_contributors` (set 2026-11-23). Do not relax
+# it while a self-hosted runner is registered here.
 
 on:
   push:
     branches: [main]
-    # Only build when the image inputs can change — same shape as
-    # docker-build-check.yml's path filter.
+    # Anything that can change the image. Wider than docker-build-check.yml on
+    # purpose: that check only proves the Dockerfile still builds, while the
+    # mirror has to track the code prod runs.
     paths:
       - 'apps/backend/**'
       - 'packages/**'
+      - '.dockerignore'
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.npmrc'
@@ -89,8 +101,22 @@ jobs:
 
       # The boot volume is 50 GB total; builds would fill it in a few weeks.
       # Keep latest-arm64 (the mirror runs it), drop this run's sha tag and
-      # any dangling layers.
-      - name: Prune local images
+      # any dangling layers. `image prune` does NOT touch BuildKit's build
+      # cache (the pnpm fetch/install/build layers), which grows every run —
+      # cap it, keeping enough that the next build still reuses the deps.
+      - name: Prune local images and build cache
+        if: always()
         run: |
           docker rmi "${{ steps.image-vars.outputs.image }}:${{ steps.image-vars.outputs.tag }}" || true
           docker image prune -f
+          # `--keep-storage` was renamed `--max-used-space` in newer Docker;
+          # try both so the cap holds whichever version the box runs.
+          docker builder prune -f --max-used-space 15GB 2>/dev/null \
+            || docker builder prune -f --keep-storage 15GB
+          df -h / | tail -1
+
+      # The login wrote GITHUB_TOKEN into the box's ~/.docker/config.json. It
+      # expires with the job, but a shared box should not keep it.
+      - name: Log out of GHCR
+        if: always()
+        run: docker logout ghcr.io || true
