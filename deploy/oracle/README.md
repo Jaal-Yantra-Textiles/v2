@@ -118,6 +118,12 @@ Rehearsal (safe while AWS serves prod):
 2. Run `copy-prod-db.sh` for a fresh copy. Then smoke-test through an SSH port-forward
    (`ssh -L 9000:127.0.0.1:9000 ubuntu@…`): `/health`, admin login, `GET /store/products`.
 
+⚠️ The admin UI on `a1.jaalyantra.com/app` cannot log in: the admin bundle has
+`MEDUSA_BACKEND_URL=https://v3.jaalyantra.com` baked in at build time, so it calls AWS
+and CORS blocks it. Test the box's admin through the API instead (Basic auth with
+`/jyt/prod/ADMIN_OPENAPI_CATALOG_TOKEN`). Never add `a1` to `ADMIN_CORS`. After cutover
+`v3` *is* the box, so the baked URL becomes correct with no rebuild.
+
 Cutover (a maintenance window: writes must stop while the data moves):
 1. Tunnel `jyt-a1` already exists (created 2026-11-23 with `cloudflared tunnel login`,
    credentials at `/opt/jyt/tunnel-credentials.json`) and serves the test hostname
