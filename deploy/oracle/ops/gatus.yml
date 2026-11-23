@@ -1,4 +1,14 @@
-# Uptime checks. Alerting is added once a channel is chosen (see README).
+# Uptime checks. Failures go to the phone via ntfy (topic in /opt/jyt-ops/.env).
+alerting:
+  ntfy:
+    url: https://ntfy.sh
+    topic: "${NTFY_TOPIC}"
+    priority: 4
+    click: https://v3.jaalyantra.com/health
+    default-alert:
+      failure-threshold: 3      # 3 failed checks in a row before alerting
+      success-threshold: 2
+      send-on-resolved: true
 storage:
   type: sqlite
   path: /data/data.db
@@ -13,26 +23,31 @@ endpoints:
     url: http://server:9000/health
     interval: 1m
     conditions: ["[STATUS] == 200", "[RESPONSE_TIME] < 3000"]
+    alerts: [{ type: ntfy }]
   - name: admin
     group: a1
     url: http://server:9000/app
     interval: 5m
     conditions: ["[STATUS] == 200"]
+    alerts: [{ type: ntfy }]
   - name: postgres
     group: a1
     url: tcp://postgres:5432
     interval: 1m
     conditions: ["[CONNECTED] == true"]
+    alerts: [{ type: ntfy }]
   - name: valkey
     group: a1
     url: tcp://valkey:6379
     interval: 1m
     conditions: ["[CONNECTED] == true"]
+    alerts: [{ type: ntfy }]
   - name: v3.jaalyantra.com
     group: public
     url: https://v3.jaalyantra.com/health
     interval: 2m
     conditions: ["[STATUS] == 200", "[CERTIFICATE_EXPIRATION] > 168h"]
+    alerts: [{ type: ntfy }]
 
 external-endpoints:
   # Pushed by pg-backup.sh after every run. No push for 26 h = failure.
@@ -41,3 +56,4 @@ external-endpoints:
     token: "${GATUS_BACKUP_TOKEN}"
     heartbeat:
       interval: 26h
+    alerts: [{ type: ntfy, failure-threshold: 1, description: "nightly database backup failed or did not run" }]

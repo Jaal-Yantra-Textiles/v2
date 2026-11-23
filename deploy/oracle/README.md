@@ -95,6 +95,12 @@ deploy/oracle/logs.sh unit jyt-pg-backup.service --since 48h
 deploy/oracle/logs.sh query '{project="jyt"} |= "order_"' --since 24h
 ssh -L 8080:127.0.0.1:8080 ubuntu@130.61.141.163  # Gatus dashboard on localhost:8080
 ```
+**Alerts → phone (ntfy):** Gatus posts to an unguessable topic on ntfy.sh after 3 failed
+checks in a row (the backup heartbeat alerts on the first failure) and again when it recovers.
+Get the topic with `ssh ubuntu@130.61.141.163 'grep NTFY_TOPIC /opt/jyt-ops/.env'`, then
+subscribe in the ntfy app (iOS/Android, server `ntfy.sh`). Anyone with the topic name can
+read the alerts, so share it only with people on call.
+
 Beszel one-time setup: `deploy-ops.sh ubuntu@… metrics` starts the hub with an agent
 that has no key yet. Open it via `ssh -L 8090:127.0.0.1:8090 …`, create the admin user,
 "Add system" (host `127.0.0.1`, port `45876`), copy the key and token into
@@ -123,8 +129,8 @@ Cutover (a maintenance window: writes must stop while the data moves):
 ## Not covered yet
 - Automatic deploy on image push (needs a pull trigger, or a webhook that
   doesn't reintroduce a runner on the box).
-- Alert delivery: Gatus shows failures but sends them nowhere yet (pick a channel:
-  email via SES, Telegram, Slack…, then add an `alerting:` block to `ops/gatus.yml`).
+- An outside check. Gatus runs on the box, so if the box dies nobody is told.
+  Add an external monitor (healthchecks.io / UptimeRobot) that also posts to the ntfy topic.
 - Database migrations: `RUN_MIGRATIONS_ON_BOOT` stays off. After cutover they have to
   run on the box (`docker compose run --rm server pnpm predeploy:force`), since the
   Fargate migration task can no longer reach the database.

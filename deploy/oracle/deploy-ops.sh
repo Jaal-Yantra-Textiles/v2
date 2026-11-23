@@ -12,4 +12,6 @@ ssh "$HOST" 'sudo install -d -o ubuntu -g ubuntu -m 750 /opt/jyt-ops'
 scp -q "$DIR/ops/compose.yml" "$DIR/ops/loki.yml" "$DIR/ops/config.alloy" "$DIR/ops/gatus.yml" "$HOST:/opt/jyt-ops/"
 # First deploy only: the token pg-backup.sh uses to push its heartbeat.
 ssh "$HOST" 'test -f /opt/jyt-ops/.env || (umask 077 && printf "GATUS_BACKUP_TOKEN=%s\n" "$(openssl rand -hex 24)" > /opt/jyt-ops/.env && echo "created /opt/jyt-ops/.env")'
+# First deploy only: an unguessable ntfy.sh topic (on ntfy.sh, knowing the name = access).
+ssh "$HOST" 'grep -q "^NTFY_TOPIC=" /opt/jyt-ops/.env || (printf "NTFY_TOPIC=jyt-alerts-%s\n" "$(openssl rand -hex 12)" >> /opt/jyt-ops/.env && echo "added NTFY_TOPIC")'
 ssh "$HOST" "cd /opt/jyt-ops && docker compose $PROFILES pull -q && docker compose $PROFILES up -d --remove-orphans && docker compose $PROFILES ps --format 'table {{.Service}}\t{{.Status}}'"
