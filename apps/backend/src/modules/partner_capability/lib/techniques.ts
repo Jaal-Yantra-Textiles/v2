@@ -98,3 +98,27 @@ export const normalizeTechnique = (input: unknown): string | null => {
   }
   return best?.slug ?? null
 }
+
+/**
+ * The slug a SAMPLE is searched by: its technique, but only when the partner
+ * actually did that kind of work on it (#2606).
+ *
+ * A sample's free-text technique can describe the CLOTH rather than the
+ * partner's work. Prince Tailors' "Tangaliya cotton skirt" (actions: stitch)
+ * mapped to handloom_weaving and they surfaced as a weaver. When the sample
+ * says what the partner did and that contradicts the technique's action, the
+ * slug is null — the words stay in `technique` and `q` still finds them.
+ * No actions recorded = no contradiction; the technique stands.
+ */
+export const sampleTechniqueSlug = (
+  technique: unknown,
+  actions: unknown
+): string | null => {
+  const slug = normalizeTechnique(technique)
+  if (!slug) return null
+  const did = Array.isArray(actions)
+    ? actions.filter((a): a is string => typeof a === "string").map((a) => a.toLowerCase())
+    : []
+  if (!did.length) return slug
+  return did.includes(getTechnique(slug)!.action) ? slug : null
+}

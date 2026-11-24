@@ -10,7 +10,7 @@ import {
 import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
 import { PARTNER_MODULE } from "../../modules/partner"
 import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
-import { normalizeTechnique } from "../../modules/partner_capability/lib/techniques"
+import { sampleTechniqueSlug } from "../../modules/partner_capability/lib/techniques"
 import { attachCapabilityMedia } from "./capability-media"
 import { assertPartnerExistsStep } from "./steps/assert-partner-exists"
 
@@ -49,7 +49,7 @@ const createPartnerCapabilityStep = createStep(
       technique: input.technique ?? null,
       // Mapped onto the vocabulary so search and recipes can rely on it;
       // the partner's own words stay in `technique` (#2596).
-      technique_slug: normalizeTechnique(input.technique),
+      technique_slug: sampleTechniqueSlug(input.technique, input.actions),
       material: input.material ?? null,
       product_type: input.product_type ?? null,
       actions: input.actions?.length
