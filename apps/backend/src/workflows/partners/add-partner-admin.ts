@@ -42,6 +42,23 @@ const addPartnerAdminStep = createStep(
       )
     }
 
+    // partner_admin.first_name / last_name are NOT NULL. Without this check a
+    // missing surname reached the INSERT and the route answered a bare 500
+    // ("HTTP 500" in the MCP), with no hint of what to send (2026-11-24,
+    // inviting Akshit). Say it as a 400 instead.
+    const first = typeof input.admin.first_name === "string" ? input.admin.first_name.trim() : ""
+    const missing = [
+      !first && "first_name",
+      typeof input.admin.last_name !== "string" && "last_name",
+    ].filter(Boolean)
+    if (missing.length) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `Partner admin needs ${missing.join(" and ")}. ` +
+          `If the person has no surname, send last_name as an empty string ("").`
+      )
+    }
+
     const created = await partnerService.createPartnerAdmins({
       ...input.admin,
       // E.164 so the phone-login identity (#2320) and the row agree.

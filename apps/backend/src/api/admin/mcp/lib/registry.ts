@@ -4661,12 +4661,12 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       {
         id: STR("Partner id, e.g. 'partner_...'."),
         email: STR("Admin email (required)."),
-        first_name: STR("Admin first name."),
-        last_name: STR("Admin last name."),
+        first_name: STR("Admin first name (required)."),
+        last_name: STR("Admin last name (required). Send an empty string \"\" when the person has no surname — never invent one."),
         phone: STR("Admin phone number."),
         role: STR("'owner' | 'admin' | 'manager' (defaults to 'admin')."),
       },
-      ["id", "email"]
+      ["id", "email", "first_name", "last_name"]
     ),
     sideEffects: "Creates an auth identity for the new admin and emails a temp password.",
     nextSteps: ["list_partner_admins", "update_partner_admin"],
