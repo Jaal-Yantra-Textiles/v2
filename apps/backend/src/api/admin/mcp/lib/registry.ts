@@ -50,6 +50,7 @@ import {
   productSpecSchemaProps,
 } from "../../../../modules/product-spec/tool-schema"
 import { CAPABILITY_ACTIONS } from "../../../../modules/partner_capability/lib/actions"
+import { RATE_UNITS, TECHNIQUE_SLUGS } from "../../../../modules/partner_capability/lib/techniques"
 
 /**
  * The FORWARD LIST for `create_product_for_partner`.
@@ -4935,6 +4936,147 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     ),
     sideEffects: "Adds a permanent knowledge row, stamped source='admin'.",
     nextSteps: ["list_partner_capabilities"],
+  },
+  // #2596 — technique vocabulary, rate estimates per technique, and
+  // capability search / recipes across all partners (index-backed, no AI).
+  {
+    name: "list_capability_techniques",
+    description:
+      "The platform's technique vocabulary (#2596): slug, label, broad action, other names it goes by, suggested alternatives, and the usual rate unit. Rates, searches and recipes take these slugs — read this before create_partner_capability_rate or search_capabilities.",
+    method: "GET",
+    path: "/admin/capabilities/techniques",
+    inputSchema: obj({}, []),
+    nextSteps: ["search_capabilities", "create_partner_capability_rate"],
+  },
+  {
+    name: "search_capabilities",
+    description:
+      "Which partners can do something, across ALL partners: filter by technique slug, material (substring: 'cotton' matches 'kala cotton'), product_type, or free text q over the sample photos' own words ('acrylic', 'gusset'). Each partner comes with the evidence samples and LIVE rate estimates (stale=true when older than ~6 months; needs_rate=true when there is no confirmed rate for the quantity → say 'ask', never ₹0). Material + technique must hold on the SAME sample. Search reads Medusa's index, which can lag a write by a moment.",
+    method: "GET",
+    path: "/admin/capabilities/search",
+    queryParams: ["technique", "material", "product_type", "q", "quantity", "limit"],
+    inputSchema: obj(
+      {
+        technique: { type: "string", enum: [...TECHNIQUE_SLUGS], description: "Technique slug." },
+        material: STR("Material substring, e.g. 'cotton', 'merino'."),
+        product_type: STR("Product type substring, e.g. 'tote', 'stole'."),
+        q: STR("Free text over sample titles/words (2+ chars)."),
+        quantity: INT("Order quantity — marks which rates fit."),
+        limit: INT("Max partners (default 50, max 200)."),
+      },
+      []
+    ),
+    nextSteps: ["preview_capability_recipe", "list_partner_capabilities", "create_partner_capability_rate"],
+  },
+  {
+    name: "preview_capability_recipe",
+    description:
+      "Build a recipe: an ordered list of steps (e.g. 'handloom_weaving:cotton,block_print,stitching'), each with the partners who can do it, their rate estimates, alternative techniques with how many partners do those, and gap=true where nobody can (→ we must find a partner). Read-only; writes nothing.",
+    method: "GET",
+    path: "/admin/capabilities/recipe",
+    queryParams: ["steps", "quantity"],
+    inputSchema: obj(
+      {
+        steps: STR("Comma-separated technique slugs in order, optionally ':material', e.g. 'handloom_weaving:kala cotton,block_print,stitching'."),
+        quantity: INT("Order quantity — marks which rates fit."),
+      },
+      ["steps"]
+    ),
+    nextSteps: ["search_capabilities"],
+  },
+  {
+    name: "list_partner_capability_rates",
+    description:
+      "A partner's rate estimates per technique (#2596): low–high per unit for a quantity band, setup fee, lead days, whether GST was included, where the number came from and when. A technique with no row means 'ask', not free.",
+    method: "GET",
+    path: "/admin/partners/:id/capability-rates",
+    pathParams: ["id"],
+    queryParams: ["technique"],
+    inputSchema: obj({ id: STR("Partner id."), technique: STR("Only this technique slug.") }, ["id"]),
+    nextSteps: ["create_partner_capability_rate", "update_partner_capability_rate"],
+  },
+  {
+    name: "create_partner_capability_rate",
+    description:
+      "Record what a partner charges (an ESTIMATE band is fine) for one technique — e.g. after a call: hand_painting, ₹300–500 a piece for 50–200 pieces, 7 days. 🔑 ASK whether the number included GST and when it was given. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capability-rates",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["technique", "sample_id", "unit", "min_qty", "max_qty", "currency_code", "price_low", "price_high", "setup_fee", "lead_days", "tax_basis", "source", "status", "observed_at", "notes"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        technique: { type: "string", enum: [...TECHNIQUE_SLUGS], description: "Technique slug — see list_capability_techniques." },
+        sample_id: STR("Optional capability sample ('pcap_...') this rate was quoted against. Must be this partner's."),
+        unit: { type: "string", enum: [...RATE_UNITS], description: "What one price covers. Defaults to the technique's usual unit." },
+        min_qty: INT("Smallest order this range holds for (omit = any)."),
+        max_qty: INT("Largest order this range holds for (omit = any)."),
+        currency_code: STR("3-letter currency, default 'inr'."),
+        price_low: NUM("Low end of the estimate, per unit, in major units (₹350 → 350)."),
+        price_high: NUM("High end; omit when the partner gave one number."),
+        setup_fee: NUM("One-off cost per order (screens, blocks, set-up)."),
+        lead_days: INT("Working days this step takes."),
+        tax_basis: { type: "string", enum: ["gst_exclusive", "gst_inclusive", "unknown"], description: "Whether the partner's number included GST. ASK; default 'unknown'." },
+        source: { type: "string", enum: ["partner_quoted", "admin_estimate", "from_past_runs"], description: "partner_quoted = the partner said it; admin_estimate = our guess." },
+        status: { type: "string", enum: ["proposed", "confirmed"], description: "from_past_runs defaults to 'proposed' until a person confirms." },
+        observed_at: STR("ISO date the number was given (ask, do not default silently)."),
+        notes: STR("Anything that qualifies the number."),
+      },
+      ["id", "technique", "price_low"]
+    ),
+    sideEffects: "Adds a rate row and links it to the partner so searches and recipes show it.",
+    nextSteps: ["list_partner_capability_rates", "search_capabilities"],
+  },
+  {
+    name: "update_partner_capability_rate",
+    description:
+      "Change one rate estimate (new numbers, confirm a proposed rate, mark the GST basis). Only the fields sent change. The rate must belong to the named partner. Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/partners/:id/capability-rates/:rateId",
+    pathParams: ["id", "rateId"],
+    previewPath: "/admin/partners/:id/capability-rates",
+    write: true,
+    sensitive: true,
+    bodyParams: ["technique", "sample_id", "unit", "min_qty", "max_qty", "currency_code", "price_low", "price_high", "setup_fee", "lead_days", "tax_basis", "source", "status", "observed_at", "notes"],
+    inputSchema: obj(
+      {
+        id: STR("Partner id."),
+        rateId: STR("Rate id ('pcrate_...')."),
+        technique: { type: "string", enum: [...TECHNIQUE_SLUGS], description: "Technique slug — see list_capability_techniques." },
+        sample_id: STR("Optional capability sample ('pcap_...') this rate was quoted against. Must be this partner's."),
+        unit: { type: "string", enum: [...RATE_UNITS], description: "What one price covers. Defaults to the technique's usual unit." },
+        min_qty: INT("Smallest order this range holds for (omit = any)."),
+        max_qty: INT("Largest order this range holds for (omit = any)."),
+        currency_code: STR("3-letter currency, default 'inr'."),
+        price_low: NUM("Low end of the estimate, per unit, in major units (₹350 → 350)."),
+        price_high: NUM("High end; omit when the partner gave one number."),
+        setup_fee: NUM("One-off cost per order (screens, blocks, set-up)."),
+        lead_days: INT("Working days this step takes."),
+        tax_basis: { type: "string", enum: ["gst_exclusive", "gst_inclusive", "unknown"], description: "Whether the partner's number included GST. ASK; default 'unknown'." },
+        source: { type: "string", enum: ["partner_quoted", "admin_estimate", "from_past_runs"], description: "partner_quoted = the partner said it; admin_estimate = our guess." },
+        status: { type: "string", enum: ["proposed", "confirmed"], description: "from_past_runs defaults to 'proposed' until a person confirms." },
+        observed_at: STR("ISO date the number was given (ask, do not default silently)."),
+        notes: STR("Anything that qualifies the number."),
+      },
+      ["id", "rateId"]
+    ),
+    sideEffects: "Updates the rate row in place.",
+    nextSteps: ["list_partner_capability_rates"],
+  },
+  {
+    name: "delete_partner_capability_rate",
+    description:
+      "Remove a wrong or withdrawn rate estimate (soft delete; drops it from search). The rate must belong to the named partner. Sensitive (every DELETE is): requires confirm:true.",
+    method: "DELETE",
+    path: "/admin/partners/:id/capability-rates/:rateId",
+    pathParams: ["id", "rateId"],
+    previewPath: "/admin/partners/:id/capability-rates",
+    write: true,
+    inputSchema: obj({ id: STR("Partner id."), rateId: STR("Rate id ('pcrate_...').") }, ["id", "rateId"]),
+    sideEffects: "Soft-deletes the rate and unlinks it from search.",
+    nextSteps: ["list_partner_capability_rates"],
   },
   {
     name: "get_partner_onboarding_profile",
