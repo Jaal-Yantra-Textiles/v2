@@ -143,17 +143,56 @@ export const searchCapabilities = async (
     const missing = [...new Set<string>(rates.map((r: any) => r.partner_id))].filter(
       (id) => !byPartner.has(id)
     )
-    // A material/q filter narrows to partners with matching EVIDENCE; a bare
-    // rate can't prove the material, so it only joins a technique-only search.
+    // A rate can't prove a material on its own. With no material/product/q
+    // filter a rate is enough; with one, the partner must ALSO have a sample
+    // matching that filter — on any technique. Seen on prod 2026-11-24: GOF
+    // has a handloom-weaving rate (8-ply cotton, invoiced) but its cotton
+    // sample carries no technique, so "weaving + cotton" dropped GOF.
     const techniqueOnly = !input.material && !input.product_type && !input.q
-    if (missing.length && techniqueOnly) {
+    let admit = missing
+    if (missing.length && !techniqueOnly) {
+      const evidenceFilters: Record<string, unknown> = { partner_id: missing }
+      if (input.material) evidenceFilters.material = { $ilike: `%${input.material}%` }
+      if (input.product_type) evidenceFilters.product_type = { $ilike: `%${input.product_type}%` }
+      if (input.q) evidenceFilters.title = { $ilike: `%${input.q}%` }
+      const backing = await service.listPartnerCapabilitySamples(evidenceFilters, {
+        take: limit * 4,
+        select: ["id", "partner_id", "title", "technique", "material", "product_type", "captured_at"],
+      })
+      admit = missing.filter((id) => backing.some((b: any) => b.partner_id === id))
+      for (const b of backing as any[]) {
+        if (!byPartner.has(b.partner_id)) {
+          byPartner.set(b.partner_id, {
+            // Name filled from the partner query below.
+            partner: { id: b.partner_id, name: "", handle: undefined },
+            evidence: [],
+            rates: [],
+            needs_rate: true,
+          })
+        }
+        byPartner.get(b.partner_id)!.evidence.push({
+          id: b.id,
+          title: b.title,
+          technique: b.technique ?? null,
+          material: b.material ?? null,
+          product_type: b.product_type ?? null,
+          captured_at: b.captured_at ? new Date(b.captured_at).toISOString() : null,
+        })
+      }
+    }
+    if (admit.length) {
       const { data: partners } = await query.graph({
         entity: "partner",
         fields: ["id", "name", "handle"],
-        filters: { id: missing },
+        filters: { id: admit },
       })
       for (const p of partners as any[]) {
-        byPartner.set(p.id, { partner: { id: p.id, name: p.name, handle: p.handle }, evidence: [], rates: [], needs_rate: true })
+        const m = byPartner.get(p.id)
+        if (m) {
+          m.partner = { id: p.id, name: p.name, handle: p.handle }
+        } else {
+          byPartner.set(p.id, { partner: { id: p.id, name: p.name, handle: p.handle }, evidence: [], rates: [], needs_rate: true })
+        }
       }
     }
     for (const r of rates) {

@@ -127,6 +127,18 @@ setupSharedTestSuite(() => {
       await api.post(`/admin/partners/${ids["Kutch Weavers"]}/capability-rates`, { technique: "natural_dyeing", price_low: 400, unit: "kg" }, headers)
       expect((await search({ technique: "natural_dyeing" })).map((p: any) => p.partner.id)).toEqual([ids["Kutch Weavers"]])
 
+      // A rate + a material sample on ANOTHER (or no) technique still counts
+      // for "technique + material" (GOF on prod, 2026-11-24).
+      await getContainer().resolve(PARTNER_CAPABILITY_MODULE).createPartnerCapabilitySamples({
+        partner_id: ids["Ludhiana Stitch"], title: `Merino offcuts ${u}`, material: "merino wool",
+        source: "admin", captured_at: new Date(),
+      })
+      await api.post(`/admin/partners/${ids["Ludhiana Stitch"]}/capability-rates`, { technique: "knitting", price_low: 300 }, headers)
+      const knitMerino = await search({ technique: "knitting", material: "merino" })
+      expect(knitMerino.map((p: any) => p.partner.id)).toEqual([ids["Ludhiana Stitch"]])
+      expect(knitMerino[0].partner.name).toBe(`Ludhiana Stitch ${u}`)
+      expect(await search({ technique: "knitting", material: "silk" })).toEqual([])
+
       // Delete → gone.
       await api.delete(`/admin/partners/${ids["Jaipur Printers"]}/capability-rates/${rate.id}`, headers)
       const [after] = await search({ technique: "block_print", quantity: 200 })
