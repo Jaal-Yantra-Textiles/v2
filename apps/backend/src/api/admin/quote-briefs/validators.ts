@@ -80,6 +80,8 @@ export const AdminUpdateQuoteBriefReq = z.object({
 
 export const AdminOpenQuoteBriefReq = z.object({
   ttl_days: z.number().int().positive().max(365).optional(),
+  /** Email the new link to the brief's buyer_email. Off unless asked. */
+  email_buyer: z.boolean().optional(),
 })
 
 export const AdminPostQuoteBriefUpdateReq = z.object({

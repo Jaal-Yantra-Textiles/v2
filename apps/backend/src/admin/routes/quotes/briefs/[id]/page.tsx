@@ -21,6 +21,7 @@ const BriefPage = () => {
   const update = useUpdateQuoteBrief(id!)
   const post = usePostBriefUpdate(id!)
   const [link, setLink] = useState<string | null>(null)
+  const [emailBuyer, setEmailBuyer] = useState(false)
   const [msg, setMsg] = useState({ kind: "note", message: "", media: "" })
 
   if (isLoading || !data?.brief) return <Container>Loading…</Container>
@@ -49,9 +50,14 @@ const BriefPage = () => {
             isLoading={open.isPending}
             onClick={() =>
               open.mutate(
-                {},
+                { email_buyer: emailBuyer },
                 {
-                  onSuccess: (r) => setLink(r.url),
+                  onSuccess: (r) => {
+                    setLink(r.url)
+                    if (emailBuyer) {
+                      r.email.sent ? toast.success(`Emailed to ${r.email.to}`) : toast.error(`Link made, but not emailed: ${r.email.reason}`)
+                    }
+                  },
                   onError: (e) => toast.error(e.message),
                 }
               )
@@ -59,6 +65,10 @@ const BriefPage = () => {
           >
             {b.has_link ? "Issue a new link" : "Open and get the buyer's link"}
           </Button>
+          <label className="flex items-center gap-1.5 text-ui-fg-subtle text-sm">
+            <input type="checkbox" checked={emailBuyer} disabled={!b.buyer_email} onChange={(e) => setEmailBuyer(e.target.checked)} />
+            {b.buyer_email ? `Email the link to ${b.buyer_email}` : "No buyer email to send to"}
+          </label>
           <Select
             value={b.status}
             onValueChange={(v) => update.mutate({ status: v }, { onError: (e) => toast.error(e.message) })}

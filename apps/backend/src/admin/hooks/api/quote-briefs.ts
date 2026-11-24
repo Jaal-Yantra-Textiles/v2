@@ -72,7 +72,11 @@ export const useUpdateQuoteBrief = (id: string) => {
 
 export const useOpenQuoteBrief = (id: string) => {
   const qc = useQueryClient()
-  return useMutation<{ url: string; replaced_previous_link: boolean }, FetchError, { ttl_days?: number }>({
+  return useMutation<
+    { url: string; replaced_previous_link: boolean; email: { sent: boolean; to: string | null; reason: string | null } },
+    FetchError,
+    { ttl_days?: number; email_buyer?: boolean }
+  >({
     mutationFn: (body) => sdk.client.fetch(`/admin/quote-briefs/${id}/open`, { method: "POST", body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: briefQueryKeys.all }),
   })
