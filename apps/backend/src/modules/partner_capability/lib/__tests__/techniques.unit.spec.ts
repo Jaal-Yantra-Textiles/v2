@@ -11,11 +11,18 @@ describe("normalizeTechnique (#2596)", () => {
     ["hand-painted", "hand_painting"],
     ["Shibori", "tie_dye"],
     ["machine embroidery", "machine_embroidery"],
+    // Words seen on prod by the 2026-11-24 backfill.
+    ["block printed", "block_print"],
+    ["tangaliya", "handloom_weaving"],
+    ["Jamdani", "handloom_weaving"],
+    ["ikat", "handloom_weaving"],
+    ["kani", "handloom_weaving"],
+    ["hand screen printing", "screen_print"],
   ])("%s → %s", (input, slug) => {
     expect(normalizeTechnique(input)).toBe(slug)
   })
 
-  it.each([null, undefined, "", "   ", "blueprint drafting", "kani twill"])(
+  it.each([null, undefined, "", "   ", "blueprint drafting", "embroidered", "wrinkled / crinkle texture"])(
     "%p maps to nothing rather than a guess",
     (input) => {
       expect(normalizeTechnique(input)).toBeNull()
