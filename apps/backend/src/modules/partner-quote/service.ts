@@ -2,11 +2,23 @@ import { MedusaService } from "@medusajs/framework/utils"
 import PartnerQuote from "./models/partner-quote"
 import PartnerQuoteLine from "./models/partner-quote-line"
 import PartnerQuoteEvent from "./models/partner-quote-event"
+import PartnerQuoteBrief from "./models/partner-quote-brief"
+import PartnerQuoteBriefOption from "./models/partner-quote-brief-option"
+import PartnerQuoteBriefStep from "./models/partner-quote-brief-step"
+import PartnerQuoteBriefChoice from "./models/partner-quote-brief-choice"
+import PartnerQuoteBriefQuestion from "./models/partner-quote-brief-question"
+import PartnerQuoteBriefUpdate from "./models/partner-quote-brief-update"
 
 class PartnerQuoteService extends MedusaService({
   PartnerQuote,
   PartnerQuoteLine,
   PartnerQuoteEvent,
+  PartnerQuoteBrief,
+  PartnerQuoteBriefOption,
+  PartnerQuoteBriefStep,
+  PartnerQuoteBriefChoice,
+  PartnerQuoteBriefQuestion,
+  PartnerQuoteBriefUpdate,
 }) {
   /**
    * Look up a quote by the sha256 of its raw token. Returns null when no row
