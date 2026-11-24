@@ -15,6 +15,7 @@ export const CAPABILITY_ACTIONS = [
   "knit",
   "dye", // natural or chemical dyeing, incl. yarn dyeing
   "print", // block, screen or digital printing
+  "paint", // hand painting on cloth (kalamkari, fabric paint)
   "embroider", // hand or machine embroidery (aari, sozni, chikankari…)
   "stitch", // cut-and-sew garment making, tailoring
   "finish", // washing, fringing, pressing, edging

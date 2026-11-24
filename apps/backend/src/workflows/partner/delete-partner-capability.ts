@@ -7,6 +7,7 @@ import {
 import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
+import { linkCapabilityRows, unlinkCapabilityRows } from "./capability-index-links"
 import { assertPartnerExistsStep } from "./steps/assert-partner-exists"
 
 export type DeletePartnerCapabilityWorkflowInput = {
@@ -39,6 +40,8 @@ const deletePartnerCapabilityStep = createStep(
     }
 
     await service.deletePartnerCapabilitySamples(input.sample_id)
+    // Drop it from search too (#2596).
+    await unlinkCapabilityRows(container, input.partner_id, "sample", [input.sample_id])
 
     return new StepResponse(
       { id: input.sample_id, deleted: true },
@@ -57,6 +60,7 @@ const deletePartnerCapabilityStep = createStep(
     // Recreated with its original id, so links held by other rows (e.g.
     // design-inquiry answers) survive the round trip.
     await service.createPartnerCapabilitySamples(comp.sample as any)
+    await linkCapabilityRows(container, comp.sample.partner_id as string, "sample", [comp.sample.id as string])
   }
 )
 

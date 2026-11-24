@@ -191,6 +191,7 @@ import {
 } from "../../../../mastra/services/ai-platforms"
 import { SOCIALS_MODULE } from "../../../../modules/socials"
 import { reconcileOrderBalancesJob } from "./reconcile-order-balances-job"
+import { backfillCapabilitySearchJob } from "./backfill-capability-search-job"
 import {
   buildAiPlatformCoverageReport,
   planAiPlatformNormalization,
@@ -6695,6 +6696,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   setOrderCountryJob,
   purgeAbandonedCartsJob,
   cloneAiPlatformRoleJob,
+  backfillCapabilitySearchJob,
 ]
 
 export const getMaintenanceJob = (id: string): MaintenanceJob | undefined =>

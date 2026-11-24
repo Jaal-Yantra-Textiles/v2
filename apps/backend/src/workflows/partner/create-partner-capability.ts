@@ -1,12 +1,16 @@
+import { createRemoteLinkStep } from "@medusajs/medusa/core-flows"
 import {
   createStep,
   createWorkflow,
   StepResponse,
+  transform,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
 
 import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
+import { PARTNER_MODULE } from "../../modules/partner"
 import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
+import { normalizeTechnique } from "../../modules/partner_capability/lib/techniques"
 import { attachCapabilityMedia } from "./capability-media"
 import { assertPartnerExistsStep } from "./steps/assert-partner-exists"
 
@@ -43,6 +47,9 @@ const createPartnerCapabilityStep = createStep(
       partner_id: input.partner_id,
       title: input.title,
       technique: input.technique ?? null,
+      // Mapped onto the vocabulary so search and recipes can rely on it;
+      // the partner's own words stay in `technique` (#2596).
+      technique_slug: normalizeTechnique(input.technique),
       material: input.material ?? null,
       product_type: input.product_type ?? null,
       actions: input.actions?.length
@@ -77,6 +84,16 @@ export const createPartnerCapabilityWorkflow = createWorkflow(
   (input: CreatePartnerCapabilityWorkflowInput) => {
     assertPartnerExistsStep({ partner_id: input.partner_id })
     const result = createPartnerCapabilityStep(input)
+    // The link is what the index engine reads (#2596).
+    const links = transform({ input, result }, ({ input, result }) => [
+      {
+        [PARTNER_MODULE]: { partner_id: input.partner_id },
+        [PARTNER_CAPABILITY_MODULE]: {
+          partner_capability_sample_id: result.sample.id,
+        },
+      },
+    ])
+    createRemoteLinkStep(links)
     return new WorkflowResponse(result)
   }
 )

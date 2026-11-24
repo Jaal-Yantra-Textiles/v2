@@ -2,6 +2,8 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_CAPABILITY_MODULE } from "../../../modules/partner_capability"
+import { normalizeTechnique } from "../../../modules/partner_capability/lib/techniques"
+import { linkCapabilityRows } from "../../../workflows/partner/capability-index-links"
 import { getPartnerFromAuthContext } from "../helpers"
 import { resolveMediaFiles } from "../media-urls"
 import type {
@@ -115,6 +117,7 @@ export const POST = async (
     partner_id: partner.id,
     title: body.title,
     technique: body.technique ?? null,
+    technique_slug: normalizeTechnique(body.technique),
     material: body.material ?? null,
     media_file_ids: body.media_file_ids?.length ? body.media_file_ids : null,
     notes: body.notes ?? null,
@@ -126,6 +129,9 @@ export const POST = async (
   // rendering from the listing see the SAME shape. Two shapes for one row is
   // how a `media` key ends up read as `media_files` on one screen and silently
   // renders nothing.
+  // Searchable only once linked (#2596).
+  await linkCapabilityRows(req.scope, partner.id, "sample", [sample.id])
+
   const [withMedia] = await attachMediaUrls(req.scope, [sample])
 
   return res.status(201).json({

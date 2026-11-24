@@ -187,6 +187,8 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
    * the exact failure `tool-slice.unit.spec.ts` names, and it caught these two.
    */
   ["/admin/messages", "partners"],
+  /** #2596 — who can make what, across partners: a partner ask. */
+  ["/admin/capabilities", "partners"],
   // The conversation surface itself — `request_partner_photos` lives here.
   // Without an entry it classifies as undefined and loads in NO slice, which
   // `tool-slice.unit.spec.ts` fails on by design; it caught exactly this for

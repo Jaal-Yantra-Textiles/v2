@@ -339,6 +339,15 @@ import {
   AdminAddPartnerCapabilityKnowledgeReq,
 } from "./admin/partners/[id]/capabilities/validators";
 import {
+  AdminCreateCapabilityRateReq,
+  AdminUpdateCapabilityRateReq,
+  AdminListCapabilityRatesQuery,
+} from "./admin/partners/[id]/capability-rates/validators";
+import {
+  AdminSearchCapabilitiesQuery,
+  AdminPreviewRecipeQuery,
+} from "./admin/capabilities/validators";
+import {
   ListPaymentsByPartnerQuerySchema as PartnerListPaymentsByPartnerQuerySchema,
   ListPaymentMethodsByPartnerQuerySchema as PartnerListPaymentMethodsByPartnerQuerySchema,
   CreatePaymentMethodForPartnerSchema as PartnerCreatePaymentMethodForPartnerSchema,
@@ -5279,6 +5288,32 @@ export default defineMiddlewares({
     {
       matcher: "/admin/partners/:id/capabilities/:sampleId",
       method: "DELETE",
+    },
+    // #2596 — rate estimates per technique, and search/recipes across partners.
+    {
+      matcher: "/admin/partners/:id/capability-rates",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminListCapabilityRatesQuery), {})],
+    },
+    {
+      matcher: "/admin/partners/:id/capability-rates",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateCapabilityRateReq))],
+    },
+    {
+      matcher: "/admin/partners/:id/capability-rates/:rateId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdateCapabilityRateReq))],
+    },
+    {
+      matcher: "/admin/capabilities/search",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminSearchCapabilitiesQuery), {})],
+    },
+    {
+      matcher: "/admin/capabilities/recipe",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(AdminPreviewRecipeQuery), {})],
     },
     // Admin Partner Onboarding Profile — the upsert behind the admin-assistant
     // filing of questionnaire answers a partner gave outside the wizard. Same

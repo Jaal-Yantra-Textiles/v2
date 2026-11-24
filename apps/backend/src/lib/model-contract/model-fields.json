@@ -2877,6 +2877,35 @@
       "updated_at"
     ]
   },
+  "PartnerCapabilityRate (modules/partner_capability/models/partner-capability-rate.ts)": {
+    "file": "modules/partner_capability/models/partner-capability-rate.ts",
+    "fields": [
+      "created_at",
+      "currency_code",
+      "deleted_at",
+      "id",
+      "lead_days",
+      "max_qty",
+      "metadata",
+      "min_qty",
+      "notes",
+      "observed_at",
+      "partner_id",
+      "price_high",
+      "price_low",
+      "raw_price_high",
+      "raw_price_low",
+      "raw_setup_fee",
+      "sample_id",
+      "setup_fee",
+      "source",
+      "status",
+      "tax_basis",
+      "technique",
+      "unit",
+      "updated_at"
+    ]
+  },
   "PartnerCapabilitySample (modules/partner_capability/models/partner-capability-sample.ts)": {
     "file": "modules/partner_capability/models/partner-capability-sample.ts",
     "fields": [
@@ -2894,6 +2923,7 @@
       "source",
       "source_url",
       "technique",
+      "technique_slug",
       "title",
       "updated_at"
     ]

@@ -32,6 +32,13 @@ const PartnerCapabilitySample = model.define("partner_capability_sample", {
   technique: model.text().searchable().nullable(),
   material: model.text().searchable().nullable(),
 
+  /**
+   * `technique` mapped onto the platform vocabulary (lib/techniques.ts) on
+   * write; null when it maps to nothing. Searches and recipes filter on THIS,
+   * never on the free-text `technique` (#2596).
+   */
+  technique_slug: model.text().nullable(),
+
   /** The kind of product ("stole", "saree", "yardage"). Answers "who makes stoles". */
   product_type: model.text().searchable().nullable(),
 
