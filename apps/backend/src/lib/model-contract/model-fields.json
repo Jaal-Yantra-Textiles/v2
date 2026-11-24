@@ -3146,6 +3146,8 @@
       "buyer_email",
       "created_at",
       "created_by",
+      "crm_opportunity_id",
+      "crm_person_id",
       "currency_code",
       "customer_id",
       "deleted_at",
@@ -3199,6 +3201,7 @@
       "id",
       "position",
       "steps",
+      "story",
       "title",
       "updated_at"
     ]

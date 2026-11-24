@@ -101,6 +101,7 @@ const createQuoteBriefStep = createStep(
           brief_id: brief.id,
           title: o.title,
           description: o.description ?? null,
+          story: o.story ?? null,
           position: oi,
         })
         for (const [si, s] of o.steps.entries()) {
@@ -127,7 +128,13 @@ const createQuoteBriefStep = createStep(
           }
         }
       }
-      const questions = input.questions ?? DEFAULT_BRIEF_QUESTIONS
+      // Without an email on the brief, the CRM intake has no way back to her.
+      const questions = input.questions ?? [
+        ...(input.buyer_email
+          ? []
+          : [{ key: "email", label: "Your email", kind: "text", required: true, help: "So we can send you updates and the quote" }]),
+        ...DEFAULT_BRIEF_QUESTIONS,
+      ]
       const keys = questions.map((q) => q.key)
       if (new Set(keys).size !== keys.length) {
         throw new MedusaError(MedusaError.Types.INVALID_DATA, "Question keys must be unique within a brief")

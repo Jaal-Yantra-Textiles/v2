@@ -12,6 +12,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { PARTNER_CAPABILITY_MODULE } from "../../partner_capability"
 import { getTechnique } from "../../partner_capability/lib/techniques"
 import { attachCapabilityMedia } from "../../../workflows/partner/capability-media"
+import { fetchExchangeRate } from "../../../lib/fx/exchange-rate"
 
 const STALE_AFTER_DAYS = 180
 
@@ -159,6 +160,74 @@ export const estimateOption = (
 
 const round2 = (n: number) => Math.round(n * 100) / 100
 
+/**
+ * What a buyer can truthfully tell HER customers about each craft. Plain facts
+ * about the technique, never claims about a particular workshop (no "fair
+ * trade", no "100 years old") that nobody has checked.
+ */
+export const TECHNIQUE_STORY: Record<string, string> = {
+  hand_spinning: "Yarn spun by hand on a charkha before it ever reaches the loom.",
+  handloom_weaving: "Woven by hand on a loom, thread by thread. Small irregularities are the mark of the hand, not a fault.",
+  powerloom_weaving: "Woven on a power loom for an even, consistent cloth.",
+  knitting: "Knitted stitch by stitch.",
+  natural_dyeing: "Coloured with plant-based dyes, so shades vary a little from batch to batch.",
+  chemical_dyeing: "Dyed to a fixed recipe for steady, repeatable colour.",
+  tie_dye: "Patterned by tying the cloth before it is dyed, so no two pieces come out the same.",
+  block_print: "Printed by hand with carved wooden blocks, one stamp and one colour at a time.",
+  screen_print: "Printed by hand through a mesh screen, one colour at a time.",
+  digital_print: "Printed digitally, for fine detail and many colours.",
+  hand_painting: "Painted by hand by an artist, so every piece is one of a kind.",
+  hand_embroidery: "Embroidered by hand, stitch by stitch.",
+  machine_embroidery: "Embroidered by machine for crisp, repeatable detail.",
+  stitching: "Cut and stitched by hand in a small workshop.",
+  finishing: "Finished by hand: washed, pressed and checked piece by piece.",
+  pattern_making: "Patterned and graded by hand before cutting.",
+}
+
+export type BriefFx = {
+  base_currency: string
+  display_currency: string
+  /** 1 base = rate display. Null when no conversion happened. */
+  rate: number | null
+  converted: boolean
+  /** Why it was not converted, when it wasn't. */
+  reason: string | null
+}
+
+/** Convert every money figure in a built brief view, in place. Pure. */
+export const convertBriefMoney = (view: any, rate: number, to: string) => {
+  const c = (n: number | null | undefined) => (n == null ? n : round2(n * rate))
+  for (const o of view.options ?? []) {
+    for (const s of o.steps ?? []) {
+      for (const ch of s.choices ?? []) {
+        if (!ch.estimate) continue
+        ch.estimate = { ...ch.estimate, low: c(ch.estimate.low), high: c(ch.estimate.high), setup_fee: c(ch.estimate.setup_fee), currency_code: to }
+      }
+    }
+    const e = o.estimate
+    o.estimate = {
+      ...e,
+      currency_code: to,
+      per_piece_low: c(e.per_piece_low),
+      per_piece_high: c(e.per_piece_high),
+      setup_total: c(e.setup_total),
+      total_low: c(e.total_low),
+      total_high: c(e.total_high),
+    }
+  }
+  view.currency_code = to
+  return view
+}
+
+/** The currency of the region that serves `country`, or null. */
+const regionCurrency = async (query: any, country: string | null | undefined): Promise<string | null> => {
+  const cc = String(country ?? "").trim().toLowerCase()
+  if (!/^[a-z]{2}$/.test(cc)) return null
+  const { data } = await query.graph({ entity: "region", fields: ["currency_code", "countries.iso_2"] })
+  const region = (data as any[]).find((r) => (r.countries ?? []).some((x: any) => x.iso_2 === cc))
+  return region?.currency_code?.toLowerCase() ?? null
+}
+
 const quantityAnswer = (questions: any[]): number | null => {
   const q = questions.find((x) => x.key === "quantity")
   const n = q?.answer != null ? Number(q.answer) : NaN
@@ -172,7 +241,7 @@ const quantityAnswer = (questions: any[]): number | null => {
 export const buildBriefView = async (
   container: any,
   briefId: string,
-  opts: { audience: "buyer" | "admin" } = { audience: "buyer" }
+  opts: { audience: "buyer" | "admin"; country?: string | null } = { audience: "buyer" }
 ) => {
   const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
   const capability: any = container.resolve(PARTNER_CAPABILITY_MODULE)
@@ -268,10 +337,44 @@ export const buildBriefView = async (
       buyer_selected: !!o.buyer_selected,
       steps,
       estimate: estimateOption(steps, brief.currency_code, quantity),
+      story: {
+        headline: o.story ?? null,
+        points: steps
+          .filter((s: any) => s.technique && TECHNIQUE_STORY[s.technique])
+          .map((s: any) => {
+            const picked = s.choices.find((c: any) => c.id === s.selected_choice_id)
+            const makers = picked ? [picked] : s.choices
+            return {
+              label: s.label,
+              text: TECHNIQUE_STORY[s.technique],
+              by: s.state === "exploring" ? null : makers.map((c: any) => c.partner.name),
+            }
+          }),
+      },
     }
   })
 
   const lead = partnerById.get(brief.partner_id)
+
+  // Estimates in the buyer's currency: the region serving the page's country.
+  const baseCurrency = String(brief.currency_code).toLowerCase()
+  // Admins see our cost currency unless they ask for a country.
+  const display =
+    opts.audience === "admin" && !opts.country
+      ? baseCurrency
+      : (await regionCurrency(query, opts.country ?? brief.destination_country_code).catch(() => null)) ?? baseCurrency
+  const fx: BriefFx = { base_currency: baseCurrency, display_currency: baseCurrency, rate: null, converted: false, reason: null }
+  if (display !== baseCurrency) {
+    try {
+      const rate = await fetchExchangeRate(baseCurrency, display)
+      const holder = { options: optionViews, currency_code: baseCurrency }
+      convertBriefMoney(holder, rate, display)
+      Object.assign(fx, { display_currency: display, rate, converted: true })
+    } catch (e: any) {
+      fx.reason = `No exchange rate for ${baseCurrency.toUpperCase()}→${display.toUpperCase()} right now; shown in ${baseCurrency.toUpperCase()}.`
+    }
+  }
+
   const base = {
     id: brief.id,
     title: brief.title,
@@ -281,7 +384,8 @@ export const buildBriefView = async (
     recipient_name: brief.recipient_name ?? null,
     recipient_company: brief.recipient_company ?? null,
     destination_country_code: brief.destination_country_code,
-    currency_code: brief.currency_code,
+    currency_code: fx.display_currency,
+    fx,
     sample_quantity: brief.sample_quantity ?? null,
     submitted_at: brief.submitted_at ?? null,
     expires_at: brief.expires_at ?? null,
@@ -319,6 +423,8 @@ export const buildBriefView = async (
     view_count: brief.view_count ?? 0,
     last_viewed_at: brief.last_viewed_at ?? null,
     quote_id: brief.quote_id ?? null,
+    crm_person_id: brief.crm_person_id ?? null,
+    crm_opportunity_id: brief.crm_opportunity_id ?? null,
     has_link: !!brief.token_hash,
   }
 }

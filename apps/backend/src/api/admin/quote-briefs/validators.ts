@@ -23,6 +23,8 @@ const StepSchema = z.object({
 const OptionSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional().nullable(),
+  /** What the buyer can tell HER customers. True statements only. */
+  story: z.string().max(1000).optional().nullable(),
   steps: z.array(StepSchema).min(1),
 })
 
@@ -35,6 +37,7 @@ export const BRIEF_QUESTION_KINDS = [
   "date",
   "boolean",
   "link",
+  "file",
 ] as const
 
 const QuestionSchema = z.object({
@@ -79,6 +82,15 @@ export const AdminPostQuoteBriefUpdateReq = z.object({
   kind: z.enum(["note", "sample", "price"]).optional(),
   message: z.string().min(1),
   media_urls: z.array(z.string().url()).optional(),
+})
+
+/** One artwork file, base64, from the brief page (via the storefront server). */
+export const StoreBriefFileReq = z.object({
+  question_key: z.string().min(1),
+  name: z.string().min(1).max(200),
+  type: z.string().min(1),
+  /** base64, no data: prefix. */
+  content_base64: z.string().min(1),
 })
 
 /** What the buyer sends from the brief page. */

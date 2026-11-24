@@ -67,6 +67,10 @@ const PartnerQuoteBrief = model.define("partner_quote_brief", {
   last_viewed_at: model.dateTime().nullable(),
   view_count: model.number().default(0),
 
+  /** The CRM records a sent brief became (intake). Set once, on first send. */
+  crm_person_id: model.text().nullable(),
+  crm_opportunity_id: model.text().nullable(),
+
   /** The priced quote this brief became (part 3). */
   quote_id: model.text().nullable(),
 

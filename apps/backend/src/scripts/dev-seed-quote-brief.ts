@@ -68,7 +68,8 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
   const bodhi = await partner("local-bodhi", "Bodhi")
   const aarohi = await partner("local-aarohi", "Aarohi")
   const shramdaan = await partner("local-shramdaan", "Shramdaan")
-  const dharamshala = await partner("local-dharamshala", "Dharamshala unit (in-house)")
+  // Sharlho is the Dharamshala unit (prod 01K4PJMNMNRGMK0ZXMKBBDZDGD).
+  const sharlho = await partner("local-sharlho", "Sharlho")
 
   const sample = async (p: any, title: string, technique: string, material: string | null, actions: string[]) => {
     const [found] = await capability.listPartnerCapabilitySamples({ partner_id: p.id, title })
@@ -91,7 +92,8 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
   const sBodhiBlock = await sample(bodhi, "Hand block printing", "block printing", "cotton", ["print"])
   const sAarohi = await sample(aarohi, "Block printed cotton jacket", "block printed", "cotton", ["print"])
   const sShramdaan = await sample(shramdaan, "Bag making (structured / crossbody)", "stitching", "cotton", ["stitch"])
-  const sDharamshala = await sample(dharamshala, "Tote and crossbody bags", "stitching", "cotton canvas", ["stitch"])
+  const sSharlho = await sample(sharlho, "Handloom wool jacket", "stitching", "wool", ["stitch"])
+  const sSharlho2 = await sample(sharlho, "Block printed cotton jacket", "stitching", "cotton", ["stitch"])
 
   const rGof = await rate(gof, "handloom_weaving", "metre", 150, null)
   const rWfs = await rate(wfs, "handloom_weaving", "metre", 281.82, null, { tax_basis: "unknown" })
@@ -108,7 +110,7 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
   const stitching = {
     label: "Bag stitching", technique: "stitching" as const,
     choices: [
-      { partner_id: dharamshala.id, sample_ids: [sDharamshala.id], note: "Our own unit in Dharamshala, good with bags" },
+      { partner_id: sharlho.id, sample_ids: [sSharlho.id, sSharlho2.id], note: "Our unit in Dharamshala, good with bags" },
       { partner_id: shramdaan.id, sample_ids: [sShramdaan.id], note: "Non-leather only" },
     ],
   }
@@ -127,10 +129,12 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
         {
           title: "Hand-painted, non-leather",
           description: "Handloom cotton, painted by hand, stitched in India.",
+          story: "Each bag carries a one-of-a-kind painting on cloth woven by hand, then stitched in a small workshop in the Himalayan foothills.",
           steps: [fabric, { label: "Hand painting", technique: "hand_painting", choices: [{ partner_id: akshit.id, rate_id: rAkshit.id, sample_ids: [sAkshit.id] }] }, stitching],
         },
         {
           title: "Screen or block printed, non-leather",
+          story: "Hand-printed, one colour at a time, on handwoven cotton.",
           steps: [
             fabric,
             {

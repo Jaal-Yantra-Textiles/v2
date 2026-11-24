@@ -1,9 +1,10 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { BriefAnswerError, missingRequired, validateBriefAnswer } from "../../../../../modules/partner-quote/lib/brief-answers"
 import { buildBriefView } from "../../../../../modules/partner-quote/lib/brief-view"
+import { recordBriefInCrm } from "../../../../../modules/partner-quote/lib/brief-crm"
 import { assertQuoteVisibleToCaller } from "../../../../../modules/partner-quote/lib/quote-tenant-guard"
 import { hashQuoteToken } from "../../../../../modules/partner-quote/lib/token"
 import type { StoreSubmitQuoteBriefReqType } from "../../../../admin/quote-briefs/validators"
@@ -31,6 +32,10 @@ const loadBrief = async (req: MedusaRequest) => {
   return { service, brief }
 }
 
+/** The page's /<country>/ segment decides the estimate currency. */
+const countryOf = (req: MedusaRequest) =>
+  typeof req.query.country === "string" ? req.query.country : null
+
 const linkState = (brief: any, now: Date) =>
   brief.status === "closed"
     ? "closed"
@@ -45,7 +50,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   service
     .updatePartnerQuoteBriefs({ id: brief.id, last_viewed_at: now, view_count: (brief.view_count ?? 0) + 1 })
     .catch(() => undefined)
-  const view = await buildBriefView(req.scope, brief.id, { audience: "buyer" })
+  const view = await buildBriefView(req.scope, brief.id, { audience: "buyer", country: countryOf(req) })
   const state = linkState(brief, now)
   res.json({ brief: { ...view, link_state: state, editable: state === "live" && EDITABLE.has(brief.status) } })
 }
@@ -70,7 +75,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     for (const [key, raw] of Object.entries(body.answers ?? {})) {
       const q = byKey.get(key)
       if (!q) throw new BriefAnswerError(`unknown question "${key}"`)
-      const answer = validateBriefAnswer(q, raw)
+      const answer = validateBriefAnswer(q, raw, q.answer)
       answerUpdates.push({ id: q.id, answer, answered_at: answer === null ? null : now })
       q.answer = answer
     }
@@ -141,7 +146,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   }
 
   const fresh = await service.retrievePartnerQuoteBrief(brief.id)
-  const view = await buildBriefView(req.scope, brief.id, { audience: "buyer" })
+  const view = await buildBriefView(req.scope, brief.id, { audience: "buyer", country: countryOf(req) })
+
+  // CRM intake on send. Never fails her send: the brief is already saved.
+  if (body.submit) {
+    try {
+      await recordBriefInCrm(req.scope, fresh, view)
+    } catch (e: any) {
+      req.scope
+        .resolve(ContainerRegistrationKeys.LOGGER)
+        .error(`[brief] CRM intake failed for ${brief.id}: ${e?.message ?? e}`)
+    }
+  }
   res.json({
     brief: { ...view, link_state: linkState(fresh, now), editable: EDITABLE.has(fresh.status) },
   })

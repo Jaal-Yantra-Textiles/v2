@@ -84,3 +84,63 @@ describe("validateBriefAnswer (#2608)", () => {
     expect(missingRequired([{ key: "quantity", label: "How many?", kind: "number", required: true, answer: null }])).toEqual(["How many?"])
   })
 })
+
+import { convertBriefMoney } from "../brief-view"
+import { summariseBrief } from "../brief-crm"
+
+describe("convertBriefMoney (#2608)", () => {
+  it("converts every estimate figure and leaves nulls null", () => {
+    const view = {
+      currency_code: "inr",
+      options: [{
+        steps: [{ choices: [{ estimate: { low: 100, high: 200, setup_fee: null, currency_code: "inr" } }, { estimate: null }] }],
+        estimate: { currency_code: "inr", per_piece_low: 100, per_piece_high: 200, setup_total: 0, total_low: null, total_high: null },
+      }],
+    }
+    convertBriefMoney(view, 0.018, "aud")
+    expect(view.currency_code).toBe("aud")
+    expect(view.options[0].steps[0].choices[0].estimate).toMatchObject({ low: 1.8, high: 3.6, setup_fee: null, currency_code: "aud" })
+    expect(view.options[0].steps[0].choices[1].estimate).toBeNull()
+    expect(view.options[0].estimate).toMatchObject({ per_piece_low: 1.8, per_piece_high: 3.6, total_low: null, currency_code: "aud" })
+  })
+})
+
+describe("file answers (#2608)", () => {
+  const q = { key: "artwork", label: "Artwork", kind: "file" }
+  const stored = [
+    { url: "https://cdn/x/a.png", name: "a.png", type: "image/png", size: 1, uploaded_at: "t" },
+    { url: "https://cdn/x/b.pdf", name: "b.pdf", type: "application/pdf", size: 1, uploaded_at: "t" },
+  ]
+  it("lets the buyer remove a file", () => {
+    expect(validateBriefAnswer(q, [stored[1]], stored)).toEqual([stored[1]])
+  })
+  it("refuses a URL she typed: files are only added by uploading", () => {
+    expect(() => validateBriefAnswer(q, ["https://evil.example/x.png"], stored)).toThrow(/uploading/)
+  })
+})
+
+describe("summariseBrief (#2608)", () => {
+  it("lists her picks, open steps and answers for the CRM note", () => {
+    const text = summariseBrief({
+      title: "Bags",
+      recipient_name: "A buyer",
+      options: [{
+        title: "Hand-painted", buyer_selected: true,
+        steps: [
+          { label: "Fabric", state: "estimated", selected_choice_id: "c1", choices: [{ id: "c1", partner: { name: "GOF" } }] },
+          { label: "Stitching", state: "ask", selected_choice_id: null, choices: [{ id: "c2", partner: { name: "Sharlho" } }, { id: "c3", partner: { name: "Shramdaan" } }] },
+          { label: "Leather", state: "exploring", selected_choice_id: null, choices: [] },
+        ],
+        estimate: { currency_code: "aud", per_piece_low: 10, per_piece_high: 30, complete: false, quantity: 40, total_low: 400, total_high: 1200, pending_steps: ["Stitching"] },
+      }, { title: "Not picked", buyer_selected: false, steps: [], estimate: {} }],
+      questions: [{ label: "How many?", kind: "number", answer: 40 }],
+    })
+    expect(text).toContain("Hand-painted")
+    expect(text).not.toContain("Not picked")
+    expect(text).toContain("Fabric: GOF")
+    expect(text).toContain("Stitching: open: Sharlho / Shramdaan")
+    expect(text).toContain("Leather: no partner yet")
+    expect(text).toContain("AUD 10–30/piece so far, 40 pcs 400–1200")
+    expect(text).toContain("How many? 40")
+  })
+})

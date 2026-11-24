@@ -19,14 +19,27 @@ export const DEFAULT_BRIEF_QUESTIONS: Array<BriefQuestionLike & { help?: string 
   { key: "print_spots", label: "Where should the print or painting go?", kind: "multi_choice", options: ["Front", "Back", "Flap", "Strap", "Inside lining"] },
   { key: "colours", label: "Colours", kind: "text", help: "Fabric colour and print/paint colours" },
   { key: "leather", label: "Leather or non-leather?", kind: "choice", options: ["Leather", "Non-leather", "Not sure yet"] },
-  { key: "artwork", label: "Link to your artwork or references", kind: "link", help: "A Drive, Dropbox or Pinterest link" },
+  { key: "artwork", label: "Upload your artwork or references", kind: "file", help: "Images or PDF, up to 10 MB each, up to 10 files" },
+  { key: "references", label: "Or a link to them", kind: "link", help: "A Drive, Dropbox or Pinterest link" },
   { key: "deadline", label: "When do you need them?", kind: "date" },
   { key: "notes", label: "Anything else we should know?", kind: "long_text" },
 ]
 
 export class BriefAnswerError extends Error {}
 
-export const validateBriefAnswer = (q: BriefQuestionLike, raw: unknown): unknown => {
+/** One uploaded file on a `file` question. Written by the upload route only. */
+export type BriefFileAnswer = { url: string; name: string; type: string; size: number; uploaded_at: string }
+
+export const BRIEF_FILE_MAX_BYTES = 10 * 1024 * 1024
+export const BRIEF_FILE_MAX_COUNT = 10
+export const BRIEF_FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif", "image/svg+xml", "application/pdf"]
+
+/**
+ * `current` is what is stored now. For a `file` question the buyer may only
+ * REMOVE files (send back a subset of the stored URLs): adding goes through the
+ * upload route, so a URL she types can never become "her artwork".
+ */
+export const validateBriefAnswer = (q: BriefQuestionLike, raw: unknown, current?: unknown): unknown => {
   const refuse = (why: string): never => {
     throw new BriefAnswerError(`"${q.label}": ${why}`)
   }
@@ -75,6 +88,13 @@ export const validateBriefAnswer = (q: BriefQuestionLike, raw: unknown): unknown
       const bad = picked.filter((v) => !(q.options ?? []).includes(v))
       if (bad.length) refuse(`not an option: ${bad.join(", ")}`)
       return picked.length ? picked : null
+    }
+    case "file": {
+      const stored = (Array.isArray(current) ? current : []) as BriefFileAnswer[]
+      const keep = new Set((Array.isArray(raw) ? raw : []).map((x: any) => (typeof x === "string" ? x : x?.url)))
+      const next = stored.filter((f) => keep.has(f.url))
+      if (keep.size > next.length) refuse("files can only be added by uploading them")
+      return next.length ? next : null
     }
     default:
       return refuse("unknown question type")

@@ -392,6 +392,7 @@ import {
   AdminOpenQuoteBriefReq,
   AdminPostQuoteBriefUpdateReq,
   AdminUpdateQuoteBriefReq,
+  StoreBriefFileReq,
   StoreSubmitQuoteBriefReq,
 } from "./admin/quote-briefs/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
@@ -7116,6 +7117,14 @@ export default defineMiddlewares({
       matcher: "/admin/quote-briefs/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminUpdateQuoteBriefReq))],
+    },
+    {
+      // Artwork upload: base64 JSON, so the body limit is raised for THIS route
+      // only (10 MB file ≈ 13.4 MB base64).
+      matcher: "/store/b2b/briefs/:token/files",
+      method: "POST",
+      bodyParser: { sizeLimit: "15mb" },
+      middlewares: [validateAndTransformBody(wrapSchema(StoreBriefFileReq))],
     },
     {
       matcher: "/store/b2b/briefs/:token",

@@ -15,7 +15,7 @@ const PartnerQuoteBriefQuestion = model.define("partner_quote_brief_question", {
   label: model.text(),
   help: model.text().nullable(),
   kind: model
-    .enum(["text", "long_text", "number", "choice", "multi_choice", "date", "boolean", "link"])
+    .enum(["text", "long_text", "number", "choice", "multi_choice", "date", "boolean", "link", "file"])
     .default("text"),
   /** For choice / multi_choice: the allowed values. */
   options: model.json().nullable(),

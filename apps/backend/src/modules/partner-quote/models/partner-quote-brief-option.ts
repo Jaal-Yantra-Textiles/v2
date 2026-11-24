@@ -13,6 +13,12 @@ const PartnerQuoteBriefOption = model.define("partner_quote_brief_option", {
 
   title: model.text(),
   description: model.text().nullable(),
+  /**
+   * The story the BUYER can tell her own customers about this style, in our
+   * words ("Hand-painted in Himachal…"). Optional; the page adds factual craft
+   * lines per step beside it. Never invented: write only what is true.
+   */
+  story: model.text().nullable(),
   position: model.number().default(0),
 
   /** Set by the buyer on the brief page. */
