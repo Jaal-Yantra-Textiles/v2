@@ -201,6 +201,50 @@ setupSharedTestSuite(() => {
       expect(theirs.data.samples[0].id).toBe(sampleId)
     })
 
+    it("edits a sample in place and recomputes its technique slug from the actions", async () => {
+      // A painter's sample recorded with the wrong action: the slug is dropped.
+      const created = await postSample({ title: "panel", technique: "hand painting", actions: ["design"] })
+      const sampleId = created.data.sample.id
+      expect(created.data.sample.technique_slug).toBeNull()
+
+      const res = await api.post(
+        `/admin/partners/${partnerId}/capabilities/${sampleId}`,
+        { actions: ["paint", "not-a-word"] },
+        adminHeaders
+      )
+      expect(res.status).toBe(200)
+      expect(res.data.sample.id).toBe(sampleId)
+      expect(res.data.sample.actions).toEqual(["paint"])
+      expect(res.data.sample.technique_slug).toBe("hand_painting")
+      expect(res.data.sample.title).toBe("panel")
+
+      // Read it back — the write persisted.
+      const after = await api.get(`/admin/partners/${partnerId}/capabilities`, adminHeaders)
+      expect(after.data.samples[0].actions).toEqual(["paint"])
+      expect(after.data.samples[0].technique_slug).toBe("hand_painting")
+    })
+
+    it("refuses to edit another partner's sample, a slug in the body, or an empty body", async () => {
+      const theirs = await postSample({ title: "theirs", technique: "hand painting" }, otherPartnerId)
+      const notOurs = await api
+        .post(`/admin/partners/${partnerId}/capabilities/${theirs.data.sample.id}`, { title: "hijack" }, adminHeaders)
+        .catch((e: any) => e)
+      expect(notOurs.response.status).toBe(404)
+
+      const ours = await postSample({ title: "ours" })
+      const slug = await api
+        .post(`/admin/partners/${partnerId}/capabilities/${ours.data.sample.id}`, { technique_slug: "hand_painting" }, adminHeaders)
+        .catch((e: any) => e)
+      expect(slug.response.status).toBe(400)
+      const empty = await api
+        .post(`/admin/partners/${partnerId}/capabilities/${ours.data.sample.id}`, {}, adminHeaders)
+        .catch((e: any) => e)
+      expect(empty.response.status).toBe(400)
+
+      const check = await api.get(`/admin/partners/${otherPartnerId}/capabilities`, adminHeaders)
+      expect(check.data.samples[0].title).toBe("theirs")
+    })
+
     it("404s for an unknown partner", async () => {
       const err = await api
         .get("/admin/partners/partner_does_not_exist/capabilities", adminHeaders)

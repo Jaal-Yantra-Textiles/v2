@@ -334,6 +334,7 @@ import { AdminCreatePartnerTaskReq, AdminUpdatePartnerTaskReq } from "./admin/pa
 import {
   AdminListPartnerCapabilitiesQuery,
   AdminCreatePartnerCapabilityReq,
+  AdminUpdatePartnerCapabilityReq,
   AdminScanPartnerWebsiteReq,
   AdminCommitPartnerCapabilityScanReq,
   AdminAddPartnerCapabilityKnowledgeReq,
@@ -5296,6 +5297,11 @@ export default defineMiddlewares({
     {
       matcher: "/admin/partners/:id/capabilities/:sampleId",
       method: "DELETE",
+    },
+    {
+      matcher: "/admin/partners/:id/capabilities/:sampleId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdatePartnerCapabilityReq))],
     },
     // #2596 — rate estimates per technique, and search/recipes across partners.
     {
