@@ -43,6 +43,25 @@ export type AdminCreatePartnerCapabilityReq = z.infer<
   typeof AdminCreatePartnerCapabilityReq
 >
 
+/**
+ * Correct a sample in place. Every field is optional; only the ones sent change.
+ * `technique_slug` is not accepted: it is recomputed from technique + actions so
+ * a sample can never claim a technique its own actions contradict (#2607).
+ */
+export const AdminUpdatePartnerCapabilityReq = z
+  .object({
+    title: z.string().min(1).optional(),
+    technique: z.string().optional().nullable(),
+    material: z.string().optional().nullable(),
+    product_type: z.string().optional().nullable(),
+    actions: z.array(z.string()).optional().nullable(),
+    notes: z.string().optional().nullable(),
+    captured_at: z.coerce.date().optional(),
+  })
+  .strict()
+  .refine((b) => Object.keys(b).length > 0, { message: "Nothing to update." })
+export type AdminUpdatePartnerCapabilityReq = z.infer<typeof AdminUpdatePartnerCapabilityReq>
+
 /** #2249 — read a partner's website into proposals. Writes nothing to the library. */
 export const AdminScanPartnerWebsiteReq = z.object({
   url: z.string().min(1).max(2048),
