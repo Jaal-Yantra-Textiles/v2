@@ -6232,6 +6232,19 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner-quote/accept-quote.ts"
   },
+  "create-quote-brief": {
+    "fields": [
+      {
+        "name": "data",
+        "type": "object",
+        "required": true,
+        "description": "Fields for the new record",
+        "placeholder": "{{ $last }}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/partner-quote/create-quote-brief.ts"
+  },
   "ensure-design-quote-variant": {
     "fields": [
       {

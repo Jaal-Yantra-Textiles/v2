@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { PencilSquare, Trash } from "@medusajs/icons"
+import { DocumentText, PencilSquare, Trash } from "@medusajs/icons"
 import {
   Badge,
   Button,
@@ -368,6 +368,26 @@ export const DraftSections = ({ draft }: { draft: AdminQuoteDraft }) => {
             </div>
             <ActionMenu
               groups={[
+                {
+                  actions: [
+                    {
+                      icon: <DocumentText />,
+                      // #2608: not ready to price? Start a brief with the same
+                      // lead partner, buyer and country instead.
+                      label: "Start a brief instead",
+                      onClick: () => {
+                        const q = new URLSearchParams({
+                          partner_id: draft.partner_id ?? "",
+                          country: draft.destination_country_code ?? "",
+                          buyer_email: (draft as any).buyer_email ?? "",
+                          recipient_name: draft.recipient_name ?? "",
+                          recipient_company: draft.recipient_company ?? "",
+                        })
+                        navigate(`/quotes/briefs/create?${q.toString()}`)
+                      },
+                    },
+                  ],
+                },
                 {
                   actions: [
                     {

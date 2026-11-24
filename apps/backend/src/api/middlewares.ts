@@ -387,6 +387,14 @@ import {
   AdminQuoteReadinessReq,
   AdminUpdateQuoteDraftReq,
 } from "./admin/quotes/validators";
+import {
+  AdminCreateQuoteBriefReq,
+  AdminOpenQuoteBriefReq,
+  AdminPostQuoteBriefUpdateReq,
+  AdminUpdateQuoteBriefReq,
+  StoreBriefFileReq,
+  StoreSubmitQuoteBriefReq,
+} from "./admin/quote-briefs/validators";
 import { BATCH_VARIANT_FIELDS } from "../workflows/partner/batch-partner-variants";
 import { StoreMadeToSpecReq } from "./store/carts/[id]/made-to-spec/validators";
 import {
@@ -7086,6 +7094,43 @@ export default defineMiddlewares({
      * after the parameterised one is matched as an id called "drafts", and the
      * body arrives unvalidated.
      */
+    /**
+     * Quote briefs (#2608 S1). The buyer half is /store/b2b/briefs/:token,
+     * unauthenticated like a quote: the token is the credential.
+     */
+    {
+      matcher: "/admin/quote-briefs",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminCreateQuoteBriefReq))],
+    },
+    {
+      matcher: "/admin/quote-briefs/:id/open",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminOpenQuoteBriefReq))],
+    },
+    {
+      matcher: "/admin/quote-briefs/:id/updates",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminPostQuoteBriefUpdateReq))],
+    },
+    {
+      matcher: "/admin/quote-briefs/:id",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdateQuoteBriefReq))],
+    },
+    {
+      // Artwork upload: base64 JSON, so the body limit is raised for THIS route
+      // only (10 MB file ≈ 13.4 MB base64).
+      matcher: "/store/b2b/briefs/:token/files",
+      method: "POST",
+      bodyParser: { sizeLimit: "15mb" },
+      middlewares: [validateAndTransformBody(wrapSchema(StoreBriefFileReq))],
+    },
+    {
+      matcher: "/store/b2b/briefs/:token",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(StoreSubmitQuoteBriefReq))],
+    },
     {
       matcher: "/admin/quotes/drafts",
       method: "POST",

@@ -3140,6 +3140,126 @@
       "viewed_at"
     ]
   },
+  "PartnerQuoteBrief (modules/partner-quote/models/partner-quote-brief.ts)": {
+    "file": "modules/partner-quote/models/partner-quote-brief.ts",
+    "fields": [
+      "buyer_email",
+      "created_at",
+      "created_by",
+      "crm_opportunity_id",
+      "crm_person_id",
+      "currency_code",
+      "customer_id",
+      "deleted_at",
+      "destination_country_code",
+      "expires_at",
+      "id",
+      "intro",
+      "last_viewed_at",
+      "metadata",
+      "opened_at",
+      "options",
+      "partner_id",
+      "questions",
+      "quote_id",
+      "recipient_company",
+      "recipient_name",
+      "sample_days",
+      "sample_quantity",
+      "status",
+      "store_id",
+      "submitted_at",
+      "title",
+      "token_hash",
+      "updated_at",
+      "updates",
+      "view_count"
+    ]
+  },
+  "PartnerQuoteBriefChoice (modules/partner-quote/models/partner-quote-brief-choice.ts)": {
+    "file": "modules/partner-quote/models/partner-quote-brief-choice.ts",
+    "fields": [
+      "created_at",
+      "deleted_at",
+      "id",
+      "note",
+      "partner_id",
+      "position",
+      "rate_id",
+      "sample_ids",
+      "step",
+      "updated_at"
+    ]
+  },
+  "PartnerQuoteBriefOption (modules/partner-quote/models/partner-quote-brief-option.ts)": {
+    "file": "modules/partner-quote/models/partner-quote-brief-option.ts",
+    "fields": [
+      "brief",
+      "buyer_selected",
+      "created_at",
+      "deleted_at",
+      "description",
+      "id",
+      "position",
+      "steps",
+      "story",
+      "title",
+      "updated_at"
+    ]
+  },
+  "PartnerQuoteBriefQuestion (modules/partner-quote/models/partner-quote-brief-question.ts)": {
+    "file": "modules/partner-quote/models/partner-quote-brief-question.ts",
+    "fields": [
+      "answer",
+      "answered_at",
+      "brief",
+      "created_at",
+      "deleted_at",
+      "help",
+      "id",
+      "key",
+      "kind",
+      "label",
+      "options",
+      "position",
+      "required",
+      "updated_at"
+    ]
+  },
+  "PartnerQuoteBriefStep (modules/partner-quote/models/partner-quote-brief-step.ts)": {
+    "file": "modules/partner-quote/models/partner-quote-brief-step.ts",
+    "fields": [
+      "choices",
+      "created_at",
+      "deleted_at",
+      "id",
+      "kind",
+      "label",
+      "lead_days",
+      "note",
+      "option",
+      "position",
+      "qty_per_piece",
+      "selected_choice_id",
+      "technique",
+      "updated_at"
+    ]
+  },
+  "PartnerQuoteBriefUpdate (modules/partner-quote/models/partner-quote-brief-update.ts)": {
+    "file": "modules/partner-quote/models/partner-quote-brief-update.ts",
+    "fields": [
+      "actor_id",
+      "actor_type",
+      "brief",
+      "created_at",
+      "deleted_at",
+      "id",
+      "kind",
+      "media_urls",
+      "message",
+      "updated_at"
+    ]
+  },
   "PartnerQuoteEvent (modules/partner-quote/models/partner-quote-event.ts)": {
     "file": "modules/partner-quote/models/partner-quote-event.ts",
     "fields": [

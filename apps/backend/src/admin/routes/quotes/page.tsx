@@ -281,6 +281,9 @@ const QuotesPage = () => {
           <div className="flex items-center gap-x-2">
             <DataTable.Search placeholder="Search buyer, company or email..." />
             <DataTable.FilterMenu tooltip="Filter quotes" />
+            <Button size="small" variant="secondary" onClick={() => navigate("/quotes/briefs")}>
+              Briefs
+            </Button>
             <Button size="small" onClick={() => navigate("/quotes/create")}>
               Mint quote
             </Button>
