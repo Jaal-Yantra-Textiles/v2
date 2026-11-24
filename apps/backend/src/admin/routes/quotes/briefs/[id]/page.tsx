@@ -37,6 +37,7 @@ const BriefPage = () => {
               {b.recipient_name || "No buyer name"}
               {b.recipient_company ? `, ${b.recipient_company}` : ""} · {b.buyer_email || "no email"} ·{" "}
               {String(b.destination_country_code).toUpperCase()} · {b.view_count ?? 0} views
+              {b.submitted_at ? ` · sent ${new Date(b.submitted_at).toLocaleString()}` : " · not sent yet"}
             </Text>
           </div>
           <StatusBadge color={st?.color ?? "grey"}>{st?.label ?? b.status}</StatusBadge>

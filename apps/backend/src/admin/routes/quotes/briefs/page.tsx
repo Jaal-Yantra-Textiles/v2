@@ -46,6 +46,7 @@ const QuoteBriefsPage = () => {
               <Table.HeaderCell>Brief</Table.HeaderCell>
               <Table.HeaderCell>Buyer</Table.HeaderCell>
               <Table.HeaderCell>Status</Table.HeaderCell>
+              <Table.HeaderCell>Sent</Table.HeaderCell>
               <Table.HeaderCell>Views</Table.HeaderCell>
               <Table.HeaderCell>Created</Table.HeaderCell>
             </Table.Row>
@@ -60,6 +61,7 @@ const QuoteBriefsPage = () => {
                     {BRIEF_STATUS[b.status]?.label ?? b.status}
                   </StatusBadge>
                 </Table.Cell>
+                <Table.Cell>{b.submitted_at ? new Date(b.submitted_at).toLocaleString() : "—"}</Table.Cell>
                 <Table.Cell>{b.view_count ?? 0}</Table.Cell>
                 <Table.Cell>{new Date(b.created_at).toLocaleDateString()}</Table.Cell>
               </Table.Row>

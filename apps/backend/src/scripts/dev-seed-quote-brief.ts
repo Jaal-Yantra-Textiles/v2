@@ -71,6 +71,14 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
   // Sharlho is the Dharamshala unit (prod 01K4PJMNMNRGMK0ZXMKBBDZDGD).
   const sharlho = await partner("local-sharlho", "Sharlho")
 
+  // Public profiles (local only) so the brief can show "About this workshop".
+  const publish = (p: any, about: string, extra: Record<string, unknown> = {}) =>
+    partners.updatePartners({ id: p.id, is_public: true, status: "active", metadata: { ...(p.metadata ?? {}), business_description: about }, ...extra })
+  await publish(gof, "Handloom weavers in West Bengal working in organic cotton, muslin and linen.")
+  await publish(sharlho, "Our stitching unit in Dharamshala, Himachal Pradesh: jackets, bags and small-batch tailoring.")
+  await publish(akshit, "An illustrator who paints by hand on cloth and paper.")
+  await publish(bodhi, "Eco-dye and hand printing studio: screen and wooden-block prints with pigment colours.", { storefront_domain: "bodhi.cicilabel.com" })
+
   const sample = async (p: any, title: string, technique: string, material: string | null, actions: string[]) => {
     const [found] = await capability.listPartnerCapabilitySamples({ partner_id: p.id, title })
     return found ?? capability.createPartnerCapabilitySamples({
@@ -100,7 +108,7 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
   const rAkshit = await rate(akshit, "hand_painting", "piece", 500, 1500, { source: "partner_quoted", tax_basis: "unknown" })
 
   const fabric = {
-    label: "Fabric", kind: "fabric" as const, technique: "handloom_weaving" as const, qty_per_piece: 0.6,
+    label: "Fabric", kind: "fabric" as const, technique: "handloom_weaving" as const, qty_per_piece: 0.6, lead_days: 7,
     note: "About 0.6 m of handloom cotton per bag",
     choices: [
       { partner_id: gof.id, rate_id: rGof.id, sample_ids: [sGof.id] },
@@ -108,7 +116,7 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
     ],
   }
   const stitching = {
-    label: "Bag stitching", technique: "stitching" as const,
+    label: "Bag stitching", technique: "stitching" as const, lead_days: 10,
     choices: [
       { partner_id: sharlho.id, sample_ids: [sSharlho.id, sSharlho2.id], note: "Our unit in Dharamshala, good with bags" },
       { partner_id: shramdaan.id, sample_ids: [sShramdaan.id], note: "Non-leather only" },
@@ -124,13 +132,14 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
       destination_country_code: "au",
       currency_code: "inr",
       sample_quantity: 4,
+      sample_days: 14,
       recipient_name: "RMIT buyer (local test)",
       options: [
         {
           title: "Hand-painted, non-leather",
           description: "Handloom cotton, painted by hand, stitched in India.",
           story: "Each bag carries a one-of-a-kind painting on cloth woven by hand, then stitched in a small workshop in the Himalayan foothills.",
-          steps: [fabric, { label: "Hand painting", technique: "hand_painting", choices: [{ partner_id: akshit.id, rate_id: rAkshit.id, sample_ids: [sAkshit.id] }] }, stitching],
+          steps: [fabric, { label: "Hand painting", technique: "hand_painting", lead_days: 12, choices: [{ partner_id: akshit.id, rate_id: rAkshit.id, sample_ids: [sAkshit.id] }] }, stitching],
         },
         {
           title: "Screen or block printed, non-leather",
@@ -138,7 +147,7 @@ export default async function seedQuoteBrief({ container }: ExecArgs) {
           steps: [
             fabric,
             {
-              label: "Screen or block print", technique: "block_print",
+              label: "Screen or block print", technique: "block_print", lead_days: 8,
               choices: [
                 { partner_id: bodhi.id, sample_ids: [sBodhiScreen.id, sBodhiBlock.id], note: "Screen print or hand block, eco pigments" },
                 { partner_id: aarohi.id, sample_ids: [sAarohi.id], note: "Hand block print" },

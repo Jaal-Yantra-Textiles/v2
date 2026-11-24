@@ -28,6 +28,12 @@ const PartnerQuoteBriefStep = model.define("partner_quote_brief_step", {
 
   note: model.text().nullable(),
 
+  /**
+   * Our estimate of this step's days for the order, used when the partner's
+   * rate has no `lead_days` (most prod rates don't yet). Null = unknown.
+   */
+  lead_days: model.number().nullable(),
+
   /** The buyer's pick when more than one partner can do the step. */
   selected_choice_id: model.text().nullable(),
 

@@ -16,6 +16,8 @@ const StepSchema = z.object({
   technique: z.enum(TECHNIQUE_SLUGS).optional().nullable(),
   qty_per_piece: z.number().positive().optional().nullable(),
   note: z.string().optional().nullable(),
+  /** Days for this step on the order, when the rate doesn't say. */
+  lead_days: z.number().int().positive().max(365).optional().nullable(),
   /** Empty = "we're exploring partners for this". */
   choices: z.array(ChoiceSchema).default([]),
 })
@@ -56,6 +58,7 @@ export const AdminCreateQuoteBriefReq = z.object({
   destination_country_code: z.string().length(2),
   currency_code: z.string().length(3).optional(),
   sample_quantity: z.number().int().positive().optional().nullable(),
+  sample_days: z.number().int().positive().max(365).optional().nullable(),
   customer_id: z.string().optional().nullable(),
   buyer_email: z.string().email().optional().nullable(),
   recipient_name: z.string().optional().nullable(),
@@ -70,6 +73,7 @@ export const AdminUpdateQuoteBriefReq = z.object({
   title: z.string().min(1).optional(),
   intro: z.string().optional().nullable(),
   sample_quantity: z.number().int().positive().optional().nullable(),
+  sample_days: z.number().int().positive().max(365).optional().nullable(),
   status: z.enum(["draft", "open", "submitted", "sampling", "quoted", "closed"]).optional(),
   quote_id: z.string().optional().nullable(),
 })

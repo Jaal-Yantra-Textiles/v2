@@ -13,6 +13,10 @@ import { PARTNER_CAPABILITY_MODULE } from "../../partner_capability"
 import { getTechnique } from "../../partner_capability/lib/techniques"
 import { attachCapabilityMedia } from "../../../workflows/partner/capability-media"
 import { fetchExchangeRate } from "../../../lib/fx/exchange-rate"
+import { loadPartnerProfile } from "../../../api/store/custom/partners/profile-lib/load-profile"
+import { timelineOption } from "./brief-timeline"
+import { houseStorefrontOrigin } from "./quote-link"
+import { producerStorefrontUrl } from "./quote-producer"
 
 const STALE_AFTER_DAYS = 180
 
@@ -272,7 +276,11 @@ export const buildBriefView = async (
   const [partners, rates, samples] = await Promise.all([
     partnerIds.length
       ? query
-          .graph({ entity: "partners", fields: ["id", "name", "handle"], filters: { id: partnerIds } })
+          .graph({
+            entity: "partners",
+            fields: ["id", "name", "handle", "is_public", "status", "storefront_domain", "custom_domain", "custom_domain_verified"],
+            filters: { id: partnerIds },
+          })
           .then((r: any) => r.data as any[])
       : [],
     rateIds.length ? capability.listPartnerCapabilityRates({ id: rateIds }) : [],
@@ -283,11 +291,55 @@ export const buildBriefView = async (
       : [],
   ])
   const partnerById = new Map<string, any>((partners as any[]).map((p) => [p.id, p]))
+
+  /**
+   * The workshops' PUBLIC profiles (#2444) — only partners who switched
+   * `is_public` on; everyone else is shown by name only. Links: their page on
+   * our main storefront, and their own store when they have one.
+   */
+  const country = String(opts.country ?? brief.destination_country_code ?? "").toLowerCase()
+  const houseOrigin = houseStorefrontOrigin()
+  const profileById = new Map<string, any>()
+  {
+    const offered = new Set<string>(choices.map((c: any) => c.partner_id))
+    await Promise.all(
+      [...partnerById.values()]
+        .filter((p) => offered.has(p.id))
+        .map(async (p) => {
+          const store_url = (() => {
+            try {
+              return producerStorefrontUrl(p)
+            } catch {
+              return null
+            }
+          })()
+          let profile: any = null
+          if (p.is_public && p.handle) {
+            profile = await loadPartnerProfile(container, p.handle, []).catch(() => null)
+          }
+          profileById.set(p.id, {
+            store_url,
+            profile_url: profile && houseOrigin && country ? `${houseOrigin}/${country}/partners/${encodeURIComponent(p.handle)}` : null,
+            tagline: profile?.tagline ?? null,
+            about: profile?.about ? String(profile.about).slice(0, 400) : null,
+            cover_image: profile?.cover_image ?? null,
+            logo: profile?.logo ?? null,
+            team_size: profile?.team_size ?? null,
+            roles: profile?.roles ?? [],
+            pieces_made: profile?.making?.pieces_made ?? 0,
+            making_since: profile?.making?.making_since ?? null,
+            photos: (profile?.capabilities ?? []).flatMap((c: any) => (c.images ?? []).map((i: any) => i.url)).slice(0, 6),
+          })
+        })
+    )
+  }
   const rateById = new Map<string, any>((rates as any[]).map((r) => [r.id, r]))
   const sampleById = new Map<string, any>((samples as any[]).map((s) => [s.id, s]))
 
   const questions = [...(brief.questions ?? [])].sort(byPosition)
   const quantity = quantityAnswer(questions)
+  const deadlineRaw = questions.find((q: any) => q.key === "deadline")?.answer
+  const deadlineAnswer = typeof deadlineRaw === "string" ? deadlineRaw : null
   const now = new Date()
 
   const optionViews = options.map((o: any) => {
@@ -297,7 +349,12 @@ export const buildBriefView = async (
         const partner = partnerById.get(c.partner_id)
         return {
           id: c.id,
-          partner: { id: c.partner_id, name: partner?.name?.trim() || "Partner workshop", handle: partner?.handle ?? null },
+          partner: {
+            id: c.partner_id,
+            name: partner?.name?.trim() || "Partner workshop",
+            handle: partner?.handle ?? null,
+            ...(profileById.get(c.partner_id) ?? { store_url: null, profile_url: null, photos: [], roles: [] }),
+          },
           note: c.note ?? null,
           estimate: estimateChoice(rate, s.qty_per_piece, now),
           samples: (Array.isArray(c.sample_ids) ? c.sample_ids : [])
@@ -319,6 +376,7 @@ export const buildBriefView = async (
         technique: s.technique ?? null,
         technique_label: getTechnique(s.technique)?.label ?? null,
         qty_per_piece: s.qty_per_piece ?? null,
+        lead_days: s.lead_days ?? null,
         note: s.note ?? null,
         selected_choice_id: s.selected_choice_id ?? null,
         /** none = "we're exploring partners"; ask = partners but no figure yet. */
@@ -337,6 +395,7 @@ export const buildBriefView = async (
       buyer_selected: !!o.buyer_selected,
       steps,
       estimate: estimateOption(steps, brief.currency_code, quantity),
+      timeline: timelineOption(steps as any, brief.sample_days ?? null, deadlineAnswer, now),
       story: {
         headline: o.story ?? null,
         points: steps
@@ -387,6 +446,7 @@ export const buildBriefView = async (
     currency_code: fx.display_currency,
     fx,
     sample_quantity: brief.sample_quantity ?? null,
+    sample_days: brief.sample_days ?? null,
     submitted_at: brief.submitted_at ?? null,
     expires_at: brief.expires_at ?? null,
     estimate_disclaimer: ESTIMATE_DISCLAIMER,

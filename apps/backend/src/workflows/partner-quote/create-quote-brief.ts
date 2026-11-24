@@ -86,6 +86,7 @@ const createQuoteBriefStep = createStep(
       destination_country_code: input.destination_country_code.toLowerCase(),
       currency_code: (input.currency_code ?? "inr").toLowerCase(),
       sample_quantity: input.sample_quantity ?? null,
+      sample_days: input.sample_days ?? null,
       customer_id: input.customer_id ?? null,
       buyer_email: input.buyer_email ?? null,
       recipient_name: input.recipient_name ?? null,
@@ -113,6 +114,7 @@ const createQuoteBriefStep = createStep(
             technique: s.technique ?? null,
             qty_per_piece: s.qty_per_piece ?? null,
             note: s.note ?? null,
+            lead_days: s.lead_days ?? null,
           })
           if (s.choices.length) {
             await service.createPartnerQuoteBriefChoices(

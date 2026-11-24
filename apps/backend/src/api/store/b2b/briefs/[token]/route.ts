@@ -1,5 +1,5 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/framework/utils"
 
 import { PARTNER_QUOTE_MODULE } from "../../../../../modules/partner-quote"
 import { BriefAnswerError, missingRequired, validateBriefAnswer } from "../../../../../modules/partner-quote/lib/brief-answers"
@@ -147,9 +147,27 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const fresh = await service.retrievePartnerQuoteBrief(brief.id)
   const view = await buildBriefView(req.scope, brief.id, { audience: "buyer", country: countryOf(req) })
+  if (!view) throw new MedusaError(MedusaError.Types.NOT_FOUND, "Brief not found")
 
-  // CRM intake on send. Never fails her send: the brief is already saved.
+  // Tell the team (admin feed) and file it in the CRM. Neither may fail her
+  // send: the brief is already saved.
   if (body.submit) {
+    try {
+      const picked = view.options.filter((o: any) => o.buyer_selected).map((o: any) => o.title)
+      await req.scope.resolve(Modules.NOTIFICATION).createNotifications({
+        to: "",
+        channel: "feed",
+        template: "admin-ui",
+        data: {
+          title: `${brief.submitted_at ? "Brief updated" : "Brief sent"}: ${brief.title}`,
+          description: `${brief.recipient_name || "The buyer"} ${brief.submitted_at ? "changed" : "sent"} their brief (${picked.join(", ") || "no style picked"}).`,
+          url: `/app/quotes/briefs/${brief.id}`,
+          metadata: { kind: "quote_brief_submitted", brief_id: brief.id, resubmitted: !!brief.submitted_at },
+        },
+      })
+    } catch (e: any) {
+      req.scope.resolve(ContainerRegistrationKeys.LOGGER).error(`[brief] feed notification failed for ${brief.id}: ${e?.message ?? e}`)
+    }
     try {
       await recordBriefInCrm(req.scope, fresh, view)
     } catch (e: any) {

@@ -144,3 +144,39 @@ describe("summariseBrief (#2608)", () => {
     expect(text).toContain("How many? 40")
   })
 })
+
+import { timelineOption } from "../brief-timeline"
+
+describe("timelineOption (#2608)", () => {
+  const now = new Date("2026-11-25T00:00:00Z")
+  const step = (label: string, lead: number | null, choiceLeads: (number | null)[], state: any = "estimated", picked: string | null = null) => ({
+    label, state, lead_days: lead, selected_choice_id: picked,
+    choices: choiceLeads.map((d, i) => ({ id: `${label}${i}`, estimate: d == null ? null : { lead_days: d } })),
+  })
+
+  it("adds steps in sequence and ranges across partners until she picks", () => {
+    const t = timelineOption([step("Fabric", 7, [null, null]), step("Paint", null, [10, 14])], 14, null, now)
+    expect([t.production_low, t.production_high]).toEqual([17, 21])
+    expect(t.ready_low).toBe("2026-12-26")
+    expect(t.ready_high).toBe("2026-12-30")
+    expect(t.verdict).toBeNull()
+  })
+  it("uses her pick", () => {
+    const t = timelineOption([step("Paint", null, [10, 14], "estimated", "Paint1")], 14, null, now)
+    expect([t.production_low, t.production_high]).toEqual([14, 14])
+  })
+  it("never says on track while a step is unknown", () => {
+    const t = timelineOption([step("Fabric", 7, [null]), step("Leather", null, [], "exploring")], 14, "2027-06-01", now)
+    expect(t.unknown_steps).toEqual(["Leather"])
+    expect(t.verdict).toBe("unknown")
+    expect(t.ready_high).toBeNull()
+  })
+  it("says too soon when even the known part misses her date", () => {
+    const t = timelineOption([step("Fabric", 20, [null]), step("Leather", null, [], "exploring")], 14, "2026-12-10", now)
+    expect(t.verdict).toBe("too_soon")
+  })
+  it("on track with a week to spare, tight without", () => {
+    expect(timelineOption([step("F", 10, [null])], 14, "2027-01-10", now).verdict).toBe("on_track")
+    expect(timelineOption([step("F", 10, [null])], 14, "2026-12-22", now).verdict).toBe("tight")
+  })
+})

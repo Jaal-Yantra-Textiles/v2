@@ -47,6 +47,8 @@ const PartnerQuoteBrief = model.define("partner_quote_brief", {
 
   /** How many pieces the first sample run makes (e.g. 4), or null for no sample stage. */
   sample_quantity: model.number().nullable(),
+  /** Our estimate: days from her brief to sample photos. Null = not said. */
+  sample_days: model.number().nullable(),
 
   /**
    * draft → open (link minted) → submitted (buyer sent answers) → sampling

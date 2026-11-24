@@ -20,11 +20,11 @@ import {
  * Can be started from a quote draft: ?partner_id=&country=&buyer_email=&recipient_name=
  */
 type ChoiceDraft = { partner_id: string; partner_name: string; rate_id: string | null; sample_ids: string[]; note: string }
-type StepDraft = { key: string; label: string; technique: string; kind: "fabric" | "process"; qty_per_piece: string; note: string; choices: ChoiceDraft[] }
+type StepDraft = { key: string; label: string; technique: string; kind: "fabric" | "process"; qty_per_piece: string; lead_days: string; note: string; choices: ChoiceDraft[] }
 type OptionDraft = { key: string; title: string; description: string; story: string; steps: StepDraft[] }
 
 const k = () => Math.random().toString(36).slice(2)
-const newStep = (): StepDraft => ({ key: k(), label: "", technique: "", kind: "process", qty_per_piece: "", note: "", choices: [] })
+const newStep = (): StepDraft => ({ key: k(), label: "", technique: "", kind: "process", qty_per_piece: "", lead_days: "", note: "", choices: [] })
 const newOption = (): OptionDraft => ({ key: k(), title: "", description: "", story: "", steps: [newStep()] })
 
 const CreateBriefPage = () => {
@@ -44,6 +44,7 @@ const CreateBriefPage = () => {
     buyer_email: params.get("buyer_email") ?? "",
     destination_country_code: params.get("country") ?? "",
     sample_quantity: "4",
+    sample_days: "14",
   })
   const [options, setOptions] = useState<OptionDraft[]>([newOption()])
 
@@ -66,6 +67,7 @@ const CreateBriefPage = () => {
       intro: head.intro.trim() || null,
       destination_country_code: head.destination_country_code.trim().toLowerCase(),
       sample_quantity: head.sample_quantity ? Number(head.sample_quantity) : null,
+      sample_days: head.sample_days ? Number(head.sample_days) : null,
       buyer_email: head.buyer_email.trim() || null,
       recipient_name: head.recipient_name.trim() || null,
       recipient_company: head.recipient_company.trim() || null,
@@ -78,6 +80,7 @@ const CreateBriefPage = () => {
           kind: s.kind,
           technique: s.technique || null,
           qty_per_piece: s.qty_per_piece ? Number(s.qty_per_piece) : null,
+          lead_days: s.lead_days ? Number(s.lead_days) : null,
           note: s.note.trim() || null,
           choices: s.choices.map((c) => ({ partner_id: c.partner_id, rate_id: c.rate_id, sample_ids: c.sample_ids, note: c.note.trim() || null })),
         })),
@@ -135,6 +138,7 @@ const CreateBriefPage = () => {
             placeholder="au"
           />
           <Field label="Sample pieces first" value={head.sample_quantity} onChange={(v) => setHead({ ...head, sample_quantity: v })} type="number" />
+          <Field label="Days to sample photos (our estimate)" value={head.sample_days} onChange={(v) => setHead({ ...head, sample_days: v })} type="number" />
         </div>
         <div className="flex flex-col gap-1">
           <Label>Intro (shown on the welcome screen)</Label>
@@ -228,7 +232,7 @@ const StepEditor = ({
           </Button>
         )}
       </div>
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-5">
         <div className="flex flex-col gap-1">
           <Label>Technique</Label>
           <Select value={step.technique} onValueChange={(v) => onChange({ technique: v, choices: [], label: step.label || (techniques.data?.techniques.find((t) => t.slug === v)?.label ?? "") })}>
@@ -246,6 +250,7 @@ const StepEditor = ({
         </div>
         <Field label="Label the buyer sees" value={step.label} onChange={(v) => onChange({ label: v })} placeholder="Bag stitching" />
         <Field label="Units per piece (e.g. 0.6 m)" value={step.qty_per_piece} onChange={(v) => onChange({ qty_per_piece: v })} type="number" />
+        <Field label="Days for the order (if the rate has none)" value={step.lead_days} onChange={(v) => onChange({ lead_days: v })} type="number" />
         <Field label="Note" value={step.note} onChange={(v) => onChange({ note: v })} />
       </div>
       {step.technique && (
