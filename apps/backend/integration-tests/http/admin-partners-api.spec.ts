@@ -100,6 +100,22 @@ setupSharedTestSuite(({ api, getContainer }) => {
       expect(invited.status).toBe(201)
       const relisted = await api.get(`/admin/partners/${partnerId}/admins`, adminHeaders)
       expect(relisted.data.admins).toHaveLength(1)
+
+      // A missing surname is a 400 that says what to send, not a bare 500
+      // (2026-11-24). An empty surname is allowed.
+      const noSurname = await api
+        .post(`/admin/partners/${partnerId}/admins`, { email: `nosurname-${unique}@jyt.test`, first_name: "Akshit" }, adminHeaders)
+        .catch((e) => e.response)
+      expect(noSurname.status).toBe(400)
+      expect(noSurname.data.message).toMatch(/last_name/)
+      expect(noSurname.data.message).toMatch(/empty string/)
+
+      const emptySurname = await api.post(
+        `/admin/partners/${partnerId}/admins`,
+        { email: `emptysurname-${unique}@jyt.test`, first_name: "Akshit", last_name: "" },
+        adminHeaders
+      )
+      expect(emptySurname.status).toBe(201)
     })
 
     test("POST /admin/partners without a handle derives partner_<name-slug>", async () => {
