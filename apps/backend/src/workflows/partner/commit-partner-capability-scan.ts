@@ -26,7 +26,7 @@ import { safeFetch } from "../../lib/website-scan/safe-fetch"
 import type { ScanProposal } from "../../lib/website-scan/types"
 import { MEDIA_MODULE } from "../../modules/media"
 import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
-import { normalizeTechnique } from "../../modules/partner_capability/lib/techniques"
+import { sampleTechniqueSlug } from "../../modules/partner_capability/lib/techniques"
 import { linkCapabilityRows } from "./capability-index-links"
 import { normalizeCapabilityActions } from "../../modules/partner_capability/lib/actions"
 import { uploadAndOrganizeMediaWorkflow } from "../media/upload-and-organize-media"
@@ -169,7 +169,7 @@ const commitProposalsStep = createStep(
           title: s.title,
           product_type: s.product_type,
           technique: s.technique,
-          technique_slug: normalizeTechnique(s.technique),
+          technique_slug: sampleTechniqueSlug(s.technique, s.actions),
           material: s.material,
           actions: normalizeCapabilityActions(s.actions),
           notes: s.notes,

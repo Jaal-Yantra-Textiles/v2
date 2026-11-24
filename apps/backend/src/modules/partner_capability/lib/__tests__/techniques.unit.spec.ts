@@ -1,5 +1,5 @@
 import { CAPABILITY_ACTIONS } from "../actions"
-import { getTechnique, normalizeTechnique, TECHNIQUES } from "../techniques"
+import { getTechnique, normalizeTechnique, sampleTechniqueSlug, TECHNIQUES } from "../techniques"
 
 describe("normalizeTechnique (#2596)", () => {
   it.each([
@@ -57,5 +57,26 @@ describe("technique vocabulary", () => {
         seen.set(a, t.slug)
       }
     }
+  })
+})
+
+describe("sampleTechniqueSlug (#2606)", () => {
+
+  it("drops a weave technique on a stitch-only sample (Prince Tailors' tangaliya skirt)", () => {
+    expect(sampleTechniqueSlug("tangaliya", ["stitch"])).toBeNull()
+  })
+
+  it("keeps the technique when the partner did that work", () => {
+    expect(sampleTechniqueSlug("tangaliya", ["weave"])).toBe("handloom_weaving")
+    expect(sampleTechniqueSlug("hand block print", ["print", "stitch"])).toBe("block_print")
+  })
+
+  it("keeps the technique when no actions are recorded", () => {
+    expect(sampleTechniqueSlug("handloom", [])).toBe("handloom_weaving")
+    expect(sampleTechniqueSlug("handloom", null)).toBe("handloom_weaving")
+  })
+
+  it("is null for a technique outside the vocabulary", () => {
+    expect(sampleTechniqueSlug("embroidered", ["stitch"])).toBeNull()
   })
 })

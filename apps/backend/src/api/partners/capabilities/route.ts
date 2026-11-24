@@ -2,7 +2,7 @@ import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework"
 import { MedusaError } from "@medusajs/framework/utils"
 
 import { PARTNER_CAPABILITY_MODULE } from "../../../modules/partner_capability"
-import { normalizeTechnique } from "../../../modules/partner_capability/lib/techniques"
+import { sampleTechniqueSlug } from "../../../modules/partner_capability/lib/techniques"
 import { linkCapabilityRows } from "../../../workflows/partner/capability-index-links"
 import { getPartnerFromAuthContext } from "../helpers"
 import { resolveMediaFiles } from "../media-urls"
@@ -117,7 +117,7 @@ export const POST = async (
     partner_id: partner.id,
     title: body.title,
     technique: body.technique ?? null,
-    technique_slug: normalizeTechnique(body.technique),
+    technique_slug: sampleTechniqueSlug(body.technique, null),
     material: body.material ?? null,
     media_file_ids: body.media_file_ids?.length ? body.media_file_ids : null,
     notes: body.notes ?? null,

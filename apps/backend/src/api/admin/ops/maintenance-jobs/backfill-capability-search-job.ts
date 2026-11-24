@@ -3,7 +3,7 @@ import { z } from "@medusajs/framework/zod"
 
 import { PARTNER_MODULE } from "../../../../modules/partner"
 import { PARTNER_CAPABILITY_MODULE } from "../../../../modules/partner_capability"
-import { normalizeTechnique } from "../../../../modules/partner_capability/lib/techniques"
+import { normalizeTechnique, sampleTechniqueSlug } from "../../../../modules/partner_capability/lib/techniques"
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
@@ -11,9 +11,13 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  * built findable: map `technique` onto the vocabulary (`technique_slug`) and
  * write the partner ↔ sample link the index engine reads.
  *
- * Idempotent: a sample already linked / already mapped is left alone. A
+ * Idempotent: a sample already linked / correctly mapped is left alone. A
  * technique that maps to nothing stays null and is listed, so the operator
  * can see which words the vocabulary is missing.
+ *
+ * Also CORRECTS a slug that contradicts what the partner did (#2606): a
+ * stitch-only "Tangaliya cotton skirt" had handloom_weaving and made a
+ * tailor look like a weaver. Such a slug is cleared, and says why.
  */
 const paramsSchema = z.object({
   partner_id: z.string().min(1).optional(),
@@ -24,7 +28,7 @@ export const backfillCapabilitySearchJob: MaintenanceJob = {
   id: "backfill-capability-search",
   label: "Make existing capability samples searchable",
   description:
-    "For partner capability samples created before #2596: set technique_slug from the free-text technique (vocabulary match; unmatched words are reported, not guessed) and create the missing partner ↔ sample link so the index-backed capability search and recipes find them. Already-done rows are skipped. Optionally scope to one partner_id.",
+    "For partner capability samples created before #2596: set technique_slug from the free-text technique (vocabulary match; unmatched words are reported, not guessed; a slug that contradicts the sample's actions — e.g. a stitch-only sample tagged weaving — is cleared) and create the missing partner ↔ sample link so the index-backed capability search and recipes find them. Already-done rows are skipped. Optionally scope to one partner_id.",
   params: [
     { name: "partner_id", type: "string", required: false, description: "Only this partner's samples" },
     { name: "limit", type: "number", required: false, description: "Max samples to scan (default 1000, max 5000)" },
@@ -41,7 +45,7 @@ export const backfillCapabilitySearchJob: MaintenanceJob = {
 
     const { data: samples } = await query.graph({
       entity: "partner_capability_sample",
-      fields: ["id", "partner_id", "technique", "technique_slug", "partner.id"],
+      fields: ["id", "partner_id", "technique", "technique_slug", "actions", "partner.id"],
       filters: partner_id ? { partner_id } : {},
       pagination: { take: limit },
     })
@@ -52,12 +56,16 @@ export const backfillCapabilitySearchJob: MaintenanceJob = {
 
     for (const s of samples as any[]) {
       try {
-        const slug = s.technique_slug ?? normalizeTechnique(s.technique)
-        if (!s.technique_slug && slug) {
-          changes.push({ entity: "partner_capability_sample", id: s.id, field: "technique_slug", before: null, after: slug, note: `technique "${s.technique}"` })
+        const slug = sampleTechniqueSlug(s.technique, s.actions)
+        const before = s.technique_slug ?? null
+        if (slug !== before) {
+          const note = slug
+            ? `technique "${s.technique}"`
+            : `technique "${s.technique}" is not what the partner did (actions: ${(s.actions ?? []).join(", ")})`
+          changes.push({ entity: "partner_capability_sample", id: s.id, field: "technique_slug", before, after: slug, note })
           if (!dry_run) await service.updatePartnerCapabilitySamples({ id: s.id, technique_slug: slug })
         }
-        if (!slug && s.technique) unmapped.set(s.technique, (unmapped.get(s.technique) ?? 0) + 1)
+        if (s.technique && !normalizeTechnique(s.technique)) unmapped.set(s.technique, (unmapped.get(s.technique) ?? 0) + 1)
 
         if (!s.partner?.id) {
           changes.push({ entity: "partner_capability_sample", id: s.id, field: "partner_link", before: "missing", after: s.partner_id })
