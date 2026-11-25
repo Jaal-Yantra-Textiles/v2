@@ -132,6 +132,18 @@ export const useColumns = () => {
   );
 };
 
+/** Filter ids on this table; each is one URL param. */
+const DESIGN_FILTER_KEYS = [
+  "design_type",
+  "status",
+  "priority",
+  "tags",
+  "partner_id",
+  "created_at",
+  "target_completion_date",
+] as const;
+const DESIGNS_PAGE_SIZE = 10;
+
 const DesignsPage = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -168,12 +180,93 @@ const DesignsPage = () => {
     </div>
   );
 
-  const [pagination, setPagination] = useState<DataTablePaginationState>({
-    pageSize: 10,
-    pageIndex: 0,
-  });
-  const [filtering, setFiltering] = useState<DataTableFilteringState>({});
-  const [search, setSearch] = useState<string>("");
+  /**
+   * Table state lives in the URL (filters, search, sort, page), so a reload
+   * or a shared link opens the same view. Same param names the saved-views
+   * sync already wrote: each filter by its id (arrays/objects as JSON),
+   * `name` for search, plus `order`, `page` and `limit`.
+   */
+  const updateParams = useCallback(
+    (mutate: (p: URLSearchParams) => void) =>
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          mutate(next);
+          return next;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
+
+  const filtering = useMemo<DataTableFilteringState>(() => {
+    const state: DataTableFilteringState = {};
+    for (const key of DESIGN_FILTER_KEYS) {
+      const raw = searchParams.get(key);
+      if (raw === null) continue;
+      try {
+        state[key] = JSON.parse(raw);
+      } catch {
+        state[key] = raw;
+      }
+    }
+    return state;
+  }, [searchParams]);
+  const search = searchParams.get("name") ?? "";
+  const pagination: DataTablePaginationState = {
+    pageIndex: Math.max(0, (parseInt(searchParams.get("page") || "1", 10) || 1) - 1),
+    pageSize: Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || String(DESIGNS_PAGE_SIZE), 10) || DESIGNS_PAGE_SIZE)),
+  };
+  const sorting = useMemo(() => {
+    const order = searchParams.get("order")
+    if (!order) return null
+    const [id, dir] = order.split(":")
+    return id ? { id, desc: dir === "DESC" } : null
+  }, [searchParams]);
+
+  /** Any filter change goes back to page 1. */
+  const setFiltering = useCallback(
+    (next: DataTableFilteringState) =>
+      updateParams((p) => {
+        DESIGN_FILTER_KEYS.forEach((k) => p.delete(k));
+        for (const [k, v] of Object.entries(next)) {
+          // Kept as the table hands it over, empty included: a just-added
+          // filter chip has no value yet and must survive the round trip
+          // through the URL, or it vanishes before you can pick one.
+          if (v === undefined || v === null) continue;
+          p.set(k, typeof v === "string" ? v : JSON.stringify(v));
+        }
+        p.delete("page");
+      }),
+    [updateParams],
+  );
+  const setSearch = useCallback(
+    (next: string) =>
+      updateParams((p) => {
+        if (next) p.set("name", next);
+        else p.delete("name");
+        p.delete("page");
+      }),
+    [updateParams],
+  );
+  const setPagination = useCallback(
+    (next: DataTablePaginationState) =>
+      updateParams((p) => {
+        if (next.pageIndex > 0) p.set("page", String(next.pageIndex + 1));
+        else p.delete("page");
+        if (next.pageSize !== DESIGNS_PAGE_SIZE) p.set("limit", String(next.pageSize));
+        else p.delete("limit");
+      }),
+    [updateParams],
+  );
+  const setSorting = useCallback(
+    (next: { id: string; desc: boolean } | null) =>
+      updateParams((p) => {
+        if (next?.id) p.set("order", `${next.id}:${next.desc ? "DESC" : "ASC"}`);
+        else p.delete("order");
+      }),
+    [updateParams],
+  );
   const [selectedViewId, setSelectedViewId] = useState("default");
   const [initializedFromView, setInitializedFromView] = useState(false);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
@@ -186,7 +279,6 @@ const DesignsPage = () => {
     search: "",
   });
   const [tableUiResetKey, setTableUiResetKey] = useState(0);
-  const [sorting, setSorting] = useState<{ id: string; desc: boolean } | null>(null);
 
   const [rowSelection, setRowSelection] = useState<DataTableRowSelectionState>({});
   const [isRecreateDrawerOpen, setIsRecreateDrawerOpen] = useState(false);
@@ -252,6 +344,14 @@ const DesignsPage = () => {
       // Apply filtering only for known fields
       ...(Object.keys(filtering).length > 0
         ? Object.entries(filtering).reduce((acc, [key, value]) => {
+            // A chip with no value picked yet filters nothing.
+            if (
+              value === "" ||
+              (Array.isArray(value) && value.length === 0) ||
+              (typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).length === 0)
+            ) {
+              return acc;
+            }
             if (key === "design_type") {
               acc.design_type = value as AdminDesign["design_type"];
             } else if (key === "status") {
@@ -433,42 +533,7 @@ const DesignsPage = () => {
     }),
   ];
 
-  const filterIds = useMemo(() => filters.map((filter) => filter.id), [filters]);
 
-  const syncFiltersToSearchParams = useCallback(
-    (filtersState: DataTableFilteringState, searchValue?: string) => {
-      setSearchParams((prev) => {
-        const next = new URLSearchParams(prev);
-        filterIds.forEach((filterId) => next.delete(filterId));
-        next.delete("offset");
-
-        Object.entries(filtersState).forEach(([key, value]) => {
-          if (
-            value === undefined ||
-            value === null ||
-            (typeof value === "string" && value.trim() === "") ||
-            (Array.isArray(value) && value.length === 0) ||
-            (typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === 0)
-          ) {
-            next.delete(key);
-            return;
-          }
-          const stringValue =
-            typeof value === "string" ? value : JSON.stringify(value);
-          next.set(key, stringValue);
-        });
-
-        if (searchValue) {
-          next.set("name", searchValue);
-        } else {
-          next.delete("name");
-        }
-
-        return next;
-      });
-    },
-    [filterIds, setSearchParams],
-  );
 
   const normalizeFilteringState = useCallback(
     (state: DataTableFilteringState) => {
@@ -496,9 +561,17 @@ const DesignsPage = () => {
     ) => {
       const nextFilters = config?.filters || {};
       const nextSearch = config?.search || "";
-      setFiltering(nextFilters);
-      setSearch(nextSearch);
-      syncFiltersToSearchParams(nextFilters, nextSearch);
+      // One URL write for both, so neither overwrites the other.
+      updateParams((p) => {
+        DESIGN_FILTER_KEYS.forEach((k) => p.delete(k));
+        for (const [k, v] of Object.entries(nextFilters)) {
+          if (v === undefined || v === null || (Array.isArray(v) && v.length === 0) || v === "") continue;
+          p.set(k, typeof v === "string" ? v : JSON.stringify(v));
+        }
+        if (nextSearch) p.set("name", nextSearch);
+        else p.delete("name");
+        p.delete("page");
+      });
       setTableUiResetKey((prev) => prev + 1);
 
       if (options?.setBaseline) {
@@ -508,14 +581,24 @@ const DesignsPage = () => {
         });
       }
     },
-    [normalizeFilteringState, syncFiltersToSearchParams],
+    [normalizeFilteringState, updateParams],
   );
 
   useEffect(() => {
     if (!currentActiveView || initializedFromView) {
       return;
     }
-    applyViewConfiguration(currentActiveView.configuration, { setBaseline: true });
+    // A link that already carries filters/search opens as shared, not
+    // overwritten by the viewer's saved view.
+    const urlHasState = DESIGN_FILTER_KEYS.some((k) => searchParams.has(k)) || searchParams.has("name");
+    if (urlHasState) {
+      setBaselineConfiguration({
+        filters: normalizeFilteringState(currentActiveView.configuration?.filters || {}),
+        search: currentActiveView.configuration?.search || "",
+      });
+    } else {
+      applyViewConfiguration(currentActiveView.configuration, { setBaseline: true });
+    }
     setInitializedFromView(true);
   }, [applyViewConfiguration, currentActiveView, initializedFromView]);
 
