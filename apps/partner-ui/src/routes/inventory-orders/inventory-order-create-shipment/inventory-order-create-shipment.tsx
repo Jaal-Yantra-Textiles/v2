@@ -45,6 +45,7 @@ const InventoryOrderCreateShipmentContent = () => {
   const [height, setHeight] = useState("")
   const [courier, setCourier] = useState("")
   const [pickupDate, setPickupDate] = useState("")
+  const [pickupTime, setPickupTime] = useState("14:00")
   const [rates, setRates] = useState<PartnerShiprocketRateOption[] | null>(null)
 
   const { mutateAsync, isPending } =
@@ -94,12 +95,20 @@ const InventoryOrderCreateShipmentContent = () => {
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(dims() ? { dimensions_cm: dims() } : {}),
         ...(courier ? { preferred_courier_id: courier } : {}),
-        ...(pickupDate ? { pickup_date: pickupDate } : {}),
+        ...(pickupDate ? { pickup_date: pickupDate, pickup_time: pickupTime || "14:00" } : {}),
       },
       {
         onSuccess: (data) => {
           const awb = data?.shipment?.awb || data?.shipment?.tracking_number
           toast.success(awb ? `Shipment created — AWB ${awb}` : "Shipment created")
+          const sh = data?.shipment || {}
+          if (sh.pickup?.scheduled_date) {
+            toast.success(`Pickup booked for ${sh.pickup.scheduled_date} at ${pickupTime}`)
+          } else if (sh.pickup_error) {
+            // The carrier refused the pickup; the shipment itself is fine.
+            toast.warning(`Pickup not booked: ${sh.pickup_error}. Book it from the shipment below.`)
+          }
+          if (sh.label_url) window.open(sh.label_url, "_blank", "noopener")
           if (unifiedOrderId) {
             queryClient.invalidateQueries({
               queryKey: ordersQueryKeys.detail(unifiedOrderId),
@@ -236,9 +245,25 @@ const InventoryOrderCreateShipmentContent = () => {
             onChange={(d) => setPickupDate(d ? toYMD(d) : "")}
           />
           <Text size="xsmall" className="text-ui-fg-subtle">
-            Optional — leave blank to let the courier pick the earliest slot.
+            Optional — leave blank to book the pickup later from the shipment.
           </Text>
         </div>
+        {pickupDate && (
+          <div className="flex flex-col gap-y-1">
+            <Label size="small" htmlFor="pickup_time">
+              Pickup time
+            </Label>
+            <Input
+              id="pickup_time"
+              type="time"
+              value={pickupTime}
+              onChange={(e) => setPickupTime(e.target.value)}
+            />
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              When the courier should come. Delhivery needs a time.
+            </Text>
+          </div>
+        )}
         {!id && (
           <Text size="small" className="text-ui-fg-subtle">
             Missing inventory order id.

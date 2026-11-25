@@ -267,9 +267,13 @@ struct InventoryOrderDetailView: View {
             if let link = shipment.tracking_url.flatMap(URL.init(string:)) {
               Link("Track", destination: link).font(.footnote)
             }
-            if let link = shipment.label_url.flatMap(URL.init(string:)) {
-              Link("Label", destination: link).font(.footnote)
-            }
+          }
+          if shipment.status != "cancelled",
+             !((shipment.awb ?? shipment.tracking_number) ?? "").isEmpty {
+            InventoryShipmentActions(
+              orderID: orderID,
+              shipmentID: shipment.id,
+              hasPickup: !(shipment.pickup_scheduled_date ?? "").isEmpty)
           }
         }
         .padding(.vertical, 2)

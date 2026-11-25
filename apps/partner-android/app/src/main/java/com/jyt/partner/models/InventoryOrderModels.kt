@@ -238,6 +238,8 @@ data class CreateShipmentBody(
     @SerialName("preferred_courier_id") val preferredCourierId: String? = null,
     /** "YYYY-MM-DD". */
     @SerialName("pickup_date") val pickupDate: String? = null,
+    /** "HH:mm" — Delhivery won't book a pickup without one (server default 14:00). */
+    @SerialName("pickup_time") val pickupTime: String? = null,
 ) {
     @Serializable
     data class Dimensions(
@@ -259,7 +261,38 @@ data class CreatedShipment(
     @SerialName("tracking_url") val trackingUrl: String? = null,
     @SerialName("label_url") val labelUrl: String? = null,
     val pickup: Pickup? = null,
+    /** The shipment row id — for fetching a fresh label or booking the pickup later. */
+    @SerialName("shipment_id") val shipmentId: String? = null,
+    /** Why the requested pickup was NOT booked, in the carrier's words. */
+    @SerialName("pickup_error") val pickupError: String? = null,
 ) {
     @Serializable
     data class Pickup(@SerialName("scheduled_date") val scheduledDate: String? = null)
 }
+
+/** GET /partners/inventory-orders/:id/shipments/:shipmentId/label — a fresh link (Delhivery's lasts 24h). */
+@Serializable
+data class ShipmentLabel(
+    @SerialName("label_url") val labelUrl: String? = null,
+    val format: String? = null,
+    @SerialName("expires_in_hours") val expiresInHours: Int? = null,
+)
+
+/** POST /partners/inventory-orders/:id/shipments/:shipmentId/pickup. */
+@Serializable
+data class BookPickupBody(
+    @SerialName("pickup_date") val pickupDate: String,
+    @SerialName("pickup_time") val pickupTime: String,
+)
+
+@Serializable
+data class BookPickupResponse(val pickup: PickupBooking)
+
+@Serializable
+data class PickupBooking(
+    val scheduled: Boolean = false,
+    @SerialName("pickup_date") val pickupDate: String? = null,
+    @SerialName("pickup_time") val pickupTime: String? = null,
+    /** The carrier's reason when it refused. */
+    val reason: String? = null,
+)

@@ -643,9 +643,21 @@ export class DelhiveryClient {
     return res.json()
   }
 
-  async getLabel(waybill: string): Promise<any> {
+  /**
+   * The packing slip (shipping label). `pdf: true` returns
+   * `packages[0].pdf_download_link`, a signed S3 URL that EXPIRES AFTER 24 HOURS
+   * — fetch a fresh one each time a label is asked for, never store it as the
+   * label. Without `pdf` the response is raw JSON meant for custom rendering.
+   */
+  async getLabel(
+    waybill: string,
+    opts: { pdf?: boolean; pdf_size?: "A4" | "4R" } = {}
+  ): Promise<any> {
+    const qs = new URLSearchParams({ wbns: waybill })
+    if (opts.pdf) qs.set("pdf", "true")
+    if (opts.pdf_size) qs.set("pdf_size", opts.pdf_size)
     const res = await this.fetch_(
-      `${this.baseUrl}/api/p/packing_slip?wbns=${waybill}`,
+      `${this.baseUrl}/api/p/packing_slip?${qs.toString()}`,
       { headers: this.headers() }
     )
     if (!res.ok) throw new Error(`Delhivery label fetch failed (${res.status})`)

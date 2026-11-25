@@ -34,6 +34,7 @@
 		5A1000000000000000000049 /* ProfitShareSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002B /* ProfitShareSheet.swift */; };
 		5A100000000000000000004A /* DesignsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002C /* DesignsView.swift */; };
 		5A100000000000000000004B /* InventoryShipmentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002D /* InventoryShipmentSheet.swift */; };
+		5A10000000000000000000F1 /* InventoryShipmentActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A10000000000000000000F2 /* InventoryShipmentActions.swift */; };
 		5A100000000000000000004C /* IncomingDeliveriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A100000000000000000002E /* IncomingDeliveriesView.swift */; };
 /* End PBXBuildFile section */
 
@@ -63,6 +64,7 @@
 		5A1000000000000000000027 /* InventoryOrdersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrdersView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000028 /* InventoryOrderDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryOrderDetailView.swift; sourceTree = "<group>"; };
 		5A100000000000000000002D /* InventoryShipmentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryShipmentSheet.swift; sourceTree = "<group>"; };
+		5A10000000000000000000F2 /* InventoryShipmentActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InventoryShipmentActions.swift; sourceTree = "<group>"; };
 		5A100000000000000000002E /* IncomingDeliveriesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomingDeliveriesView.swift; sourceTree = "<group>"; };
 		5A1000000000000000000029 /* JYTPartner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = JYTPartner.entitlements; sourceTree = "<group>"; };
 		5A100000000000000000002A /* ProfitShareModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfitShareModels.swift; sourceTree = "<group>"; };
@@ -138,6 +140,7 @@
 				5A100000000000000000002B /* ProfitShareSheet.swift */,
 				5A100000000000000000002C /* DesignsView.swift */,
 				5A100000000000000000002D /* InventoryShipmentSheet.swift */,
+				5A10000000000000000000F2 /* InventoryShipmentActions.swift */,
 				5A100000000000000000002E /* IncomingDeliveriesView.swift */,
 			);
 			path = Views;
@@ -241,6 +244,7 @@
 				5A1000000000000000000049 /* ProfitShareSheet.swift in Sources */,
 				5A100000000000000000004A /* DesignsView.swift in Sources */,
 				5A100000000000000000004B /* InventoryShipmentSheet.swift in Sources */,
+				5A10000000000000000000F1 /* InventoryShipmentActions.swift in Sources */,
 				5A100000000000000000004C /* IncomingDeliveriesView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

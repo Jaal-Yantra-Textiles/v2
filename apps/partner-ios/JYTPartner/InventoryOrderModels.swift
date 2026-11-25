@@ -248,6 +248,8 @@ struct CreateInventoryShipmentBody: Codable {
   var preferred_courier_id: String?
   /// "YYYY-MM-DD".
   var pickup_date: String?
+  /// "HH:mm" — Delhivery won't book a pickup without one (server default 14:00).
+  var pickup_time: String?
 }
 
 /// The workflow's result (create-inventory-order-shipment.ts): the
@@ -261,6 +263,34 @@ struct CreatedInventoryShipment: Codable, Hashable {
   var tracking_url: String?
   var label_url: String?
   var pickup: Pickup?
+  /// The shipment row id — fetch a fresh label or book the pickup later with it.
+  var shipment_id: String?
+  /// Why the requested pickup was NOT booked, in the carrier's words.
+  var pickup_error: String?
+}
+
+/// GET …/shipments/:id/label — a fresh link (Delhivery's PDF lasts 24 hours).
+struct InventoryShipmentLabel: Codable {
+  var label_url: String?
+  var format: String?
+  var expires_in_hours: Int?
+}
+
+struct BookInventoryPickupBody: Codable {
+  var pickup_date: String
+  var pickup_time: String
+}
+
+struct InventoryPickupBooking: Codable {
+  var scheduled: Bool
+  var pickup_date: String?
+  var pickup_time: String?
+  /// The carrier's reason when it refused.
+  var reason: String?
+}
+
+struct BookInventoryPickupResponse: Codable {
+  let pickup: InventoryPickupBooking
 }
 
 struct CreateInventoryShipmentResponse: Codable {

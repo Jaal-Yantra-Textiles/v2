@@ -63,6 +63,29 @@ function assertDomestic(country: string | undefined, action: string): void {
   )
 }
 
+/** "Name × qty" per line, joined; capped so a long order cannot overflow the field. */
+export const delhiveryProductDesc = (items: CreateShipmentInput["items"]): string => {
+  const text = (items || [])
+    .map((i) => (Number(i.quantity) > 1 ? `${i.name} × ${Number(i.quantity)}` : i.name))
+    .filter(Boolean)
+    .join(", ")
+  return text.length > 250 ? `${text.slice(0, 247)}...` : text
+}
+
+/**
+ * Value of what is actually in the box: Σ unit_price × quantity of the items
+ * shipped (a partial shipment declares only its share), else the caller's
+ * sub_total. Never sends 0 when either is known.
+ */
+export const delhiveryDeclaredValue = (input: CreateShipmentInput): number | undefined => {
+  const fromItems = (input.items || []).reduce(
+    (s, i) => s + (Number(i.unit_price) || 0) * (Number(i.quantity) || 0),
+    0
+  )
+  const value = fromItems > 0 ? fromItems : Number(input.sub_total) || 0
+  return value > 0 ? Math.round(value * 100) / 100 : undefined
+}
+
 export class DelhiveryProviderAdapter implements ShippingProviderClient {
   readonly carrier = "delhivery"
   private client: DelhiveryClient
@@ -122,7 +145,13 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
       payment_mode: input.payment_mode === "cod" ? "COD" : "Pre-paid",
       cod_amount: input.payment_mode === "cod" ? input.cod_amount : 0,
       pickup_location_name: input.pickup_location_name,
-      product_desc: input.product_description || input.items.map((i) => i.name).join(", "),
+      // Itemised: each line with its quantity, so the label and manifest say
+      // what is in the box ("6PLY White 36in × 111"), not just a name list.
+      product_desc: input.product_description || delhiveryProductDesc(input.items),
+      // 🔴 The declared value. It was never sent, so every shipment through this
+      // adapter (inventory orders, transfers) showed ₹0.00 on Delhivery's label
+      // and dashboard. Same defect #83 fixed for the sales-order fulfillment path.
+      total_amount: delhiveryDeclaredValue(input),
       weight: input.weight_grams,
       quantity: input.items.reduce((s, i) => s + i.quantity, 0),
       length: input.dimensions_cm?.length,
@@ -155,11 +184,18 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
   async getLabel(ref: ShipmentRef): Promise<LabelResult> {
     const waybill = ref.awb || ref.provider_refs?.waybill
     if (!waybill) throw new Error("Delhivery getLabel requires a waybill")
-    const slip = await this.client.getLabel(waybill)
-    return {
-      label_url: `https://www.delhivery.com/track/package/${waybill}`,
-      raw: slip,
-    }
+    // The printable PDF. Its link is signed for 24 hours only (see client).
+    // No link → fall back to the public tracking page, as before, so callers
+    // always get something to open; `format` says which one it is.
+    const slip = await this.client.getLabel(waybill, { pdf: true })
+    const pdf = slip?.packages?.[0]?.pdf_download_link
+    return pdf
+      ? { label_url: pdf, format: "pdf", raw: slip }
+      : {
+          label_url: `https://www.delhivery.com/track/package/${waybill}`,
+          format: "tracking_page",
+          raw: slip,
+        }
   }
 
   async track(ref: ShipmentRef): Promise<TrackingResult> {

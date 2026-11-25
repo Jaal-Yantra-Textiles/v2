@@ -288,6 +288,17 @@ fun InventoryOrderDetailScreen(
                                 shipment.pickupScheduledDate?.takeIf { it.isNotBlank() }?.let {
                                     StatRow("Pickup", formatYmd(it))
                                 }
+                                val shipmentId = shipment.id
+                                if (shipmentId != null && shipment.status != "cancelled" &&
+                                    !(shipment.awb ?: shipment.trackingNumber).isNullOrBlank()
+                                ) {
+                                    ShipmentActions(
+                                        orderId = orderId,
+                                        shipmentId = shipmentId,
+                                        hasPickup = !shipment.pickupScheduledDate.isNullOrBlank(),
+                                        onPickupBooked = { scope.launch { load() } },
+                                    )
+                                }
                             }
                         }
                     }

@@ -167,6 +167,9 @@ const lineName = (l: InventoryOrderLineForShipment): string => {
     m.name ||
     m.description ||
     l.material_name ||
+    // The linked inventory item's own title — before this, a line with no
+    // metadata or material name (most lines) went out as "Inventory item".
+    (l as any).item_title ||
     m.sku ||
     l.sku ||
     "Inventory item") as string

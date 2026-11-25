@@ -5,6 +5,10 @@ import android.util.Log
 import com.jyt.partner.BuildConfig
 import com.jyt.partner.TokenStore
 import com.jyt.partner.models.AttachMediaBody
+import com.jyt.partner.models.BookPickupBody
+import com.jyt.partner.models.BookPickupResponse
+import com.jyt.partner.models.PickupBooking
+import com.jyt.partner.models.ShipmentLabel
 import com.jyt.partner.models.CreatePaymentSubmissionBody
 import com.jyt.partner.models.PartnerPaymentsResponse
 import com.jyt.partner.models.PayableRunsResponse
@@ -572,6 +576,24 @@ class PartnerApi private constructor(
                     .toRequestBody("application/json".toMediaType())
             ).build()
         return decodeBody<CreateShipmentResponse>(execute(request)).shipment
+    }
+
+    /** A fresh printable label for a shipment (Delhivery's PDF link expires after 24h). */
+    suspend fun inventoryShipmentLabel(orderId: String, shipmentId: String): ShipmentLabel =
+        get("partners/inventory-orders/$orderId/shipments/$shipmentId/label")
+
+    /** Book the courier pickup for a shipment that has none yet. */
+    suspend fun bookInventoryShipmentPickup(
+        orderId: String,
+        shipmentId: String,
+        body: BookPickupBody,
+    ): PickupBooking {
+        val request = baseRequest("partners/inventory-orders/$orderId/shipments/$shipmentId/pickup")
+            .post(
+                json.encodeToString(BookPickupBody.serializer(), body)
+                    .toRequestBody("application/json".toMediaType())
+            ).build()
+        return decodeBody<BookPickupResponse>(execute(request)).pickup
     }
 
     // ── Incoming deliveries (#2286) ──────────────────────────────────────
