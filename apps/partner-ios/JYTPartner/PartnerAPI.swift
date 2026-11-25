@@ -329,6 +329,22 @@ actor PartnerAPI {
     return response.shipment
   }
 
+  /// A fresh printable label for a shipment (Delhivery's link expires after 24h).
+  func inventoryShipmentLabel(orderID: String, shipmentID: String) async throws -> InventoryShipmentLabel {
+    try await get(path: "partners/inventory-orders/\(orderID)/shipments/\(shipmentID)/label")
+  }
+
+  /// Book the courier pickup for a shipment that has none yet.
+  func bookInventoryShipmentPickup(
+    orderID: String, shipmentID: String, body: BookInventoryPickupBody
+  ) async throws -> InventoryPickupBooking {
+    let response: BookInventoryPickupResponse = try await post(
+      path: "partners/inventory-orders/\(orderID)/shipments/\(shipmentID)/pickup",
+      json: try JSONEncoder().encode(body)
+    )
+    return response.pickup
+  }
+
   // MARK: - Incoming deliveries (#2286)
   // Goods delivered TO this partner's warehouse, whoever supplies them —
   // the receiving side of inventory orders (no prices).

@@ -1,8 +1,12 @@
-import { Container, Heading, StatusBadge, Text } from "@medusajs/ui"
+import { Button, Container, DatePicker, Heading, Input, StatusBadge, Text, toast } from "@medusajs/ui"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 
 import { useDate } from "../../hooks/use-date"
+import {
+  useBookInventoryShipmentPickup,
+  useInventoryShipmentLabel,
+} from "../../hooks/api/partner-inventory-orders"
 import { getStatusBadgeColor } from "../../lib/status-badge"
 import { getStylizedAmount } from "../../lib/money-amount-helpers"
 
@@ -249,10 +253,88 @@ const ShipmentTrackingHistory = ({
  * carrier shipments the partner generated (AWB · carrier · pickup · label),
  * reading the first-class shipment rows the detail endpoint now returns.
  */
+const ymd = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+/**
+ * Label + pickup for one shipment. The label is fetched fresh on tap (Delhivery's
+ * PDF link lasts 24h); a shipment with no pickup yet can book one here.
+ */
+const ShipmentActions = ({ orderId, shipment }: { orderId: string; shipment: Record<string, any> }) => {
+  const { t } = useTranslation()
+  const label = useInventoryShipmentLabel(orderId)
+  const book = useBookInventoryShipmentPickup(orderId)
+  const [open, setOpen] = useState(false)
+  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
+  const [date, setDate] = useState(ymd(tomorrow))
+  const [time, setTime] = useState("14:00")
+  const status = String(shipment.status || "").toLowerCase()
+  if (!shipment.awb || status === "cancelled") return null
+  const canBook = status === "created" || !shipment.pickup_scheduled_date
+
+  const openLabel = async () => {
+    try {
+      const res = await label.mutateAsync(String(shipment.id))
+      window.open(res.label_url, "_blank", "noopener")
+    } catch (e: any) {
+      toast.error(e?.message || t("partner.workOrders.labelUnavailable"))
+    }
+  }
+  const submit = async () => {
+    try {
+      const res = await book.mutateAsync({ shipmentId: String(shipment.id), pickup_date: date, pickup_time: time })
+      if (res.pickup.scheduled) {
+        toast.success(t("partner.workOrders.pickupBooked", { date: res.pickup.pickup_date, time: res.pickup.pickup_time }))
+        setOpen(false)
+      } else {
+        toast.error(t("partner.workOrders.pickupNotBooked", { reason: res.pickup.reason }))
+      }
+    } catch (e: any) {
+      toast.error(e?.message)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button size="small" variant="secondary" onClick={openLabel} isLoading={label.isPending}>
+          {t("partner.workOrders.downloadLabel")}
+        </Button>
+        {canBook && !open && (
+          <Button size="small" variant="secondary" onClick={() => setOpen(true)}>
+            {t("partner.workOrders.bookPickup")}
+          </Button>
+        )}
+      </div>
+      {open && (
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="flex flex-col gap-y-1">
+            <Text size="xsmall" className="text-ui-fg-subtle">{t("partner.workOrders.pickupDate")}</Text>
+            <DatePicker
+              value={new Date(`${date}T00:00:00`)}
+              onChange={(d) => d && setDate(ymd(d))}
+            />
+          </div>
+          <div className="flex flex-col gap-y-1">
+            <Text size="xsmall" className="text-ui-fg-subtle">{t("partner.workOrders.pickupTime")}</Text>
+            <Input type="time" size="small" value={time} onChange={(e) => setTime(e.target.value)} />
+          </div>
+          <Button size="small" onClick={submit} isLoading={book.isPending}>
+            {t("partner.workOrders.bookPickup")}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export const InventoryShipmentsSection = ({
   shipments,
+  orderId,
 }: {
   shipments: Array<Record<string, any>>
+  /** The inventory order id; enables the label and pickup actions. */
+  orderId?: string
 }) => {
   const { t } = useTranslation()
   const { getFullDate } = useDate()
@@ -301,9 +383,14 @@ export const InventoryShipmentsSection = ({
                     : ""}
                 </Text>
                 <ShipmentTrackingHistory shipment={s} />
+                {orderId && (
+                  <div className="mt-2">
+                    <ShipmentActions orderId={orderId} shipment={s} />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-x-3">
-                {s.label_url && (
+                {s.label_url && !orderId && (
                   <a
                     href={s.label_url}
                     target="_blank"

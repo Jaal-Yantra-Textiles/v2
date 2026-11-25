@@ -46,6 +46,8 @@ const bodySchema = z.object({
   // Requested carrier pickup date ("YYYY-MM-DD"). Optional — omit to let
   // Shiprocket pick the earliest slot.
   pickup_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // "HH:mm". Delhivery will not book a pickup without one (default 14:00).
+  pickup_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
 });
 
 export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
@@ -77,6 +79,7 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
       preferredCourierId: parsed.data.preferred_courier_id,
       deliveredQuantities: parsed.data.delivered_quantities,
       pickupDate: parsed.data.pickup_date,
+      pickupTime: parsed.data.pickup_time,
       // Record the acting admin's email as the Shiprocket pickup contact
       // rather than falling back to the generic account email.
       actingEmail: await resolveActorEmail(req),

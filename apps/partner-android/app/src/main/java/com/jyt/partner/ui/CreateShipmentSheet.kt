@@ -110,6 +110,7 @@ fun CreateShipmentSheet(
     val todayEpochDay = remember { LocalDate.now().toEpochDay() }
     // Optional pickup (web parity) — null lets the courier pick the earliest slot.
     var pickupEpochDay by rememberSaveable { mutableStateOf<Long?>(null) }
+    var pickupTime by rememberSaveable { mutableStateOf("14:00") }
     var showDatePicker by remember { mutableStateOf(false) }
 
     var rates by remember { mutableStateOf<List<ShippingRate>?>(null) }
@@ -164,10 +165,12 @@ fun CreateShipmentSheet(
                 val done = created
                 if (done != null) {
                     ShipmentCreatedView(
+                        orderId = orderId,
                         shipment = done,
                         carrierLabel = carrier.label,
                         requestedPickup = pickupYmd,
                         onDone = onDismiss,
+                        onPickupBooked = onCreated,
                     )
                     return@Column
                 }
@@ -345,10 +348,22 @@ fun CreateShipmentSheet(
                         Text(pickupYmd?.let { formatYmd(it) } ?: "Choose pickup date (optional)")
                     }
                     Text(
-                        "Optional — leave blank to let the courier pick the earliest slot.",
+                        "Optional — leave blank to book the pickup later from the shipment.",
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (pickupYmd != null) {
+                        Text("Pickup time", fontWeight = FontWeight.SemiBold)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            PICKUP_TIMES.forEachIndexed { index, slot ->
+                                SegmentedButton(
+                                    selected = pickupTime == slot,
+                                    onClick = { pickupTime = slot },
+                                    shape = SegmentedButtonDefaults.itemShape(index, PICKUP_TIMES.size),
+                                ) { Text(slot, fontSize = 12.sp) }
+                            }
+                        }
+                    }
 
                     submitError?.let {
                         Text(it, fontSize = 13.sp, color = MaterialTheme.colorScheme.error)
@@ -372,6 +387,7 @@ fun CreateShipmentSheet(
                                             dimensionsCm = dims,
                                             preferredCourierId = courierId,
                                             pickupDate = pickupYmd,
+                                            pickupTime = if (pickupYmd != null) pickupTime else null,
                                         ),
                                     )
                                     onCreated()
@@ -436,10 +452,12 @@ fun CreateShipmentSheet(
 /** The booking confirmation — the AWB is what the partner writes on the parcel. */
 @Composable
 private fun ShipmentCreatedView(
+    orderId: String,
     shipment: CreatedShipment,
     carrierLabel: String,
     requestedPickup: String?,
     onDone: () -> Unit,
+    onPickupBooked: () -> Unit,
 ) {
     val uriHandler = LocalUriHandler.current
     Column(
@@ -462,20 +480,31 @@ private fun ShipmentCreatedView(
         }
         val scheduled = shipment.pickup?.scheduledDate?.takeIf { it.isNotBlank() }
         when {
-            scheduled != null -> StatRow("Pickup scheduled", formatYmd(scheduled))
-            requestedPickup != null -> {
-                StatRow("Pickup requested", formatYmd(requestedPickup))
-                Text(
-                    "The carrier hasn't confirmed the pickup slot yet.",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            else -> Text(
-                "The carrier will confirm the pickup slot.",
+            scheduled != null -> StatRow("Pickup booked", formatYmd(scheduled))
+            shipment.pickupError != null -> Text(
+                "Pickup not booked: ${shipment.pickupError}. Book it below.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.error,
+            )
+            requestedPickup == null -> Text(
+                "No pickup yet — book one below when the parcel is packed.",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+        // The label to print and stick on the parcel, and the pickup if it isn't booked.
+        shipment.shipmentId?.let { id ->
+            ShipmentActions(
+                orderId = orderId,
+                shipmentId = id,
+                hasPickup = scheduled != null,
+                onPickupBooked = onPickupBooked,
+            )
+        } ?: shipment.labelUrl?.takeIf { it.startsWith("http") }?.let { url ->
+            OutlinedButton(
+                onClick = { runCatching { uriHandler.openUri(url) } },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Open label") }
         }
         shipment.trackingUrl?.takeIf { it.startsWith("http") }?.let { url ->
             OutlinedButton(

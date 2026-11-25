@@ -301,7 +301,36 @@ export type PartnerCreateShipmentPayload = {
   delivered_quantities?: Record<string, number>
   /** Requested carrier pickup date ("YYYY-MM-DD"). */
   pickup_date?: string
+  /** "HH:mm" — Delhivery will not book a pickup without one (server default 14:00). */
+  pickup_time?: string
 }
+
+/**
+ * A fresh printable label for a shipment. Delhivery's PDF link expires after
+ * 24 hours, so this is fetched on tap rather than read from the shipment row.
+ */
+export const useInventoryShipmentLabel = (orderId: string) =>
+  useMutation<{ label_url: string; format: string | null; expires_in_hours: number | null }, FetchError, string>({
+    mutationFn: (shipmentId) =>
+      sdk.client.fetch(`/partners/inventory-orders/${orderId}/shipments/${shipmentId}/label`),
+  })
+
+export type BookPickupResult = {
+  pickup: { scheduled: boolean; pickup_date: string | null; pickup_time: string | null; reason: string | null }
+}
+
+/** Book (or retry) the courier pickup for an existing shipment. */
+export const useBookInventoryShipmentPickup = (orderId: string) =>
+  useMutation<BookPickupResult, FetchError, { shipmentId: string; pickup_date: string; pickup_time?: string }>({
+    mutationFn: ({ shipmentId, ...body }) =>
+      sdk.client.fetch(`/partners/inventory-orders/${orderId}/shipments/${shipmentId}/pickup`, {
+        method: "POST",
+        body,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: partnerInventoryOrdersQueryKeys.detail(orderId) })
+    },
+  })
 
 export const useCreatePartnerInventoryOrderShipment = (
   orderId: string,

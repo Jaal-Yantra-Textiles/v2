@@ -17,6 +17,8 @@ import {
   registerShiprocketPickup,
 } from "../../modules/shipping-providers/pickup-locations"
 import { resolvePlatformTaxIdForCountry } from "../../modules/shipping-providers/seller-tax-id"
+import { carrierPickupMetadataKey, ensureCarrierPickup } from "../../modules/shipping-providers/carrier-pickups"
+import { DEFAULT_SHIPMENT_PICKUP_TIME } from "./lib/inventory-shipment-actions"
 import {
   originAddressFromLocation,
   resolveOriginAddress,
@@ -85,6 +87,8 @@ export type CreateInventoryOrderShipmentInput = {
    * picks the earliest slot.
    */
   pickupDate?: string
+  /** "HH:mm" for the pickup; Delhivery needs one. Defaults to DEFAULT_SHIPMENT_PICKUP_TIME. */
+  pickupTime?: string
   /**
    * Declared value for the contents line synthesised when a SAMPLE order has no
    * lines yet (#2009). Falls back to the order's `metadata.declared_value`, then
@@ -148,11 +152,33 @@ export async function createInventoryOrderShipment(
   // from the from_location, so quoted origin and real origin agree.
   let pickupLocationName: string | undefined
   const pickupStockLocationId = input.pickupStockLocationId || fromLocation?.id
+  // 🔴 The pickup is the CARRIER's registry entry: Delhivery's warehouse name
+  // for Delhivery, Shiprocket's nickname for Shiprocket. This used to read and
+  // register Shiprocket's for every carrier, so a Delhivery shipment named a
+  // warehouse Delhivery may never have heard of (it only worked where the two
+  // registries happen to share a name).
+  const usesShiprocketRegistry = !carrierPickupMetadataKey(carrier) || carrier === "shiprocket"
   if (input.pickupStockLocationId) {
-    const reg = await registerShiprocketPickup(container, input.pickupStockLocationId, {
-      email: input.actingEmail,
-    })
-    pickupLocationName = reg.name
+    pickupLocationName = usesShiprocketRegistry
+      ? (await registerShiprocketPickup(container, input.pickupStockLocationId, {
+          email: input.actingEmail,
+        })).name
+      : await ensureCarrierPickup(container, carrier, input.pickupStockLocationId, {
+          email: input.actingEmail,
+          metadata: fromLocation?.id === input.pickupStockLocationId ? fromLocation.metadata : null,
+        })
+  } else if (fromLocation && !usesShiprocketRegistry) {
+    try {
+      pickupLocationName = await ensureCarrierPickup(container, carrier, fromLocation.id, {
+        email: input.actingEmail,
+        metadata: fromLocation.metadata,
+      })
+    } catch (e: any) {
+      throw new MedusaError(
+        MedusaError.Types.INVALID_DATA,
+        `The order's source location "${fromLocation.name || fromLocation.id}" could not be registered as a ${carrier} pickup: ${e?.message}. Complete its address (phone + pincode), then retry.`
+      )
+    }
   } else if (fromLocation) {
     const recordedNickname = (fromLocation.metadata as any)?.[
       SHIPROCKET_PICKUP_METADATA_KEY
@@ -220,17 +246,20 @@ export async function createInventoryOrderShipment(
   try {
     const { data: rows } = await query.graph({
       entity: "inventory_orders",
-      fields: ["orderlines.id", "orderlines.inventory_items.sku"],
+      fields: ["orderlines.id", "orderlines.inventory_items.sku", "orderlines.inventory_items.title"],
       filters: { id: order.id },
     })
     const skuByLine = new Map<string, string>()
+    const titleByLine = new Map<string, string>()
     for (const ol of rows?.[0]?.orderlines || []) {
-      const sku = (ol?.inventory_items || [])[0]?.sku
-      if (ol?.id && sku) skuByLine.set(String(ol.id), String(sku))
+      const item = (ol?.inventory_items || [])[0]
+      if (ol?.id && item?.sku) skuByLine.set(String(ol.id), String(item.sku))
+      if (ol?.id && item?.title) titleByLine.set(String(ol.id), String(item.title))
     }
     orderlines = orderlines.map((l) => ({
       ...l,
       sku: l.sku ?? skuByLine.get(String(l.id)) ?? null,
+      item_title: titleByLine.get(String(l.id)) ?? null,
     }))
   } catch {
     // best-effort — name-based distinctness (material_name + colour) still holds
@@ -279,19 +308,40 @@ export async function createInventoryOrderShipment(
   // Schedule the carrier pickup for the requested date (best-effort — the
   // shipment already exists; a scheduling hiccup must not fail the whole call).
   let pickup: { scheduled_date?: string; token?: string } | undefined
+  // Why a requested pickup did NOT get booked, in the carrier's words. Before
+  // this the error was swallowed and the shipment still claimed the date.
+  let pickupError: string | undefined
   if (input.pickupDate && provider.schedulePickup) {
     try {
       const scheduled = await provider.schedulePickup({
         pickup_location_name: pickupLocationName,
         ref: { awb: result.awb, provider_refs: result.provider_refs },
         pickup_date: input.pickupDate,
+        // Delhivery refuses a pickup without a time; Shiprocket ignores it.
+        pickup_time: input.pickupTime || DEFAULT_SHIPMENT_PICKUP_TIME,
+        expected_package_count: 1,
+        from: shipmentInput.from,
       })
       pickup = {
-        scheduled_date: scheduled.scheduled_date,
+        scheduled_date: scheduled.scheduled_date ?? input.pickupDate,
         token: scheduled.token,
       }
+    } catch (e: any) {
+      pickupError = e?.message ? String(e.message) : "The carrier did not accept the pickup."
+    }
+  }
+
+  // The label, straight away, for carriers whose create call doesn't return one
+  // (Delhivery). Its link is signed for 24h, so screens fetch a fresh one via
+  // the shipment label route; this copy is for the success screen.
+  if (!result.label_url && provider.getLabel && result.awb) {
+    try {
+      const label = await provider.getLabel({ awb: result.awb, provider_refs: result.provider_refs } as any)
+      if (label?.label_url && (label as any).format !== "tracking_page") {
+        result.label_url = label.label_url
+      }
     } catch {
-      // non-fatal — operator can reschedule from the carrier dashboard
+      // the label route can fetch it later
     }
   }
 
@@ -310,7 +360,7 @@ export async function createInventoryOrderShipment(
       label_url: result.label_url ?? null,
       pickup_location_name: pickupLocationName,
       pickup_stock_location_id: pickupStockLocationId ?? null,
-      pickup_scheduled_date: pickup?.scheduled_date ?? input.pickupDate ?? null,
+      pickup_scheduled_date: pickup?.scheduled_date ?? null,
       status: pickup ? "pickup_scheduled" : "created",
       weight_grams: input.weightGrams ?? null,
       dimensions_cm: input.dimensionsCm ?? null,
@@ -379,7 +429,12 @@ export async function createInventoryOrderShipment(
     },
   })
 
-  return { ...result, ...(pickup ? { pickup } : {}) }
+  return {
+    ...result,
+    ...(shipmentRecordId ? { shipment_id: shipmentRecordId } : {}),
+    ...(pickup ? { pickup } : {}),
+    ...(pickupError ? { pickup_error: pickupError } : {}),
+  } as ShipmentResult
 }
 
 const createInventoryOrderShipmentStep = createStep(

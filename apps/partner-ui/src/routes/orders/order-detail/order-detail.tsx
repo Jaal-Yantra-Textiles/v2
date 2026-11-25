@@ -313,6 +313,7 @@ export const OrderDetail = () => {
                 />
                 <InventoryShipmentsSection
                   shipments={((inventoryOrder as any).shipments ?? []) as Array<Record<string, any>>}
+                  orderId={(inventoryOrder as any).id}
                 />
               </>
             )}

@@ -30,6 +30,7 @@ struct CreateInventoryShipmentSheet: View {
   @State private var breadth = ""
   @State private var height = ""
   @State private var pickupDate = Self.tomorrow
+  @State private var pickupTime = "14:00"
 
   @State private var rates: [InventoryShippingRate]?
   @State private var selectedCourierID: String?
@@ -140,6 +141,10 @@ struct CreateInventoryShipmentSheet: View {
           in: Calendar.current.startOfDay(for: Date())...,
           displayedComponents: .date
         )
+        Picker("Pickup time", selection: $pickupTime) {
+          ForEach(inventoryPickupTimes, id: \.self) { Text($0).tag($0) }
+        }
+        .pickerStyle(.segmented)
       }
 
       if let submitError {
@@ -212,13 +217,25 @@ struct CreateInventoryShipmentSheet: View {
           }
         }
         if let pickup = shipment.pickup?.scheduled_date, !pickup.isEmpty {
-          LabeledContent("Pickup", value: pickup)
+          LabeledContent("Pickup booked", value: "\(pickup) at \(pickupTime)")
+        } else if let reason = shipment.pickup_error {
+          Label("Pickup not booked: \(reason). Book it below.", systemImage: "exclamationmark.triangle")
+            .font(.footnote)
+            .foregroundStyle(.red)
         }
         if let link = shipment.tracking_url.flatMap(URL.init(string:)) {
           Link("Track shipment", destination: link)
         }
-        if let link = shipment.label_url.flatMap(URL.init(string:)) {
+        if shipment.shipment_id == nil, let link = shipment.label_url.flatMap(URL.init(string:)) {
           Link("Open label", destination: link)
+        }
+      }
+      if let shipmentID = shipment.shipment_id {
+        Section("Label and pickup") {
+          InventoryShipmentActions(
+            orderID: orderID,
+            shipmentID: shipmentID,
+            hasPickup: !(shipment.pickup?.scheduled_date ?? "").isEmpty)
         }
       }
     }
@@ -275,7 +292,8 @@ struct CreateInventoryShipmentSheet: View {
           weight_grams: weightGrams,
           dimensions_cm: dimensions,
           preferred_courier_id: selectedCourierID,
-          pickup_date: Self.ymd.string(from: pickupDate)))
+          pickup_date: Self.ymd.string(from: pickupDate),
+          pickup_time: pickupTime))
       created = shipment
       NotificationCenter.default.post(name: .inventoryOrderDidMutate, object: nil)
       onDone()

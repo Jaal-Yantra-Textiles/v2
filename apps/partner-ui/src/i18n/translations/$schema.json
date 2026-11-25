@@ -13218,6 +13218,27 @@
             "upcomingPickup": {
               "type": "string"
             },
+            "downloadLabel": {
+              "type": "string"
+            },
+            "bookPickup": {
+              "type": "string"
+            },
+            "pickupDate": {
+              "type": "string"
+            },
+            "pickupTime": {
+              "type": "string"
+            },
+            "pickupBooked": {
+              "type": "string"
+            },
+            "pickupNotBooked": {
+              "type": "string"
+            },
+            "labelUnavailable": {
+              "type": "string"
+            },
             "trackingHistory": {
               "type": "string"
             },
@@ -13455,6 +13476,13 @@
             "pickupFrom",
             "trackingLabel",
             "upcomingPickup",
+            "downloadLabel",
+            "bookPickup",
+            "pickupDate",
+            "pickupTime",
+            "pickupBooked",
+            "pickupNotBooked",
+            "labelUnavailable",
             "trackingHistory",
             "payments",
             "noPayments",
