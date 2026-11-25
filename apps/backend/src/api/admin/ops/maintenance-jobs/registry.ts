@@ -29,6 +29,7 @@ import partnerRegionLink from "../../../../links/partner-region"
 import designPartnersLink from "../../../../links/design-partners-link"
 import designLineItemLink from "../../../../links/design-line-item-link"
 import { resolveDesignThumbnail } from "../../../../lib/design-thumbnail"
+import { isDesignOutlineUrl, resolveDesignImage } from "../../../../lib/design-outline"
 import partnerStockLocationLink from "../../../../links/partner-stock-location"
 import propagateRegionToPartnersWorkflow from "../../../../workflows/regions/propagate-region-to-partners"
 import { PARTNER_MODULE } from "../../../../modules/partner"
@@ -6421,7 +6422,7 @@ export const backfillDesignOrderCartThumbnailsJob: MaintenanceJob = {
   id: "backfill-design-order-cart-thumbnails",
   label: "Backfill design-order cart thumbnails",
   description:
-    "Set each design-order CART line item's thumbnail from its design, using the same resolver the partner order list uses (a media file flagged isThumbnail, then metadata.thumbnail, then the first usable media file, then the moodboard's first scene image, skipping formats an <img> cannot decode). Dry-run previews the before/after without persisting; apply writes them back and is idempotent. By default only fills EMPTY thumbnails — set force=true to overwrite. COMPLETED carts are skipped: that cart is an order's paper trail. Scans up to 'limit' links per call (default 500, max 2000).",
+    "Set each design-order CART line item's thumbnail from its design, using the same resolver the partner order list uses (a media file flagged isThumbnail, then metadata.thumbnail, then the first usable media file, then the moodboard's first scene image, skipping formats an <img> cannot decode), and when the design has none of those, its garment outline icon (shirt, trouser, dress…). An outline already on a line is replaced once the design has a real picture. Dry-run previews the before/after without persisting; apply writes them back and is idempotent. By default only fills EMPTY thumbnails — set force=true to overwrite. COMPLETED carts are skipped: that cart is an order's paper trail. Scans up to 'limit' links per call (default 500, max 2000).",
   params: [
     {
       name: "force",
@@ -6471,6 +6472,7 @@ export const backfillDesignOrderCartThumbnailsJob: MaintenanceJob = {
           fields: [
             "id",
             "name",
+            "product_type",
             "thumbnail_url",
             "media_files",
             "moodboard",
@@ -6513,16 +6515,17 @@ export const backfillDesignOrderCartThumbnailsJob: MaintenanceJob = {
         }
 
         const existing = String(lineItem.thumbnail ?? "").trim()
-        if (existing && !force) {
+        // A garment outline is a stand-in, never a choice: it is replaced as
+        // soon as the design has a real picture, force or not.
+        if (existing && !force && !isDesignOutlineUrl(existing)) {
           alreadySet++
           continue
         }
 
-        const resolved = resolveDesignThumbnail(designById[String(link.design_id)])
-        if (!resolved) {
-          noPicture++
-          continue
-        }
+        const design = designById[String(link.design_id)]
+        // No picture of its own → its garment outline, so no line stays blank.
+        if (!resolveDesignThumbnail(design)) noPicture++
+        const resolved = resolveDesignImage(design)
         if (resolved === existing) {
           alreadySet++
           continue
@@ -6552,7 +6555,7 @@ export const backfillDesignOrderCartThumbnailsJob: MaintenanceJob = {
       summary:
         `${dry_run ? "Would set" : "Set"} ${changes.length} cart line thumbnail(s) ` +
         `across ${scanned} design line(s) scanned; ${alreadySet} already correct; ` +
-        `${noPicture} design(s) have no picture; ${skippedCompleted} skipped as completed` +
+        `${noPicture} use a garment outline (no picture yet); ${skippedCompleted} skipped as completed` +
         (errors.length ? `; ${errors.length} error(s)` : "") + ".",
       changes,
       ...(errors.length ? { errors } : {}),

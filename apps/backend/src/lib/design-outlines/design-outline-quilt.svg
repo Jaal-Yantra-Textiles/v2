@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600">
+<rect width="600" height="600" fill="#f6f3ec"/>
+<g transform="translate(150 120) scale(1.171875)" fill="#4f7f8c"><path d="M216,74H30V48a6,6,0,0,0-12,0V208a6,6,0,0,0,12,0V174H242v34a6,6,0,0,0,12,0V112A38,38,0,0,0,216,74ZM30,86h76v76H30Zm88,76V86h98a26,26,0,0,1,26,26v50Z"/></g>
+<text x="300" y="540" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="22" letter-spacing="3" fill="#6a6e76">ILLUSTRATION</text>
+</svg>

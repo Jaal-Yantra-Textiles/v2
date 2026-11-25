@@ -39,7 +39,7 @@ type CreateDraftOrderFromDesignsInput = {
   country_code?: string
 }
 
-import { resolveDesignThumbnail } from "../../lib/design-thumbnail"
+import { resolveDesignImage } from "../../lib/design-outline"
 
 export type DesignEstimate = {
   design_id: string
@@ -111,7 +111,7 @@ export const estimateDesignCostsStep = createStep(
         // the conversion step below falls back to the house store's currency
         // and a rupee estimate gets read as euros. #2176
         //
-        // The rest feed `resolveDesignThumbnail`. A design line has NO VARIANT,
+        // The rest feed `resolveDesignImage` (photo, else garment outline). A design line has NO VARIANT,
         // so the storefront's `item.variant.product.images[0]` fallback is null
         // by construction — if the line does not carry a thumbnail, the buyer
         // checks out looking at a grey placeholder, which is what every design
@@ -119,6 +119,7 @@ export const estimateDesignCostsStep = createStep(
         fields: [
           "id",
           "name",
+          "product_type",
           "cost_currency",
           "thumbnail_url",
           "media_files",
@@ -138,7 +139,7 @@ export const estimateDesignCostsStep = createStep(
           name: design.name,
           unit_price: overrides[design_id],
           confidence: "manual",
-          thumbnail: resolveDesignThumbnail(design as any),
+          thumbnail: resolveDesignImage(design as any),
           // Tag with the override currency so the conversion step knows
           source_currency: input.override_currency?.toLowerCase(),
         })
@@ -167,7 +168,7 @@ export const estimateDesignCostsStep = createStep(
           name: design.name,
           unit_price: costEstimate.total_estimated,
           confidence: costEstimate.confidence,
-          thumbnail: resolveDesignThumbnail(design as any),
+          thumbnail: resolveDesignImage(design as any),
           /**
            * 🔴 The estimate is in the DESIGN'S cost currency, not the store's.
            *
