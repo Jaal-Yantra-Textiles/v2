@@ -9,8 +9,14 @@ export const ExtractFolderFeaturesRequestSchema = z.object({
   hints: z.array(z.string()).optional(),
   /** Gender context for correct interpretation of sizing, fit, and target audience */
   gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
-  /** Whether to persist extraction results to each media file's metadata */
-  persist: z.boolean().optional().default(false),
+  /**
+   * Whether to save each photo's result as a `textile_analysis` row (what the
+   * folder gallery's analysis panel reads). Defaults to TRUE: a folder run
+   * that does not save spends one AI call per photo and keeps nothing but the
+   * progress counter. That happened to "sunny_new_photos" on 2026-11-18 —
+   * 26 photos analysed, 0 results in the gallery.
+   */
+  persist: z.boolean().optional().default(true),
   /**
    * Milliseconds to wait between photos. Defaults to 60000 (1 photo per minute).
    * Clamped between 5 seconds and 15 minutes.
