@@ -1,6 +1,7 @@
 import type { ReactNode } from "react"
 import { Link, useLocation } from "react-router-dom"
 
+import PendingWorkPage from "../../queues/pending-work/page"
 import ProductsAwaitingQueuePage from "../../queues/products-awaiting/page"
 import RunsRejectedQueuePage from "../../queues/runs-rejected/page"
 import RunsAwaitingDispatchQueuePage from "../../queues/runs-awaiting-dispatch/page"
@@ -29,6 +30,7 @@ import type { EntityPanelConfig } from "../EntityPanel"
 
 /** The boards this panel hosts, in switcher order. */
 const QUEUE_BOARDS = [
+  { path: "/queues/pending-work", label: "Pending work" },
   { path: "/queues/products-awaiting", label: "Products awaiting creation" },
   { path: "/queues/runs-rejected", label: "Rejected production runs" },
   { path: "/queues/runs-awaiting-dispatch", label: "Runs awaiting dispatch" },
@@ -64,8 +66,16 @@ const QueueSwitcher = ({ children }: { children: ReactNode }) => {
 }
 
 export const queuesEntityConfig: EntityPanelConfig = {
-  initialPath: "/queues/products-awaiting",
+  initialPath: "/queues/pending-work",
   routes: [
+    {
+      path: "/queues/pending-work",
+      element: (
+        <QueueSwitcher>
+          <PendingWorkPage />
+        </QueueSwitcher>
+      ),
+    },
     {
       path: "/queues/products-awaiting",
       element: (
