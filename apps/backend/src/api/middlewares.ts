@@ -392,6 +392,7 @@ import {
   AdminCreateQuoteBriefReq,
   AdminOpenQuoteBriefReq,
   AdminPostQuoteBriefUpdateReq,
+  AdminUpdateQuoteBriefChoiceReq,
   AdminUpdateQuoteBriefReq,
   StoreBriefFileReq,
   StoreSubmitQuoteBriefReq,
@@ -7113,6 +7114,11 @@ export default defineMiddlewares({
       matcher: "/admin/quote-briefs/:id/open",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(AdminOpenQuoteBriefReq))],
+    },
+    {
+      matcher: "/admin/quote-briefs/:id/choices/:choiceId",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(AdminUpdateQuoteBriefChoiceReq))],
     },
     {
       matcher: "/admin/quote-briefs/:id/updates",

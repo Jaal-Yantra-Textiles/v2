@@ -78,6 +78,21 @@ export const AdminUpdateQuoteBriefReq = z.object({
   quote_id: z.string().optional().nullable(),
 })
 
+/**
+ * Attach, swap or clear a partner's rate on one brief choice (null = back to
+ * "we'll confirm"). Omitted fields are left as they are.
+ */
+export const AdminUpdateQuoteBriefChoiceReq = z
+  .object({
+    rate_id: z.string().min(1).nullable().optional(),
+    sample_ids: z.array(z.string().min(1)).optional(),
+    note: z.string().nullable().optional(),
+  })
+  .refine((b) => b.rate_id !== undefined || b.sample_ids !== undefined || b.note !== undefined, {
+    message: "Send rate_id, sample_ids or note",
+  })
+export type AdminUpdateQuoteBriefChoiceReqType = z.infer<typeof AdminUpdateQuoteBriefChoiceReq>
+
 export const AdminOpenQuoteBriefReq = z.object({
   ttl_days: z.number().int().positive().max(365).optional(),
   /** Email the new link to the brief's buyer_email. Off unless asked. */

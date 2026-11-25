@@ -107,3 +107,35 @@ export const useCapabilityMatches = (technique: string | null) =>
       }),
     enabled: !!technique,
   })
+
+export type PartnerRate = {
+  id: string
+  technique: string
+  unit: string
+  price_low: number
+  price_high: number | null
+  currency_code: string
+  status: string
+}
+
+/** One partner's rates (to attach to a brief choice). */
+export const usePartnerRates = (partnerId: string | null, enabled = true) =>
+  useQuery({
+    queryKey: ["partner_capability_rates", partnerId],
+    queryFn: () => sdk.client.fetch<{ rates: PartnerRate[] }>(`/admin/partners/${partnerId}/capability-rates`),
+    enabled: !!partnerId && enabled,
+  })
+
+/** Attach / swap / clear the rate on one choice (null = "we'll confirm"). */
+export const useUpdateBriefChoice = (briefId: string) => {
+  const qc = useQueryClient()
+  return useMutation<
+    { brief: AdminBrief },
+    FetchError,
+    { choiceId: string; rate_id?: string | null; sample_ids?: string[]; note?: string | null }
+  >({
+    mutationFn: ({ choiceId, ...body }) =>
+      sdk.client.fetch(`/admin/quote-briefs/${briefId}/choices/${choiceId}`, { method: "POST", body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: briefQueryKeys.detail(briefId) }),
+  })
+}
