@@ -1,10 +1,7 @@
-import { useTranslation } from "react-i18next";
-import { z } from "@medusajs/framework/zod";
-import { Badge, Text, Button, Switch, Input, toast } from "@medusajs/ui";
-import { Trash, Plus } from "@medusajs/icons";
-import { useRouteModal } from "../modal/use-route-modal";
+import { Badge, Button, Container, Heading, IconButton, Input, Label, Select, Switch, Table, Text, Textarea, toast } from "@medusajs/ui";
+import { Plus, Trash, XMarkMini } from "@medusajs/icons";
+import { useModalChrome } from "../modal/chrome/use-modal-chrome";
 import { useUpdateDesign, AdminDesign, CustomSize } from "../../hooks/api/designs";
-import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useState } from "react";
 import { convertCustomSizesToSizeSets } from "../../../workflows/designs/helpers/size-set-utils";
 
@@ -46,13 +43,6 @@ const STANDARD_SIZE_CHARTS: Record<GenderType, Record<string, Record<string, num
     XXXL: { chest: 45, waist: 38, hip: 46, shoulder: 18.5, sleeve: 26.5, length: 32 },
   },
 };
-
-// Schema for sizes form
-const sizesSchema = z.object({
-  custom_sizes_json: z.string().min(1, "Size data is required"),
-});
-
-type SizesFormData = z.infer<typeof sizesSchema>;
 
 // Helper to convert CustomSize to JSON string
 const customSizeToJsonString = (customSizes?: CustomSize): string => {
@@ -299,17 +289,7 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
     updateJsonFromStructured(newStructuredSizes);
   };
 
-  const handleAddSizeMeasurement = (sizeIndex: number) => {
-    const newStructuredSizes = [...structuredSizes];
-    newStructuredSizes[sizeIndex].measurements.push({ name: "", value: 0 });
-    updateJsonFromStructured(newStructuredSizes);
-  };
 
-  const handleRemoveSizeMeasurement = (sizeIndex: number, measurementIndex: number) => {
-    const newStructuredSizes = [...structuredSizes];
-    newStructuredSizes[sizeIndex].measurements.splice(measurementIndex, 1);
-    updateJsonFromStructured(newStructuredSizes);
-  };
 
   const handleSizeNameChange = (sizeIndex: number, newName: string) => {
     const newStructuredSizes = [...structuredSizes];
@@ -317,271 +297,321 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
     updateJsonFromStructured(newStructuredSizes);
   };
 
-  const handleMeasurementNameChange = (sizeIndex: number, measurementIndex: number, newName: string) => {
-    const newStructuredSizes = [...structuredSizes];
-    newStructuredSizes[sizeIndex].measurements[measurementIndex].name = newName;
-    updateJsonFromStructured(newStructuredSizes);
+
+
+  /** Every measurement used by any size, in first-seen order: the chart's columns. */
+  const columns = Array.from(
+    new Set(structuredSizes.flatMap((s) => s.measurements.map((m) => m.name).filter(Boolean)))
+  );
+  const missingQuick = commonMeasurements.filter((m) => !columns.includes(m));
+  const existingSizeNames = new Set(structuredSizes.map((s) => s.name));
+
+  const setCell = (sizeIndex: number, name: string, raw: string) => {
+    const next = structuredSizes.map((s, i) => {
+      if (i !== sizeIndex) return s;
+      const value = raw === "" ? 0 : Number(raw);
+      const has = s.measurements.some((m) => m.name === name);
+      return {
+        ...s,
+        measurements: has
+          ? s.measurements.map((m) => (m.name === name ? { ...m, value } : m))
+          : [...s.measurements, { name, value }],
+      };
+    });
+    updateJsonFromStructured(next);
   };
 
-  const handleMeasurementValueChange = (sizeIndex: number, measurementIndex: number, newValue: number) => {
-    const newStructuredSizes = [...structuredSizes];
-    newStructuredSizes[sizeIndex].measurements[measurementIndex].value = newValue;
-    updateJsonFromStructured(newStructuredSizes);
+  const removeColumn = (name: string) =>
+    updateJsonFromStructured(
+      structuredSizes.map((s) => ({ ...s, measurements: s.measurements.filter((m) => m.name !== name) }))
+    );
+
+  const [customColumn, setCustomColumn] = useState("");
+  const addCustomColumn = () => {
+    const name = customColumn.trim().toLowerCase();
+    if (!name) return;
+    if (columns.includes(name)) {
+      toast.error(`${name} is already a column`);
+      return;
+    }
+    handleAddMeasurement(name);
+    setCustomColumn("");
   };
 
   return (
-    <div className="space-y-4">
-      {/* Toggle switch between structured editor and JSON editor */}
-      <div className="flex items-center justify-between mb-4">
-        <Text>Editor Mode</Text>
-        <div className="flex items-center gap-2">
-          <Text size="small" className={!showJsonEditor ? "font-medium" : "text-ui-fg-subtle"}>Form</Text>
-          <Switch
-            checked={showJsonEditor}
-            onCheckedChange={setShowJsonEditor}
-          />
-          <Text size="small" className={showJsonEditor ? "font-medium" : "text-ui-fg-subtle"}>JSON</Text>
+    <div className="mx-auto flex w-full max-w-[960px] flex-col gap-y-8 px-6 py-8">
+      <div className="flex items-start justify-between gap-x-4">
+        <div>
+          <Heading level="h2">Sizes</Heading>
+          <Text size="small" className="text-ui-fg-subtle">
+            One row per size, one column per measurement, in inches.
+          </Text>
+        </div>
+        <div className="flex items-center gap-x-2">
+          <Label htmlFor="sizes-json" size="small" className="text-ui-fg-subtle">
+            Edit as JSON
+          </Label>
+          <Switch id="sizes-json" checked={showJsonEditor} onCheckedChange={setShowJsonEditor} />
         </div>
       </div>
 
-      {/* Gender selector */}
-      <div>
-        <Text className="mb-2 font-medium">Size Chart:</Text>
-        <div className="flex gap-1 mb-3">
-          {(["women", "men", "unisex"] as const).map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => setGender(g)}
-              className={`flex-1 py-1.5 text-xs font-medium rounded border capitalize transition-colors ${
-                gender === g
-                  ? "bg-ui-bg-interactive text-ui-fg-on-inverted border-ui-bg-interactive"
-                  : "border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle"
-              }`}
-            >
-              {g === "women" ? "Women's" : g === "men" ? "Men's" : "Unisex"}
-            </button>
-          ))}
-        </div>
-        <Text size="small" className="text-ui-fg-subtle mb-3">
-          Standard measurements (inches) will be pre-filled based on the selected chart.
-        </Text>
-      </div>
-
-      {/* Quick add buttons */}
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <Text className="font-medium">Quick Add Size:</Text>
-          <button
-            type="button"
-            onClick={handleAddAllStandardSizes}
-            className="text-xs text-ui-fg-interactive hover:underline"
-          >
-            Add All Sizes
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {standardSizes.map((size) => (
-            <Badge
-              key={size}
-              className="cursor-pointer hover:bg-ui-bg-base-hover"
-              onClick={() => handleAddStandardSize(size)}
-            >
-              {size}
-            </Badge>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <Text className="mb-2 font-medium">Quick Add Measurement:</Text>
-        <div className="flex flex-wrap gap-2 mb-4">
-          {commonMeasurements.map((measurement) => (
-            <Badge
-              key={measurement}
-              className="cursor-pointer hover:bg-ui-bg-base-hover"
-              onClick={() => handleAddMeasurement(measurement)}
-            >
-              {measurement}
-            </Badge>
-          ))}
-        </div>
-      </div>
-      
       {showJsonEditor ? (
-        // JSON Editor
-        <>
-          <textarea
-            className="w-full h-64 p-2 font-mono text-sm border border-ui-border-base rounded-md"
-            value={value || ''}
+        <div className="flex flex-col gap-y-2">
+          <Textarea
+            className="min-h-[320px] font-mono text-sm"
+            value={value || ""}
             onChange={(e) => {
               onChange(e.target.value);
-              // Only update structured data on valid JSON
+              // Only update the chart on valid JSON.
               try {
                 JSON.parse(e.target.value);
                 updateStructuredFromJson(e.target.value);
-              } catch (e) {
-                // Invalid JSON, don't update structured data
+              } catch {
+                // keep typing
               }
             }}
-            placeholder={`{\n  "S": {\n    "chest": 36,\n    "length": 28\n  }\n}`}
+            placeholder={`{\n  "S": { "chest": 36, "length": 28 }\n}`}
           />
-          <Text size="small" className="text-ui-fg-subtle">
-            Format: Each size (S, M, L, etc.) with measurements as key-value pairs
+          <Text size="xsmall" className="text-ui-fg-subtle">
+            Size name → measurement → value.
           </Text>
-        </>
+        </div>
       ) : (
-        // Structured Editor
         <>
-          <div className="space-y-6">
-            {structuredSizes.map((size, sizeIndex) => (
-              <div key={sizeIndex} className="border border-ui-border-base rounded-md p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex-1">
-                    <Text className="mb-1 font-medium">Size Name:</Text>
-                    <Input 
-                      value={size.name}
-                      onChange={(e) => handleSizeNameChange(sizeIndex, e.target.value)}
-                      placeholder="e.g. S, M, L, Custom"
-                    />
-                  </div>
-                  <Button 
-                    variant="secondary" 
-                    size="small" 
-                    type="button"
-                    onClick={() => handleRemoveSize(sizeIndex)}
-                    className="ml-2"
-                  >
-                    <Trash className="text-ui-fg-error" />
-                  </Button>
+          <Container className="divide-y p-0">
+            <div className="flex flex-col gap-y-3 px-6 py-4">
+              <div className="flex items-center justify-between gap-x-4">
+                <div>
+                  <Text size="small" weight="plus" leading="compact">
+                    Start from a standard chart
+                  </Text>
+                  <Text size="small" className="text-ui-fg-subtle">
+                    Adds the size with that chart's measurements filled in.
+                  </Text>
                 </div>
-
-                {/* Measurements for this size */}
-                <div className="space-y-3">
-                  <Text className="font-medium">Measurements:</Text>
-                  
-                  {/* Measurement fields */}
-                  {size.measurements.map((measurement, measurementIndex) => (
-                    <div key={measurementIndex} className="flex items-center gap-x-3">
-                      <div className="flex-1">
-                        <Input 
-                          value={measurement.name}
-                          onChange={(e) => handleMeasurementNameChange(sizeIndex, measurementIndex, e.target.value)}
-                          placeholder="Measurement name"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <Input 
-                          type="number"
-                          step="any"
-                          inputMode="decimal"
-                          value={measurement.value}
-                          onChange={(e) => handleMeasurementValueChange(sizeIndex, measurementIndex, Number(e.target.value))}
-                          placeholder="Value"
-                        />
-                      </div>
-                      <Button 
-                        variant="secondary" 
-                        size="small" 
-                        type="button"
-                        onClick={() => handleRemoveSizeMeasurement(sizeIndex, measurementIndex)}
-                      >
-                        <Trash className="text-ui-fg-error" />
-                      </Button>
-                    </div>
-                  ))}
-                  
-                  {/* Add measurement button */}
-                  <Button 
-                    variant="secondary" 
-                    size="small" 
-                    type="button"
-                    onClick={() => handleAddSizeMeasurement(sizeIndex)}
-                    className="mt-2"
-                  >
-                    <Plus className="mr-1" /> Add Measurement
-                  </Button>
+                <div className="w-40">
+                  <Select size="small" value={gender} onValueChange={(v) => setGender(v as GenderType)}>
+                    <Select.Trigger>
+                      <Select.Value />
+                    </Select.Trigger>
+                    <Select.Content>
+                      <Select.Item value="women">Women's</Select.Item>
+                      <Select.Item value="men">Men's</Select.Item>
+                      <Select.Item value="unisex">Unisex</Select.Item>
+                    </Select.Content>
+                  </Select>
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {standardSizes.map((size) => (
+                  <Button
+                    key={size}
+                    size="small"
+                    variant="secondary"
+                    type="button"
+                    disabled={existingSizeNames.has(size)}
+                    onClick={() => handleAddStandardSize(size)}
+                  >
+                    {size}
+                  </Button>
+                ))}
+                <Button size="small" variant="transparent" type="button" onClick={handleAddAllStandardSizes}>
+                  Add all
+                </Button>
+              </div>
+            </div>
+          </Container>
 
-          {/* Add size button */}
-          <Button 
-            variant="secondary" 
-            type="button"
-            onClick={handleAddSize}
-            className="w-full"
-          >
-            <Plus className="mr-1" /> Add Size
-          </Button>
+          <Container className="divide-y p-0">
+            <div className="flex items-center justify-between px-6 py-4">
+              <div className="flex items-center gap-x-2">
+                <Heading level="h2">Size chart</Heading>
+                <Badge size="2xsmall">{structuredSizes.length}</Badge>
+              </div>
+              <Button size="small" variant="secondary" type="button" onClick={handleAddSize}>
+                <Plus />
+                Add size
+              </Button>
+            </div>
+
+            {structuredSizes.length === 0 ? (
+              <div className="px-6 py-8">
+                <Text size="small" className="text-ui-fg-subtle">
+                  No sizes yet. Add one, or start from a standard chart above.
+                </Text>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <Table.Header>
+                    <Table.Row>
+                      <Table.HeaderCell className="w-28">Size</Table.HeaderCell>
+                      {columns.map((col) => (
+                        <Table.HeaderCell key={col} className="w-28">
+                          <div className="flex items-center gap-x-1">
+                            <span className="capitalize">{col}</span>
+                            <IconButton
+                              size="2xsmall"
+                              variant="transparent"
+                              type="button"
+                              aria-label={`Remove ${col}`}
+                              onClick={() => removeColumn(col)}
+                            >
+                              <XMarkMini />
+                            </IconButton>
+                          </div>
+                        </Table.HeaderCell>
+                      ))}
+                      <Table.HeaderCell className="w-10" />
+                    </Table.Row>
+                  </Table.Header>
+                  <Table.Body>
+                    {structuredSizes.map((size, sizeIndex) => (
+                      <Table.Row key={sizeIndex}>
+                        <Table.Cell>
+                          <Input
+                            size="small"
+                            className="w-24"
+                            value={size.name}
+                            placeholder="e.g. M"
+                            onChange={(e) => handleSizeNameChange(sizeIndex, e.target.value)}
+                          />
+                        </Table.Cell>
+                        {columns.map((col) => {
+                          const m = size.measurements.find((x) => x.name === col);
+                          return (
+                            <Table.Cell key={col}>
+                              <Input
+                                size="small"
+                                type="number"
+                                step="any"
+                                inputMode="decimal"
+                                className="w-20"
+                                value={m ? m.value : ""}
+                                placeholder="-"
+                                onChange={(e) => setCell(sizeIndex, col, e.target.value)}
+                              />
+                            </Table.Cell>
+                          );
+                        })}
+                        <Table.Cell>
+                          <IconButton
+                            size="small"
+                            variant="transparent"
+                            type="button"
+                            aria-label={`Remove size ${size.name || sizeIndex + 1}`}
+                            onClick={() => handleRemoveSize(sizeIndex)}
+                          >
+                            <Trash />
+                          </IconButton>
+                        </Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2 px-6 py-4">
+              <Text size="small" className="text-ui-fg-subtle mr-1">
+                Add a measurement:
+              </Text>
+              {missingQuick.map((m) => (
+                <Button key={m} size="small" variant="secondary" type="button" onClick={() => handleAddMeasurement(m)}>
+                  <Plus />
+                  <span className="capitalize">{m}</span>
+                </Button>
+              ))}
+              <div className="flex items-center gap-x-2">
+                <Input
+                  size="small"
+                  className="w-36"
+                  placeholder="Other, e.g. inseam"
+                  value={customColumn}
+                  onChange={(e) => setCustomColumn(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      addCustomColumn();
+                    }
+                  }}
+                />
+                <Button size="small" variant="transparent" type="button" onClick={addCustomColumn}>
+                  Add
+                </Button>
+              </div>
+            </div>
+          </Container>
         </>
       )}
     </div>
   );
 };
 
-export const EditDesignSizes = ({ design }: EditDesignSizesProps) => {
-  const { t } = useTranslation();
-  const { handleSuccess } = useRouteModal();
-  const { mutateAsync, isPending } = useUpdateDesign(design.id);
+/**
+ * The design's sizes as the editor's `{ label: measurements }` map.
+ *
+ * 🔴 From `size_sets` (the real table) first; `custom_sizes` is the older JSON
+ * copy and can lag it. Falling back keeps designs that only ever had the JSON.
+ */
+const initialSizes = (design: AdminDesign): CustomSize => {
+  if (design.size_sets?.length) {
+    return Object.fromEntries(
+      design.size_sets.map((z) => [z.size_label, { ...(z.measurements ?? {}) }])
+    ) as CustomSize;
+  }
+  return design.custom_sizes ?? {};
+};
 
-  const handleSubmit = async (data: SizesFormData) => {
+/**
+ * Edit a design's sizes. Body and footer come from the shell (the
+ * `@edit-size` drawer, or the design graph's stacked modal), like the colour
+ * editor, so one form serves both. It used a route-only form before, which
+ * the graph could not host, so sizes could not be edited from the graph.
+ */
+export const EditDesignSizes = ({ design }: EditDesignSizesProps) => {
+  const Chrome = useModalChrome();
+  const { mutateAsync, isPending } = useUpdateDesign(design.id);
+  const [json, setJson] = useState(() => customSizeToJsonString(initialSizes(design)));
+
+  const handleSave = async () => {
+    const customSizes = jsonStringToCustomSize(json);
+    if (Object.keys(customSizes).length === 0) {
+      toast.error("Please add at least one size");
+      return;
+    }
     try {
-      // Parse the JSON string to get the custom sizes object
-      const customSizes = jsonStringToCustomSize(data.custom_sizes_json);
-      
-      // Validate that we have a valid object before submitting
-      if (Object.keys(customSizes).length === 0) {
-        toast.error("Please add at least one size");
-        return;
-      }
-      
-      await mutateAsync(
-        {
-          custom_sizes: customSizes,
-          size_sets: convertCustomSizesToSizeSets(customSizes),
-        },
-        {
-          onSuccess: ({ design }) => {
-            toast.success(
-              t("designs.updateSizesSuccess", {
-                name: design.name,
-              })
-            );
-            handleSuccess();
-          },
-          onError: (error) => {
-            toast.error(error.message);
-          },
-        }
-      );
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      toast.error("Invalid JSON format");
+      const { design: saved } = await mutateAsync({
+        custom_sizes: customSizes,
+        size_sets: convertCustomSizesToSizeSets(customSizes),
+      });
+      // Plain words: the old i18n key never existed and the toast printed it raw.
+      toast.success(`Sizes saved for ${saved.name}`);
+      Chrome.onDone();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not save the sizes");
     }
   };
 
-  const fields: FieldConfig<SizesFormData>[] = [
-    {
-      name: "custom_sizes_json",
-      type: "custom",
-      label: t("Design Sizes"),
-      required: true,
-      customComponent: SizesJsonEditor,
-      gridCols: 1
-    },
-  ];
-
   return (
-    <DynamicForm
-      fields={fields}
-      defaultValues={{
-        custom_sizes_json: customSizeToJsonString(design.custom_sizes),
-      }}
-      onSubmit={handleSubmit}
-      isPending={isPending}
-      layout={{ showDrawer: true, gridCols: 1 }}
-    />
+    <>
+      <Chrome.Body className="flex flex-1 flex-col overflow-y-auto p-0">
+        <SizesJsonEditor value={json} onChange={setJson} />
+      </Chrome.Body>
+      <Chrome.Footer>
+        <div className="flex items-center justify-end gap-x-2">
+          <Chrome.Close asChild>
+            <Button size="small" variant="secondary" type="button">
+              Cancel
+            </Button>
+          </Chrome.Close>
+          <Button size="small" type="button" onClick={handleSave} isLoading={isPending}>
+            Save
+          </Button>
+        </div>
+      </Chrome.Footer>
+    </>
   );
 };
+
+export default EditDesignSizes;

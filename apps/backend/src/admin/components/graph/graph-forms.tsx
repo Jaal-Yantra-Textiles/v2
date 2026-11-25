@@ -2,7 +2,7 @@ import type { ComponentType } from "react"
 import { Skeleton, Text } from "@medusajs/ui"
 import { useParams } from "react-router-dom"
 
-import ColorPaletteEditor from "../edits/edit-color-palette"
+import EditDesignPalette from "../edits/edit-design-palette"
 import { AddDesignComponentForm } from "../creates/create-design-component"
 import { CreateDesignTaskComponent } from "../creates/create-design-task"
 import { DesignInventoryTable } from "../designs/design-inventory-table"
@@ -181,9 +181,9 @@ const DESIGN_FORMS: SpineForms = {
       title: "Edit design",
     },
     palette: {
-      Form: withDesign(ColorPaletteEditor),
+      Form: withDesign(EditDesignPalette),
       label: "Edit colours & sizes",
-      title: "Colour palette",
+      title: "Colours & sizes",
     },
   },
   /*

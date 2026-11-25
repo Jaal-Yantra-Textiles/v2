@@ -26,8 +26,8 @@ import type { NodeItem, SpineContext } from "../../types"
  * repeated most.
  *
  * 🔴 A node with no entry in the switch returns an EMPTY LIST, never an error.
- * `product` and `revision` are single records, `palette` is a count; a drawer
- * that reddened on those would be wrong about all three.
+ * `product` and `revision` are single records; a drawer that reddened on
+ * those would be wrong about both.
  */
 
 const s = (n: number, one: string, many = `${one}s`) => (n === 1 ? one : many)
@@ -493,6 +493,52 @@ const specificationItems = async (
   }))
 }
 
+/** A flat swatch for a colour row, so the drawer shows the colour itself. */
+const swatch = (hex: string) => {
+  const safe = /^#[0-9a-f]{3,8}$/i.test(hex) ? hex : "#cccccc"
+  return `data:image/svg+xml;utf8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" rx="6" fill="${safe}"/></svg>`
+  )}`
+}
+
+/** "chest 38 · waist 32 · hip 38", in the order the measurements were entered. */
+const measurementLine = (m: Record<string, unknown> | null | undefined) =>
+  Object.entries(m ?? {})
+    .filter(([, v]) => v !== null && v !== undefined && v !== "")
+    .map(([k, v]) => `${k} ${v}`)
+    .join(" · ")
+
+/**
+ * The palette node lists what it counts: each colour, then each size with its
+ * measurements. It used to list nothing, so the drawer showed "size sets 2"
+ * and never said which sizes they were.
+ */
+const paletteItems = async (query: any, designId: string): Promise<NodeItem[]> => {
+  const design = await loadDesign(query, designId, ["colors.*", "size_sets.*"])
+  const colours = asArray<any>(design.colors)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .map((c) => ({
+      id: String(c.id),
+      label: String(c.name || c.hex_code),
+      sublabel: c.hex_code ? `Colour · ${String(c.hex_code).toUpperCase()}` : "Colour",
+      status: null,
+      href: null,
+      thumbnail: swatch(String(c.hex_code || "")),
+      props: c.usage_notes ? [{ key: "usage", value: String(c.usage_notes) }] : [],
+      remove: null,
+    }))
+  const sizes = asArray<any>(design.size_sets).map((z) => ({
+    id: String(z.id),
+    label: `Size ${String(z.size_label)}`,
+    sublabel: measurementLine(z.measurements) || "No measurements",
+    status: null,
+    href: null,
+    props: Object.entries(z.measurements ?? {}).map(([k, v]) => ({ key: k, value: String(v) })),
+    remove: null,
+  }))
+  return [...colours, ...sizes]
+}
+
 /**
  * Node key → its members.
  *
@@ -514,6 +560,7 @@ const RESOLVERS: Record<
   orders: orderItems,
   people: peopleItems,
   specifications: specificationItems,
+  palette: paletteItems,
 }
 
 /** Which node keys can list their members — the drawer asks before fetching. */
