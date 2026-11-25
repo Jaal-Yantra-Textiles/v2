@@ -8,6 +8,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils";
 import { DESIGN_MODULE } from "../../modules/designs";
 import { DateComparisonOperator } from "@medusajs/types";
 import DesignService from "../../modules/designs/service";
+import designPartnersLink from "../../links/design-partners-link";
 
 import { InferTypeOf } from "@medusajs/framework/types"
 
@@ -124,23 +125,40 @@ export const listDesignsStep = createStep(
 
     const normalizedFilters = normalizeFilters(restFilters || {})
 
-    // When partner filter is provided, leverage the index module so we can filter across the link
+    /**
+     * Partner filter: read the design↔partner LINK TABLE, then page the
+     * designs themselves.
+     *
+     * 🔴 This used `query.index`, which returns no `count` (only an
+     * `estimate_count`), so `count` fell back to the page length: the admin
+     * list asked for 20, was told 20 existed, and never offered page 2
+     * (Sharlho: 49 linked, 20 shown). The index can also lag a fresh link.
+     * The link table is exact.
+     *
+     * When an admin filters by partner they want that partner's designs
+     * regardless of who created them, so the partner-owned exclusion does
+     * not apply on this path.
+     */
     if (partner_id) {
-      // The index module doesn't index `owner_partner_id`, and when an
-      // admin explicitly filters by partner they want that partner's
-      // designs regardless of who created them — so the partner-owned
-      // exclusion does not apply on this path.
-      const { owner_partner_id: _ownerExcluded, ...indexableFilters } =
-        normalizedFilters
-      const indexFilters = {
-        ...indexableFilters,
-        partners: { id: partner_id },
+      const { owner_partner_id: _ownerExcluded, ...designFilters } = normalizedFilters
+
+      const { data: links } = await query.graph({
+        entity: designPartnersLink.entryPoint,
+        fields: ["design_id"],
+        filters: { partner_id },
+      })
+      const designIds = [...new Set((links as any[]).map((l) => l.design_id).filter(Boolean))]
+      if (!designIds.length) {
+        return new StepResponse<ListDesignsStepOutput, null>(
+          { designs: [], count: 0, offset: input.pagination.offset, limit: input.pagination.limit },
+          null
+        )
       }
 
-      const { data, metadata } = await query.index({
+      const { data, metadata } = await query.graph({
         entity: "design",
         fields: ["*", "partners.*"],
-        filters: indexFilters,
+        filters: { ...designFilters, id: designIds },
         pagination: {
           skip: input.pagination.offset,
           take: input.pagination.limit,
@@ -150,14 +168,10 @@ export const listDesignsStep = createStep(
       })
 
       const designs = (data as (Omit<Design, "partners"> & { partners?: any[] })[]) || []
-      const count =
-        (metadata as any)?.count ??
-        designs.length
-
-      return new StepResponse<ListDesignsStepOutput,null>(
+      return new StepResponse<ListDesignsStepOutput, null>(
         {
           designs,
-          count,
+          count: (metadata as any)?.count ?? designs.length,
           offset: input.pagination.offset,
           limit: input.pagination.limit,
         },
