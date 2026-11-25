@@ -79,10 +79,21 @@ export type PatchOutcome =
  * has been edited by hand before, so its inner lines are not something to
  * depend on; its shape is.
  */
-export const patchClassifyCode = (code: unknown): PatchOutcome => {
+/** A block inserted after the `converted_order_id` skip, and how to tell it is there. */
+export type ClassifyGate = { block: string; isPatched: (code: string) => boolean }
+
+export const CANCELLED_CLASSIFY_GATE: ClassifyGate = {
+  block: CANCELLED_GATE,
+  isPatched: hasCancelledGate,
+}
+
+export const patchClassifyCode = (
+  code: unknown,
+  gate: ClassifyGate = CANCELLED_CLASSIFY_GATE
+): PatchOutcome => {
   const src = typeof code === "string" ? code : ""
   if (!src.trim()) return { ok: false, reason: "no_code" }
-  if (hasCancelledGate(src)) return { ok: false, reason: "already_patched" }
+  if (gate.isPatched(src)) return { ok: false, reason: "already_patched" }
 
   const at = src.indexOf(ANCHOR)
   if (at === -1) return { ok: false, reason: "anchor_missing" }
@@ -103,7 +114,7 @@ export const patchClassifyCode = (code: unknown): PatchOutcome => {
 
   const patched = [
     ...lines.slice(0, close + 1),
-    ...CANCELLED_GATE.replace(/\n$/, "").split("\n"),
+    ...gate.block.replace(/\n$/, "").split("\n"),
     ...lines.slice(close + 1),
   ].join("\n")
 
@@ -128,7 +139,10 @@ export type CanvasPatchOutcome =
  * the copy the executor actually runs (see `extractGraph`: canvas options win
  * over the operation row). Returns a NEW canvas_state; the input is untouched.
  */
-export const patchCanvasClassify = (canvasState: unknown): CanvasPatchOutcome => {
+export const patchCanvasClassify = (
+  canvasState: unknown,
+  gate: ClassifyGate = CANCELLED_CLASSIFY_GATE
+): CanvasPatchOutcome => {
   const canvas = (canvasState && typeof canvasState === "object" ? canvasState : {}) as any
   const nodes: any[] = Array.isArray(canvas.nodes) ? canvas.nodes : []
   const index = nodes.findIndex(
@@ -140,7 +154,7 @@ export const patchCanvasClassify = (canvasState: unknown): CanvasPatchOutcome =>
   // the operation row, which the first half of the job already handled.
   if (!node || code === undefined) return { ok: false, reason: "no_canvas_node" }
 
-  const outcome = patchClassifyCode(code)
+  const outcome = patchClassifyCode(code, gate)
   if (!outcome.ok) return { ok: false, reason: outcome.reason }
 
   const patchedNode = {

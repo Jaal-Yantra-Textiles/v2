@@ -156,6 +156,13 @@ for (const cart of records) {
     counts.cancelled = (counts.cancelled || 0) + 1
     continue
   }
+  // Design orders have their own follow-up (design-order-followup job):
+  // a reminder, a last call, then the order is closed. Never send them the
+  // storefront's abandoned-cart mail as well.
+  if (md.source === "design-order") {
+    counts.design_order = (counts.design_order || 0) + 1
+    continue
+  }
 
   const items = Array.isArray(cart.items) ? cart.items : []
   if (items.length === 0) {
