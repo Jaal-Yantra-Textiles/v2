@@ -6483,6 +6483,24 @@
     "source": "custom_ts",
     "sourceFile": "src/workflows/partner-quote/mint-quote.ts"
   },
+  "update-quote-brief-choice": {
+    "fields": [
+      {
+        "name": "id",
+        "type": "id",
+        "required": true,
+        "placeholder": "{{ $last.id }}"
+      },
+      {
+        "name": "data",
+        "type": "object",
+        "required": false,
+        "placeholder": "{}"
+      }
+    ],
+    "source": "inferred",
+    "sourceFile": "src/workflows/partner-quote/update-quote-brief-choice.ts"
+  },
   "cancel-partner-subscription": {
     "fields": [
       {

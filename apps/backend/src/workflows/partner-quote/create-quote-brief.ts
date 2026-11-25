@@ -7,9 +7,9 @@ import {
 } from "@medusajs/framework/workflows-sdk"
 
 import type { AdminCreateQuoteBriefReqType } from "../../api/admin/quote-briefs/validators"
-import { PARTNER_CAPABILITY_MODULE } from "../../modules/partner_capability"
 import { PARTNER_QUOTE_MODULE } from "../../modules/partner-quote"
 import { DEFAULT_BRIEF_QUESTIONS } from "../../modules/partner-quote/lib/brief-answers"
+import { assertBriefChoiceOwnership } from "../../modules/partner-quote/lib/brief-choice-ownership"
 
 export type CreateQuoteBriefInput = AdminCreateQuoteBriefReqType & { created_by?: string | null }
 
@@ -18,16 +18,13 @@ export type CreateQuoteBriefInput = AdminCreateQuoteBriefReqType & { created_by?
  * the partners per step and the buyer's questions. Writes no token (the brief
  * stays a draft until opened) and sends nothing.
  *
- * 🔴 A choice's rate and samples must belong to THAT choice's partner. The
- * buyer sees the partner's name beside the price and the photos; a rate id
- * pasted from another workshop would show one workshop's price under
- * another's name.
+ * 🔴 A choice's rate and samples must belong to THAT choice's partner — see
+ * brief-choice-ownership.ts.
  */
 const createQuoteBriefStep = createStep(
   "create-quote-brief-step",
   async (input: CreateQuoteBriefInput, { container }) => {
     const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
-    const capability: any = container.resolve(PARTNER_CAPABILITY_MODULE)
     const service: any = container.resolve(PARTNER_QUOTE_MODULE)
 
     const { data: leads } = await query.graph({
@@ -46,8 +43,6 @@ const createQuoteBriefStep = createStep(
 
     const choices = input.options.flatMap((o) => o.steps.flatMap((s) => s.choices))
     const partnerIds = [...new Set(choices.map((c) => c.partner_id))]
-    const rateIds = [...new Set(choices.map((c) => c.rate_id).filter((x): x is string => !!x))]
-    const sampleIds = [...new Set(choices.flatMap((c) => c.sample_ids ?? []))]
 
     if (partnerIds.length) {
       const { data: found } = await query.graph({ entity: "partners", fields: ["id"], filters: { id: partnerIds } })
@@ -55,28 +50,7 @@ const createQuoteBriefStep = createStep(
       const missing = partnerIds.filter((id) => !have.has(id))
       if (missing.length) throw new MedusaError(MedusaError.Types.NOT_FOUND, `Unknown partner(s): ${missing.join(", ")}`)
     }
-    const rates = rateIds.length ? await capability.listPartnerCapabilityRates({ id: rateIds }) : []
-    const samples = sampleIds.length ? await capability.listPartnerCapabilitySamples({ id: sampleIds }) : []
-    const rateOwner = new Map<string, string>(rates.map((r: any) => [r.id, r.partner_id]))
-    const sampleOwner = new Map<string, string>(samples.map((s: any) => [s.id, s.partner_id]))
-    for (const c of choices) {
-      if (c.rate_id && rateOwner.get(c.rate_id) !== c.partner_id) {
-        throw new MedusaError(
-          MedusaError.Types.INVALID_DATA,
-          rateOwner.has(c.rate_id)
-            ? `Rate ${c.rate_id} belongs to another partner, not ${c.partner_id}`
-            : `Rate ${c.rate_id} not found`
-        )
-      }
-      for (const sid of c.sample_ids ?? []) {
-        if (sampleOwner.get(sid) !== c.partner_id) {
-          throw new MedusaError(
-            MedusaError.Types.INVALID_DATA,
-            sampleOwner.has(sid) ? `Sample ${sid} belongs to another partner, not ${c.partner_id}` : `Sample ${sid} not found`
-          )
-        }
-      }
-    }
+    await assertBriefChoiceOwnership(container, choices)
 
     const brief = await service.createPartnerQuoteBriefs({
       partner_id: input.partner_id,

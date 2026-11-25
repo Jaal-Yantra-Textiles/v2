@@ -74,6 +74,8 @@ test.describe("Quote deposit terms + payment schedule (#1439 S11)", () => {
       timeout: 30000,
     })
     await page.getByRole("button", { name: "Mint quote" }).click()
+    // #2608: the list's create button is a menu (Mint quote / New brief / View briefs).
+    await page.getByRole("menuitem", { name: "Mint quote" }).click()
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 30000 })
 
     /**

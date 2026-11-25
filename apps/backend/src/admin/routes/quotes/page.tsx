@@ -4,6 +4,7 @@ import {
   DataTable,
   DataTableFilteringState,
   DataTablePaginationState,
+  DropdownMenu,
   Heading,
   StatusBadge,
   Text,
@@ -12,7 +13,7 @@ import {
   useDataTable,
 } from "@medusajs/ui"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
-import { DocumentText, Eye, XCircle } from "@medusajs/icons"
+import { ChatBubbleLeftRight, DocumentText, Eye, ListBullet, TriangleDownMini, XCircle } from "@medusajs/icons"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useCallback, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
@@ -281,12 +282,30 @@ const QuotesPage = () => {
           <div className="flex items-center gap-x-2">
             <DataTable.Search placeholder="Search buyer, company or email..." />
             <DataTable.FilterMenu tooltip="Filter quotes" />
-            <Button size="small" variant="secondary" onClick={() => navigate("/quotes/briefs")}>
-              Briefs
-            </Button>
-            <Button size="small" onClick={() => navigate("/quotes/create")}>
-              Mint quote
-            </Button>
+            {/* One create button; briefs (#2608) sit in its menu, not beside it. */}
+            <DropdownMenu>
+              <DropdownMenu.Trigger asChild>
+                <Button size="small">
+                  Mint quote
+                  <TriangleDownMini />
+                </Button>
+              </DropdownMenu.Trigger>
+              <DropdownMenu.Content align="end">
+                <DropdownMenu.Item className="gap-x-2" onClick={() => navigate("/quotes/create")}>
+                  <DocumentText className="text-ui-fg-subtle" />
+                  Mint quote
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item className="gap-x-2" onClick={() => navigate("/quotes/briefs/create")}>
+                  <ChatBubbleLeftRight className="text-ui-fg-subtle" />
+                  New brief
+                </DropdownMenu.Item>
+                <DropdownMenu.Item className="gap-x-2" onClick={() => navigate("/quotes/briefs")}>
+                  <ListBullet className="text-ui-fg-subtle" />
+                  View briefs
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu>
           </div>
         </DataTable.Toolbar>
         <DataTable.Table
