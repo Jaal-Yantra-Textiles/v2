@@ -175,6 +175,8 @@ test.describe("Admin quote surface (#1439 S3/S4)", () => {
     await page.goto("/app/quotes")
 
     await page.getByRole("button", { name: "Mint quote" }).click()
+    // #2608: the list's create button is a menu (Mint quote / New brief / View briefs).
+    await page.getByRole("menuitem", { name: "Mint quote" }).click()
     await page.waitForURL(/\/app\/quotes\/create/, { timeout: 30000 })
 
     // The wizard renders its first step rather than a blank route — a page
