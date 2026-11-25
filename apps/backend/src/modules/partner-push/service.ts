@@ -30,6 +30,14 @@ class PartnerPushService extends MedusaService({
   /**
    * Upsert (partner, token) — a re-registering app (token rotation,
    * reinstall, re-login) must never leave duplicate rows.
+   *
+   * A device token belongs to ONE partner: whoever is signed in on that phone
+   * now. Rows for the same token under any OTHER partner are dropped here.
+   * Without this, a phone that signed into partner A and then partner B kept
+   * receiving A's pushes, because the app only unregisters on a deliberate
+   * logout — a session that ends on a 401 never does, and the logout call
+   * races the token being cleared (founder's Android, 2026-11-25: Sharlho's
+   * job alerts arrived on another account).
    */
   async registerToken(input: {
     partner_id: string
@@ -37,10 +45,17 @@ class PartnerPushService extends MedusaService({
     platform: PushPlatform
     app_version?: string | null
   }): Promise<PartnerPushTokenDTO> {
-    const existing = await this.listPartnerPushTokens({
-      partner_id: input.partner_id,
-      token: input.token,
-    })
+    const sameDevice = await this.listPartnerPushTokens({ token: input.token })
+    const otherPartners = sameDevice.filter(
+      (row) => row.partner_id !== input.partner_id
+    )
+    if (otherPartners.length > 0) {
+      await this.deletePartnerPushTokens(otherPartners.map((row) => row.id))
+    }
+
+    const existing = sameDevice.filter(
+      (row) => row.partner_id === input.partner_id
+    )
 
     if (existing.length > 0) {
       const row = await this.updatePartnerPushTokens({
