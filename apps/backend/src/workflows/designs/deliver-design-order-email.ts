@@ -2,6 +2,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { BOT_SUPPRESSED_SEND_ID } from "../../lib/bot-recipients"
 import { sendDesignOrderCreatedEmailWorkflow } from "../email/workflows/send-design-order-created-email"
+import { loadAwaitingMaterials } from "./lib/awaiting-materials"
 
 /**
  * Send a freshly created design order's link to its buyer, and say honestly
@@ -114,6 +115,7 @@ export const deliverDesignOrderEmail = async (
         "items.thumbnail",
         "items.quantity",
         "items.unit_price",
+        "items.metadata",
       ],
       filters: { id: input.cart?.id },
     })
@@ -179,6 +181,19 @@ export const deliverDesignOrderEmail = async (
   const items = emailLineItems(cart?.items)
   const taxTotal = Number(cart?.tax_total)
 
+  /**
+   * "Your fabric is being made by hand" (#2626) — shown only when a design on
+   * this order has a run held on cloth that has not been delivered. The section
+   * is extra; a failed read leaves it out and the order email goes as usual.
+   */
+  const orderDesigns = (Array.isArray(cart?.items) ? cart.items : [])
+    .map((li: any) => ({
+      id: String(li?.metadata?.design_id ?? "").trim(),
+      title: String(li?.title ?? "").trim() || "Your piece",
+    }))
+    .filter((d: { id: string }) => d.id)
+  const awaitingMaterials = await loadAwaitingMaterials(scope, orderDesigns)
+
   try {
     const { result } = await sendDesignOrderCreatedEmailWorkflow(scope).run({
       input: {
@@ -206,6 +221,13 @@ export const deliverDesignOrderEmail = async (
           // Shown only when GST is on the cart (design-order prices are
           // GST-exclusive, so the lines alone would not add up to the total).
           tax_total: Number.isFinite(taxTotal) && taxTotal > 0 ? taxTotal : null,
+          // #2626 — a plain boolean for `{{#if}}`, and the pieces waiting on cloth.
+          awaiting_materials: awaitingMaterials.length > 0,
+          awaiting_materials_lines: awaitingMaterials.map((l) => ({
+            design: l.design,
+            suppliers: l.suppliers.join(" and ") || null,
+            maker: l.maker,
+          })),
           current_year: `${new Date().getFullYear()}`,
         },
       },
