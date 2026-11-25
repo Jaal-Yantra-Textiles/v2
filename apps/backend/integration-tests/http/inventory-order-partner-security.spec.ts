@@ -152,6 +152,31 @@ setupSharedTestSuite(() => {
       expect(bogus.status).toBe(404)
     })
 
+    it("#2618: shipment label + pickup authenticate the partner (were a 401 for everyone)", async () => {
+      // A logged-in owner gets past auth: the bogus shipment is a 404, not
+      // "Partner authentication required". The 401 is what signed the
+      // mobile apps out.
+      const label = await api
+        .get(`/partners/inventory-orders/${inventoryOrderId}/shipments/shp_none/label`, { headers: ownerHeaders })
+        .catch((e: any) => e.response)
+      expect(label.status).toBe(404)
+
+      const pickup = await api
+        .post(
+          `/partners/inventory-orders/${inventoryOrderId}/shipments/shp_none/pickup`,
+          { pickup_date: "2030-01-01" },
+          { headers: ownerHeaders }
+        )
+        .catch((e: any) => e.response)
+      expect(pickup.status).toBe(404)
+
+      // Another partner still can't reach the owner's order.
+      const foreign = await api
+        .get(`/partners/inventory-orders/${inventoryOrderId}/shipments/shp_none/label`, { headers: attackerHeaders })
+        .catch((e: any) => e.response)
+      expect(foreign.status).toBe(404)
+    })
+
     it("A2: a foreign partner cannot start/complete another partner's order (404)", async () => {
       const start = await api
         .post(`/partners/inventory-orders/${inventoryOrderId}/start`, {}, { headers: attackerHeaders })

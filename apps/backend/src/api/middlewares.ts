@@ -3992,6 +3992,24 @@ export default defineMiddlewares({
       ],
     },
     {
+      // #2618: label + pickup (#2614) shipped without this, so every call was
+      // a 401 and the mobile apps signed the partner out.
+      matcher: "/partners/inventory-orders/:orderId/shipments/:shipmentId/label",
+      method: "GET",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
+      matcher: "/partners/inventory-orders/:orderId/shipments/:shipmentId/pickup",
+      method: "POST",
+      middlewares: [
+        createCorsPartnerMiddleware(),
+        authenticate("partner", ["session", "bearer"]),
+      ],
+    },
+    {
       /**
        * The printable proforma for an assigned order. GET still needs the
        * matcher or `req.auth_context` is undefined and the ownership check
