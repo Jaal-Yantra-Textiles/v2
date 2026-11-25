@@ -22,6 +22,7 @@ import { visualFlowLifecycleTemplates } from "../../../../scripts/seed-visual-fl
 import { designMaterialsDeliveredEmailTemplates } from "../../../../scripts/seed-design-materials-delivered-email"
 import { orderApprovalEmailTemplates } from "../../../../scripts/seed-order-approval-emails"
 import { customerLoginCodeEmailTemplates } from "../../../../scripts/seed-customer-login-code-email"
+import { designOrderFollowupEmailTemplates } from "../../../../scripts/seed-design-order-followup-emails"
 
 /**
  * #457 Data Plumbing — SEED jobs.
@@ -138,6 +139,12 @@ export const EMAIL_TEMPLATE_SETS: Array<{
     key: "customer-login-code",
     label: "design-studio sign-in code template",
     specs: customerLoginCodeEmailTemplates as EmailTemplateSpec[],
+  },
+  // Unpaid design orders: day-3 reminder and day-6 last call (design-order-followup job).
+  {
+    key: "design-order-followup",
+    label: "design-order follow-up templates",
+    specs: designOrderFollowupEmailTemplates as EmailTemplateSpec[],
   },
 ]
 

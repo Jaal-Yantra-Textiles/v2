@@ -109,6 +109,8 @@ import { deleteOrphanWorkOrderMirrorsJob } from "./delete-orphan-work-order-mirr
 import { auditDanglingOrderLineLinksJob } from "./audit-dangling-order-line-links-job"
 import { auditMoodboardBackfillJob } from "./audit-moodboard-backfill-job"
 import { patchCartRecoveryCancelledGateJob } from "./patch-cart-recovery-cancelled-gate-job"
+import { patchCartRecoverySkipDesignOrdersJob } from "./patch-cart-recovery-skip-design-orders-job"
+import { designOrderFollowupJob, installDesignOrderFollowupFlowJob } from "./design-order-followup-job"
 import { setDesignOrderCountryJob } from "./set-design-order-country-job"
 import { refreshDesignOrderCartTaxJob } from "./refresh-design-order-cart-tax-job"
 import { addMissingDesignOrderTaxJob } from "./add-missing-design-order-tax-job"
@@ -6693,6 +6695,9 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   auditDanglingOrderLineLinksJob,
   auditMoodboardBackfillJob,
   patchCartRecoveryCancelledGateJob,
+  patchCartRecoverySkipDesignOrdersJob,
+  designOrderFollowupJob,
+  installDesignOrderFollowupFlowJob,
   setDesignOrderCountryJob,
   refreshDesignOrderCartTaxJob,
   addMissingDesignOrderTaxJob,
