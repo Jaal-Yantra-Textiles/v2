@@ -1,10 +1,8 @@
 import { useTranslation } from "react-i18next";
-import { z } from "@medusajs/framework/zod";
 import { Badge, Text, Button, Switch, Input, toast } from "@medusajs/ui";
 import { Trash, Plus } from "@medusajs/icons";
-import { useRouteModal } from "../modal/use-route-modal";
+import { useModalChrome } from "../modal/chrome/use-modal-chrome";
 import { useUpdateDesign, AdminDesign, CustomSize } from "../../hooks/api/designs";
-import { DynamicForm, type FieldConfig } from "../common/dynamic-form";
 import { useState } from "react";
 import { convertCustomSizesToSizeSets } from "../../../workflows/designs/helpers/size-set-utils";
 
@@ -46,13 +44,6 @@ const STANDARD_SIZE_CHARTS: Record<GenderType, Record<string, Record<string, num
     XXXL: { chest: 45, waist: 38, hip: 46, shoulder: 18.5, sleeve: 26.5, length: 32 },
   },
 };
-
-// Schema for sizes form
-const sizesSchema = z.object({
-  custom_sizes_json: z.string().min(1, "Size data is required"),
-});
-
-type SizesFormData = z.infer<typeof sizesSchema>;
 
 // Helper to convert CustomSize to JSON string
 const customSizeToJsonString = (customSizes?: CustomSize): string => {
@@ -521,67 +512,70 @@ const SizesJsonEditor = ({ value, onChange }: any) => {
   );
 };
 
+/**
+ * The design's sizes as the editor's `{ label: measurements }` map.
+ *
+ * 🔴 From `size_sets` (the real table) first; `custom_sizes` is the older JSON
+ * copy and can lag it. Falling back keeps designs that only ever had the JSON.
+ */
+const initialSizes = (design: AdminDesign): CustomSize => {
+  if (design.size_sets?.length) {
+    return Object.fromEntries(
+      design.size_sets.map((z) => [z.size_label, { ...(z.measurements ?? {}) }])
+    ) as CustomSize;
+  }
+  return design.custom_sizes ?? {};
+};
+
+/**
+ * Edit a design's sizes. Body and footer come from the shell (the
+ * `@edit-size` drawer, or the design graph's stacked modal), like the colour
+ * editor, so one form serves both. It used a route-only form before, which
+ * the graph could not host, so sizes could not be edited from the graph.
+ */
 export const EditDesignSizes = ({ design }: EditDesignSizesProps) => {
   const { t } = useTranslation();
-  const { handleSuccess } = useRouteModal();
+  const Chrome = useModalChrome();
   const { mutateAsync, isPending } = useUpdateDesign(design.id);
+  const [json, setJson] = useState(() => customSizeToJsonString(initialSizes(design)));
 
-  const handleSubmit = async (data: SizesFormData) => {
+  const handleSave = async () => {
+    const customSizes = jsonStringToCustomSize(json);
+    if (Object.keys(customSizes).length === 0) {
+      toast.error("Please add at least one size");
+      return;
+    }
     try {
-      // Parse the JSON string to get the custom sizes object
-      const customSizes = jsonStringToCustomSize(data.custom_sizes_json);
-      
-      // Validate that we have a valid object before submitting
-      if (Object.keys(customSizes).length === 0) {
-        toast.error("Please add at least one size");
-        return;
-      }
-      
-      await mutateAsync(
-        {
-          custom_sizes: customSizes,
-          size_sets: convertCustomSizesToSizeSets(customSizes),
-        },
-        {
-          onSuccess: ({ design }) => {
-            toast.success(
-              t("designs.updateSizesSuccess", {
-                name: design.name,
-              })
-            );
-            handleSuccess();
-          },
-          onError: (error) => {
-            toast.error(error.message);
-          },
-        }
-      );
-    } catch (error) {
-      console.error("Error submitting form:", error);
-      toast.error("Invalid JSON format");
+      const { design: saved } = await mutateAsync({
+        custom_sizes: customSizes,
+        size_sets: convertCustomSizesToSizeSets(customSizes),
+      });
+      toast.success(t("designs.updateSizesSuccess", { name: saved.name }));
+      Chrome.onDone();
+    } catch (error: any) {
+      toast.error(error?.message ?? "Could not save the sizes");
     }
   };
 
-  const fields: FieldConfig<SizesFormData>[] = [
-    {
-      name: "custom_sizes_json",
-      type: "custom",
-      label: t("Design Sizes"),
-      required: true,
-      customComponent: SizesJsonEditor,
-      gridCols: 1
-    },
-  ];
-
   return (
-    <DynamicForm
-      fields={fields}
-      defaultValues={{
-        custom_sizes_json: customSizeToJsonString(design.custom_sizes),
-      }}
-      onSubmit={handleSubmit}
-      isPending={isPending}
-      layout={{ showDrawer: true, gridCols: 1 }}
-    />
+    <>
+      <Chrome.Body className="flex flex-1 flex-col gap-y-4 overflow-y-auto">
+        <SizesJsonEditor value={json} onChange={setJson} />
+      </Chrome.Body>
+      <Chrome.Footer>
+        <div className="flex items-center justify-end gap-x-2">
+          <Chrome.Close asChild>
+            <Button size="small" variant="secondary" type="button">
+              Cancel
+            </Button>
+          </Chrome.Close>
+          <Button size="small" type="button" onClick={handleSave} isLoading={isPending}>
+            Save
+          </Button>
+        </div>
+      </Chrome.Footer>
+    </>
   );
 };
+
+export default EditDesignSizes;

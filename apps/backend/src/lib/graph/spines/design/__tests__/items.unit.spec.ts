@@ -376,3 +376,43 @@ describe("the row's two text slots", () => {
     expect(run.sublabel).toContain("no product")
   })
 })
+
+describe("palette", () => {
+  it("lists each colour and each size with its measurements (was an empty list)", async () => {
+    // Shape of prod design 01KWWJ0S3ZWWNK6YTDSC2AFARQ (Denim Trouser), plus a colour.
+    const query = stubQuery({
+      designs: [
+        {
+          id: "design_1",
+          colors: [
+            { id: "col_2", name: "Indigo", hex_code: "#1f3a5f", order: 1 },
+            { id: "col_1", name: "Ecru", hex_code: "#f3ead8", order: 0, usage_notes: "lining" },
+          ],
+          size_sets: [
+            { id: "sz_m", size_label: "M", measurements: { waist: 32, hip: 38, length: 29 } },
+            { id: "sz_l", size_label: "L", measurements: { waist: 34, hip: 40, length: 30 } },
+          ],
+        },
+      ],
+    })
+
+    const items = await resolveDesignItems(ctx(query), "palette")
+
+    expect(items.map((i) => i.label)).toEqual(["Ecru", "Indigo", "Size M", "Size L"])
+    expect(items[0].sublabel).toBe("Colour · #F3EAD8")
+    expect(items[0].thumbnail).toContain("data:image/svg+xml")
+    expect(items[0].props).toEqual([{ key: "usage", value: "lining" }])
+    expect(items[2].sublabel).toBe("waist 32 · hip 38 · length 29")
+    expect(items[2].props).toEqual([
+      { key: "waist", value: "32" },
+      { key: "hip", value: "38" },
+      { key: "length", value: "29" },
+    ])
+    // Edited through the form, never removed row by row.
+    expect(items.every((i) => i.remove === null)).toBe(true)
+  })
+
+  it("is advertised so the drawer asks for it", () => {
+    expect(DESIGN_ITEM_NODES).toContain("palette")
+  })
+})
