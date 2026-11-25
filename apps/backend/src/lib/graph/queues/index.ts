@@ -1,6 +1,7 @@
 import { MedusaError } from "@medusajs/framework/utils"
 
 import type { Graph, NodeItem, SpineContext, SpineDescriptor } from "../types"
+import { pendingWorkItems, resolvePendingWork } from "./pending-work"
 import { productsAwaitingItems, resolveProductsAwaiting } from "./products-awaiting"
 import { runsRejectedItems, resolveRunsRejected } from "./runs-rejected"
 import {
@@ -34,6 +35,13 @@ type QueueDescriptor = {
 }
 
 const QUEUES: Record<string, QueueDescriptor> = {
+  // #2625 — the overview: one box per kind of waiting work.
+  "pending-work": {
+    key: "pending-work",
+    label: "Pending work",
+    resolve: resolvePendingWork,
+    items: pendingWorkItems,
+  },
   "products-awaiting": {
     key: "products-awaiting",
     label: "Products awaiting creation",
