@@ -11,8 +11,11 @@ export const ExtractFeaturesRequestSchema = z.object({
   hints: z.array(z.string()).optional(),
   /** Gender context for correct interpretation of sizing, fit, and target audience */
   gender: z.enum(["female", "male", "unisex"]).optional().default("unisex"),
-  /** Whether to persist extraction results to media metadata */
-  persist: z.boolean().optional().default(false),
+  /**
+   * Whether to save the result as a `textile_analysis` row (what the gallery's
+   * analysis panel reads). Defaults to TRUE — see the folder route's schema.
+   */
+  persist: z.boolean().optional().default(true),
 });
 
 export type ExtractFeaturesRequest = z.infer<typeof ExtractFeaturesRequestSchema>;

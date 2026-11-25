@@ -57,7 +57,7 @@ export const TextileExtractionModal = ({
 }: TextileExtractionModalProps) => {
   const [hints, setHints] = useState("");
   const [gender, setGender] = useState<Gender>("unisex");
-  const [persist, setPersist] = useState(false);
+  const [persist, setPersist] = useState(true);
   const [autoConfirm, setAutoConfirm] = useState(true);
   const [intervalMs, setIntervalMs] = useState(60000);
 
@@ -329,10 +329,10 @@ export const TextileExtractionModal = ({
                 <div className="flex items-center justify-between gap-x-4 px-5 py-4">
                   <div className="flex flex-col gap-y-0.5">
                     <Label htmlFor="persist" className="text-sm text-ui-fg-base">
-                      Save to media metadata
+                      Save results
                     </Label>
                     <Text size="xsmall" className="text-ui-fg-subtle">
-                      Store all extracted results (including raw internal data) in the media file's metadata
+                      Keep each photo's analysis so it shows in the gallery. Off runs the AI and keeps nothing.
                     </Text>
                   </div>
                   <Switch
