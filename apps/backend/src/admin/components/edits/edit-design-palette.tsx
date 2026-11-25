@@ -17,13 +17,15 @@ export const EditDesignPalette = ({ design }: { design: AdminDesign }) => {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="border-b px-6 py-3">
+      <div className="border-b">
+        <div className="mx-auto w-full max-w-[960px] px-6 py-3">
         <Tabs value={tab} onValueChange={(v) => setTab(v as "colours" | "sizes")}>
           <Tabs.List>
             <Tabs.Trigger value="colours">Colours ({design.colors?.length ?? 0})</Tabs.Trigger>
             <Tabs.Trigger value="sizes">Sizes ({design.size_sets?.length ?? 0})</Tabs.Trigger>
           </Tabs.List>
         </Tabs>
+        </div>
       </div>
       {/* key: a fresh editor per tab, so each starts from the saved design. */}
       {tab === "colours" ? (
