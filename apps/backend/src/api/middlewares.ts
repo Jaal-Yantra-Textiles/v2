@@ -288,6 +288,11 @@ import {
 // Payments: schemas
 import { PaymentSchema, ListPaymentsQuerySchema, UpdatePaymentSchema, PaymentSettlesSchema, PaymentRecordsAgainstSchema } from "./admin/payments/validators";
 import { CreatePaymentAndLinkSchema } from "./admin/payments/link/validators";
+import {
+  CreateWorkNoteSchema,
+  ListWorkNotesQuerySchema,
+  UpdateWorkNoteSchema,
+} from "./admin/work-notes/validators";
 import { CreatePartnerCreditSchema } from "./admin/partners/[id]/credits/validators";
 import { ApplyPartnerCreditSchema } from "./admin/partners/[id]/credits/[creditId]/apply/validators";
 import { ListPaymentsByPersonQuerySchema } from "./admin/payments/persons/[id]/validators";
@@ -4162,6 +4167,22 @@ export default defineMiddlewares({
       matcher: "/admin/payments/:id",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(UpdatePaymentSchema))],
+    },
+    // #2625 S2 — notes on the Pending work board
+    {
+      matcher: "/admin/work-notes",
+      method: "GET",
+      middlewares: [validateAndTransformQuery(wrapSchema(ListWorkNotesQuerySchema), {})],
+    },
+    {
+      matcher: "/admin/work-notes",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(CreateWorkNoteSchema))],
+    },
+    {
+      matcher: "/admin/work-notes/:ref",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(UpdateWorkNoteSchema))],
     },
     // Create payment and link to persons/partners
     {

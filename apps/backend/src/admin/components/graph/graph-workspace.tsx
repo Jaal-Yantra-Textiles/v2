@@ -12,7 +12,7 @@ import {
   NodeInspectorHeader,
 } from "./node-inspector"
 import { GraphCreateModal, GraphEditModal } from "./graph-create-modal"
-import { addAnotherFor, creatableFor, registryFor, withArticle } from "./graph-forms"
+import { addAnotherFor, creatableFor, formsKeyFor, registryFor, withArticle } from "./graph-forms"
 import { NodeAddAnother, NodeItemList } from "./node-items"
 import { actionRail, nodeAffordance } from "./node-forms"
 
@@ -48,6 +48,8 @@ interface Props {
 
 export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) => {
   const { graph, isLoading, isError, error } = useEntityGraph(spine, id)
+  // Forms are registered per spine, and per BOARD on the queue spine (see formsKeyFor).
+  const formsKey = formsKeyFor(spine, id)
   const [params, setParams] = useSearchParams()
 
   const selectedKey = params.get("node")
@@ -93,7 +95,7 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
    * the edit form without needing to know the node is synthetic.
    */
   const placeholderNode = (key: string): GraphNode | undefined => {
-    const entry = creatableFor(spine).find((c) => c.key === key)
+    const entry = creatableFor(formsKey).find((c) => c.key === key)
     if (!entry) {
       return undefined
     }
@@ -132,7 +134,7 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
 
   // What this node offers: a create form, an edit form, or the action rail that
   // names the step. The rules are in `node-forms` and tested there.
-  const affordance = active ? nodeAffordance(active, registryFor(spine)) : undefined
+  const affordance = active ? nodeAffordance(active, registryFor(formsKey)) : undefined
 
   // What the rail underneath the form buttons should say, if anything.
   const rail =
@@ -162,9 +164,9 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
     active.count > 0 &&
     (graph?.itemNodes ?? []).includes(active.key)
 
-  const another = active ? addAnotherFor(spine, active.key) : undefined
+  const another = active ? addAnotherFor(formsKey, active.key) : undefined
 
-  const creatable = creatableFor(spine)
+  const creatable = creatableFor(formsKey)
 
   if (isLoading) {
     return (
@@ -341,10 +343,10 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
             */}
             <GraphCreateModal
               node={active}
-              spine={spine}
+              spine={formsKey}
               isPlaceholder={isPlaceholder}
             />
-            <GraphEditModal node={active} spine={spine} />
+            <GraphEditModal node={active} spine={formsKey} />
             {/*
               The rail never repeats a form, and never offers an "Open" that
               lands on the page this graph is about — but a real drill-in stays,

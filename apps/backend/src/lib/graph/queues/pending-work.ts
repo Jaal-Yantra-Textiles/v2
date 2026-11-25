@@ -4,6 +4,8 @@ import designLineItemLink from "../../../links/design-line-item-link"
 import { PAYMENT_SCHEDULE_MODULE } from "../../../modules/payment_schedule"
 import { PAYMENT_SUBMISSIONS_MODULE } from "../../../modules/payment_submissions"
 import { PARTNER_QUOTE_MODULE } from "../../../modules/partner-quote"
+import { NOTE_MODULE } from "../../../modules/notes"
+import { countByBox, dueLabel, formatRef, isOverdue, sortOpenNotes } from "../../../modules/notes/lib/work-notes"
 import { effectiveQuoteStatus } from "../../../modules/partner-quote/lib/token"
 import { readPartnerLedger } from "../../../api/admin/payments/partners/[id]/ledger/read-ledger"
 import { listOrdersAwaitingCount } from "../../../workflows/inventory_orders/lib/awaiting-count"
@@ -33,6 +35,8 @@ export type BucketResult = {
   items: NodeItem[]
   /** One line under the label, e.g. "₹12,505 outstanding". */
   summary?: string | null
+  /** Open notes per board box — only the notes bucket sets it (#2625 S2). */
+  byBox?: Record<string, number>
 }
 
 type Bucket = {
@@ -320,6 +324,47 @@ const quotesAwaitingBuyer = async ({ scope }: SpineContext): Promise<BucketResul
   return { count: items.length, summary: `${plural(waitingQuotes.length, "quote")}, ${plural(asArray(briefs).length, "brief")}`, items }
 }
 
+/**
+ * NOTES — what the founder (or a Claude session) wrote down to do (#2625 S2).
+ *
+ * Each row's "Mark done" names the note's own update route, so closing one
+ * from the drawer is the same write as closing it from chat.
+ */
+const workNotes = async ({ scope }: SpineContext): Promise<BucketResult> => {
+  const svc: any = scope.resolve(NOTE_MODULE)
+  const rows = sortOpenNotes(asArray<any>(await svc.listWorkNotes({ status: "open", board: "pending-work" }, { take: 200 })))
+  const now = Date.now()
+  const overdue = rows.filter((n) => isOverdue(n, now)).length
+  const boxLabel = new Map(PENDING_WORK_BUCKETS.map((b) => [b.key, b.label]))
+  return {
+    count: rows.length,
+    summary: overdue ? `${overdue} overdue` : rows.length ? "none overdue" : "nothing written down",
+    byBox: Object.fromEntries(countByBox(rows)),
+    items: rows.map((n) => ({
+      id: n.id,
+      label: `${formatRef(n.ref)} · ${n.body.length > 90 ? `${n.body.slice(0, 89)}…` : n.body}`,
+      sublabel: [
+        n.kind === "follow_up" ? "follow-up" : null,
+        dueLabel(n.due_at, now),
+        n.node_key ? `on ${boxLabel.get(n.node_key) ?? n.node_key}` : null,
+        `added ${ago(n.created_at)}`,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      status: isOverdue(n, now) ? "overdue" : "open",
+      href: n.href,
+      props: [{ key: "reference", value: formatRef(n.ref) }],
+      remove: {
+        method: "POST",
+        path: `/admin/work-notes/${n.id}`,
+        body: { status: "done" },
+        label: "Mark done",
+        confirm: `Mark ${formatRef(n.ref)} done? It drops off the board but keeps its reference.`,
+      },
+    })),
+  }
+}
+
 // ----------------------------------------------------------------- HELPERS
 
 const partnerNames = async (scope: any, ids: string[]): Promise<Map<string, string>> => {
@@ -342,6 +387,7 @@ const nameMaps = async (scope: any, runs: any[]) => {
 // ------------------------------------------------------------ REGISTRATION
 
 export const PENDING_WORK_BUCKETS: Bucket[] = [
+  { key: "notes", label: "Notes & follow-ups", side: "us", href: null, load: workNotes },
   { key: "partners-to-pay", label: "Partners to pay", side: "us", href: "/payments", load: partnersToPay },
   { key: "runs-without-price", label: "Runs closed with no price", side: "us", href: null, load: runsWithoutPrice },
   { key: "products-awaiting", label: "Products awaiting creation", side: "us", href: "/queues/products-awaiting", load: (c) => fromQueue(c, resolveProductsAwaiting) },
@@ -363,6 +409,12 @@ export const buildPendingWorkGraph = (
   const builder = new GraphBuilder("queue")
   let waiting = 0
   let failed = 0
+  // Notes pinned to a box show on that box too, so the note is seen where the work is.
+  const notesOnBox: Record<string, number> = Object.assign({}, ...outcomes.map((o) => o.result?.byBox ?? {}))
+  const notesSuffix = (key: string) => {
+    const n = notesOnBox[key] ?? 0
+    return n ? ` · ${n} note${n === 1 ? "" : "s"}` : ""
+  }
   for (const { bucket, result, error } of outcomes) {
     const node: GraphNode = error
       ? {
@@ -384,7 +436,7 @@ export const buildPendingWorkGraph = (
           type: "pending_bucket",
           label: bucket.label,
           // 🔑 sublabel HIDES the count on the canvas — so it carries the count.
-          sublabel: `${result!.count}${result!.summary ? ` · ${result!.summary}` : ""}`,
+          sublabel: `${result!.count}${result!.summary ? ` · ${result!.summary}` : ""}${notesSuffix(bucket.key)}`,
           state: result!.count > 0 ? "present" : "derived",
           count: result!.count,
           status: SIDE_LABEL[bucket.side],

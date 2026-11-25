@@ -421,6 +421,9 @@ const NO_ROUTE_VALIDATOR = new Set<string>([
  *     come back, not a claim that the omission is correct.
  */
 const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
+  "admin:add_work_note": {
+    board: "only the Pending work board shows notes today (#2625); a note filed to any other board would be invisible",
+  },
   "admin:create_person": {
     addresses: "set from the person page or the ID-card tool; an agent creating a roster entry from a list of names has no address to give",
     avatar: "an uploaded image URL — the agent has no upload path for one",
