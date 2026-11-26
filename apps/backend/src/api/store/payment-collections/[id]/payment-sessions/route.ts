@@ -15,6 +15,7 @@ import {
 } from "../../../../../modules/stripe-connect-payment/lib/resolve-connect"
 import { resolveCollectionPaymentContext } from "../../../../../lib/payments/resolve-collection-customer"
 import { saveCardSessionData } from "../../../../../lib/payments/save-card-intent"
+import { stripReservedPayuSessionKeys } from "../../../../../lib/payments/payu-session-reserved-keys"
 import { ensureCartPaymentCollection } from "../../../../../lib/payments/ensure-cart-collection"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
@@ -128,7 +129,15 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
        * server knows whether a balance follows — so the server says so, and a
        * caller-supplied value cannot turn it off.
        */
-      data: { ...(data ?? {}), ...(plan ? saveCardSessionData(plan) : {}) },
+      /**
+       * 🔴 The buyer's `data` minus the keys a provider reads as FACTS (#2574):
+       * PayU status / ids / proof, and partner merchant credentials — injecting
+       * your own PayU account's key+salt made the provider verify against it.
+       */
+      data: {
+        ...stripReservedPayuSessionKeys(data),
+        ...(plan ? saveCardSessionData(plan) : {}),
+      },
       ...(context ? { context } : {}),
     },
   })

@@ -54,7 +54,9 @@ export function buildSessionData(
   ref?: Record<string, unknown>
 ): Record<string, unknown> | undefined {
   if (provider.includes("payu")) {
-    // PayU.authorizePayment reads these flat keys, re-verifies txnid, captures.
+    // PayU.authorizePayment re-verifies `txnid` with PayU and checks the amount.
+    // On a NEW session initiatePayment overwrites it, so the caller re-applies
+    // this with updatePaymentSession (see below).
     return {
       payu_status: "success",
       txnid: ref?.txnid,
@@ -92,6 +94,9 @@ export async function completeCartFromExternalPayment(
       "payment_collection.amount",
       "payment_collection.payment_sessions.id",
       "payment_collection.payment_sessions.provider_id",
+      "payment_collection.payment_sessions.currency_code",
+      "payment_collection.payment_sessions.amount",
+      "payment_collection.payment_sessions.data",
     ],
     filters: { id: cartId },
   })
@@ -124,13 +129,32 @@ export async function completeCartFromExternalPayment(
 
   // Ensure a session on the chosen provider to authorize (paid out-of-band).
   const sessions: any[] = cart.payment_collection?.payment_sessions || []
-  if (!sessions.some((s) => s.provider_id === provider)) {
-    await createPaymentSessionsWorkflow(scope).run({
+  let existing = sessions.find((s) => s.provider_id === provider)
+  if (!existing) {
+    const { result: created } = await createPaymentSessionsWorkflow(scope).run({
       input: {
         payment_collection_id: pcId!,
         provider_id: provider,
         data: buildSessionData(provider, ref),
       },
+    })
+    existing = created as any
+  }
+  if (provider.includes("payu") && existing?.id) {
+    /**
+     * 🔴 Point the session at the VERIFIED link txn (#2574). A new session got
+     * a fresh txnid from initiatePayment (Medusa stores {...caller, ...provider}
+     * data, so ours was overwritten); a checkout session already on the cart
+     * carries the buyer's own unpaid one. Either way authorize must re-verify
+     * the link's txnid with PayU. Only server code writes `txnid`: the store
+     * payment-sessions route strips it and /store/payu/complete never sets it.
+     */
+    const paymentModule: any = scope.resolve(Modules.PAYMENT)
+    await paymentModule.updatePaymentSession({
+      id: existing.id,
+      currency_code: existing.currency_code ?? cart.currency_code,
+      amount: existing.amount,
+      data: { ...(existing.data ?? {}), ...buildSessionData(provider, ref) },
     })
   }
 

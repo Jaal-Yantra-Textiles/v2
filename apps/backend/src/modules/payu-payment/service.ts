@@ -224,47 +224,73 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     }
   }
 
+  /**
+   * 🔴 Only PayU's own verify_payment decides that a PayU payment is paid.
+   *
+   * The session data reaching here is NOT evidence: the public
+   * POST /store/payu/complete writes the buyer's redirect fields (status,
+   * mihpayid) into it, so anything taken from `data` can be forged. Before
+   * #2574 a non-empty `mihpayid` alone authorized the payment when verify
+   * failed, so a made-up id placed an unpaid order.
+   *
+   *   verified success, full amount → captured/authorized (PayU's mihpayid)
+   *   verified success, SHORT amount → pending + warn (a human reconciles)
+   *   verify failed / not found       → pending (the webhook or a retry decides)
+   *   failure (verified or reported)  → error
+   */
   async authorizePayment(
     input: AuthorizePaymentInput
   ): Promise<AuthorizePaymentOutput> {
     const { data } = input
     const opts = this.resolveFromSessionData(data) || this.options_
-    const payuStatus = ((data?.payu_status as string) || (data?.status as string) || "").toLowerCase()
-    const mihpayid = (data?.mihpayid as string) || ""
+    const reported = ((data?.payu_status as string) || (data?.status as string) || "").toLowerCase()
+    // Only server code writes `txnid` (the store routes strip / never set it);
+    // a paid link's completion points it at the verified link txn.
     const txnid = (data?.txnid as string) || ""
 
-    if (payuStatus === "success" || payuStatus === "captured") {
-      let verifiedMihpayid = mihpayid
-      let isVerified = false
-
-      if (txnid) {
-        try {
-          const verified = await this.verifyPaymentWithOpts(opts, txnid)
-          if (verified.status === "success" || verified.status === "captured") {
-            verifiedMihpayid = verified.mihpayid || mihpayid
-            isVerified = true
-          }
-        } catch (e: any) {
-          this.logger_.warn(`[PayU] Verify API failed (proceeding with callback data): ${e.message}`)
-        }
-      }
-
-      if (isVerified || mihpayid) {
-        const finalStatus = this.options_.auto_capture ? "captured" : "authorized"
-        this.logger_.info(`[PayU] ${finalStatus}: txnid=${txnid}, mihpayid=${verifiedMihpayid}, verified=${isVerified}`)
-        return {
-          data: { ...data, mihpayid: verifiedMihpayid, verified: isVerified },
-          status: finalStatus as any,
-        }
-      }
-
-      this.logger_.warn(`[PayU] Success status but no mihpayid and verify failed: txnid=${txnid}`)
+    if (!txnid) {
+      return { data: { ...data }, status: "pending" }
     }
 
-    if (payuStatus === "failure" || payuStatus === "failed") {
+    let verified: Record<string, any> | null = null
+    try {
+      verified = await this.verifyPaymentWithOpts(opts, txnid)
+    } catch (e: any) {
+      this.logger_.warn(`[PayU] verify_payment unavailable for txnid=${txnid}: ${e.message}`)
+    }
+
+    const verifiedStatus = String(verified?.status || "").toLowerCase()
+
+    if (verifiedStatus === "success" || verifiedStatus === "captured") {
+      const paid = payuVerifiedAmount(verified)
+      const expected = Number(data?.amount)
+      if (Number.isFinite(expected) && expected > 0 && !(paid !== null && paid + 0.005 >= expected)) {
+        this.logger_.warn(
+          `[PayU] SHORT payment: txnid=${txnid} verified=${paid} expected=${expected}, not authorizing`
+        )
+        return { data: { ...data, payu_verified_amount: paid }, status: "pending" }
+      }
+
+      const finalStatus = this.options_.auto_capture ? "captured" : "authorized"
+      this.logger_.info(`[PayU] ${finalStatus}: txnid=${txnid}, mihpayid=${verified?.mihpayid}, verified=true`)
+      return {
+        data: { ...data, mihpayid: verified?.mihpayid || "", verified: true },
+        status: finalStatus as any,
+      }
+    }
+
+    if (
+      verifiedStatus === "failure" ||
+      verifiedStatus === "failed" ||
+      reported === "failure" ||
+      reported === "failed"
+    ) {
       return { data: { ...data }, status: "error" }
     }
 
+    if (reported === "success" || reported === "captured") {
+      this.logger_.warn(`[PayU] Redirect says success but PayU has not verified it: txnid=${txnid}`)
+    }
     return { data: { ...data }, status: "pending" }
   }
 
@@ -378,20 +404,23 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     // Resolve credentials from session data stored during initiate
     const opts = this.resolveFromSessionData(data) || this.options_
 
-    if (data?.hash && txnid) {
-      const reverseHashString = `${opts.merchant_salt}|${data.status}||||||${data.udf5 || ""}|${data.udf4 || ""}|${data.udf3 || ""}|${data.udf2 || ""}|${data.udf1 || ""}|${data.email || ""}|${data.firstname || ""}|${data.productinfo || ""}|${data.amount || ""}|${txnid}|${opts.merchant_key}`
-      const expectedHash = crypto.createHash("sha512").update(reverseHashString).digest("hex")
-      if (expectedHash !== data.hash) {
-        this.logger_.warn(`[PayU] Webhook hash mismatch: txnid=${txnid}`)
-        return { action: "not_supported" }
-      }
+    /**
+     * 🔴 A payload must carry PayU's reverse hash. Before #2574 a payload with
+     * NO hash skipped the check and was taken as captured.
+     */
+    if (!txnid || !data?.hash || !payuReverseHashMatches(data, opts)) {
+      this.logger_.warn(`[PayU] Webhook rejected (missing or bad hash): txnid=${txnid}`)
+      return { action: "not_supported" }
     }
 
+    // The Medusa payment SESSION id travels in udf1; txnid is PayU's own id.
+    const sessionId = (data?.udf1 as string) || txnid
+
     if (status === "success" || status === "captured") {
-      return { action: "captured", data: { session_id: txnid, amount: data.amount as number } }
+      return { action: "captured", data: { session_id: sessionId, amount: data.amount as number } }
     }
     if (status === "failure" || status === "failed") {
-      return { action: "failed", data: { session_id: txnid, amount: data.amount as number } }
+      return { action: "failed", data: { session_id: sessionId, amount: data.amount as number } }
     }
     return { action: "not_supported" }
   }
@@ -422,6 +451,31 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
   private async verifyPayment(txnid: string): Promise<Record<string, any>> {
     return this.verifyPaymentWithOpts(this.options_, txnid)
   }
+}
+
+/** PayU's verified amount (`amt`, else `transaction_amount`), or null. */
+export function payuVerifiedAmount(verified: Record<string, any> | null): number | null {
+  const raw = verified?.amt ?? verified?.transaction_amount
+  const n = Number(raw)
+  return raw === undefined || raw === null || raw === "" || !Number.isFinite(n) ? null : n
+}
+
+/**
+ * PayU's response reverse hash, both variants:
+ *   salt|status||||||udf5|udf4|udf3|udf2|udf1|email|firstname|productinfo|amount|txnid|key
+ *   additionalCharges|<the same>   (when PayU added a convenience fee)
+ */
+export function payuReverseHashMatches(
+  data: Record<string, unknown>,
+  opts: { merchant_key: string; merchant_salt: string }
+): boolean {
+  const tail = `${opts.merchant_salt}|${data.status ?? ""}||||||${data.udf5 || ""}|${data.udf4 || ""}|${data.udf3 || ""}|${data.udf2 || ""}|${data.udf1 || ""}|${data.email || ""}|${data.firstname || ""}|${data.productinfo || ""}|${data.amount || ""}|${data.txnid || ""}|${opts.merchant_key}`
+  const charges = data.additionalCharges ?? data.additional_charges
+  const base = charges ? `${charges}|${tail}` : tail
+  const expected = crypto.createHash("sha512").update(base).digest("hex")
+  const got = String(data.hash || "").toLowerCase()
+  if (got.length !== expected.length) return false
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(got))
 }
 
 export default PayUPaymentProviderService
