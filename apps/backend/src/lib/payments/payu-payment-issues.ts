@@ -42,11 +42,26 @@ export type PayuPaymentIssue = {
   paid: number | null
   /** What was due when the payment landed. */
   due: number | null
+  /**
+   * #2645 — set when the cart carries a DEPOSIT schedule and `due` is that
+   * deposit: the cart's full total. A full payment on a deposit cart is an old
+   * full-total link/QR paid after the deposit was set, and the order then
+   * records only the deposit as paid — so the balance would be asked for again.
+   */
+  deposit_cart_total?: number | null
   at: string
 }
 
 const say = (i: PayuPaymentIssue, cartId: string): string => {
   const rs = (n: number | null) => (n === null ? "?" : `₹${n.toFixed(2)}`)
+  if (i.kind === "over" && i.deposit_cart_total != null)
+    return (
+      `Cart ${cartId} is a DEPOSIT order (deposit ${rs(i.due)} of ${rs(i.deposit_cart_total)}) but PayU took ${rs(i.paid)} ` +
+      `(txn ${i.txnid}) — an old link or QR paid after the deposit was set. The order records only the deposit as paid, ` +
+      `so its balance would be asked for AGAIN. Do NOT raise the balance: refund ${rs(
+        i.paid === null || i.due === null ? null : Math.round((i.paid - i.due) * 100) / 100
+      )} (the balance then stays due later), or reconcile the order as paid in full.`
+    )
   if (i.kind === "short")
     return `PayU took ${rs(i.paid)} (txn ${i.txnid}) for cart ${cartId}, but ${rs(i.due)} is due, so no order was completed. Refund it or take the difference.`
   if (i.kind === "over")

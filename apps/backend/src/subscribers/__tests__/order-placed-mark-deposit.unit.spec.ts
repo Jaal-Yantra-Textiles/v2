@@ -30,7 +30,7 @@ const containerWith = (schedule: any, order: any) => {
         : { data: [order] }
     ),
   }
-  const logger = { info: jest.fn(), warn: jest.fn() }
+  const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() }
   const container = {
     resolve: (key: string) => {
       if (key === ContainerRegistrationKeys.LOGGER) return logger
@@ -39,7 +39,7 @@ const containerWith = (schedule: any, order: any) => {
       throw new Error(`unexpected resolve(${key})`)
     },
   }
-  return { container, schedules }
+  return { container, schedules, logger }
 }
 
 const run = (container: any) =>
@@ -51,6 +51,7 @@ describe("order.placed — re-basing a manual deposit on the real order", () => 
     source_type: "manual",
     deposit_status: "pending",
     order_id: null,
+    deposit_pct: 10,
     total_due: 8000,
     deposit_amount: 800,
     balance_amount: 7200,
@@ -100,6 +101,7 @@ describe("#2568 deposit-received email", () => {
     source_type: "manual",
     deposit_status: "pending",
     order_id: null,
+    deposit_pct: 10,
     total_due: 8000,
     deposit_amount: 800,
     balance_amount: 7200,
@@ -139,5 +141,96 @@ describe("#2568 deposit-received email", () => {
     })
     await run(container)
     expect(deliverDepositReceivedEmail).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * #176 / #2645 — a 50% deposit charged IN FULL (195 AUD, not 97.50). The
+ * re-base used to write 195 in as "the deposit" and balance 0, hiding it.
+ */
+describe("#2645 — a collection that is not the planned deposit is flagged, not re-based", () => {
+  beforeEach(() => deliverDepositReceivedEmail.mockClear())
+  const rune = {
+    id: "sched_176",
+    source_type: "manual",
+    deposit_status: "pending",
+    order_id: null,
+    currency_code: "aud",
+    deposit_pct: 50,
+    total_due: 195,
+    deposit_amount: 97.5,
+    balance_amount: 97.5,
+  }
+
+  it("OVERCHARGE: keeps the planned split, still marks the deposit paid, alerts, emails nobody", async () => {
+    const { container, schedules, logger } = containerWith(rune, {
+      id: "order_1",
+      total: 195,
+      currency_code: "aud",
+      payment_collections: [{ amount: 195 }],
+    })
+    await run(container)
+    expect(schedules.updatePaymentSchedules).toHaveBeenCalledWith({
+      id: "sched_176",
+      total_due: 195,
+      deposit_amount: 97.5,
+      balance_amount: 97.5,
+    })
+    // Never the collected figure as the deposit.
+    expect(schedules.updatePaymentSchedules).not.toHaveBeenCalledWith(
+      expect.objectContaining({ deposit_amount: 195 })
+    )
+    expect(schedules.markDepositPaid).toHaveBeenCalledWith("sched_176", "order_1")
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("[deposit] OVERCHARGE"))
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("overcharged by 97.5 AUD"))
+    expect(deliverDepositReceivedEmail).not.toHaveBeenCalled()
+  })
+
+  it("a FIXED deposit is compared against its amount", async () => {
+    const { container, schedules, logger } = containerWith(
+      { ...rune, deposit_pct: null, deposit_amount: 800, total_due: 8000, balance_amount: 7200 },
+      { id: "order_1", total: 8400, payment_collections: [{ amount: 8400 }] }
+    )
+    await run(container)
+    expect(schedules.updatePaymentSchedules).toHaveBeenCalledWith({
+      id: "sched_176",
+      total_due: 8400,
+      deposit_amount: 800,
+      balance_amount: 7600,
+    })
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("OVERCHARGE"))
+  })
+
+  it("UNDERCHARGE: flagged, re-based on what was collected so the buyer pays the total in sum", async () => {
+    const { container, schedules, logger } = containerWith(rune, {
+      id: "order_1",
+      total: 195,
+      payment_collections: [{ amount: 90 }],
+    })
+    await run(container)
+    expect(schedules.updatePaymentSchedules).toHaveBeenCalledWith({
+      id: "sched_176",
+      total_due: 195,
+      deposit_amount: 90,
+      balance_amount: 105,
+    })
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("UNDERCHARGE"))
+    expect(deliverDepositReceivedEmail).toHaveBeenCalledTimes(1)
+  })
+
+  it("a half-cent rounding difference is not a mismatch", async () => {
+    // 10% of 287.049 = 28.7049 → collected 28.70.
+    const { container, schedules, logger } = containerWith(
+      { ...rune, deposit_pct: 10 },
+      { id: "order_1", total: 287.049, payment_collections: [{ amount: 28.7 }] }
+    )
+    await run(container)
+    expect(schedules.updatePaymentSchedules).toHaveBeenCalledWith({
+      id: "sched_176",
+      total_due: 287.049,
+      deposit_amount: 28.7,
+      balance_amount: 258.35,
+    })
+    expect(logger.error).not.toHaveBeenCalled()
   })
 })

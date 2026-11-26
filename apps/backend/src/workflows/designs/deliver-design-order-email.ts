@@ -1,6 +1,8 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { BOT_SUPPRESSED_SEND_ID } from "../../lib/bot-recipients"
+import { planCartCollection } from "../../lib/payments/deposit-collection"
+import { PAYMENT_SCHEDULE_MODULE } from "../../modules/payment_schedule"
 import { sendDesignOrderCreatedEmailWorkflow } from "../email/workflows/send-design-order-created-email"
 import { loadAwaitingMaterials } from "./lib/awaiting-materials"
 
@@ -58,6 +60,65 @@ export const emailLineItems = (raw: unknown): EmailLineItem[] => {
     })
   }
   return out
+}
+
+/**
+ * The deposit section of the email (#2645): what is due NOW, the balance and
+ * when it is asked for. `null` when the cart has no deposit (pay in full).
+ */
+export type EmailDeposit = {
+  /** Due now — the same figure the PayU link and checkout charge. */
+  amount: number
+  /** Null for a fixed-amount deposit. */
+  deposit_pct: number | null
+  balance_amount: number
+  balance_trigger: string
+  /** Buyer words: "when your order is ready — we'll email you a payment link". */
+  balance_when: string
+}
+
+export const balanceWhen = (trigger: unknown): string =>
+  trigger === "dispatch"
+    ? "when your order is ready to ship — we'll email you a payment link"
+    : "when your order is ready — we'll email you a payment link"
+
+/**
+ * PURE. The deposit figures the buyer is told, from the SAME planner the
+ * PayU link and checkout use (`planCartCollection`), so the email cannot quote
+ * a deposit the link does not charge. The balance is the remainder
+ * (`total − deposit`, to the cent), never a second percentage.
+ *
+ * - no schedule → `{ deposit: null }` (an ordinary pay-in-full order).
+ * - a deposit that equals the total → `{ deposit: null }` (nothing later).
+ * - a refused plan → `{ refused: reason }`: the caller must NOT send an email
+ *   quoting the full total for a deposit order.
+ */
+export const emailDeposit = (input: {
+  schedule: any
+  total: number
+  currencyCode?: string | null
+}): { deposit: EmailDeposit | null; refused?: string } => {
+  if (!input.schedule) return { deposit: null }
+  const plan = planCartCollection({
+    cartTotal: input.total,
+    cartCurrency: input.currencyCode ?? null,
+    schedule: input.schedule,
+  })
+  if (plan.basis === "refuse") return { deposit: null, refused: plan.reason }
+  if (plan.basis !== "deposit") return { deposit: null }
+  const amount = Number(plan.amount)
+  const balance = Math.round((input.total - amount) * 100) / 100
+  if (!(balance > 0)) return { deposit: null }
+  const pct = input.schedule.deposit_pct
+  return {
+    deposit: {
+      amount,
+      deposit_pct: pct === null || pct === undefined ? null : Number(pct),
+      balance_amount: balance,
+      balance_trigger: String(input.schedule.balance_trigger ?? "manual"),
+      balance_when: balanceWhen(input.schedule.balance_trigger),
+    },
+  }
 }
 
 /** Public URL of the PayU-link QR image for a cart (#2564). */
@@ -177,6 +238,28 @@ export const deliverDesignOrderEmail = async (
     )
   }
 
+  /**
+   * #2645 — a deposit order's email says what is due NOW. Read failures fail
+   * the send (closed): an email quoting the full total on a deposit order is
+   * #176's overcharge in writing.
+   */
+  let deposit: EmailDeposit | null = null
+  try {
+    const schedules: any = scope.resolve(PAYMENT_SCHEDULE_MODULE)
+    const schedule = await schedules.findByCartId(cart?.id)
+    const planned = emailDeposit({ schedule, total, currencyCode: cart?.currency_code })
+    if (planned.refused) {
+      return fail(
+        `the order's deposit cannot be charged as set (${planned.refused}), so an email would quote the wrong amount.`
+      )
+    }
+    deposit = planned.deposit
+  } catch (e: any) {
+    return fail(
+      `could not read the order's deposit (${e?.message ?? e}), and an email that might quote the full total on a deposit order is worse than none.`
+    )
+  }
+
   const itemCount = Array.isArray(cart?.items) ? cart.items.length : null
   const items = emailLineItems(cart?.items)
   const taxTotal = Number(cart?.tax_total)
@@ -215,6 +298,8 @@ export const deliverDesignOrderEmail = async (
             : null,
           currency_code: cart?.currency_code ?? null,
           total,
+          // #2645 — null for pay-in-full; `{{#if deposit}}` in the template.
+          deposit,
           item_count: itemCount,
           // What the buyer is paying for, one row per design (#2576).
           items,

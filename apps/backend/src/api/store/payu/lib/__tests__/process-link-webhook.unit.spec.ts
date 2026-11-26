@@ -14,7 +14,7 @@ const logger = { warn: jest.fn(), error: jest.fn(), info: jest.fn() }
 const updateCarts = jest.fn()
 const createNotifications = jest.fn()
 
-const scopeWith = (cart: any) => {
+const scopeWith = (cart: any, schedule: any = null) => {
   let metadata = { ...(cart.metadata ?? {}) }
   updateCarts.mockImplementation(async (_id: string, patch: any) => {
     metadata = patch.metadata
@@ -24,7 +24,7 @@ const scopeWith = (cart: any) => {
       resolve: (key: string) => {
         if (key === "logger") return logger
         if (key === "query") return { graph: jest.fn(async () => ({ data: [cart] })) }
-        if (key === "payment_schedule") return { findByCartId: jest.fn(async () => null) }
+        if (key === "payment_schedule") return { findByCartId: jest.fn(async () => schedule) }
         if (key === "cart")
           return { listCarts: jest.fn(async () => [{ id: cart.id, metadata }]), updateCarts }
         if (key === "notification") return { createNotifications }
@@ -133,6 +133,34 @@ describe("processPayuLinkWebhook — #2572 guards", () => {
     expect(metadata().payu_payment_issues).toEqual([
       expect.objectContaining({ kind: "over", paid: 1100, due: 900 }),
     ])
+  })
+
+  /**
+   * #2645 — the buyer paid an OLD full-total link/QR after a 50% deposit was
+   * set. The cart completes (paid ≥ deposit) and the order records only the
+   * deposit, so the balance would be asked for again: the alert must say so.
+   */
+  it("🔴 a FULL payment on a DEPOSIT cart is flagged as 'do not raise the balance'", async () => {
+    const { scope, metadata } = scopeWith(
+      { id: "cart_1", total: 25200, metadata: {} },
+      {
+        id: "psch_1",
+        source_type: "manual",
+        deposit_status: "pending",
+        deposit_pct: 50,
+        deposit_amount: 12600,
+      }
+    )
+    const out = await processPayuLinkWebhook(
+      scope,
+      { status: "success", udf1: "cart_1", txnid: "oldLink" },
+      { verifyTransaction: verified("success", 25200, true) }
+    )
+    expect(out.completed).toBe(true)
+    expect(metadata().payu_payment_issues).toEqual([
+      expect.objectContaining({ kind: "over", paid: 25200, due: 12600, deposit_cart_total: 25200 }),
+    ])
+    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining("Do NOT raise the balance"))
   })
 
   it("does not stack the same issue twice on a retried webhook", async () => {

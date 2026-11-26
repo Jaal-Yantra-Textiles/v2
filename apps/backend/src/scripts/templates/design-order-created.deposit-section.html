@@ -1,0 +1,40 @@
+<!--
+  design-order-created — DEPOSIT SECTION (#2645)
+
+  Goes inside the TOTALS table, right after the "Total · N piece(s)" row.
+  Rendered only when `deposit` is set (deliverDesignOrderEmail passes it when
+  the cart has a payment schedule), so the template stays backward compatible:
+  an order without a deposit renders exactly as before.
+
+  Data (all from deliverDesignOrderEmail, same planner as the PayU link):
+    deposit.amount          due NOW — what the PayU link and checkout charge
+    deposit.deposit_pct     e.g. 50, or null for a fixed amount
+    deposit.balance_amount  total − deposit, to the cent
+    deposit.balance_when    "when your order is ready — we'll email you a payment link"
+                            (or "... ready to ship — ..." for balance_trigger dispatch)
+-->
+{{#if deposit}}
+<tr>
+<td style="padding:16px 8px 6px 0;border-top:2px solid #181818;font-size:13px;line-height:1.5;font-weight:bold;color:#C96B4B;">
+Deposit due now{{#if deposit.deposit_pct}} &middot; {{deposit.deposit_pct}}%{{/if}}
+</td>
+<td align="right" style="padding:16px 0 6px 8px;border-top:2px solid #181818;font-size:18px;line-height:1.3;font-weight:bold;color:#C96B4B;white-space:nowrap;">
+{{formatMoney currency_code deposit.amount}}
+</td>
+</tr>
+<tr>
+<td style="padding:6px 8px 16px 0;font-size:12px;line-height:1.6;color:#56534D;">
+Balance &mdash; due {{deposit.balance_when}}
+</td>
+<td align="right" valign="top" style="padding:6px 0 16px 8px;font-size:13px;line-height:1.5;font-weight:bold;color:#181818;white-space:nowrap;">
+{{formatMoney currency_code deposit.balance_amount}}
+</td>
+</tr>
+<tr>
+<td colspan="2" style="padding:0 0 4px 0;font-size:12px;line-height:1.7;color:#56534D;">
+You pay only the deposit today. We start making once it arrives, and we&rsquo;ll ask for the balance of
+<strong style="color:#181818;">{{formatMoney currency_code deposit.balance_amount}}</strong>
+{{deposit.balance_when}}.
+</td>
+</tr>
+{{/if}}

@@ -1,5 +1,6 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { previewDeposit } from "./preview-deposit"
 import { estimateDesignCostWorkflow, type EstimateCostOutput } from "../../../../../../workflows/designs/estimate-design-cost"
 
 type PreviewDesignOrderBody = {
@@ -8,6 +9,10 @@ type PreviewDesignOrderBody = {
   /** Agreed per-design unit prices, major units — what create will charge. */
   price_overrides?: Record<string, number>
   override_currency?: string
+  /** #2645 — previewed, not saved: how a deposit would split this total. */
+  deposit_pct?: number
+  deposit_amount?: number
+  balance_trigger?: "manual" | "dispatch"
 }
 
 type EstimatePreviewItem = {
@@ -29,8 +34,15 @@ export const POST = async (
   req: MedusaRequest<PreviewDesignOrderBody>,
   res: MedusaResponse
 ) => {
-  const { design_ids, currency_code, price_overrides, override_currency } =
-    req.validatedBody as PreviewDesignOrderBody
+  const {
+    design_ids,
+    currency_code,
+    price_overrides,
+    override_currency,
+    deposit_pct,
+    deposit_amount,
+    balance_trigger,
+  } = req.validatedBody as PreviewDesignOrderBody
   /**
    * 🔴 The preview used to ignore `price_overrides`, which create applies. So
    * the one call meant to show the price BEFORE creating showed an estimate
@@ -102,6 +114,14 @@ export const POST = async (
   const total = estimates.reduce((sum, e) => sum + (e.unit_price ?? 0), 0)
 
   res.json({
+    /** #2645 — the split a deposit would make on this pre-tax total; null without one. */
+    deposit: previewDeposit({
+      total,
+      complete: unpriceable.length === 0,
+      deposit_pct,
+      deposit_amount,
+      balance_trigger,
+    }),
     estimates,
     currency_code: currency_code || "inr",
     total,
