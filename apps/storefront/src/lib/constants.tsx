@@ -41,7 +41,7 @@ export const paymentInfoMap: Record<
     icon: <PayPal />,
   },
   pp_system_default: {
-    title: "Manual Payment",
+    title: "Cash on delivery",
     icon: <CreditCard />,
   },
   pp_payu_payu: {

@@ -5802,6 +5802,12 @@ export default defineMiddlewares({
       middlewares: [authenticate("customer", ["session", "bearer"])],
     },
     {
+      // A customer cancels their own unpaid, unshipped order (self-cancel.ts).
+      matcher: "/store/orders/:id/cancel",
+      method: "POST",
+      middlewares: [authenticate("customer", ["session", "bearer"])],
+    },
+    {
       matcher: "/store/ai/accessfee/confirm",
       method: "POST",
       middlewares: [

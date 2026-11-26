@@ -1,22 +1,18 @@
 import { HttpTypes } from "@medusajs/types"
 import { Text } from "@medusajs/ui"
 
+import { orderStatusLabel, paymentStatusLabel } from "@lib/util/order-payment"
+
 type OrderDetailsProps = {
   order: HttpTypes.StoreOrder
   showStatus?: boolean
 }
 
 const OrderDetails = ({ order, showStatus }: OrderDetailsProps) => {
-  const formatStatus = (str: string) => {
-    const formatted = str.split("_").join(" ")
-
-    return formatted.slice(0, 1).toUpperCase() + formatted.slice(1)
-  }
-
   return (
     <div>
       <Text>
-        We have sent the order confirmation details to{" "}
+        We&apos;ve emailed your order details to{" "}
         <span
           className="text-ui-fg-medium-plus font-semibold"
           data-testid="order-email"
@@ -41,16 +37,16 @@ const OrderDetails = ({ order, showStatus }: OrderDetailsProps) => {
             <Text>
               Order status:{" "}
               <span className="text-ui-fg-subtle " data-testid="order-status">
-                {formatStatus(order.fulfillment_status)}
+                {orderStatusLabel(order)}
               </span>
             </Text>
             <Text>
               Payment status:{" "}
               <span
                 className="text-ui-fg-subtle "
-                sata-testid="order-payment-status"
+                data-testid="order-payment-status"
               >
-                {formatStatus(order.payment_status)}
+                {paymentStatusLabel(order)}
               </span>
             </Text>
           </>

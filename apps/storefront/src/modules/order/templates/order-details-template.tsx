@@ -13,6 +13,8 @@ import ShippingDetails from "@modules/order/components/shipping-details"
 import React from "react"
 
 import { ReturnShippingOption } from "@lib/data/orders"
+import { canSelfCancel } from "@lib/util/order-payment"
+import CancelOrder from "@modules/order/components/cancel-order"
 
 type OrderDetailsTemplateProps = {
   order: HttpTypes.StoreOrder
@@ -46,6 +48,7 @@ const OrderDetailsTemplate: React.FC<OrderDetailsTemplateProps> = ({
         data-testid="order-details-container"
       >
         <OrderDetails order={order} showStatus />
+        {!isPublic && canSelfCancel(order) && <CancelOrder orderId={order.id} />}
         <OrderStatusTimeline order={order} variant="full" />
         <Items order={order} />
         <ShippingDetails order={order} />

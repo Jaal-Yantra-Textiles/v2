@@ -1,4 +1,5 @@
 import { HttpTypes } from "@medusajs/types"
+import { isCashOrder } from "@lib/util/order-payment"
 
 type OrderStatusTimelineProps = {
   order: HttpTypes.StoreOrder
@@ -36,13 +37,20 @@ function getOrderTimeline(order: HttpTypes.StoreOrder): Task[] {
   }
 
   // 2. Payment
+  // A cash order is authorized at checkout but nobody has paid yet, so for
+  // it only a capture counts as paid.
+  const cash = isCashOrder(order as any)
   const paymentDone =
     paymentStatus === "captured" ||
-    paymentStatus === "authorized" ||
-    paymentStatus === "partially_captured"
+    paymentStatus === "partially_captured" ||
+    (!cash && paymentStatus === "authorized")
 
   tasks.push({
-    label: paymentDone ? "Payment confirmed" : "Awaiting payment",
+    label: paymentDone
+      ? "Payment confirmed"
+      : cash
+        ? "Pay in cash at collection"
+        : "Awaiting payment",
     done: paymentDone,
     timestamp: paymentDone
       ? order.payment_collections?.[0]?.created_at

@@ -10,6 +10,8 @@ import ShippingDetails from "@modules/order/components/shipping-details"
 import PaymentDetails from "@modules/order/components/payment-details"
 import { HttpTypes } from "@medusajs/types"
 
+import { isCashOrder } from "@lib/util/order-payment"
+
 type OrderCompletedTemplateProps = {
   order: HttpTypes.StoreOrder
 }
@@ -20,6 +22,8 @@ export default async function OrderCompletedTemplate({
   const cookies = await nextCookies()
 
   const isOnboarding = cookies.get("_medusa_onboarding")?.value === "true"
+  // A cash order is received, not paid: don't tell the buyer it's confirmed.
+  const cash = isCashOrder(order)
 
   return (
     <div className="py-6 min-h-[calc(100vh-64px)]">
@@ -34,8 +38,21 @@ export default async function OrderCompletedTemplate({
             className="flex flex-col gap-y-3 text-ui-fg-base text-3xl mb-4"
           >
             <span>Thank you!</span>
-            <span>Your order was placed successfully.</span>
+            <span>
+              {cash
+                ? "We've received your order."
+                : "Your order was placed successfully."}
+            </span>
           </Heading>
+          {cash && (
+            <p
+              className="text-base-regular text-ui-fg-subtle -mt-2"
+              data-testid="cash-order-note"
+            >
+              You&apos;ll pay in cash when you collect it. Nothing has been
+              charged.
+            </p>
+          )}
           <OrderDetails order={order} />
           <Heading level="h2" className="flex flex-row text-3xl-regular">
             Summary

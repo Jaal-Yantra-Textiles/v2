@@ -59,9 +59,20 @@ export default function CheckoutPaymentSection({
   const searchParams = useSearchParams()
   const latestSession = cart.payment_collection?.payment_sessions?.[0]
 
+  // Only a method still on offer counts. Cash is offered for pickup only, so
+  // a cash session left over from pickup must not survive a switch to
+  // courier delivery (it would place a shipped order as cash).
+  const isOffered = (id?: string | null) =>
+    !!id && availablePaymentMethods.some((m) => m.id === id)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(
-    latestSession?.provider_id ?? ""
+    isOffered(latestSession?.provider_id) ? latestSession!.provider_id : ""
   )
+  useEffect(() => {
+    if (selectedPaymentMethod && !isOffered(selectedPaymentMethod)) {
+      setSelectedPaymentMethod("")
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [availablePaymentMethods, selectedPaymentMethod])
   const [error, setError] = useState<string | null>(null)
   const [, setPaymentComplete] = useState(false)
   const [billingOpen, setBillingOpen] = useState(false)
