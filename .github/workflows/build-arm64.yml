@@ -43,6 +43,10 @@ concurrency:
 permissions:
   contents: read
   packages: write
+  # Keyless cosign signing (#1085): the signature is bound to THIS workflow on
+  # THIS ref through GitHub's OIDC identity. The A1 box verifies it before it
+  # deploys anything, so an image pushed by any other means never reaches prod.
+  id-token: write
 
 jobs:
   build-arm64:
@@ -75,6 +79,7 @@ jobs:
       # cache keeps the dependency layers between runs (scope keeps it apart
       # from any other workflow's cache).
       - name: Build & push image
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -91,3 +96,17 @@ jobs:
             ${{ steps.image-vars.outputs.image }}:${{ steps.image-vars.outputs.tag }}
           cache-from: type=gha,scope=build-arm64
           cache-to: type=gha,scope=build-arm64,mode=max
+
+      - uses: sigstore/cosign-installer@v3.7.0
+        with:
+          cosign-release: v2.4.1
+
+      # Sign the DIGEST, never a tag: a tag can be moved after signing.
+      # Keyless: no secret to leak; the certificate names this workflow + ref,
+      # and the signature is logged in Sigstore's public transparency log.
+      - name: Sign image (cosign, keyless)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          test -n "$DIGEST"
+          cosign sign --yes "${{ steps.image-vars.outputs.image }}@${DIGEST}"

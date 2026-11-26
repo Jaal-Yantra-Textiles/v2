@@ -151,6 +151,14 @@ to its digest in `/opt/jyt/.env` → restarts server + worker + tunnel → waits
 `/health` → on failure restores the previous image. Every outcome goes to ntfy.
 A failed image is not retried; the next build is.
 
+**Signed images only.** `build-arm64.yml` signs each image's digest with cosign,
+keyless (GitHub OIDC; no key to leak; logged in Sigstore's transparency log).
+`auto-deploy.sh` runs `cosign verify` for identity
+`…/.github/workflows/build-arm64.yml@refs/heads/main` before it migrates anything,
+so an image pushed to GHCR any other way (a leaked token, a hand push, a build
+from another branch) is refused and reported, never run. `deploy.sh` installs the
+pinned cosign binary on the box.
+
 - `auto-deploy.sh check` — what is pinned and running; changes nothing.
 - `auto-deploy.sh deploy ghcr.io/jaal-yantra-textiles/v2:sha-<commit>-arm64` — deploy
   or roll back to one build by hand.

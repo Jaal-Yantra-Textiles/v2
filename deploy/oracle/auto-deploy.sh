@@ -13,6 +13,11 @@
 #
 # Every outcome goes to the founder's phone (ntfy topic in /opt/jyt-ops/.env).
 #
+# 🔴 Nothing deploys unless its cosign signature verifies: signed keylessly by
+# build-arm64.yml running on refs/heads/main of this repo. Whoever can push to
+# GHCR could otherwise put any image on prod; with this, only a merge to main
+# can. An image that fails verification is refused and reported, never run.
+#
 # Commands:
 #   check               what is running; changes nothing
 #   auto                the timer's job (above); a no-op when nothing is new
@@ -29,6 +34,9 @@ REPO="ghcr.io/jaal-yantra-textiles/v2"
 TAG="$REPO:latest-arm64"
 PROFILES=(--profile worker --profile tunnel)
 LOG=/opt/jyt/deploy.log
+
+SIGNER="https://github.com/Jaal-Yantra-Textiles/v2/.github/workflows/build-arm64.yml@refs/heads/main"
+ISSUER="https://token.actions.githubusercontent.com"
 
 log() { echo "$(date -u +%FT%TZ) $*" | tee -a "$LOG"; }
 
@@ -67,8 +75,18 @@ running_digest() {
   docker image inspect --format '{{index .RepoDigests 0}}' "$(docker inspect --format '{{.Image}}' "$id")" 2>/dev/null || true
 }
 
+verify_signature() {
+  command -v cosign >/dev/null || { log "cosign is not installed — refusing $1"; return 1; }
+  cosign verify --certificate-identity "$SIGNER" --certificate-oidc-issuer "$ISSUER" "$1" >/dev/null 2>>"$LOG"
+}
+
 do_deploy() {
   local new="$1" old
+  if ! verify_signature "$new"; then
+    log "signature check FAILED for $new — not deployed"
+    notify "Deploy refused: unsigned image" "${new##*@} is not signed by build-arm64.yml on main. Nothing changed. See /opt/jyt/deploy.log" 5
+    return 1
+  fi
   old="$(current_image)"
   [ -n "$old" ] || old="$(running_digest)"
   log "deploying $new (was ${old:-unknown})"
@@ -108,6 +126,7 @@ case "$CMD" in
     echo "live:    $([ -f LIVE ] && echo yes || echo no)"
     echo "pinned:  $(current_image)"
     echo "running: $(running_digest)"
+    echo "cosign:  $(command -v cosign >/dev/null && cosign version 2>/dev/null | sed -n 's/^GitVersion:[[:space:]]*//p' || echo missing)"
     docker compose "${PROFILES[@]}" ps --format '{{.Service}} {{.Status}}'
     ;;
   auto|deploy)
