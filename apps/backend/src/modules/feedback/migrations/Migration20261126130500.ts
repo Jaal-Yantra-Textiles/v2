@@ -12,7 +12,7 @@ import { Migration } from "@medusajs/framework/mikro-orm/migrations";
  *
  * Hand-written `add column if not exists` so it lands on existing DBs.
  */
-export class Migration20261126120000 extends Migration {
+export class Migration20261126130500 extends Migration {
 
   override async up(): Promise<void> {
     this.addSql(`alter table if exists "feedback" add column if not exists "answered_at" timestamptz null;`);
