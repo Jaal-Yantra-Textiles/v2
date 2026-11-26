@@ -15,7 +15,6 @@
  * the existing order id instead of throwing.
  */
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
-import { mintPayuExternalProof } from "../../../../lib/payments/payu-external-proof"
 import {
   completeCartWorkflow,
   createPaymentSessionsWorkflow,
@@ -55,16 +54,15 @@ export function buildSessionData(
   ref?: Record<string, unknown>
 ): Record<string, unknown> | undefined {
   if (provider.includes("payu")) {
-    // PayU.authorizePayment re-verifies the PROVEN txnid with PayU and checks
-    // the amount. `txnid` itself is overwritten by initiatePayment's fresh one
-    // (Medusa merges caller data under provider data), hence the proof keys.
+    // PayU.authorizePayment re-verifies `txnid` with PayU and checks the amount.
+    // On a NEW session initiatePayment overwrites it, so the caller re-applies
+    // this with updatePaymentSession (see below).
     return {
       payu_status: "success",
       txnid: ref?.txnid,
       mihpayid: ref?.mihpayid,
       mode: ref?.mode,
       bank_ref_num: ref?.bank_ref_num,
-      ...mintPayuExternalProof(String(ref?.txnid ?? "")),
     }
   }
   return ref ? { external_payment: ref } : undefined
@@ -131,18 +129,26 @@ export async function completeCartFromExternalPayment(
 
   // Ensure a session on the chosen provider to authorize (paid out-of-band).
   const sessions: any[] = cart.payment_collection?.payment_sessions || []
-  const existing = sessions.find((s) => s.provider_id === provider)
+  let existing = sessions.find((s) => s.provider_id === provider)
   if (!existing) {
-    await createPaymentSessionsWorkflow(scope).run({
+    const { result: created } = await createPaymentSessionsWorkflow(scope).run({
       input: {
         payment_collection_id: pcId!,
         provider_id: provider,
         data: buildSessionData(provider, ref),
       },
     })
-  } else if (provider.includes("payu")) {
-    // A checkout session already on the cart carries ITS OWN (unpaid) txnid;
-    // point it at the verified link txn, or authorize would check the wrong one.
+    existing = created as any
+  }
+  if (provider.includes("payu") && existing?.id) {
+    /**
+     * 🔴 Point the session at the VERIFIED link txn (#2574). A new session got
+     * a fresh txnid from initiatePayment (Medusa stores {...caller, ...provider}
+     * data, so ours was overwritten); a checkout session already on the cart
+     * carries the buyer's own unpaid one. Either way authorize must re-verify
+     * the link's txnid with PayU. Only server code writes `txnid`: the store
+     * payment-sessions route strips it and /store/payu/complete never sets it.
+     */
     const paymentModule: any = scope.resolve(Modules.PAYMENT)
     await paymentModule.updatePaymentSession({
       id: existing.id,

@@ -18,7 +18,6 @@
 process.env.PAYU_MERCHANT_KEY = process.env.PAYU_MERCHANT_KEY || "it_payu_key"
 process.env.PAYU_MERCHANT_SALT = process.env.PAYU_MERCHANT_SALT || "it_payu_salt"
 process.env.PAYU_MODE = "test"
-process.env.COOKIE_SECRET = process.env.COOKIE_SECRET || "it-cookie-secret-123"
 
 import { Modules } from "@medusajs/utils"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"

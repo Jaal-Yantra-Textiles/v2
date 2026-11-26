@@ -141,61 +141,17 @@ describe("PayU getWebhookActionAndData", () => {
   })
 })
 
-describe("PayU authorizePayment — a paid LINK completes through a proven txnid", () => {
-  const realFetch = global.fetch
-  const realSecret = process.env.COOKIE_SECRET
-  beforeAll(() => {
-    process.env.COOKIE_SECRET = "test-cookie-secret-123"
-  })
-  afterAll(() => {
-    process.env.COOKIE_SECRET = realSecret
-  })
-  afterEach(() => {
-    global.fetch = realFetch
-  })
-
+describe("store callers cannot write provider facts into session data", () => {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { mintPayuExternalProof, stripReservedPayuSessionKeys } = require("../../../lib/payments/payu-external-proof")
+  const { stripReservedPayuSessionKeys } = require("../../../lib/payments/payu-session-reserved-keys")
 
-  it("verifies the LINK's txnid, not the fresh one initiatePayment wrote", async () => {
-    const fetchMock = jest.fn().mockImplementation(async (_url: string, init: any) => {
-      const var1 = new URLSearchParams(init.body).get("var1")
-      return var1 === "link_txn_9"
-        ? verifyReply("link_txn_9", { status: "success", mihpayid: "999", amt: "1050.00" })
-        : verifyReply(String(var1), null)
-    })
-    global.fetch = fetchMock as any
-    const out = await provider().authorizePayment({
-      // What Medusa stores: caller data UNDER provider data → txnid is fresh.
-      data: session({ txnid: "fresh_txn", payu_status: "success", mihpayid: "999", ...mintPayuExternalProof("link_txn_9") }),
-    } as any)
-    expect(out.status).toBe("captured")
-    expect(new URLSearchParams(fetchMock.mock.calls[0][1].body).get("var1")).toBe("link_txn_9")
-  })
-
-  it("ignores a txnid whose proof is forged", async () => {
-    const fetchMock = jest.fn().mockImplementation(async (_url: string, init: any) => {
-      const var1 = new URLSearchParams(init.body).get("var1")
-      return var1 === "someone_elses_paid_txn"
-        ? verifyReply(String(var1), { status: "success", mihpayid: "1", amt: "1050.00" })
-        : verifyReply(String(var1), null)
-    })
-    global.fetch = fetchMock as any
-    const out = await provider().authorizePayment({
-      data: session({ payu_external_txnid: "someone_elses_paid_txn", payu_external_proof: "f".repeat(64) }),
-    } as any)
-    expect(out.status).toBe("pending")
-  })
-
-  it("a store caller cannot inject status, ids, proof or a merchant account", () => {
+  it("strips status, PayU ids, txnid and a merchant account; keeps the rest", () => {
     const out = stripReservedPayuSessionKeys({
       payu_status: "success",
       mihpayid: "1",
       txnid: "t",
       partner_merchant_key: "mine",
       partner_merchant_salt: "mine",
-      payu_external_txnid: "x",
-      payu_external_proof: "y",
       setup_future_usage: "off_session",
     })
     expect(out).toEqual({ setup_future_usage: "off_session" })

@@ -15,7 +15,7 @@ import {
 } from "../../../../../modules/stripe-connect-payment/lib/resolve-connect"
 import { resolveCollectionPaymentContext } from "../../../../../lib/payments/resolve-collection-customer"
 import { saveCardSessionData } from "../../../../../lib/payments/save-card-intent"
-import { stripReservedPayuSessionKeys } from "../../../../../lib/payments/payu-external-proof"
+import { stripReservedPayuSessionKeys } from "../../../../../lib/payments/payu-session-reserved-keys"
 import { ensureCartPaymentCollection } from "../../../../../lib/payments/ensure-cart-collection"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 

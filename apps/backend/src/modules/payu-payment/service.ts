@@ -23,7 +23,6 @@ import {
 } from "@medusajs/framework/types"
 import { Logger } from "@medusajs/framework/types"
 import { newRefundToken, refundPayuPayment } from "../../lib/payments/payu-refund"
-import { readPayuExternalTxnid } from "../../lib/payments/payu-external-proof"
 
 type PayUOptions = {
   merchant_key: string
@@ -245,9 +244,9 @@ class PayUPaymentProviderService extends AbstractPaymentProvider<PayUOptions> {
     const { data } = input
     const opts = this.resolveFromSessionData(data) || this.options_
     const reported = ((data?.payu_status as string) || (data?.status as string) || "").toLowerCase()
-    // A paid PayU link completes through a session whose own txnid is fresh;
-    // the link's txnid rides along with a server-only proof (payu-external-proof).
-    const txnid = readPayuExternalTxnid(data) || (data?.txnid as string) || ""
+    // Only server code writes `txnid` (the store routes strip / never set it);
+    // a paid link's completion points it at the verified link txn.
+    const txnid = (data?.txnid as string) || ""
 
     if (!txnid) {
       return { data: { ...data }, status: "pending" }
