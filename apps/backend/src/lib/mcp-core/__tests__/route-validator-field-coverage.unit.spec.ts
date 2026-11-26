@@ -501,6 +501,10 @@ const DELIBERATELY_OMITTED: Record<string, Record<string, string>> = {
     dry_run:
       "the MCP dispatcher intercepts dry_run and never calls the route; the route's `preview` is the passthrough twin the tool advertises",
   },
+  "admin:send_order_refund_email": {
+    dry_run:
+      "as review_production_run_output: the dispatcher's own flag never arrives; `preview` survives it and is what the tool advertises",
+  },
   "admin:run_maintenance_job": {
     dry_run:
       "as review_production_run_output — the dispatcher's own flag never arrives; `preview` survives it and is what the tool advertises",
