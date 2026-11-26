@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test"
 
+import { assertNotVercelCheckpoint } from "../helpers/vercel-checkpoint"
+
 /**
  * Homepage metadata on a LIVE partner storefront.
  *
@@ -22,8 +24,9 @@ import { test, expect } from "@playwright/test"
  * every time a partner rewrites their copy — the point is that the page shows
  * whatever the partner set.
  *
- * @storefront — hits a live external site, so it is excluded from the CI admin
- * e2e run (see playwright.config.ts). Run it locally, or point it elsewhere:
+ * @storefront @live — hits a live external site, so it is excluded from the CI
+ * admin e2e run unless STOREFRONT_LIVE=1 (see playwright.config.ts). Run it
+ * locally, or point it elsewhere:
  *
  *   STOREFRONT_HOME_URL=https://…/in \
  *   STOREFRONT_BACKEND_URL=https://v3.jaalyantra.com \
@@ -44,7 +47,7 @@ type Theme = {
 /** The domain the backend keys the website row by — the host, minus `www.`. */
 const domainOf = (url: string) => new URL(url).host.replace(/^www\./, "")
 
-test.describe("Storefront homepage metadata @storefront", () => {
+test.describe("Storefront homepage metadata @storefront @live", () => {
   let theme: Theme
 
   test.beforeAll(async ({ request }) => {
@@ -61,7 +64,8 @@ test.describe("Storefront homepage metadata @storefront", () => {
   })
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(HOME_URL, { waitUntil: "domcontentloaded" })
+    const response = await page.goto(HOME_URL, { waitUntil: "domcontentloaded" })
+    await assertNotVercelCheckpoint(page, response)
   })
 
   test("the title carries the partner's store name, not the starter default", async ({

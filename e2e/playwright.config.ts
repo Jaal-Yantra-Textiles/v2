@@ -25,9 +25,20 @@ export default defineConfig({
   //
   // `@localstack` is the same idea for the other direction: a spec that needs a
   // storefront on :8000 AND a seeded product. Note this is NOT implied by
-  // `@storefront` — the other storefront specs hit LIVE deployed sites and run
-  // here quite happily, which is exactly why the new tag was needed rather than
-  // widening the existing one.
+  // `@storefront` — the other storefront specs hit LIVE deployed sites, which
+  // is why the new tag was needed rather than widening the existing one.
+  //
+  // 🔴 `@live` marks those live-site specs (uniquepashmina.com home + product
+  // page). They ran here until 2026-11-22, when Vercel Bot Protection
+  // (action: challenge) was switched on for the `storefront-shared` project:
+  // since then GitHub runners get HTTP 429 "Vercel Security Checkpoint" on
+  // every request, so all five tests failed on every main push from
+  // 2026-11-23 while the same specs passed against the same pages from a
+  // laptop. The hosting firewall is
+  // not something an admin e2e gate can pass or fix, so they are excluded on
+  // CI unless `STOREFRONT_LIVE=1` (set it once the runner can get past the
+  // challenge, e.g. a firewall bypass rule). Locally they still run, and
+  // `assertNotVercelCheckpoint` names the checkpoint instead of timing out.
   //
   // 🔑 `PARTNER_UI=1` opts @partnerui specs BACK IN — the e2e job now boots the
   // partner UI on :5173, so they can run on CI too. Without this the job went
@@ -41,9 +52,14 @@ export default defineConfig({
   // used to hide inside `@partnerui`. Opting the partner specs back in dragged
   // it along and it failed for a reason no partner-UI fix could address.
   grepInvert: process.env.CI
-    ? process.env.PARTNER_UI
-      ? /@localstack|@llm/
-      : /@partnerui|@localstack|@llm/
+    ? new RegExp(
+        [
+          "@localstack",
+          "@llm",
+          ...(process.env.PARTNER_UI ? [] : ["@partnerui"]),
+          ...(process.env.STOREFRONT_LIVE ? [] : ["@live"]),
+        ].join("|")
+      )
     : undefined,
 
   /**
