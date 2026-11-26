@@ -1,6 +1,7 @@
 import {
   confirmationDelivery,
   confirmationLines,
+  cancellationRefund,
   confirmationPayment,
   confirmationTotals,
   paymentMethodWords,
@@ -102,6 +103,43 @@ describe("order confirmation details (#2578)", () => {
       payment_collections: [{ captured_amount: 0, authorized_amount: 1.05, payments: [{ provider_id: "pp_stripe_stripe" }] }],
     }
     expect(confirmationPayment(authorised)).toMatchObject({ paid: "₹1.05", method: "card via Stripe", paid_in_full: true })
+  })
+
+  /**
+   * #175 (Chirag, 2026-11-26): a COD order, cancelled. The cash provider
+   * AUTHORIZES at checkout though nobody paid, and the email said
+   * "₹42,000 to be refunded to your bank transfer".
+   */
+  it("🔴 an unpaid cash/COD authorization is not money paid", () => {
+    const cod = {
+      ...order158,
+      total: 42000,
+      summary: { paid_total: 0 },
+      payment_collections: [
+        { captured_amount: 0, authorized_amount: 42000, payments: [{ provider_id: "pp_system_default" }] },
+      ],
+    }
+    expect(confirmationPayment(cod)).toMatchObject({
+      paid: null,
+      method: "cash on delivery",
+      balance_due: "₹42,000.00",
+      paid_in_full: false,
+    })
+    expect(cancellationRefund(cod)).toBeNull()
+  })
+
+  it("a cancellation refunds only what was captured, less refunds already made", () => {
+    const hold = {
+      ...order158,
+      payment_collections: [{ captured_amount: 0, authorized_amount: 500, payments: [{ provider_id: "pp_stripe_stripe" }] }],
+    }
+    expect(cancellationRefund(hold)).toBeNull() // a card hold is released, not refunded
+    const paid = {
+      ...order158,
+      currency_code: "aud",
+      payment_collections: [{ captured_amount: 195, refunded_amount: 90, payments: [{ provider_id: "pp_stripe_stripe" }] }],
+    }
+    expect(cancellationRefund(paid)).toMatch(/105/)
   })
 
   it("never invents a payment: nothing held → no paid row, the whole total due", () => {

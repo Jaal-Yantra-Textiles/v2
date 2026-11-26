@@ -3,7 +3,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
 import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
 import { buildOrderCanceledCustomerEmailData } from "./order-canceled-customer-email-lib"
-import { orderEmailBasics } from "./order-confirmation-email-lib"
+import { cancellationRefund, orderEmailBasics } from "./order-confirmation-email-lib"
 
 const retrieveOrderStep = createStep(
   { name: "retrieve-order-for-cancellation", store: true },
@@ -32,6 +32,7 @@ const retrieveOrderStep = createStep(
         "shipping_methods.name",
         "payment_collections.captured_amount",
         "payment_collections.authorized_amount",
+        "payment_collections.refunded_amount",
         "payment_collections.payments.provider_id",
         "payment_collections.payments.data",
       ],
@@ -66,8 +67,10 @@ export const sendOrderCanceledCustomerEmailWorkflow = createWorkflow(
       return {
         ...buildOrderCanceledCustomerEmailData(d.order),
         ...basics,
-        // What we hold and owe back, if anything was paid.
-        refund_amount: basics.payment.paid,
+        // What was actually captured and is owed back. Not "paid": a COD
+        // order is authorized but unpaid, and was told "₹42,000 to be
+        // refunded" (#175, 2026-11-26).
+        refund_amount: cancellationRefund(d.order),
       }
     })
 
