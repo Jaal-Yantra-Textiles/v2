@@ -3,6 +3,8 @@ import { listCartPaymentMethods } from "@lib/data/payment"
 import { listRegions } from "@lib/data/regions"
 import { retrieveCustomerAddresses } from "@lib/data/customer"
 import type { HttpTypes } from "@medusajs/types"
+import { isManual } from "@lib/constants"
+import { isPickupShippingOption } from "@lib/util/fulfillment"
 import CheckoutShippingSection from "@modules/checkout/components/checkout-shipping-section"
 import CheckoutInfoRows from "@modules/checkout/components/checkout-info-rows"
 import CheckoutPaymentSection from "@modules/checkout/components/checkout-payment-section"
@@ -27,6 +29,23 @@ export default async function CheckoutForm({
       retrieveCustomerAddresses(),
       listCartPaymentMethods(cart.region?.id ?? ""),
     ])
+
+  /**
+   * Cash on delivery (the manual provider) is for a buyer collecting in
+   * person: offered only once the cart's delivery is a PICKUP, same rule as
+   * the partner stores. It used to be offered on every courier order too.
+   */
+  const pickupOptionIds = new Set(
+    (shippingOptions ?? [])
+      .filter((o) => isPickupShippingOption(o as any))
+      .map((o) => o.id)
+  )
+  const isPickup = !!cart.shipping_methods?.some(
+    (m) => !!m.shipping_option_id && pickupOptionIds.has(m.shipping_option_id)
+  )
+  const offeredPaymentMethods = (paymentMethods ?? []).filter(
+    (m) => !isManual(m.id) || isPickup
+  )
 
   const resolvedCountry =
     countryCode ||
@@ -78,7 +97,7 @@ export default async function CheckoutForm({
       */}
       <CheckoutPaymentSection
         cart={cart}
-        availablePaymentMethods={paymentMethods ?? []}
+        availablePaymentMethods={offeredPaymentMethods}
       />
     </div>
   )

@@ -2,7 +2,9 @@
 
 import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
-import { getAuthHeaders, getCacheOptions } from "./cookies"
+import { updateTag } from "next/cache"
+
+import { getAuthHeaders, getCacheOptions, getCacheTag } from "./cookies"
 import { HttpTypes } from "@medusajs/types"
 
 const ORDER_FIELDS = [
@@ -258,4 +260,25 @@ export const declineTransferRequest = async (id: string, token: string) => {
     .declineTransfer(id, { token }, {}, headers)
     .then(({ order }) => ({ success: true, error: null, order }))
     .catch((err) => ({ success: false, error: err.message, order: null }))
+}
+
+/**
+ * A signed-in customer cancels their own order. The backend only allows it
+ * while nothing is paid or shipped (store/orders/:id/cancel).
+ */
+export const cancelOrder = async (
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> => {
+  const headers = { ...(await getAuthHeaders()) }
+  try {
+    await sdk.client.fetch(`/store/orders/${id}/cancel`, {
+      method: "POST",
+      headers,
+    })
+  } catch (err: any) {
+    return { ok: false, error: err?.message || "Could not cancel this order" }
+  }
+  const tag = await getCacheTag("orders")
+  if (tag) updateTag(tag)
+  return { ok: true }
 }
