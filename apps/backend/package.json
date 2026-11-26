@@ -38,6 +38,7 @@
     "check:prod-build": "node ./scripts/check-prod-build.mjs",
     "check:phantom-imports": "node ./scripts/check-phantom-imports.mjs",
     "e2e:seed": "medusa exec ../../e2e/helpers/e2e-seed.ts",
+    "e2e:seed:storefront": "medusa exec ../../e2e/helpers/e2e-storefront-seed.ts",
     "e2e:test": "playwright test --config=../../e2e/playwright.config.ts",
     "e2e": "pnpm e2e:seed && pnpm e2e:test"
   },

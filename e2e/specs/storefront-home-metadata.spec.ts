@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test"
 import { assertNotVercelCheckpoint } from "../helpers/vercel-checkpoint"
 
 /**
- * Homepage metadata on a LIVE partner storefront.
+ * Homepage metadata on a partner storefront.
  *
  * The root layout already resolves the tenant's store name, tagline and
  * favicon from the theme, but the homepage's own `generateMetadata` overrode
@@ -24,30 +24,45 @@ import { assertNotVercelCheckpoint } from "../helpers/vercel-checkpoint"
  * every time a partner rewrites their copy — the point is that the page shows
  * whatever the partner set.
  *
- * @storefront @live — hits a live external site, so it is excluded from the CI
- * admin e2e run unless STOREFRONT_LIVE=1 (see playwright.config.ts). Run it
- * locally, or point it elsewhere:
+ * Where it runs:
  *
- *   STOREFRONT_HOME_URL=https://…/in \
- *   STOREFRONT_BACKEND_URL=https://v3.jaalyantra.com \
+ *  - CI (default): the storefront-starter submodule built and started on
+ *    :8000 against the e2e backend, as the tenant `e2e-storefront-seed.ts`
+ *    creates (website row for `localhost`). Tagged `@localstack`, so the admin
+ *    run skips it; playwright.storefront.config.ts boots both servers when
+ *    E2E_LOCAL_STACK=1. Until 2026-11-22 this read a live partner site, and
+ *    went red the day Vercel Bot Protection started answering GitHub runners
+ *    with HTTP 429 "Vercel Security Checkpoint".
+ *  - Live (opt-in): STOREFRONT_LIVE=1 points it at www.uniquepashmina.com and
+ *    tags it `@live` instead. Override either URL to check another partner:
+ *
+ *   STOREFRONT_LIVE=1 STOREFRONT_HOME_URL=https://…/in \
  *     pnpm exec playwright test -c e2e/playwright.storefront.config.ts
  */
 
+const LIVE = !!process.env.STOREFRONT_LIVE
+
 const HOME_URL =
-  process.env.STOREFRONT_HOME_URL ?? "https://www.uniquepashmina.com/au"
+  process.env.STOREFRONT_HOME_URL ??
+  (LIVE ? "https://www.uniquepashmina.com/au" : "http://localhost:8000/in")
 
 const BACKEND_URL =
-  process.env.STOREFRONT_BACKEND_URL ?? "https://v3.jaalyantra.com"
+  process.env.STOREFRONT_BACKEND_URL ??
+  (LIVE ? "https://v3.jaalyantra.com" : "http://localhost:9000")
 
 type Theme = {
   branding?: { store_name?: string; tagline?: string; favicon_url?: string }
   hero?: { title?: string; description?: string; background_image_url?: string }
 }
 
-/** The domain the backend keys the website row by — the host, minus `www.`. */
-const domainOf = (url: string) => new URL(url).host.replace(/^www\./, "")
+/**
+ * The domain the backend keys the website row by: the hostname, minus `www.`.
+ * Hostname, not host: the storefront strips the port before it looks the
+ * tenant up, so http://localhost:8000 is the row for `localhost`.
+ */
+const domainOf = (url: string) => new URL(url).hostname.replace(/^www\./, "")
 
-test.describe("Storefront homepage metadata @storefront @live", () => {
+test.describe(`Storefront homepage metadata @storefront ${LIVE ? "@live" : "@localstack"}`, () => {
   let theme: Theme
 
   test.beforeAll(async ({ request }) => {
