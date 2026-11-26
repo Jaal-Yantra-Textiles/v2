@@ -1,8 +1,9 @@
-import { createTaxRegionsWorkflow } from "@medusajs/medusa/core-flows"
+import { createTaxRegionsWorkflow, refundPaymentWorkflow } from "@medusajs/medusa/core-flows"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
+import { reinstateBalanceFromCreditLineJob } from "../../src/api/admin/ops/maintenance-jobs/reinstate-balance-from-credit-line-job"
 
 jest.setTimeout(60000)
 
@@ -134,6 +135,103 @@ setupSharedTestSuite(() => {
       const [cart] = await carts.listCarts({ id: cartId }, { select: ["id", "metadata", "completed_at"] })
       expect(cart.completed_at).toBeNull()
       expect(cart.metadata?.converted_order_id).toBeUndefined()
+    })
+
+    /**
+     * Order #176 (2026-11-26): a 50% deposit order paid IN FULL, then half
+     * refunded from the admin. Medusa books every refund on a not-overpaid
+     * order as a CREDIT LINE, so the total dropped to what was kept and the
+     * order read fully paid: the balance could never be raised. The job
+     * reverses that credit line and re-states the schedule.
+     */
+    it("reinstate-balance-from-credit-line turns the refund credit back into a balance owed", async () => {
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const cartId = await newCart()
+      const carts: any = container.resolve(Modules.CART)
+      const [line] = await carts.listLineItems({ cart_id: cartId })
+      expect(
+        (await api.post(`/admin/designs/orders/${line.id}/deposit`, { deposit_pct: 50 }, adminHeaders)).status
+      ).toBe(200)
+
+      // Paid in full (what #176's buyer was charged).
+      const conv = await api
+        .post(`/admin/designs/orders/${line.id}/convert`, { payment_mode: "prepaid" }, adminHeaders)
+        .catch((e: any) => e.response)
+      if (conv.status !== 200) throw new Error(`convert ${conv.status}: ${JSON.stringify(conv.data)}`)
+      const orderId = conv.data.design_order_conversion.order_id
+
+      const readOrder = async () =>
+        (
+          await query.graph({
+            entity: "order",
+            fields: [
+              "id",
+              "total",
+              "summary",
+              "credit_lines.id",
+              "credit_lines.amount",
+              "credit_lines.reference",
+              "payment_collections.payments.id",
+            ],
+            filters: { id: orderId },
+          })
+        ).data[0]
+      const placed = await readOrder()
+      const total = Number(placed.total)
+      const half = Math.round((total / 2) * 100) / 100
+
+      // The schedule as #176's looked: the full charge recorded as the deposit.
+      const schedules: any = container.resolve("payment_schedule")
+      const sched = await schedules.findByCartId(cartId)
+      await schedules.updatePaymentSchedules({
+        id: sched.id,
+        order_id: orderId,
+        total_due: total,
+        deposit_amount: total,
+        deposit_status: "paid",
+        balance_amount: 0,
+        balance_status: "not_due",
+      })
+
+      // Half refunded from the admin: core adds a credit line.
+      const paymentId = placed.payment_collections[0].payments[0].id
+      await refundPaymentWorkflow(container).run({ input: { payment_id: paymentId, amount: half } })
+      const refunded = await readOrder()
+      const credit = refunded.credit_lines.find((c: any) => Number(c.amount) > 0)
+      expect(credit).toBeTruthy() // the premise: the refund booked a credit line
+      expect(Number(refunded.total)).toBeCloseTo(total - half, 2)
+      expect(Number(refunded.summary.pending_difference)).toBeCloseTo(0, 2)
+
+      const run = (dry_run: boolean) =>
+        reinstateBalanceFromCreditLineJob.run(container as any, {
+          dry_run,
+          params: { order_id: orderId, credit_line_id: credit.id },
+        } as any)
+
+      // Preview writes nothing.
+      const preview = await run(true)
+      expect(preview.applied).toBe(false)
+      expect(Number((await readOrder()).total)).toBeCloseTo(total - half, 2)
+
+      const res = await run(false)
+      expect(res.summary).toMatch(/^Done/)
+
+      // Read the rows back.
+      const after = await readOrder()
+      expect(Number(after.total)).toBeCloseTo(total, 2)
+      expect(Number(after.summary.pending_difference)).toBeCloseTo(total - half, 2)
+      expect(after.credit_lines).toHaveLength(2) // original kept + its reversal
+      const s2 = await schedules.findByOrderId(orderId)
+      expect(Number(s2.deposit_amount)).toBeCloseTo(total - half, 2)
+      expect(Number(s2.balance_amount)).toBeCloseTo(half, 2)
+      expect(s2.balance_status).toBe("not_due")
+      expect(s2.deposit_status).toBe("paid")
+
+      // A second run is refused, not doubled.
+      const again = await run(false)
+      expect(again.summary).toMatch(/^REFUSED: .*already been reversed/)
+      expect(Number((await readOrder()).total)).toBeCloseTo(total, 2)
     })
   })
 })
