@@ -34,6 +34,9 @@ on:
       - 'apps/backend/src/api/middlewares.ts'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
+      # The storefront submodule pointer: a bump (#2639, Next 16) changes the
+      # pages the storefront step renders.
+      - 'apps/storefront-starter'
   pull_request:
   # 🔴 NO `branches:` filter, deliberately.
   #
@@ -73,6 +76,9 @@ on:
       - 'apps/backend/src/api/middlewares.ts'
       - 'e2e/**'
       - '.github/workflows/e2e.yml'
+      # The storefront submodule pointer: a bump (#2639, Next 16) changes the
+      # pages the storefront step renders.
+      - 'apps/storefront-starter'
 
 concurrency:
   group: e2e-${{ github.ref }}
@@ -116,6 +122,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # apps/storefront-starter (public repo) is what the storefront step
+          # builds and serves. Without it the step has no storefront to test.
+          submodules: true
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -150,12 +159,13 @@ jobs:
           JWT_SECRET=secret
           COOKIE_SECRET=secret
           ADMIN_CORS=http://localhost:9000
-          STORE_CORS=http://localhost:9000
+          # :8000 is the storefront the storefront step builds and serves.
+          STORE_CORS=http://localhost:9000,http://localhost:8000
           # The partner UI runs on :5173 and calls this backend cross-origin.
           # PARTNER_CORS is what createCorsPartnerMiddleware reads first;
           # AUTH_CORS has to admit :5173 too or partner LOGIN is blocked before
           # any /partners route is reached.
-          AUTH_CORS=http://localhost:9000,http://localhost:5173
+          AUTH_CORS=http://localhost:9000,http://localhost:5173,http://localhost:8000
           PARTNER_CORS=http://localhost:5173
           NODE_ENV=test
           ENCRYPTION_KEY=bPH59JuZDRQULLeDD62+NiwqwcChpOLN/j7aqu3A+Hw=
@@ -243,7 +253,11 @@ jobs:
           # shiprocket.spec.ts sets all three).
           SHIPROCKET_EMAIL: "e2e@shiprocket.example"
           SHIPROCKET_PASSWORD: "e2e-stub-secret"
-        run: pnpm run e2e
+        # e2e:seed:storefront runs BEFORE the first backend boot on purpose:
+        # products seeded by `medusa exec` reach the index engine through the
+        # initial sync at boot, not through events (the exec's bus dies with
+        # the process). Seeded later, /store/products would not list them.
+        run: pnpm e2e:seed && pnpm e2e:seed:storefront && pnpm e2e:test
 
       # #2264 — the work-order specs AGAIN, with reads served from `work_order`
       # (WORK_ORDER_READS=true), the state prod moves to when the flag flips.
@@ -265,6 +279,32 @@ jobs:
           WORK_ORDER_READS: "true"
         run: pnpm run e2e:test --grep @workorders
 
+      # The partner storefront, built from the apps/storefront-starter
+      # submodule (Next 16) and served on :8000 against this job's backend, as
+      # the tenant e2e-storefront-seed.ts created. The config boots both
+      # servers (E2E_LOCAL_STACK=1): backend first, then the storefront build.
+      #
+      # These specs used to read www.uniquepashmina.com. On 2026-11-22 Vercel
+      # Bot Protection started answering GitHub runners with HTTP 429 "Vercel
+      # Security Checkpoint", and five tests were red on every main push while
+      # the site was fine. Checking our own build is a real check; checking a
+      # live site through someone's firewall was not.
+      #
+      # Only the specs the storefront seed covers. The other @localstack
+      # storefront specs need fixtures of their own (a wide-spec product, a
+      # minted design, a cart at checkout, a mocked design chat) and are not
+      # run here yet. Listing files rather than grepping @localstack is
+      # deliberate: a grep would collect specs that cannot pass and turn this
+      # step red for reasons unrelated to the storefront.
+      - name: Run e2e — storefront (local stack)
+        if: ${{ !cancelled() }}
+        working-directory: apps/backend
+        env:
+          E2E_LOCAL_STACK: "1"
+        run: >-
+          pnpm exec playwright test -c ../../e2e/playwright.storefront.config.ts
+          storefront-home-metadata storefront-product-layout storefront-made-to-spec
+
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
@@ -272,6 +312,7 @@ jobs:
           name: playwright-report
           path: |
             test-results/
+            test-results-storefront/
             playwright-report/
           retention-days: 7
           if-no-files-found: ignore

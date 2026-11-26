@@ -24,10 +24,18 @@ export default defineConfig({
   // only locally — skip them on CI so a shared admin e2e stays deterministic.
   //
   // `@localstack` is the same idea for the other direction: a spec that needs a
-  // storefront on :8000 AND a seeded product. Note this is NOT implied by
-  // `@storefront` — the other storefront specs hit LIVE deployed sites and run
-  // here quite happily, which is exactly why the new tag was needed rather than
-  // widening the existing one.
+  // storefront on :8000 and seeded data. Every `@storefront` spec carries it
+  // now; CI runs the ones its fixture covers in a separate step, against the
+  // storefront-starter submodule it builds itself (playwright.storefront
+  // .config.ts with E2E_LOCAL_STACK=1).
+  //
+  // 🔴 `@live` is a spec pointed at a LIVE partner site (STOREFRONT_LIVE=1).
+  // Two specs read www.uniquepashmina.com here until 2026-11-22, when Vercel
+  // Bot Protection (action: challenge) was switched on for the
+  // `storefront-shared` project. From then on GitHub runners got HTTP 429
+  // "Vercel Security Checkpoint" on every request, and all five tests failed on
+  // every main push from 2026-11-23, while the same specs passed against the
+  // same pages from a laptop. Excluded on CI unless STOREFRONT_LIVE=1.
   //
   // 🔑 `PARTNER_UI=1` opts @partnerui specs BACK IN — the e2e job now boots the
   // partner UI on :5173, so they can run on CI too. Without this the job went
@@ -41,9 +49,14 @@ export default defineConfig({
   // used to hide inside `@partnerui`. Opting the partner specs back in dragged
   // it along and it failed for a reason no partner-UI fix could address.
   grepInvert: process.env.CI
-    ? process.env.PARTNER_UI
-      ? /@localstack|@llm/
-      : /@partnerui|@localstack|@llm/
+    ? new RegExp(
+        [
+          "@localstack",
+          "@llm",
+          ...(process.env.PARTNER_UI ? [] : ["@partnerui"]),
+          ...(process.env.STOREFRONT_LIVE ? [] : ["@live"]),
+        ].join("|")
+      )
     : undefined,
 
   /**

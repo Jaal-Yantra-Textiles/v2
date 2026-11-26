@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test"
 
+import { assertNotVercelCheckpoint } from "../helpers/vercel-checkpoint"
+
 /**
- * Product page layout on a LIVE partner storefront.
+ * Product page layout on a partner storefront.
  *
  * The product page is three columns — description | gallery | buy box — and the
  * `product_page.gallery_position` theme setting moves the gallery with
@@ -16,23 +18,32 @@ import { test, expect } from "@playwright/test"
  * what its markup says. Comparing rendered x-positions tests the thing the
  * partner actually sees.
  *
- * @storefront — hits a live external site, so it is excluded from the CI admin
- * e2e run (see playwright.config.ts). Run it locally, or point it elsewhere:
+ * Where it runs: by default against the storefront-starter submodule on
+ * :8000 with the product `e2e-storefront-seed.ts` creates (tagged
+ * `@localstack`; see storefront-home-metadata.spec.ts for why it no longer
+ * reads a live site on CI). STOREFRONT_LIVE=1 points it at
+ * www.uniquepashmina.com and tags it `@live`:
  *
- *   STOREFRONT_PRODUCT_URL=https://…/products/handle \
+ *   STOREFRONT_LIVE=1 STOREFRONT_PRODUCT_URL=https://…/products/handle \
  *     pnpm exec playwright test -c e2e/playwright.storefront.config.ts
  */
 
+const LIVE = !!process.env.STOREFRONT_LIVE
+
 const PRODUCT_URL =
   process.env.STOREFRONT_PRODUCT_URL ??
-  "https://www.uniquepashmina.com/in/products/ikat-grid-patterns-blue-yellow"
+  `${LIVE ? "https://www.uniquepashmina.com" : "http://localhost:8000"}` +
+    "/in/products/ikat-grid-patterns-blue-yellow"
 
-test.describe("Storefront product page layout @storefront", () => {
+test.describe(`Storefront product page layout @storefront ${LIVE ? "@live" : "@localstack"}`, () => {
   test.beforeEach(async ({ page }) => {
     // The three-column layout only applies at Medusa's `small` breakpoint and
     // up; below it everything stacks and the bug cannot manifest.
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.goto(PRODUCT_URL, { waitUntil: "domcontentloaded" })
+    const response = await page.goto(PRODUCT_URL, {
+      waitUntil: "domcontentloaded",
+    })
+    await assertNotVercelCheckpoint(page, response)
   })
 
   test("gallery sits between the description and the buy box", async ({
