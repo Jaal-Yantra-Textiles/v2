@@ -80,6 +80,12 @@ jobs:
   build-and-push:
     name: Build & Push Image
     runs-on: ubuntu-latest
+    # 🔴 #1085: once prod is on the Oracle box (repo variable PROD_TARGET =
+    # oracle), this whole workflow stands down. Every later job needs this
+    # one, so skipping it skips them: no ECS deploy would scale the AWS server
+    # and worker back up beside the box's (two workers = every scheduled job
+    # twice), and no migration would run against the abandoned RDS database.
+    if: vars.PROD_TARGET != 'oracle'
     outputs:
       ghcr_image: ${{ steps.image-vars.outputs.ghcr_image }}
       ecr_image: ${{ steps.image-vars.outputs.ecr_image }}

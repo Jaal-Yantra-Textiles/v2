@@ -14,6 +14,9 @@ for p in "$@"; do PROFILES="$PROFILES --profile $p"; done
 ssh "$HOST" 'test -f /opt/jyt/secrets.env' \
   || { echo "no /opt/jyt/secrets.env on $HOST: run render-env.sh first" >&2; exit 1; }
 scp -q "$DIR/compose.yml" "$DIR/cloudflared.yml" "$HOST:/opt/jyt/"
+# The forced-command target of GitHub's deploy key (deploy-to-oracle.yml).
+scp -q "$DIR/deploy-hook.sh" "$HOST:/opt/jyt/deploy-hook.sh"
+ssh "$HOST" 'chmod 755 /opt/jyt/deploy-hook.sh'
 
 # First deploy only: the on-box Postgres password. Never overwritten, since
 # the data volume is initialised with it.

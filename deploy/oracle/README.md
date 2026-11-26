@@ -130,7 +130,9 @@ Cutover (a maintenance window: writes must stop while the data moves):
    `a1.jaalyantra.com`. Uncomment the `v3.jaalyantra.com` ingress in `cloudflared.yml`.
 2. Scale **both** ECS services to 0. From here prod is down.
 3. Run `copy-prod-db.sh` for the final copy. Prod has nothing writing to it now.
-4. Run `deploy.sh ubuntu@… worker tunnel`, then point `v3.jaalyantra.com` at the tunnel:
+4. Run `deploy.sh ubuntu@… worker tunnel`, then `touch /opt/jyt/LIVE` on the box and
+   `gh variable set PROD_TARGET --body oracle` (AWS deploys stop, box deploys start).
+   Then point `v3.jaalyantra.com` at the tunnel:
    `cloudflared tunnel route dns --overwrite-dns jyt-a1 v3.jaalyantra.com`
    (replaces the CNAME to the ALB; note the old target first for rollback).
    Never run this stack's worker while an AWS worker is alive: two workers on separate
@@ -139,9 +141,27 @@ Cutover (a maintenance window: writes must stop while the data moves):
    **After the box takes writes, rollback needs a reverse copy (box → RDS), or those
    orders are lost.**
 
+## Automatic deploy (after cutover)
+`.github/workflows/deploy-to-oracle.yml` runs after every successful "Build ARM64
+Image (Oracle A1)" on main and SSHes to the box with a forced-command key that can
+only run `/opt/jyt/deploy-hook.sh`:
+`deploy <sha>` → pull `sha-<sha>-arm64` → `pnpm predeploy:force` with the new image
+(old server keeps serving) → `up -d` server + worker + tunnel → wait for `/health`
+→ on failure, put the previous image back. `check` is a read-only connectivity test
+(run it from the Actions tab: workflow_dispatch, command = check).
+
+Two locks, both needed before anything deploys:
+- repo variable `PROD_TARGET=oracle` (`gh variable set PROD_TARGET --body oracle`).
+  The same variable makes "Deploy to AWS ECS" skip every job, so a merge can never
+  scale ECS back up beside the box.
+- `/opt/jyt/LIVE` on the box (`ssh ubuntu@… touch /opt/jyt/LIVE`).
+Both are set in the cutover window, after ECS is at 0.
+
+Secrets: `ORACLE_DEPLOY_SSH_KEY` (private key), `ORACLE_KNOWN_HOSTS` (the box's
+pinned host keys). The public half sits in the box's `~/.ssh/authorized_keys` as
+`restrict,command="/opt/jyt/deploy-hook.sh" ssh-ed25519 … jyt-github-deploy`.
+
 ## Not covered yet
-- Automatic deploy on image push (needs a pull trigger, or a webhook that
-  doesn't reintroduce a runner on the box).
 - Database migrations: `RUN_MIGRATIONS_ON_BOOT` stays off. After cutover they have to
   run on the box (`docker compose run --rm server pnpm predeploy:force`), since the
   Fargate migration task can no longer reach the database.
