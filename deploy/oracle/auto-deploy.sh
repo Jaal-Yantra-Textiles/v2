@@ -72,7 +72,14 @@ running_digest() {
   local id
   id=$(docker compose ps -q server 2>/dev/null) || true
   [ -n "$id" ] || return 0
-  docker image inspect --format '{{index .RepoDigests 0}}' "$(docker inspect --format '{{.Image}}' "$id")" 2>/dev/null || true
+  local img digest
+  img=$(docker inspect --format '{{.Image}}' "$id" 2>/dev/null) || true
+  [ -n "$img" ] || return 0
+  digest=$(docker image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$img" 2>/dev/null) || true
+  # An image with no registry digest (loaded, or pulled before a re-tag) still
+  # has its local ID, and rollback must point at THAT, never at latest-arm64,
+  # which is the image being rolled back from (deploy log said "was unknown").
+  echo "${digest:-$img}"
 }
 
 verify_signature() {
@@ -83,17 +90,31 @@ verify_signature() {
 do_deploy() {
   local new="$1" old
   if ! verify_signature "$new"; then
-    log "signature check FAILED for $new — not deployed"
-    notify "Deploy refused: unsigned image" "${new##*@} is not signed by build-arm64.yml on main. Nothing changed. See /opt/jyt/deploy.log" 5
-    return 1
+    # build-arm64.yml pushes latest-arm64 and signs it a few seconds LATER,
+    # so a tick can land in between and see an unsigned image (2026-11-26).
+    # Return 2 so `auto` retries it next tick instead of blacklisting it,
+    # and only alert once per digest.
+    log "signature check FAILED for $new — not deployed (will retry)"
+    if [ "$(cat /opt/jyt/deploy.unsigned 2>/dev/null || true)" != "$new" ]; then
+      echo "$new" > /opt/jyt/deploy.unsigned
+      notify "Deploy waiting: unsigned image" "${new##*@} is not signed (yet) by build-arm64.yml on main. Retrying every tick; nothing changed. See /opt/jyt/deploy.log" 3
+    fi
+    return 2
   fi
+  rm -f /opt/jyt/deploy.unsigned
   old="$(current_image)"
   [ -n "$old" ] || old="$(running_digest)"
   log "deploying $new (was ${old:-unknown})"
 
   # Migrate with the NEW image while the old server keeps serving — the same
   # order as the ECS deploy: a failed migration leaves the old code running.
-  if ! JYT_IMAGE="$new" docker compose run --rm -T server pnpm predeploy:force >>"$LOG" 2>&1; then
+  # Medusa gives the migration's first `SELECT 1` only 10 s. On this 2-core
+  # box the one-off container loads the whole app beside the live server and
+  # worker, and the first real deploy (2026-11-26) timed out there although
+  # DNS, TCP and free connections were all fine. Give it a minute.
+  if ! JYT_IMAGE="$new" docker compose run --rm -T \
+      -e MEDUSA_DB_MIGRATION_CONNECTION_TIMEOUT=60000 \
+      server pnpm predeploy:force >>"$LOG" 2>&1; then
     log "migration FAILED on $new — old image left running"
     notify "Deploy failed: migration" "Migrations failed for ${new##*@}. The old version is still serving. See /opt/jyt/deploy.log" 5
     return 1
@@ -148,7 +169,14 @@ case "$CMD" in
     [ "$latest" = "$pinned" ] && exit 0
     # A failed image is not retried every 2 minutes: it waits for a newer build.
     [ "$latest" = "$(cat /opt/jyt/deploy.failed 2>/dev/null || true)" ] && exit 0
-    if do_deploy "$latest"; then rm -f /opt/jyt/deploy.failed; else echo "$latest" > /opt/jyt/deploy.failed; exit 1; fi
+    # A signature failure (rc 2) is retried next tick; anything else waits
+    # for a newer build (or a manual `rm /opt/jyt/deploy.failed`).
+    rc=0; do_deploy "$latest" || rc=$?
+    case $rc in
+      0) rm -f /opt/jyt/deploy.failed ;;
+      2) exit 1 ;;
+      *) echo "$latest" > /opt/jyt/deploy.failed; exit 1 ;;
+    esac
     ;;
   *)
     echo "usage: check | auto | deploy <image-ref>" >&2
