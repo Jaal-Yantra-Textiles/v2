@@ -47,7 +47,7 @@ services:
       # Keep the two in step until AWS is decommissioned.
       NODE_ENV: production
       MEDUSA_WORKER_MODE: server
-      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD:?run deploy.sh to create /opt/jyt/.env}@postgres:5432/medusa
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD:?run deploy.sh to create /opt/jyt/.env}@postgres:5432/medusa?sslmode=disable
       REDIS_URL: redis://valkey:6379
       NODE_OPTIONS: --max-old-space-size=3072
       WHATSAPP_FREEFORM_CHAT_ENABLED: "true"
@@ -75,7 +75,7 @@ services:
     environment:
       NODE_ENV: production
       MEDUSA_WORKER_MODE: worker
-      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD:?run deploy.sh to create /opt/jyt/.env}@postgres:5432/medusa
+      DATABASE_URL: postgres://medusa:${POSTGRES_PASSWORD:?run deploy.sh to create /opt/jyt/.env}@postgres:5432/medusa?sslmode=disable
       REDIS_URL: redis://valkey:6379
       NODE_OPTIONS: --max-old-space-size=1536
       DISABLE_MEDUSA_ADMIN: "true"
