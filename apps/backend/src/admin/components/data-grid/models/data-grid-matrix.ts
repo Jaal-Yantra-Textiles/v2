@@ -1,4 +1,4 @@
-import { ColumnDef, Row } from "@tanstack/react-table"
+import { ColumnDef, Row, RowData } from "../../../lib/legacy-table"
 import { FieldValues } from "react-hook-form"
 import {
   DataGridColumnType,
@@ -8,7 +8,7 @@ import {
   InternalColumnMeta,
 } from "../types"
 
-export class DataGridMatrix<TData, TFieldValues extends FieldValues> {
+export class DataGridMatrix<TData extends RowData, TFieldValues extends FieldValues> {
   private multiColumnSelection: boolean
   private cells: Grid<TFieldValues>
   public rowAccessors: (string | null)[] = []

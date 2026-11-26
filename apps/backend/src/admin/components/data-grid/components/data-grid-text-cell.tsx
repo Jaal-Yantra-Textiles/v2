@@ -1,3 +1,4 @@
+import type { RowData } from "../../../lib/legacy-table"
 import { clx } from "@medusajs/ui"
 import { useEffect, useState } from "react"
 import { Controller, ControllerRenderProps } from "react-hook-form"
@@ -8,7 +9,7 @@ import { DataGridCellProps, InputProps } from "../types"
 import { DataGridCellContainer } from "./data-grid-cell-container"
 import { useCombinedRefs } from "../hooks/use-combined-refs"
 
-export const DataGridTextCell = <TData, TValue = any>({
+export const DataGridTextCell = <TData extends RowData, TValue = any>({
   context,
 }: DataGridCellProps<TData, TValue>) => {
   const { field, control, renderProps } = useDataGridCell({

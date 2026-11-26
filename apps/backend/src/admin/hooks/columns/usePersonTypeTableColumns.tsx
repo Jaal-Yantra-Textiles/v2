@@ -1,9 +1,9 @@
+import { createDataTableColumnHelper } from "@medusajs/ui";
 
-import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { AdminPersonType } from "../api/personandtype";
 
-const columnHelper = createColumnHelper<AdminPersonType>();
+const columnHelper = createDataTableColumnHelper<AdminPersonType>();
 
 export const usePersonTypeTableColumns = () => {
   return useMemo(

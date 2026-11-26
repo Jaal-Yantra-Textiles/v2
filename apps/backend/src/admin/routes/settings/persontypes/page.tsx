@@ -1,11 +1,10 @@
-import { Container, Heading, Text, DataTable, useDataTable, DataTablePaginationState, DataTableFilteringState } from "@medusajs/ui";
+import { Container, Heading, Text, DataTable, useDataTable, DataTablePaginationState, DataTableFilteringState, createDataTableColumnHelper } from "@medusajs/ui";
 import { useTranslation } from "react-i18next";
 import { usePersonTypes } from "../../../hooks/api/persontype";
 import { usePersonTypeTableColumns } from "./components/use-person-type-table-columns";
 import { useState, useCallback } from "react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { ActionCell } from "./components/action-cell";
-import { createColumnHelper } from "@tanstack/react-table";
 import { AdminPersonType } from "../../../hooks/api/personandtype";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { DocumentSeries } from "@medusajs/icons";
@@ -15,7 +14,7 @@ import debounce from "lodash/debounce";
 import { useNavigate } from "react-router-dom";
 
 const PAGE_SIZE = 20;
-const columnHelper = createColumnHelper<AdminPersonType>();
+const columnHelper = createDataTableColumnHelper<AdminPersonType>();
 
 const PersonTypesPage = () => {
   const navigate = useNavigate();

@@ -23,7 +23,7 @@ export interface BlockInfo {
 }
 
 interface UseIframeCommunicationOptions {
-  iframeRef: RefObject<HTMLIFrameElement>
+  iframeRef: RefObject<HTMLIFrameElement | null>
   onBlockClicked?: (blockId: string, blockType?: string, blockName?: string) => void
   onBlockHovered?: (blockId: string | null) => void
   onBlocksLoaded?: (blocks: BlockInfo[]) => void

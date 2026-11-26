@@ -10,8 +10,8 @@ import {
   Text,
   clx,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useQuery } from "@tanstack/react-query"
 import { useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
@@ -37,7 +37,7 @@ type MarketingOutreach = {
   updated_at: string
 }
 
-const columnHelper = createColumnHelper<MarketingOutreach>()
+const columnHelper = createDataTableColumnHelper<MarketingOutreach>()
 
 const statusToTone = (
   status: MarketingOutreach["status"]

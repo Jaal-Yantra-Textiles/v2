@@ -10,9 +10,9 @@ import {
   toast,
   Toaster,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useNavigate, type LoaderFunctionArgs } from "react-router-dom"
 import {
   Bar,
@@ -51,8 +51,8 @@ const DATE_PRESETS: Array<{ label: string; value: string }> = [
 
 type ResultsRow = { action_type: string; value: number }
 
-const resultsColumnHelper = createColumnHelper<ResultsRow>()
-const breakdownColumnHelper = createColumnHelper<MetaAdsOverviewBreakdownRow>()
+const resultsColumnHelper = createDataTableColumnHelper<ResultsRow>()
+const breakdownColumnHelper = createDataTableColumnHelper<MetaAdsOverviewBreakdownRow>()
 
 const formatNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined) return "—"

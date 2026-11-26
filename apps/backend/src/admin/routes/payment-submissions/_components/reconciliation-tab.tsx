@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { Container, Badge, DataTable, StatusBadge, useDataTable } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
+import { Container, Badge, DataTable, StatusBadge, useDataTable, createDataTableColumnHelper } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import {
   useReconciliations,
@@ -9,7 +8,7 @@ import {
 } from "../../../hooks/api/payment-submissions"
 import { RefLink } from "../../../components/payments/payment-line-links"
 
-const columnHelper = createColumnHelper<PaymentReconciliation>()
+const columnHelper = createDataTableColumnHelper<PaymentReconciliation>()
 
 const statusColor = (
   status: string

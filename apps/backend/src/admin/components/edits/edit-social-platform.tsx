@@ -149,7 +149,13 @@ const EditCategoryPlatformForm = ({ socialPlatform }: EditSocialPlatformFormProp
       ? { provider_type: metadata.provider_type as string }
       : {};
 
-  const form = useForm<CategoryPlatformFormData>({
+  // zod 4.6 types a `z.coerce` field's INPUT as `unknown`, so the form holds the
+  // schema's input shape and hands the parsed output to the submit handler.
+  const form = useForm<
+    z.input<typeof categoryPlatformSchema>,
+    any,
+    CategoryPlatformFormData
+  >({
     resolver: zodResolver(categoryPlatformSchema),
     defaultValues: {
       name: socialPlatform.name,

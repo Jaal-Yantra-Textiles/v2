@@ -30,15 +30,12 @@
     "cmdk",
     "cors",
     "form-data",
-    "i18next",
     "ioredis",
     "jsonwebtoken",
     "match-sorter",
     "multer",
     "radix-ui",
     "react-currency-input-field",
-    "react-i18next",
-    "scrypt-kdf",
     "tailwind-merge"
   ]
 }

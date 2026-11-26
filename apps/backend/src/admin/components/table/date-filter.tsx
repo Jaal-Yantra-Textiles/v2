@@ -4,7 +4,6 @@ import * as Popover from "@radix-ui/react-popover";
 import isEqual from "lodash/isEqual";
 import { useMemo, useState } from "react";
 
-import { t } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useDate } from "../../hooks/useDate";
 import { useSelectedParams } from "./hooks";
@@ -39,6 +38,9 @@ export const DateFilter = ({
   readonly,
   openOnMount,
 }: DateFilterProps) => {
+  // The admin's own i18n instance. A bare `import { t } from "i18next"` reads
+  // an instance the admin never initialised, which returns "" on i18next 27.
+  const { t } = useTranslation();
   const [open, setOpen] = useState(openOnMount);
   const [showCustom, setShowCustom] = useState(false);
 

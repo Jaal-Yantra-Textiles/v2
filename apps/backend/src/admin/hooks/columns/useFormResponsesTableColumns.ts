@@ -1,7 +1,7 @@
-import { createColumnHelper } from "@tanstack/react-table"
+import { createDataTableColumnHelper } from "@medusajs/ui"
 import { AdminFormResponse } from "../api/forms"
 
-const columnHelper = createColumnHelper<AdminFormResponse>()
+const columnHelper = createDataTableColumnHelper<AdminFormResponse>()
 
 export const useFormResponsesTableColumns = () => {
   return [

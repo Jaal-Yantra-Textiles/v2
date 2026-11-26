@@ -1,6 +1,6 @@
 import { Controller, UseFormReturn, useWatch } from "react-hook-form";
 import { useEffect, useMemo, useState } from "react";
-import { ColumnDef } from "@tanstack/react-table";
+import { ColumnDef } from "../../lib/legacy-table";
 import { createDataGridHelper } from "../data-grid/helpers/create-data-grid-column-helper";
 import { DataGrid } from "../data-grid/data-grid";
 import { DataGridCurrencyCell, DataGridNumberCell } from "../data-grid/components";

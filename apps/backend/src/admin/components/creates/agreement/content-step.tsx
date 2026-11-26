@@ -30,7 +30,7 @@ function AgreementTextEditor({
   onEditorReady?: (editor: any) => void;
   debounceTime?: number;
 }) {
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   ;
   

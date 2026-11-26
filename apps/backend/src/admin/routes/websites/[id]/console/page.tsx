@@ -10,9 +10,9 @@ import {
   Text,
   toast,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { ArrowPath, ArrowLeft } from "@medusajs/icons"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useMemo, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import {
@@ -285,7 +285,7 @@ function statusColor(
   return "grey"
 }
 
-const columnHelper = createColumnHelper<ConsoleInsightRow>()
+const columnHelper = createDataTableColumnHelper<ConsoleInsightRow>()
 
 const DimensionTable = ({
   title,

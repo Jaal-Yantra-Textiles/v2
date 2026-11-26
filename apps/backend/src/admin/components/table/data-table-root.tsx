@@ -1,10 +1,11 @@
 import { CommandBar, Table, clx } from "@medusajs/ui";
 import {
   ColumnDef,
-  Table as ReactTable,
+  ReactTable,
   Row,
+  RowData,
   flexRender,
-} from "@tanstack/react-table";
+} from "../../lib/legacy-table";
 import {
   ComponentPropsWithoutRef,
   Fragment,
@@ -22,7 +23,7 @@ type BulkCommand = {
   action: (selection: Record<string, boolean>) => Promise<void>;
 };
 
-export interface DataTableRootProps<TData> {
+export interface DataTableRootProps<TData extends RowData> {
   /**
    * The table instance to render
    */
@@ -75,7 +76,7 @@ export interface DataTableRootProps<TData> {
 /**
  * Table component for rendering a table with pagination, filtering and ordering.
  */
-export const DataTableRoot = <TData,>({
+export const DataTableRoot = <TData extends RowData>({
   table,
   columns,
   pagination,

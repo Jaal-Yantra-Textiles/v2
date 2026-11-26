@@ -14,7 +14,8 @@ import {
   flexRender,
   getCoreRowModel,
   useReactTable,
-} from "@tanstack/react-table"
+  RowData,
+} from "../../../lib/legacy-table"
 import { VirtualItem, useVirtualizer } from "@tanstack/react-virtual"
 import React, {
   CSSProperties,
@@ -53,7 +54,7 @@ import {
 import { DataGridKeyboardShortcutModal } from "./data-grid-keyboard-shortcut-modal"
 import { useCommandHistory } from "../hooks/use-command-history"
 export interface DataGridRootProps<
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues = FieldValues
 > {
   data?: TData[]
@@ -68,7 +69,7 @@ export interface DataGridRootProps<
 
 const ROW_HEIGHT = 40
 
-const getCommonPinningStyles = <TData,>(
+const getCommonPinningStyles = <TData extends RowData>(
   column: Column<TData>
 ): CSSProperties => {
   const isPinned = column.getIsPinned()
@@ -89,8 +90,9 @@ const getCommonPinningStyles = <TData,>(
     zIndex: isPinned ? 1 : 0,
     borderBottom: isPinned ? `1px solid ${BORDER_COLOR}` : undefined,
     borderRight: isPinned ? `1px solid ${BORDER_COLOR}` : undefined,
-    left: isPinned === "left" ? `${column.getStart("left")}px` : undefined,
-    right: isPinned === "right" ? `${column.getAfter("right")}px` : undefined,
+    // TanStack Table v9 pins to "start" / "end" (v8 said "left" / "right").
+    left: isPinned === "start" ? `${column.getStart("start")}px` : undefined,
+    right: isPinned === "end" ? `${column.getAfter("end")}px` : undefined,
   }
 }
 
@@ -100,7 +102,7 @@ const getCommonPinningStyles = <TData,>(
  */
 
 export const DataGridRoot = <
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues = FieldValues
 >({
   data = [],
@@ -144,7 +146,8 @@ export const DataGridRoot = <
     columns,
     initialState: {
       columnPinning: {
-        left: [columns[0].id!],
+        start: [columns[0].id!],
+        end: [],
       },
     },
     state: {
@@ -824,7 +827,7 @@ const DataGridHeader = ({
   )
 }
 
-type DataGridCellProps<TData> = {
+type DataGridCellProps<TData extends RowData> = {
   cell: Cell<TData, unknown>
   columnIndex: number
   rowIndex: number
@@ -833,7 +836,7 @@ type DataGridCellProps<TData> = {
   multiColumnSelection: boolean
 }
 
-const DataGridCell = <TData,>({
+const DataGridCell = <TData extends RowData>({
   cell,
   columnIndex,
   rowIndex,
@@ -886,7 +889,7 @@ const DataGridCell = <TData,>({
   )
 }
 
-type DataGridRowProps<TData> = {
+type DataGridRowProps<TData extends RowData> = {
   row: Row<TData>
   rowIndex: number
   virtualRow: VirtualItem
@@ -899,7 +902,7 @@ type DataGridRowProps<TData> = {
   multiColumnSelection: boolean
 }
 
-const DataGridRow = <TData,>({
+const DataGridRow = <TData extends RowData>({
   row,
   rowIndex,
   virtualRow,

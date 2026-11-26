@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 import { useForm, useFieldArray, useWatch } from "react-hook-form"
-import { ColumnDef } from "@tanstack/react-table"
+import { ColumnDef } from "../../../lib/legacy-table"
 import {
   Button,
   Heading,

@@ -1,3 +1,4 @@
+import type { RowData } from "../../../lib/legacy-table"
 import { Switch } from "@medusajs/ui"
 import { useEffect, useRef, useState } from "react"
 import CurrencyInput, { CurrencyInputProps } from "react-currency-input-field"
@@ -9,7 +10,7 @@ import { DataGridCellProps, InputProps } from "../types"
 import { isForeignFocusTarget } from "../utils"
 import { DataGridCellContainer } from "./data-grid-cell-container"
 
-export const DataGridTogglableNumberCell = <TData, TValue = any>({
+export const DataGridTogglableNumberCell = <TData extends RowData, TValue = any>({
   context,
   disabledToggleTooltip,
   ...rest

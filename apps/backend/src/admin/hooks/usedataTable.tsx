@@ -8,11 +8,12 @@ import {
   getExpandedRowModel,
   getPaginationRowModel,
   useReactTable,
-} from "@tanstack/react-table";
+  type RowData,
+} from "../lib/legacy-table";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
-type UseDataTableProps<TData> = {
+type UseDataTableProps<TData extends RowData> = {
   data?: TData[];
   columns: ColumnDef<TData, any>[];
   count?: number;
@@ -30,7 +31,7 @@ type UseDataTableProps<TData> = {
   prefix?: string;
 };
 
-export const useDataTable = <TData,>({
+export const useDataTable = <TData extends RowData>({
   data = [],
   columns,
   count = 0,

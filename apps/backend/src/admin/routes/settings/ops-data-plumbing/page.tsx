@@ -16,9 +16,9 @@ import {
   Skeleton,
   toast,
   usePrompt,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { Tools } from "@medusajs/icons"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
@@ -289,7 +289,7 @@ const RunJobDrawer = () => {
 
 const PAGE_SIZE = 20
 
-const runColumnHelper = createColumnHelper<MaintenanceRun>()
+const runColumnHelper = createDataTableColumnHelper<MaintenanceRun>()
 
 // Filter ids map to real `/runs` query params: `job_id` directly, and a synthetic
 // `state` that translates to the `dry_run`/`applied` booleans the API supports.

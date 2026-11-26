@@ -201,7 +201,7 @@ export function SimpleEditor({
     "main" | "highlighter" | "link"
   >("main")
   const toolbarRef = React.useRef<HTMLDivElement>(null)
-  const debounceTimeoutRef = React.useRef<NodeJS.Timeout>()
+  const debounceTimeoutRef = React.useRef<NodeJS.Timeout>(undefined)
 
   // Handle content changes with debouncing
   const handleContentChange = React.useCallback(() => {

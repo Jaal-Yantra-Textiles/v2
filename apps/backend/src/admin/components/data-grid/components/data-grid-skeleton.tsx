@@ -1,13 +1,13 @@
-import { ColumnDef } from "@tanstack/react-table"
+import { ColumnDef, RowData } from "../../../lib/legacy-table"
 import { Skeleton } from "../../table/skeleton"
 
 
-type DataGridSkeletonProps<TData> = {
+type DataGridSkeletonProps<TData extends RowData> = {
   columns: ColumnDef<TData>[]
   rows?: number
 }
 
-export const DataGridSkeleton = <TData,>({
+export const DataGridSkeleton = <TData extends RowData>({
   columns,
   rows: rowCount = 10,
 }: DataGridSkeletonProps<TData>) => {

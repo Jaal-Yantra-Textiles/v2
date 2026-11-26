@@ -1,3 +1,4 @@
+import type { RowData } from "../../../lib/legacy-table"
 import { useCallback } from "react"
 import { FieldValues, Path, PathValue } from "react-hook-form"
 
@@ -5,7 +6,7 @@ import { DataGridBulkUpdateCommand, DataGridMatrix } from "../models"
 import { DataGridCoordinates } from "../types"
 
 type UseDataGridClipboardEventsOptions<
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 > = {
   matrix: DataGridMatrix<TData, TFieldValues>
@@ -23,7 +24,7 @@ type UseDataGridClipboardEventsOptions<
 }
 
 export const useDataGridClipboardEvents = <
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 >({
   matrix,

@@ -11,6 +11,7 @@ import {
   createDataTableFilterHelper,
   toast,
   usePrompt,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { useNavigate, Outlet } from "react-router-dom"
 import { 
@@ -19,7 +20,6 @@ import {
   useDuplicateVisualFlow,
   VisualFlow,
 } from "../../hooks/api/visual-flows"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
 import { ActionMenu } from "../../components/common/action-menu"
@@ -27,7 +27,7 @@ import { PencilSquare, Trash, SquareTwoStack, PlaySolid } from "@medusajs/icons"
 
 const PAGE_SIZE = 20
 
-const columnHelper = createColumnHelper<VisualFlow>()
+const columnHelper = createDataTableColumnHelper<VisualFlow>()
 
 const getStatusBadgeColor = (status: string): "green" | "orange" | "grey" => {
   switch (status) {

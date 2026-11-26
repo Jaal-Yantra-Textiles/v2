@@ -1,3 +1,4 @@
+import type { RowData } from "../../lib/legacy-table"
 import { FieldValues } from "react-hook-form"
 
 import {
@@ -11,12 +12,12 @@ import {
   type DataGridRootProps,
 } from "./components"
 
-interface DataGridProps<TData, TFieldValues extends FieldValues = FieldValues>
+interface DataGridProps<TData extends RowData, TFieldValues extends FieldValues = FieldValues>
   extends DataGridRootProps<TData, TFieldValues> {
   isLoading?: boolean
 }
 
-const _DataGrid = <TData, TFieldValues extends FieldValues = FieldValues>({
+const _DataGrid = <TData extends RowData, TFieldValues extends FieldValues = FieldValues>({
   isLoading,
   ...props
 }: DataGridProps<TData, TFieldValues>) => {

@@ -1,9 +1,8 @@
-import { ColumnDef } from "@tanstack/react-table";
 import { AdminBlock } from "../../../hooks/api/blocks";
-import { Badge } from "@medusajs/ui";
+import { Badge, DataTableColumnDef } from "@medusajs/ui";
 
 export const useBlocksColumns = () => {
-  const columns: ColumnDef<AdminBlock>[] = [
+  const columns: DataTableColumnDef<AdminBlock>[] = [
     {
       accessorKey: "name",
       header: "Name",

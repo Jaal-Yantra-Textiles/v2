@@ -4,7 +4,8 @@ import {
   ColumnMeta,
   Row,
   VisibilityState,
-} from "@tanstack/react-table"
+  RowData,
+} from "../../lib/legacy-table"
 import React, { PropsWithChildren, ReactNode, RefObject } from "react"
 import {
   FieldErrors,
@@ -25,11 +26,11 @@ export type DataGridCoordinates = {
   col: number
 }
 
-export interface DataGridCellProps<TData = unknown, TValue = any> {
+export interface DataGridCellProps<TData extends RowData = RowData, TValue = any> {
   context: CellContext<TData, TValue>
 }
 
-export interface DataGridCellContext<TData = unknown, TValue = any>
+export interface DataGridCellContext<TData extends RowData = RowData, TValue = any>
   extends CellContext<TData, TValue> {
   /**
    * The index of the column in the grid.
@@ -64,7 +65,7 @@ type InputAttributes = {
 }
 
 export interface InputProps {
-  ref: RefObject<HTMLElement>
+  ref: RefObject<HTMLElement | null>
   onBlur: () => void
   onFocus: () => void
   onChange: (next: any, prev: any) => void
@@ -79,7 +80,7 @@ type InnerAttributes = {
 }
 
 interface InnerProps {
-  ref: RefObject<HTMLDivElement>
+  ref: RefObject<HTMLDivElement | null>
   onMouseOver: ((e: React.MouseEvent<HTMLElement>) => void) | undefined
   onMouseDown: ((e: React.MouseEvent<HTMLElement>) => void) | undefined
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void
@@ -110,16 +111,16 @@ export type DataGridCellSnapshot<
   value: PathValue<TFieldValues, Path<TFieldValues>>
 }
 
-export type FieldContext<TData> = {
+export type FieldContext<TData extends RowData> = {
   row: Row<TData>
   column: ColumnDef<TData>
 }
 
-export type FieldFunction<TData, TFieldValues extends FieldValues> = (
+export type FieldFunction<TData extends RowData, TFieldValues extends FieldValues> = (
   context: FieldContext<TData>
 ) => FieldPath<TFieldValues> | null
 
-export type InternalColumnMeta<TData, TFieldValues extends FieldValues> = {
+export type InternalColumnMeta<TData extends RowData, TFieldValues extends FieldValues> = {
   name: string
   field?: FieldFunction<TData, TFieldValues>
 } & (

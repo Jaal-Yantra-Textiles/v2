@@ -1,3 +1,4 @@
+import type { RowData } from "../../../lib/legacy-table"
 import { Input, Select, clx } from "@medusajs/ui"
 import { Controller } from "react-hook-form"
 import { useDataGridCell, useDataGridCellError } from "../hooks"
@@ -6,7 +7,7 @@ import { DataGridCellContainer } from "./data-grid-cell-container"
 import React, { useEffect, useMemo, useState } from "react"
 import { useDataGridContext } from "../context"
 
-interface DataGridSelectCellProps<TData, TValue = any>
+interface DataGridSelectCellProps<TData extends RowData, TValue = any>
   extends DataGridCellProps<TData, TValue> {
   options: {
     label: React.ReactNode
@@ -26,7 +27,7 @@ interface DataGridSelectCellProps<TData, TValue = any>
   onSearch?: (query: string) => void
 }
 
-export const DataGridSelectCell = <TData, TValue = any>({
+export const DataGridSelectCell = <TData extends RowData, TValue = any>({
   context,
   options,
   loading = false,

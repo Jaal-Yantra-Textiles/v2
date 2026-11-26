@@ -23,7 +23,7 @@ export function AgreementTextEditor({
   debounceTime?: number;
 
 }) {
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>();
+  const debounceTimeoutRef = useRef<NodeJS.Timeout>(undefined);
 
   // Handle content changes with debouncing and convert to HTML
   const handleContentChange = useCallback((content: string) => {

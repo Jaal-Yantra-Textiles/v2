@@ -7,6 +7,7 @@ import {
   Switch,
   Text,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { RouteFocusModal } from "../../../../../components/modal/route-focus-modal"
 import { ChartBar } from "@medusajs/icons"
@@ -27,7 +28,6 @@ import {
   useAdCampaign,
   useMetaAdsOverview,
 } from "../../../../../hooks/api/meta-ads"
-import { createColumnHelper } from "@tanstack/react-table"
 
 const DATE_PRESETS: Array<{ label: string; value: string }> = [
   { label: "Last 7 days", value: "last_7d" },
@@ -39,8 +39,8 @@ const DATE_PRESETS: Array<{ label: string; value: string }> = [
 
 type ResultsRow = { action_type: string; value: number }
 
-const resultsColumnHelper = createColumnHelper<ResultsRow>()
-const breakdownColumnHelper = createColumnHelper<MetaAdsOverviewBreakdownRow>()
+const resultsColumnHelper = createDataTableColumnHelper<ResultsRow>()
+const breakdownColumnHelper = createDataTableColumnHelper<MetaAdsOverviewBreakdownRow>()
 
 const formatNumber = (value: number | null | undefined): string => {
   if (value === null || value === undefined) return "—"

@@ -1,9 +1,8 @@
-import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
 import { AdminWebsite } from "../api/websites";
-import { Badge } from "@medusajs/ui";
+import { Badge, createDataTableColumnHelper } from "@medusajs/ui";
 
-const columnHelper = createColumnHelper<AdminWebsite>();
+const columnHelper = createDataTableColumnHelper<AdminWebsite>();
 
 export const useWebsitesTableColumns = () => {
   return useMemo(

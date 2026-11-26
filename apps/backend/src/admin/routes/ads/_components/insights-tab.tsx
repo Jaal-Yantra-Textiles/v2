@@ -8,8 +8,8 @@ import {
   Select,
   Text,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useCallback, useMemo } from "react"
 import { useSearchParams } from "react-router-dom"
 import {
@@ -34,7 +34,7 @@ import {
 import { formatMicros, formatNumber } from "./format"
 
 const PAGE_SIZE = 50
-const columnHelper = createColumnHelper<AdsInsight>()
+const columnHelper = createDataTableColumnHelper<AdsInsight>()
 
 type Props = { platformId: string; kind: AdsPlatformKind | null }
 

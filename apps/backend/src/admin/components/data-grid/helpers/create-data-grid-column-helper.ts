@@ -3,12 +3,13 @@ import {
   ColumnDefTemplate,
   createColumnHelper,
   HeaderContext,
-} from "@tanstack/react-table"
+  RowData,
+} from "../../../lib/legacy-table"
 import { FieldValues } from "react-hook-form"
 
 import { DataGridColumnType, FieldFunction } from "../types"
 
-type DataGridHelperColumnsProps<TData, TFieldValues extends FieldValues> = {
+type DataGridHelperColumnsProps<TData extends RowData, TFieldValues extends FieldValues> = {
   /**
    * The id of the column.
    */
@@ -45,7 +46,7 @@ type DataGridHelperColumnsProps<TData, TFieldValues extends FieldValues> = {
 )
 
 export function createDataGridHelper<
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 >() {
   const columnHelper = createColumnHelper<TData>()

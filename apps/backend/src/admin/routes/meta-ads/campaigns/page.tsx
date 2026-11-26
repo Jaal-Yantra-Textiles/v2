@@ -12,6 +12,7 @@ import {
   toast,
   Select,
   Badge,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { 
   useAdCampaigns, 
@@ -28,7 +29,6 @@ import { LoaderFunctionArgs, useNavigate, useSearchParams } from "react-router-d
 import { ArrowPath, ChartBar } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
-import { createColumnHelper } from "@tanstack/react-table"
 
 const PAGE_SIZE = 20
 
@@ -69,7 +69,7 @@ const getStatusBadgeColor = (status: string): "green" | "orange" | "red" | "grey
   }
 }
 
-const columnHelper = createColumnHelper<AdCampaign>()
+const columnHelper = createDataTableColumnHelper<AdCampaign>()
 
 const CampaignsPage = () => {
   const navigate = useNavigate()

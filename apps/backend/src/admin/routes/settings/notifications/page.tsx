@@ -9,11 +9,11 @@ import {
   createDataTableFilterHelper,
   toast,
   Toaster,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { keepPreviousData, useQueryClient } from "@tanstack/react-query"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { ArrowPath, ListBullet } from "@medusajs/icons"
-import { createColumnHelper } from "@tanstack/react-table"
 import debounce from "lodash/debounce"
 import { useCallback, useMemo, useState } from "react"
 import { Outlet, useNavigate } from "react-router-dom"
@@ -28,7 +28,7 @@ import {
 } from "../../../hooks/api/notifications"
 import { useFailedNotificationsTableColumns } from "../../../hooks/columns/useFailedNotificationsTableColumns"
 
-const columnHelper = createColumnHelper<Notification>()
+const columnHelper = createDataTableColumnHelper<Notification>()
 
 const PAGE_SIZE = 20
 

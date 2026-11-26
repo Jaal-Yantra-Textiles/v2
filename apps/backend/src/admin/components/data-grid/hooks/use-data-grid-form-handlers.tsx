@@ -1,3 +1,4 @@
+import type { RowData } from "../../../lib/legacy-table"
 import get from "lodash/get"
 import set from "lodash/set"
 import { useCallback } from "react"
@@ -10,14 +11,14 @@ import {
   DataGridToggleableNumber,
 } from "../types"
 
-type UseDataGridFormHandlersOptions<TData, TFieldValues extends FieldValues> = {
+type UseDataGridFormHandlersOptions<TData extends RowData, TFieldValues extends FieldValues> = {
   matrix: DataGridMatrix<TData, TFieldValues>
   form: UseFormReturn<TFieldValues>
   anchor: DataGridCoordinates | null
 }
 
 export const useDataGridFormHandlers = <
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 >({
   matrix,

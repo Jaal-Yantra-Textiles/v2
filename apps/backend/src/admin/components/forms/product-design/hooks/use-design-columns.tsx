@@ -1,8 +1,7 @@
-import { createColumnHelper } from "@tanstack/react-table"
-import { Badge, StatusBadge, Checkbox } from "@medusajs/ui"
+import { Badge, StatusBadge, Checkbox, createDataTableColumnHelper } from "@medusajs/ui"
 import type { AdminDesign } from "../../../../hooks/api/designs"
 
-const columnHelper = createColumnHelper<AdminDesign>()
+const columnHelper = createDataTableColumnHelper<AdminDesign>()
 
 export const useDesignColumns = (
   selectedRows: Record<string, boolean>,
@@ -54,8 +53,6 @@ export const useDesignColumns = (
           />
         )
       },
-      enableSorting: false,
-      enableHiding: false,
     }),
     columnHelper.accessor("name", {
       header: "Name",

@@ -45,7 +45,7 @@ export const EmailComposer = ({ initialContent, blogDoc, campaign, onSave }: Ema
   const prompt = usePrompt()
   const { mutateAsync: uploadFile } = useFileUpload()
   const editorRef = useRef<EmailEditorRef | null>(null)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>()
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
   const [seed, setSeed] = useState<{ key: number; content: unknown | null }>({
     key: 0,
     content: initialContent,

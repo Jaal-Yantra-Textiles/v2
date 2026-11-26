@@ -6,10 +6,10 @@ import {
   DataTable,
   useDataTable,
   DataTablePaginationState,
+  createDataTableColumnHelper,
 } from "@medusajs/ui";
 import { Users } from "@medusajs/icons";
 import { keepPreviousData } from "@tanstack/react-query";
-import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import {
   useWebsiteAnalyticsSessions,
@@ -28,7 +28,7 @@ import {
  * modal's existing time filter.
  */
 
-const columnHelper = createColumnHelper<AnalyticsSession>();
+const columnHelper = createDataTableColumnHelper<AnalyticsSession>();
 
 function formatDuration(seconds?: number | null): string {
   if (!seconds || seconds <= 0) return "—";

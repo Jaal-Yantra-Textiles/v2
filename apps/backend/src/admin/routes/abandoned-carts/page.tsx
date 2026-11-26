@@ -10,13 +10,13 @@ import {
   Badge,
   Tooltip,
   TooltipProvider,
+  createDataTableColumnHelper,
 } from "@medusajs/ui";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
 import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ShoppingCart } from "@medusajs/icons";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createColumnHelper } from "@tanstack/react-table";
 import debounce from "lodash/debounce";
 import {
   AbandonedCartListItem,
@@ -63,7 +63,7 @@ const TIER_OPTIONS: Array<{ label: string; value: AbandonedCartTier; help: strin
 
 // ─── Columns ─────────────────────────────────────────────────────────────────
 
-const columnHelper = createColumnHelper<AbandonedCartListItem>();
+const columnHelper = createDataTableColumnHelper<AbandonedCartListItem>();
 
 const useColumns = () =>
   useMemo(
