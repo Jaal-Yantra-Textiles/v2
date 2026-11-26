@@ -8,7 +8,8 @@ ingress:
   - hostname: a1.jaalyantra.com      # test hostname until cutover
     service: http://server:9000
     originRequest: { connectTimeout: 10s }
-  # Cutover (25 Nov): uncomment, then route DNS for v3 to this tunnel.
-  # - hostname: v3.jaalyantra.com
-  #   service: http://server:9000
+  # Cutover 2026-11-26: v3 is the box. DNS: cloudflared tunnel route dns --overwrite-dns jyt-a1 v3.jaalyantra.com
+  - hostname: v3.jaalyantra.com
+    service: http://server:9000
+    originRequest: { connectTimeout: 10s }
   - service: http_status:404
