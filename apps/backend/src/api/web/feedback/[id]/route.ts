@@ -10,10 +10,16 @@ import {
   ArtworkChoice,
   buildArtworkPickUpdate,
   mapMediaToArtworkChoice,
-  normalizeRatingValue,
   resolveArtworkSourceId,
   selectArtworkChoices,
 } from "../../../../workflows/feedback/lib/artwork-feedback";
+import {
+  buildPublicFeedbackView,
+  isBuyerFeedbackRequest,
+  isFeedbackAnswered,
+  parseFeedbackSubmission,
+} from "../../../../workflows/feedback/lib/feedback-page";
+import { resolveFeedbackStoreForOrder } from "../../../../workflows/feedback/lib/resolve-feedback-store";
 
 const ARTWORK_COUNT = 3;
 const POOL_TAKE = 100;
@@ -88,71 +94,116 @@ async function fetchArtworkPool(
 }
 
 /**
- * Public, token-less feedback page payload (the token IS the feedback id, as in
- * the post-delivery email link `${STORE_URL}/feedback/:id`). Returns the
- * feedback request plus a small set of artwork images to pick from. Additive:
- * if no artwork pool is configured, `artworks` is simply empty and the page
- * falls back to a plain 1..5 rating.
+ * Load a BUYER feedback request (one tied to an order). Any other feedback row
+ * (partner/task/admin feedback lives in the same table) is a 404 here, so a
+ * public link can never read or overwrite it.
+ */
+async function loadBuyerFeedback(req: MedusaRequest, id: string) {
+  const service = req.scope.resolve(FEEDBACK_MODULE) as FeedbackService;
+  const rows = await service.listFeedbacks({ id });
+  const feedback: any = Array.isArray(rows) ? rows[0] : null;
+  if (!feedback || !isBuyerFeedbackRequest(feedback)) {
+    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Feedback not found");
+  }
+  return { service, feedback };
+}
+
+/** What was ordered — titles/thumbnails only, never the buyer's details. */
+async function loadOrderSummary(req: MedusaRequest, orderId: string) {
+  try {
+    const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY);
+    const { data } = await query.graph({
+      entity: "order",
+      fields: [
+        "id",
+        "display_id",
+        "sales_channel_id",
+        "items.title",
+        "items.product_title",
+        "items.variant_title",
+        "items.thumbnail",
+        "items.quantity",
+      ],
+      filters: { id: orderId },
+    });
+    return (data?.[0] as any) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Public feedback page payload. The feedback id IS the credential (a ULID, as
+ * in the email link `<shop>/feedback/:id`). Returns whether it was already
+ * answered, what was ordered, which shop it belongs to, and a small seeded set
+ * of artwork to pick from (empty when no media → the page shows plain stars).
  *
  * GET /web/feedback/:id
  */
 export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params;
-  const service = req.scope.resolve(FEEDBACK_MODULE) as FeedbackService;
+  const { feedback } = await loadBuyerFeedback(req, id);
 
-  const rows = await service.listFeedbacks({ id });
-  const feedback = Array.isArray(rows) ? rows[0] : null;
-  if (!feedback) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Feedback not found");
-  }
+  const order = await loadOrderSummary(req, feedback.order_id);
+  const store = await resolveFeedbackStoreForOrder(req.scope, {
+    orderId: feedback.order_id,
+    salesChannelId: order?.sales_channel_id ?? null,
+  });
 
-  const sourceId = resolveArtworkSourceId(process.env);
-  const pool = await fetchArtworkPool(req, sourceId);
-  const artworks = selectArtworkChoices(pool, id, ARTWORK_COUNT);
+  // No artwork once answered — the page only shows the thank-you state.
+  const artworks = isFeedbackAnswered(feedback)
+    ? []
+    : selectArtworkChoices(
+        await fetchArtworkPool(req, resolveArtworkSourceId(process.env)),
+        id,
+        ARTWORK_COUNT
+      );
 
   res.status(200).json({
-    feedback: {
-      id: feedback.id,
-      rating: feedback.rating,
-      status: feedback.status,
-      comment: feedback.comment ?? null,
-      chosen_artwork_id: feedback.chosen_artwork_id ?? null,
-      artwork_affinity: feedback.artwork_affinity ?? null,
-    },
+    ...buildPublicFeedbackView({
+      feedback,
+      order,
+      store: { name: store.store_name, url: store.origin },
+    }),
     artworks,
   });
 };
 
 /**
- * Record the customer's feedback from the page: the optional 1..5 rating, an
- * optional comment, and the optional artwork pick. Every field is optional and
- * additive — the artwork pick never replaces the rating. The chosen artwork is
- * validated against the SAME seeded set the GET returns, so an arbitrary id
- * can't be recorded.
+ * Record the buyer's answer: a required 1..5 rating, an optional comment and an
+ * optional artwork pick. The chosen artwork is validated against the SAME
+ * seeded set the GET returns, so an arbitrary id can't be recorded; a rejected
+ * pick does not lose the rating.
  *
- * POST /web/feedback/:id  { rating?, comment?, artwork_id?, affinity? }
+ * One answer per request: once `answered_at` is set a second POST is a 409, so
+ * a forwarded link can't overwrite what the buyer said.
+ *
+ * POST /web/feedback/:id  { rating, comment?, artwork_id?, affinity? }
  */
 export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   const { id } = req.params;
   const body = (req.body || {}) as Record<string, any>;
-  const service = req.scope.resolve(FEEDBACK_MODULE) as FeedbackService;
   const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER);
+  const { service, feedback } = await loadBuyerFeedback(req, id);
 
-  const rows = await service.listFeedbacks({ id });
-  const feedback = Array.isArray(rows) ? rows[0] : null;
-  if (!feedback) {
-    throw new MedusaError(MedusaError.Types.NOT_FOUND, "Feedback not found");
+  if (isFeedbackAnswered(feedback)) {
+    throw new MedusaError(
+      MedusaError.Types.CONFLICT,
+      "This feedback has already been answered. Thank you!"
+    );
   }
 
-  const update: Record<string, any> = { id };
+  const parsed = parseFeedbackSubmission(body);
+  if (!parsed.ok) {
+    throw new MedusaError(MedusaError.Types.INVALID_DATA, parsed.reason);
+  }
 
-  const rating = normalizeRatingValue(body.rating);
-  if (rating) {
-    update.rating = rating;
-  }
-  if (typeof body.comment === "string" && body.comment.trim().length) {
-    update.comment = body.comment.trim();
-  }
+  const update: Record<string, any> = {
+    id,
+    rating: parsed.rating,
+    comment: parsed.comment,
+    answered_at: new Date(),
+  };
 
   let pickRejected = false;
   const artworkId =
@@ -185,29 +236,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
-  // Nothing valid to record — surface a 400 rather than a silent no-op.
-  const hasMutation = Object.keys(update).length > 1;
-  if (!hasMutation) {
-    throw new MedusaError(
-      MedusaError.Types.INVALID_DATA,
-      pickRejected
-        ? "Selected artwork was not among the offered set"
-        : "No valid rating, comment or artwork pick supplied"
-    );
-  }
-
   await service.updateFeedbacks(update);
-  const refreshed = (await service.listFeedbacks({ id }))?.[0] ?? null;
+  // Read the row back: the response reports what persisted, not what we sent.
+  const refreshed: any = (await service.listFeedbacks({ id }))?.[0] ?? null;
+  const view = refreshed ? buildPublicFeedbackView({ feedback: refreshed }) : null;
 
   res.status(200).json({
-    feedback: refreshed && {
-      id: refreshed.id,
-      rating: refreshed.rating,
-      status: refreshed.status,
-      comment: refreshed.comment ?? null,
-      chosen_artwork_id: refreshed.chosen_artwork_id ?? null,
-      artwork_affinity: refreshed.artwork_affinity ?? null,
-    },
+    feedback: view?.feedback ?? null,
     artwork_pick_rejected: pickRejected,
   });
 };

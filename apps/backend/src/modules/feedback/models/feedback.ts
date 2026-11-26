@@ -19,6 +19,11 @@ const Feedback = model.define("feedback", {
   // blob (which gets fully replaced on update — feedback_no_critical_data_in_metadata).
   chosen_artwork_id: model.text().nullable(),
   artwork_affinity: model.text().nullable(),
+  // When the buyer answered on the public feedback page. Null = not answered
+  // yet. `status` stays the ADMIN review state (pending → reviewed → resolved)
+  // and `rating` has a default, so neither can tell an answered request from
+  // an open one. The page refuses a second answer once this is set.
+  answered_at: model.dateTime().nullable(),
   reviewed_by: model.text().nullable(),
   reviewed_at: model.dateTime().nullable(),
   metadata: model.json().nullable(),

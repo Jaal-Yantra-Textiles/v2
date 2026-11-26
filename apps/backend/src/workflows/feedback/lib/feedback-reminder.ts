@@ -13,6 +13,8 @@ export interface FeedbackReminderRow {
   status?: string | null
   order_id?: string | null
   submitted_at?: Date | string | null
+  /** Set when the buyer answered on the feedback page. */
+  answered_at?: Date | string | null
   deleted_at?: Date | string | null
   metadata?: Record<string, any> | null
 }
@@ -68,6 +70,10 @@ export function selectFeedbackRemindersDue(
         return false
       }
       if (feedbackReminderAlreadySent(f)) {
+        return false
+      }
+      // The buyer already answered on the feedback page — never nudge them.
+      if (f.answered_at) {
         return false
       }
       const submitted = f.submitted_at ? new Date(f.submitted_at).getTime() : NaN

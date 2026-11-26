@@ -4,7 +4,7 @@ import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { FEEDBACK_MODULE } from "../modules/feedback"
 import type FeedbackService from "../modules/feedback/service"
 import { sendNotificationEmailWorkflow } from "../workflows/email/workflows/send-notification-email"
-import { resolveFeedbackStoreBase } from "../workflows/feedback/lib/post-delivery-feedback"
+import { resolveFeedbackStoreForOrder } from "../workflows/feedback/lib/resolve-feedback-store"
 import {
   buildFeedbackReminderEmailData,
   selectFeedbackRemindersDue,
@@ -49,10 +49,6 @@ export default async function sendFeedbackReminders(container: MedusaContainer) 
       return
     }
 
-    const storeBase = resolveFeedbackStoreBase(
-      process.env as Record<string, string | undefined>
-    )
-
     let sent = 0
     let skipped = 0
     for (const row of due) {
@@ -64,7 +60,7 @@ export default async function sendFeedbackReminders(container: MedusaContainer) 
 
         const { data: orderRows } = await query.graph({
           entity: "order",
-          fields: ["id", "display_id", "email"],
+          fields: ["id", "display_id", "email", "sales_channel_id"],
           filters: { id: row.order_id },
         })
         const order: any = orderRows?.[0]
@@ -73,11 +69,16 @@ export default async function sendFeedbackReminders(container: MedusaContainer) 
           continue
         }
 
+        // A partner order's link goes to the partner's own shop.
+        const store = await resolveFeedbackStoreForOrder(container, {
+          orderId: order.id,
+          salesChannelId: order.sales_channel_id ?? null,
+        })
         const email = buildFeedbackReminderEmailData({
           order,
           customerName: order.email || "",
           feedbackId: row.id,
-          storeBase,
+          storeBase: store.origin,
         })
 
         // No recipient → can't nudge; leave unstamped so a later run can retry

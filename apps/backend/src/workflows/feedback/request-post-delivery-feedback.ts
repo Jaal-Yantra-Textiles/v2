@@ -14,9 +14,9 @@ import { fetchEmailTemplateStep } from "../email/steps/fetch-email-template"
 import { sendNotificationEmailStep } from "../email/steps/send-notification-email"
 import {
   buildPostDeliveryFeedbackEmailData,
-  resolveFeedbackStoreBase,
   selectExistingFeedbackRequest,
 } from "./lib/post-delivery-feedback"
+import { resolveFeedbackStoreForOrder } from "./lib/resolve-feedback-store"
 
 export interface RequestPostDeliveryFeedbackInput {
   /** The delivered fulfillment (delivery.created carries this as `id`). */
@@ -64,6 +64,21 @@ const createFeedbackRequestStep = createStep(
   }
 )
 
+/**
+ * The shop the feedback link points at: a partner store's own domain for a
+ * partner order (so the page wears their brand), else our shop.
+ */
+const resolveFeedbackStoreStep = createStep(
+  "resolve-post-delivery-feedback-store",
+  async (input: { order_id: string; override?: string }, { container }) => {
+    const store = await resolveFeedbackStoreForOrder(container, {
+      orderId: input.order_id,
+      override: input.override,
+    })
+    return new StepResponse(store)
+  }
+)
+
 export const requestPostDeliveryFeedbackWorkflow = createWorkflow(
   { name: "request-post-delivery-feedback", store: true },
   (input: RequestPostDeliveryFeedbackInput) => {
@@ -78,13 +93,17 @@ export const requestPostDeliveryFeedbackWorkflow = createWorkflow(
       }))
     )
 
+    const store = resolveFeedbackStoreStep(
+      transform({ shipmentData, input }, ({ shipmentData, input }) => ({
+        order_id: shipmentData.order.id,
+        override: input.store_base,
+      }))
+    )
+
     const emailInput = transform(
-      { shipmentData, feedbackResult, input },
-      ({ shipmentData, feedbackResult, input }) => {
-        const storeBase = resolveFeedbackStoreBase(
-          process.env as Record<string, string | undefined>,
-          input.store_base
-        )
+      { shipmentData, feedbackResult, store },
+      ({ shipmentData, feedbackResult, store }) => {
+        const storeBase = store.origin
         const email = buildPostDeliveryFeedbackEmailData({
           order: shipmentData.order,
           customerName: shipmentData.customer_name,
