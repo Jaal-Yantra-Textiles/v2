@@ -3,6 +3,7 @@ import { Modules } from "@medusajs/framework/utils"
 import type { ICustomerModuleService } from "@medusajs/types"
 import { sendNotificationEmailStep } from "../steps/send-notification-email"
 import { fetchEmailTemplateStep } from "../steps/fetch-email-template"
+import { platformFallbackOrigin } from "../../../lib/carts/resolve-cart-link"
 
 const retrieveCustomerStep = createStep(
   { name: "retrieve-customer", store: true },
@@ -21,6 +22,8 @@ export const sendWelcomeEmailWorkflow = createWorkflow(
     const emailData = {
       customer_name: customer.first_name || "Customer",
       customer,
+      // "Start Shopping" goes to the shop, not FRONTEND_URL (the business site).
+      store_url: platformFallbackOrigin(),
     }
 
     const templateData = fetchEmailTemplateStep({

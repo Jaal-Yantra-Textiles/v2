@@ -71,14 +71,14 @@ describe("post-delivery-feedback pure helpers (#452)", () => {
       ).toBe("https://o.com")
     })
 
-    it("falls back STORE_URL → FRONTEND_URL → ''", () => {
+    it("falls back STORE_URL → the shop, never FRONTEND_URL (the business site)", () => {
       expect(resolveFeedbackStoreBase({ STORE_URL: "https://s.com/" })).toBe(
         "https://s.com"
       )
-      expect(resolveFeedbackStoreBase({ FRONTEND_URL: "https://f.com" })).toBe(
-        "https://f.com"
+      expect(resolveFeedbackStoreBase({ FRONTEND_URL: "https://jaalyantra.com" })).toBe(
+        "https://cicilabel.com"
       )
-      expect(resolveFeedbackStoreBase({})).toBe("")
+      expect(resolveFeedbackStoreBase({})).toBe("https://cicilabel.com")
     })
 
     it("trims trailing slashes", () => {

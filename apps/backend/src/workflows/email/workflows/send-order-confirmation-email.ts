@@ -11,6 +11,7 @@ import {
   confirmationPayment,
   confirmationTotals,
 } from "./order-confirmation-email-lib"
+import { platformFallbackOrigin } from "../../../lib/carts/resolve-cart-link"
 
 /**
  * Retrieve the order with what the confirmation renders (#2578): the lines,
@@ -95,7 +96,13 @@ const buildOrderConfirmationVarsStep = createStep(
     // Retail ownership rule: order.sales_channel_id === store.default_sales_channel_id
     // (same as validatePartnerOrderOwnership / the fee subscriber).
     let partnerName = ""
-    let storeUrl = process.env.FRONTEND_URL || ""
+    /**
+     * 🔴 The SHOP, never FRONTEND_URL. On prod FRONTEND_URL is jaalyantra.com,
+     * the business site, which has no cart or orders: "Visit the store" sent
+     * buyers to the brochure. A partner order still uses the partner's domain
+     * below. jaalyantra.com is passed separately as `business_url`.
+     */
+    let storeUrl = platformFallbackOrigin()
 
     try {
       const partnerId = await resolveRetailPartnerId(
@@ -139,6 +146,7 @@ const buildOrderConfirmationVarsStep = createStep(
       item_count: String(items.length),
       partner_name: partnerName,
       store_url: storeUrl,
+      business_url: process.env.FRONTEND_URL || "https://jaalyantra.com",
       current_year: String(new Date().getFullYear()),
       // #2578 — what was bought, what was paid and how, how it will arrive.
       items: confirmationLines(items, order?.currency_code),
