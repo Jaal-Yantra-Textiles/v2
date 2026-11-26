@@ -216,7 +216,7 @@ export const GraphViewport = ({ content, fitKey, children }: Props) => {
         <button
           type="button"
           onClick={fit}
-          className="rounded px-2 py-1 text-ui-fg-subtle hover:bg-ui-bg-base-hover"
+          className="rounded-sm px-2 py-1 text-ui-fg-subtle hover:bg-ui-bg-base-hover"
         >
           <Text size="xsmall">Fit</Text>
         </button>

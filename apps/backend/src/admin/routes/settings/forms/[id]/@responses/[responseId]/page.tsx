@@ -113,7 +113,7 @@ export default function FormResponseDetailPage() {
         cell: ({ getValue }) => (
           <Text
             size="small"
-            className="whitespace-pre-wrap break-words font-mono"
+            className="whitespace-pre-wrap wrap-break-word font-mono"
           >
             {getValue() || "-"}
           </Text>

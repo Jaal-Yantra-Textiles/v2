@@ -200,13 +200,13 @@ export const ImportInventoryFromImage: React.FC = () => {
         </div>
 
         {error && (
-          <div className="rounded bg-ui-bg-base border border-ui-border-base p-3">
+          <div className="rounded-sm bg-ui-bg-base border border-ui-border-base p-3">
             <Text className="text-ui-fg-error">{error}</Text>
           </div>
         )}
 
         {result && (
-          <div className="rounded bg-ui-bg-base border border-ui-border-base p-3">
+          <div className="rounded-sm bg-ui-bg-base border border-ui-border-base p-3">
             <Heading level="h3">Preview</Heading>
             {result.summary && (
               <Text size="small" className="block mt-1 text-ui-fg-subtle">{result.summary}</Text>

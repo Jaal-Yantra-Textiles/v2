@@ -312,7 +312,7 @@ export const CreatePartnerTaskComponent = () => {
                   value={Tab.DETAILS} 
                   status={tabState.details} 
                   onClick={() => handleTabChange(Tab.DETAILS)}
-                  className="flex-shrink-0"
+                  className="shrink-0"
                 >
                   Task Details
                 </ProgressTabs.Trigger>
@@ -321,7 +321,7 @@ export const CreatePartnerTaskComponent = () => {
                   status={tabState.workflow} 
                   onClick={() => handleTabChange(Tab.WORKFLOW)}
                   disabled={tabState.details !== 'completed' && tabState.workflow === 'not-started'}
-                  className="flex-shrink-0"
+                  className="shrink-0"
                 >
                   Workflow Config
                 </ProgressTabs.Trigger>
@@ -330,7 +330,7 @@ export const CreatePartnerTaskComponent = () => {
                   status={tabState.steps} 
                   onClick={() => handleTabChange(Tab.STEPS)}
                   disabled={(tabState.details !== 'completed' || tabState.workflow !== 'completed') && tabState.steps === 'not-started'}
-                  className="flex-shrink-0"
+                  className="shrink-0"
                 >
                   Task Steps
                 </ProgressTabs.Trigger>

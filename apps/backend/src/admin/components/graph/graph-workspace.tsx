@@ -187,7 +187,7 @@ export const GraphWorkspace = ({ spine, id, title = "Graph", selfHref }: Props) 
         <Text size="small" className="text-ui-fg-subtle">
           The graph could not be loaded.
         </Text>
-        <Text size="xsmall" className="text-ui-fg-muted break-words">
+        <Text size="xsmall" className="text-ui-fg-muted wrap-break-word">
           {(error as Error | undefined)?.message ?? "The request returned no graph."}
         </Text>
       </div>

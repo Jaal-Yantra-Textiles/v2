@@ -272,7 +272,7 @@ const Preview = ({
             <button
               type="button"
               onClick={() => goTo(originalIndex)}
-              className={clx("transition-fg size-7 overflow-hidden rounded-[4px] outline-none", {
+              className={clx("transition-fg size-7 overflow-hidden rounded-[4px] outline-hidden", {
                 "shadow-borders-focus": isCurrentImage,
               })}
               key={item.id}

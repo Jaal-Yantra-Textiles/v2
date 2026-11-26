@@ -226,7 +226,7 @@ export const EntityPickerGrid = ({
             key={key}
             type="button"
             onClick={() => onSelect(key)}
-            className="text-left shadow-elevation-card-rest bg-ui-bg-component hover:bg-ui-bg-component-hover rounded-lg p-5 transition-colors flex flex-col min-h-[110px] outline-none focus:shadow-borders-interactive-with-focus"
+            className="text-left shadow-elevation-card-rest bg-ui-bg-component hover:bg-ui-bg-component-hover rounded-lg p-5 transition-colors flex flex-col min-h-[110px] outline-hidden focus:shadow-borders-interactive-with-focus"
           >
             <div className="flex items-center gap-x-2">
               <Icon className="text-ui-fg-subtle" />
@@ -258,7 +258,7 @@ export const EntityPickerGrid = ({
                 key={c.path}
                 type="button"
                 onClick={() => onOpenCore(c.path)}
-                className="flex items-center gap-x-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle hover:bg-ui-bg-subtle-hover px-3 py-2 text-ui-fg-subtle hover:text-ui-fg-base transition-colors outline-none focus:shadow-borders-interactive-with-focus"
+                className="flex items-center gap-x-2 rounded-lg border border-ui-border-base bg-ui-bg-subtle hover:bg-ui-bg-subtle-hover px-3 py-2 text-ui-fg-subtle hover:text-ui-fg-base transition-colors outline-hidden focus:shadow-borders-interactive-with-focus"
               >
                 <Icon />
                 <Text size="small" leading="compact">

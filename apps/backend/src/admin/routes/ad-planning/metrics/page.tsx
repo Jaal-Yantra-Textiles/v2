@@ -586,7 +586,7 @@ const MetricsModal = () => {
                     <div className="flex items-center gap-1 mb-2 h-6">
                       {newLeads > 0 && (
                         <div
-                          className="h-full bg-ui-tag-blue-bg rounded"
+                          className="h-full bg-ui-tag-blue-bg rounded-sm"
                           style={{
                             width: `${Math.max((newLeads / totalLeads) * 100, 5)}%`,
                           }}
@@ -595,7 +595,7 @@ const MetricsModal = () => {
                       )}
                       {contactedLeads > 0 && (
                         <div
-                          className="h-full bg-ui-tag-orange-bg rounded"
+                          className="h-full bg-ui-tag-orange-bg rounded-sm"
                           style={{
                             width: `${Math.max((contactedLeads / totalLeads) * 100, 5)}%`,
                           }}
@@ -604,7 +604,7 @@ const MetricsModal = () => {
                       )}
                       {qualifiedLeads > 0 && (
                         <div
-                          className="h-full bg-ui-tag-green-bg rounded"
+                          className="h-full bg-ui-tag-green-bg rounded-sm"
                           style={{
                             width: `${Math.max((qualifiedLeads / totalLeads) * 100, 5)}%`,
                           }}
@@ -613,7 +613,7 @@ const MetricsModal = () => {
                       )}
                       {convertedLeads > 0 && (
                         <div
-                          className="h-full bg-ui-tag-purple-bg rounded"
+                          className="h-full bg-ui-tag-purple-bg rounded-sm"
                           style={{
                             width: `${Math.max((convertedLeads / totalLeads) * 100, 5)}%`,
                           }}
@@ -967,7 +967,7 @@ const MetricsModal = () => {
                         return (
                           <div
                             key={tier.tier}
-                            className={`h-6 ${colors[tier.tier.toLowerCase()] || "bg-ui-bg-subtle"} rounded`}
+                            className={`h-6 ${colors[tier.tier.toLowerCase()] || "bg-ui-bg-subtle"} rounded-sm`}
                             style={{ width: `${Math.max(percent, 5)}%` }}
                             title={`${tier.tier}: ${tier.count} (${percent.toFixed(1)}%)`}
                           />
@@ -1105,7 +1105,7 @@ const MetricsModal = () => {
                         .map(([source, data]: [string, any]) => (
                           <div
                             key={source}
-                            className="flex items-center justify-between p-2 bg-ui-bg-subtle rounded"
+                            className="flex items-center justify-between p-2 bg-ui-bg-subtle rounded-sm"
                           >
                             <Badge
                               color={

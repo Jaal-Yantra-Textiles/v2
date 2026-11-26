@@ -82,13 +82,13 @@ const formatTriggeredBy = (triggeredBy: string | null, metadata?: Record<string,
 const LogStatusIcon = ({ status }: { status: string }) => {
   switch (status) {
     case "success":
-      return <CheckCircleSolid className="text-ui-fg-interactive w-4 h-4 flex-shrink-0" />
+      return <CheckCircleSolid className="text-ui-fg-interactive w-4 h-4 shrink-0" />
     case "failure":
-      return <XCircleSolid className="text-ui-fg-error w-4 h-4 flex-shrink-0" />
+      return <XCircleSolid className="text-ui-fg-error w-4 h-4 shrink-0" />
     case "running":
-      return <Clock className="text-ui-fg-warning w-4 h-4 flex-shrink-0 animate-pulse" />
+      return <Clock className="text-ui-fg-warning w-4 h-4 shrink-0 animate-pulse" />
     default:
-      return <Clock className="text-ui-fg-muted w-4 h-4 flex-shrink-0" />
+      return <Clock className="text-ui-fg-muted w-4 h-4 shrink-0" />
   }
 }
 
@@ -204,7 +204,7 @@ const ExecutionDetailDrawer = ({
                   </div>
                 )}
                 {execution.error && (
-                  <div className="mt-2 p-2 bg-ui-bg-base rounded border border-ui-border-error">
+                  <div className="mt-2 p-2 bg-ui-bg-base rounded-sm border border-ui-border-error">
                     <Text size="xsmall" className="text-ui-fg-error font-mono break-all">
                       {execution.error.slice(0, 200)}
                       {execution.error.length > 200 ? "…" : ""}
@@ -229,7 +229,7 @@ const ExecutionDetailDrawer = ({
                       return (
                         <div
                           key={log.id}
-                          className="border border-ui-border-base rounded overflow-hidden"
+                          className="border border-ui-border-base rounded-sm overflow-hidden"
                         >
                           <button
                             onClick={() => toggleLog(log.id)}
@@ -240,7 +240,7 @@ const ExecutionDetailDrawer = ({
                           >
                             <div className="flex items-center justify-between w-full">
                               <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <span className="text-ui-fg-muted text-xs w-4 flex-shrink-0">
+                                <span className="text-ui-fg-muted text-xs w-4 shrink-0">
                                   {index + 1}
                                 </span>
                                 <LogStatusIcon status={log.status} />
@@ -251,7 +251,7 @@ const ExecutionDetailDrawer = ({
                                   {displayName}
                                 </Text>
                               </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
+                              <div className="flex items-center gap-2 shrink-0">
                                 <Text size="xsmall" className="text-ui-fg-muted font-mono">
                                   {formatMs(log.duration_ms)}
                                 </Text>
@@ -278,7 +278,7 @@ const ExecutionDetailDrawer = ({
                                   <Text size="xsmall" className="text-ui-fg-muted mb-1">
                                     Input
                                   </Text>
-                                  <pre className="text-xs bg-ui-bg-base p-2 rounded overflow-x-auto font-mono max-h-32 overflow-y-auto">
+                                  <pre className="text-xs bg-ui-bg-base p-2 rounded-sm overflow-x-auto font-mono max-h-32 overflow-y-auto">
                                     {JSON.stringify(log.input_data, null, 2).slice(0, 500)}
                                     {JSON.stringify(log.input_data, null, 2).length > 500
                                       ? "\n…"
@@ -291,7 +291,7 @@ const ExecutionDetailDrawer = ({
                                   <Text size="xsmall" className="text-ui-fg-muted mb-1">
                                     Output
                                   </Text>
-                                  <pre className="text-xs bg-ui-bg-base p-2 rounded overflow-x-auto font-mono max-h-32 overflow-y-auto">
+                                  <pre className="text-xs bg-ui-bg-base p-2 rounded-sm overflow-x-auto font-mono max-h-32 overflow-y-auto">
                                     {JSON.stringify(log.output_data, null, 2).slice(0, 500)}
                                     {JSON.stringify(log.output_data, null, 2).length > 500
                                       ? "\n…"
@@ -304,7 +304,7 @@ const ExecutionDetailDrawer = ({
                                   <Text size="xsmall" className="text-ui-fg-error mb-1">
                                     Error
                                   </Text>
-                                  <pre className="text-xs bg-ui-bg-base p-2 rounded overflow-x-auto font-mono text-ui-fg-error max-h-24 overflow-y-auto">
+                                  <pre className="text-xs bg-ui-bg-base p-2 rounded-sm overflow-x-auto font-mono text-ui-fg-error max-h-24 overflow-y-auto">
                                     {log.error.slice(0, 300)}
                                     {log.error.length > 300 ? "…" : ""}
                                   </pre>
@@ -330,7 +330,7 @@ const ExecutionDetailDrawer = ({
                     <ChevronRight className="w-3 h-3 text-ui-fg-muted group-open:rotate-90 transition-transform" />
                     Trigger Data
                   </summary>
-                  <pre className="text-xs bg-ui-bg-subtle p-2 rounded overflow-x-auto font-mono mt-2 max-h-40 overflow-y-auto">
+                  <pre className="text-xs bg-ui-bg-subtle p-2 rounded-sm overflow-x-auto font-mono mt-2 max-h-40 overflow-y-auto">
                     {JSON.stringify(execution.trigger_data, null, 2).slice(0, 1000)}
                     {JSON.stringify(execution.trigger_data, null, 2).length > 1000 ? "\n…" : ""}
                   </pre>

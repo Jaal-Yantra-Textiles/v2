@@ -109,7 +109,7 @@ const FunnelChart = () => {
                 </div>
                 <div className="flex-1">
                   <div
-                    className={`${bgColors[color] || bgColors.grey} rounded h-8 flex items-center px-3 transition-all`}
+                    className={`${bgColors[color] || bgColors.grey} rounded-sm h-8 flex items-center px-3 transition-all`}
                     style={{ width: `${widthPercent}%` }}
                   >
                     <Text size="small" weight="plus">

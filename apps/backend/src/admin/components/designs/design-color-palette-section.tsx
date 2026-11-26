@@ -78,7 +78,7 @@ export const DesignColorPaletteSection = ({ design }: DesignColorPaletteSectionP
               >
                 <div className="flex flex-col items-center">
                   <div
-                    className="w-12 h-12 rounded-md border border-ui-border-base shadow-sm"
+                    className="w-12 h-12 rounded-md border border-ui-border-base shadow-xs"
                     style={{ backgroundColor: color.code }}
                     aria-label={color.name}
                   />

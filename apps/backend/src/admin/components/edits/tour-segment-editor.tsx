@@ -158,7 +158,7 @@ export const TourSegmentEditor = ({ index, onRemove }: Props) => {
               <Form.Control>
                 <Switch checked={!!value} onCheckedChange={onChange} />
               </Form.Control>
-              <Form.Label className="!mt-0">
+              <Form.Label className="mt-0!">
                 Required (always included, can&apos;t toggle off)
               </Form.Label>
             </Form.Item>

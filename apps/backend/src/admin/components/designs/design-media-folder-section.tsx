@@ -50,7 +50,7 @@ function FolderPickerModal({
             placeholder="Search folders…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-ui-border-base bg-ui-bg-subtle px-3 py-2 text-sm text-ui-fg-base placeholder:text-ui-fg-muted outline-none focus:border-ui-border-strong"
+            className="w-full rounded-lg border border-ui-border-base bg-ui-bg-subtle px-3 py-2 text-sm text-ui-fg-base placeholder:text-ui-fg-muted outline-hidden focus:border-ui-border-strong"
             autoFocus
           />
         </div>

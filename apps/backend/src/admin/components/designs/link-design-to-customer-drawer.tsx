@@ -115,7 +115,7 @@ export const LinkDesignToCustomerDrawer = ({
             <div className="divide-y">
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="flex items-center gap-x-3 py-3 px-2">
-                  <Skeleton className="h-4 w-4 rounded" />
+                  <Skeleton className="h-4 w-4 rounded-sm" />
                   <div className="flex-1">
                     <Skeleton className="h-4 w-2/3" />
                     <Skeleton className="h-3 w-1/3 mt-2" />
@@ -130,7 +130,7 @@ export const LinkDesignToCustomerDrawer = ({
               {availableDesigns.map((design: any) => (
                 <label
                   key={design.id}
-                  className="flex items-center gap-x-3 py-3 cursor-pointer hover:bg-ui-bg-base-hover px-2 rounded"
+                  className="flex items-center gap-x-3 py-3 cursor-pointer hover:bg-ui-bg-base-hover px-2 rounded-sm"
                 >
                   <Checkbox
                     checked={!!selected[design.id]}

@@ -316,7 +316,7 @@ export const CreateDesignTaskComponent = () => {
                     {/* Circle connector */}
                     <div className="absolute -left-9 top-3 hidden h-3 w-3 rounded-full border-2 border-ui-border-base bg-ui-bg-base sm:block" />
                     
-                    <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 shadow-sm">
+                    <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 shadow-xs">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <Form.Field

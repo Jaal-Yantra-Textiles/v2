@@ -19,7 +19,7 @@ const StockLocCard = ({ title, location }: { title: string; location: any | null
         <div className="px-0">
           <Link
             to={`/settings/locations/${location.id}`}
-            className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
+            className="outline-hidden focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
           >
             <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors">
               <div className="flex items-center gap-3">

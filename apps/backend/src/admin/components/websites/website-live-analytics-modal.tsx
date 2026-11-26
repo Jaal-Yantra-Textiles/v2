@@ -135,7 +135,7 @@ export const WebsiteLiveAnalyticsModal = () => {
                     {liveData.activePages.map((page, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between py-2 hover:bg-ui-bg-subtle-hover rounded px-2 -mx-2"
+                        className="flex items-center justify-between py-2 hover:bg-ui-bg-subtle-hover rounded-sm px-2 -mx-2"
                       >
                         <Text size="small" className="font-mono text-ui-fg-subtle">
                           {page.page}

@@ -223,7 +223,7 @@ const SegmentCriteriaSection = ({ segment }: { segment: Segment }) => {
           {segment.criteria.rules.map((rule, index) => (
             <div
               key={index}
-              className="flex items-center gap-2 p-3 bg-ui-bg-subtle rounded"
+              className="flex items-center gap-2 p-3 bg-ui-bg-subtle rounded-sm"
             >
               <Badge color="grey" size="small">
                 {rule.field}

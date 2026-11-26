@@ -202,7 +202,7 @@ export const ColorPaletteEditor = ({ design }: { design: AdminDesign }) => {
                   }`}
                 >
                   <div
-                    className="h-8 w-8 flex-shrink-0 rounded-md border border-ui-border-base"
+                    className="h-8 w-8 shrink-0 rounded-md border border-ui-border-base"
                     style={{ backgroundColor: color.hex_code }}
                   />
                   <div className="min-w-0 flex-1">

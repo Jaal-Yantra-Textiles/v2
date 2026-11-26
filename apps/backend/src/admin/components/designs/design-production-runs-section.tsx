@@ -220,7 +220,7 @@ const ProductionRunRow = ({
     <div className="rounded-md shadow-elevation-card-rest bg-ui-bg-component transition-colors">
       <Link
         to={`/production-runs/${id}`}
-        className="outline-none focus-within:shadow-borders-interactive-with-focus [&:hover>div]:bg-ui-bg-component-hover"
+        className="outline-hidden focus-within:shadow-borders-interactive-with-focus [&:hover>div]:bg-ui-bg-component-hover"
       >
         <div className="px-4 py-3">
           <div className="flex items-center justify-between gap-3">

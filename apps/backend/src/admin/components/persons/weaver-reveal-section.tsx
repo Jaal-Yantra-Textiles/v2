@@ -58,7 +58,7 @@ export const WeaverRevealSection = ({ censusId }: { censusId: string | number })
           </Text>
         ) : null}
         {state.status === "revealed" && state.data ? (
-          <pre className="text-ui-fg-subtle mt-2 whitespace-pre-wrap break-all rounded border border-ui-border-base p-2 text-xs">
+          <pre className="text-ui-fg-subtle mt-2 whitespace-pre-wrap break-all rounded-sm border border-ui-border-base p-2 text-xs">
             {JSON.stringify(state.data, null, 2)}
           </pre>
         ) : null}

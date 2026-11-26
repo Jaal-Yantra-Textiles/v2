@@ -250,8 +250,8 @@ const ComboboxImpl = <T extends Value = string>(
           "h-8 w-full rounded-md",
           "bg-ui-bg-field transition-fg shadow-borders-base",
           "has-[input:focus]:shadow-borders-interactive-with-active",
-          "has-[:invalid]:shadow-borders-error has-[[aria-invalid=true]]:shadow-borders-error",
-          "has-[:disabled]:bg-ui-bg-disabled has-[:disabled]:text-ui-fg-disabled has-[:disabled]:cursor-not-allowed",
+          "has-invalid:shadow-borders-error has-aria-invalid:shadow-borders-error",
+          "has-disabled:bg-ui-bg-disabled has-disabled:text-ui-fg-disabled has-disabled:cursor-not-allowed",
           className
         )}
         style={
@@ -267,7 +267,7 @@ const ComboboxImpl = <T extends Value = string>(
               e.preventDefault()
               handleValueChange(isArrayValue ? ([] as unknown as T) : undefined)
             }}
-            className="bg-ui-bg-base hover:bg-ui-bg-base-hover txt-compact-small-plus text-ui-fg-subtle focus-within:border-ui-fg-interactive transition-fg absolute start-0.5 top-0.5 z-[1] flex h-[28px] items-center rounded-[4px] border py-[3px] pe-1 ps-1.5 outline-none"
+            className="bg-ui-bg-base hover:bg-ui-bg-base-hover txt-compact-small-plus text-ui-fg-subtle focus-within:border-ui-fg-interactive transition-fg absolute inset-s-0.5 top-0.5 z-1 flex h-[28px] items-center rounded-[4px] border py-[3px] pe-1 ps-1.5 outline-hidden"
           >
             <span className="tabular-nums">{selectedValues.length}</span>
             <XMarkMini className="text-ui-fg-muted" />
@@ -279,8 +279,8 @@ const ComboboxImpl = <T extends Value = string>(
               className={clx(
                 "pointer-events-none absolute inset-y-0 flex size-full items-center",
                 {
-                  "start-[calc(var(--tag-width)+8px)]": showTag,
-                  "start-2": !showTag,
+                  "inset-s-[calc(var(--tag-width)+8px)]": showTag,
+                  "inset-s-2": !showTag,
                 }
               )}
             >
@@ -294,8 +294,8 @@ const ComboboxImpl = <T extends Value = string>(
               className={clx(
                 "pointer-events-none absolute inset-y-0 flex size-full items-center overflow-hidden",
                 {
-                  "start-[calc(var(--tag-width)+8px)]": showTag,
-                  "start-2": !showTag,
+                  "inset-s-[calc(var(--tag-width)+8px)]": showTag,
+                  "inset-s-2": !showTag,
                 }
               )}
             >
@@ -309,7 +309,7 @@ const ComboboxImpl = <T extends Value = string>(
             ref={comboboxRef}
             onFocus={() => setOpen(true)}
             className={clx(
-              "txt-compact-small text-ui-fg-base !placeholder:text-ui-fg-muted transition-fg size-full cursor-pointer bg-transparent pe-8 ps-2 outline-none focus:cursor-text",
+              "txt-compact-small text-ui-fg-base !placeholder:text-ui-fg-muted transition-fg size-full cursor-pointer bg-transparent pe-8 ps-2 outline-hidden focus:cursor-text",
               "hover:bg-ui-bg-field-hover",
               {
                 "opacity-0": hideInput,
@@ -328,7 +328,7 @@ const ComboboxImpl = <T extends Value = string>(
               e.preventDefault()
               handleValueChange(undefined)
             }}
-            className="bg-ui-bg-base hover:bg-ui-bg-base-hover txt-compact-small-plus text-ui-fg-subtle focus-within:border-ui-fg-interactive transition-fg absolute end-[28px] top-0.5 z-[1] flex h-[28px] items-center rounded-[4px] border px-1.5 py-[2px] outline-none"
+            className="bg-ui-bg-base hover:bg-ui-bg-base-hover txt-compact-small-plus text-ui-fg-subtle focus-within:border-ui-fg-interactive transition-fg absolute inset-e-[28px] top-0.5 z-1 flex h-[28px] items-center rounded-[4px] border px-1.5 py-[2px] outline-hidden"
           >
             <XMarkMini className="text-ui-fg-muted" />
           </button>
@@ -339,7 +339,7 @@ const ComboboxImpl = <T extends Value = string>(
               <button
                 {...props}
                 type="button"
-                className="text-ui-fg-muted transition-fg hover:bg-ui-bg-field-hover absolute end-0 flex size-8 items-center justify-center rounded-r outline-none"
+                className="text-ui-fg-muted transition-fg hover:bg-ui-bg-field-hover absolute inset-e-0 flex size-8 items-center justify-center rounded-r outline-hidden"
               >
                 <TrianglesMini />
               </button>
@@ -393,7 +393,7 @@ const ComboboxImpl = <T extends Value = string>(
               }
             )}
           >
-            <PrimitiveComboboxItemCheck className="flex !size-5 items-center justify-center">
+            <PrimitiveComboboxItemCheck className="flex size-5! items-center justify-center">
               {isArrayValue ? <CheckMini /> : <EllipseMiniSolid />}
             </PrimitiveComboboxItemCheck>
             <PrimitiveComboboxItemValue className="txt-compact-small">

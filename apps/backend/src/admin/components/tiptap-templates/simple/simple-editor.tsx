@@ -227,7 +227,7 @@ export function SimpleEditor({
         autocorrect: "off",
         autocapitalize: "off",
         "aria-label": "Main content area, start typing to enter text.",
-        class: "prose prose-sm max-w-none focus:outline-none",
+        class: "prose prose-sm max-w-none focus:outline-hidden",
       },
       handleDOMEvents: {
         keydown: () => false, // Allow all keydown events

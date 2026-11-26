@@ -131,7 +131,7 @@ export const DataGridSelectCell = <TData extends RowData, TValue = any>({
                  ref={ref}
                  className={clx(
                    "h-full w-full rounded-none bg-transparent px-4 py-2.5 shadow-none",
-                   "hover:bg-transparent focus:shadow-none data-[state=open]:!shadow-none"
+                   "hover:bg-transparent focus:shadow-none data-[state=open]:shadow-none!"
                  )}
                >
                  <Select.Value />

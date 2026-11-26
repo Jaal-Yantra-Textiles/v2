@@ -185,7 +185,7 @@ export const CaptionInputWithSuggestions = ({
 
       <div className="mt-2 flex flex-wrap gap-2">
         <Text size="xsmall" className="text-ui-fg-subtle">
-          💡 Type <code className="px-1 py-0.5 bg-ui-bg-subtle rounded">#</code> for hashtags or <code className="px-1 py-0.5 bg-ui-bg-subtle rounded">@</code> for mentions
+          💡 Type <code className="px-1 py-0.5 bg-ui-bg-subtle rounded-sm">#</code> for hashtags or <code className="px-1 py-0.5 bg-ui-bg-subtle rounded-sm">@</code> for mentions
         </Text>
       </div>
     </div>

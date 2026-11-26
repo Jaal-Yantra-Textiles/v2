@@ -110,7 +110,7 @@ const MediaCell = ({
           <img
             src={thumbUrl}
             alt=""
-            className="h-6 w-6 rounded object-cover"
+            className="h-6 w-6 rounded-sm object-cover"
           />
         ) : (
           <Photo className="text-ui-fg-muted" />
@@ -571,7 +571,7 @@ export const InventoryBulkImport: React.FC = () => {
 
                   {/* Error details for partial failures */}
                   {importErrors.length > 0 && (
-                    <div className="mt-4 rounded border border-ui-border-error bg-ui-bg-subtle-hover p-3">
+                    <div className="mt-4 rounded-sm border border-ui-border-error bg-ui-bg-subtle-hover p-3">
                       <Text className="font-medium text-ui-fg-error mb-2">
                         Failed items:
                       </Text>

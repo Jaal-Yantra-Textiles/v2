@@ -415,7 +415,7 @@ export const ProductSpecForm = ({
                 aria-label={`Colour for ${c.name || `entry ${i + 1}`}`}
                 value={c.hex_code || "#CCCCCC"}
                 onChange={(e) => setColor(i, { hex_code: e.target.value })}
-                className="h-8 w-12 cursor-pointer rounded border border-ui-border-base bg-ui-bg-field"
+                className="h-8 w-12 cursor-pointer rounded-sm border border-ui-border-base bg-ui-bg-field"
               />
             </div>
             <div className="flex flex-col gap-y-2">

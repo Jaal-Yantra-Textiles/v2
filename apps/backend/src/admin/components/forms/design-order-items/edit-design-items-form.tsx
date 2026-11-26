@@ -60,9 +60,9 @@ const STATE_COLOR: Record<
 
 const Thumb = ({ src }: { src?: string | null }) =>
   src ? (
-    <img src={src} alt="" className="size-10 shrink-0 rounded object-cover" />
+    <img src={src} alt="" className="size-10 shrink-0 rounded-sm object-cover" />
   ) : (
-    <div className="bg-ui-bg-component size-10 shrink-0 rounded" />
+    <div className="bg-ui-bg-component size-10 shrink-0 rounded-sm" />
   )
 
 /**

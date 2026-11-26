@@ -622,7 +622,7 @@ export const RawMaterialForm = ({
                             </Form.Item>
                           )}
                         />
-                        <button type="button" onClick={() => remove(idx)} className="justify-self-start self-center text-ui-fg-subtle hover:text-ui-fg-base focus:outline-none">
+                        <button type="button" onClick={() => remove(idx)} className="justify-self-start self-center text-ui-fg-subtle hover:text-ui-fg-base focus:outline-hidden">
                           <XMark className="h-4 w-4" />
                         </button>
                       </div>

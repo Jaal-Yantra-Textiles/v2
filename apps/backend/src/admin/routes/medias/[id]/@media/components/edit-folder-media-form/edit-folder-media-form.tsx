@@ -269,7 +269,7 @@ const UploadPreviewItem = ({
   }, [file, thumbnailCache])
 
   return (
-    <div className={clx("shadow-elevation-card-rest hover:shadow-elevation-card-hover focus-visible:shadow-borders-focus bg-ui-bg-subtle-hover group relative aspect-square h-auto max-w-full overflow-hidden rounded-lg outline-none", { "shadow-borders-focus": selected })}>
+    <div className={clx("shadow-elevation-card-rest hover:shadow-elevation-card-hover focus-visible:shadow-borders-focus bg-ui-bg-subtle-hover group relative aspect-square h-auto max-w-full overflow-hidden rounded-lg outline-hidden", { "shadow-borders-focus": selected })}>
       {isGenerating ? (
         <div className="flex size-full items-center justify-center bg-ui-bg-subtle">
           <div className="h-6 w-6 rounded-full border-2 border-ui-fg-muted border-t-transparent animate-spin" />
@@ -295,7 +295,7 @@ const UploadPreviewItem = ({
             {!isCompleted && !isPaused && !isError ? (
               <div className="h-5 w-5 rounded-full border-2 border-white/60 border-t-transparent animate-spin" />
             ) : isPaused ? (
-              <div className="h-5 w-5 rounded-sm border-2 border-yellow-300/80" />
+              <div className="h-5 w-5 rounded-xs border-2 border-yellow-300/80" />
             ) : isError ? (
               <div className="h-5 w-5 rounded-full border-2 border-rose-400/80" />
             ) : (
@@ -361,7 +361,7 @@ const UploadsPanel = ({ uploads }: { uploads: Record<string, UploadItemState> })
         </Button>
       </div>
       {/* Segmented progress bar */}
-      <div className="mt-2 h-2 w-full overflow-hidden rounded bg-ui-bg-base border border-ui-border">
+      <div className="mt-2 h-2 w-full overflow-hidden rounded-sm bg-ui-bg-base border border-ui-border">
         <div className="flex h-full w-full">
           {segments.map((status, idx) => (
             <div

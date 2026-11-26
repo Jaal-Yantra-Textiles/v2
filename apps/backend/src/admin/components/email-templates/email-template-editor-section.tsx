@@ -305,7 +305,7 @@ export function EmailTemplateEditorSection({
                   <div className="space-y-2 flex-1 overflow-y-auto min-h-0">
                     <div className="space-y-2">
                       {variables.map((variable: any, index: number) => (
-                        <div key={variable.id} className="flex items-center justify-between p-2 border rounded">
+                        <div key={variable.id} className="flex items-center justify-between p-2 border rounded-sm">
                           <Text className="font-mono text-sm">{variable.key}</Text>
                           <Button
                             variant="transparent"
@@ -351,7 +351,7 @@ export function EmailTemplateEditorSection({
                     <div className="space-y-1 max-h-32 overflow-y-auto">
                       {getVariablesUsed().map((variable) => (
                         <div key={variable.key} className="flex items-center text-sm">
-                          <span className="font-mono bg-ui-bg-base border rounded px-2 py-1 mr-2">
+                          <span className="font-mono bg-ui-bg-base border rounded-sm px-2 py-1 mr-2">
                             {variable.key}
                           </span>
                           <span className="text-ui-fg-subtle">

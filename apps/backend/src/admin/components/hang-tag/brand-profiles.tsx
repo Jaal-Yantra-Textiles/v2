@@ -154,9 +154,9 @@ export const HangTagBrandProfiles = ({ onDesign }: { onDesign?: (brand: HangTagB
             <div key={b.id} className="flex items-center justify-between gap-x-3 px-6 py-3">
               <div className="flex min-w-0 items-center gap-x-3">
                 {b.config.logo_url ? (
-                  <img src={b.config.logo_url} alt="" className="h-8 w-8 rounded object-contain" />
+                  <img src={b.config.logo_url} alt="" className="h-8 w-8 rounded-sm object-contain" />
                 ) : (
-                  <div className="bg-ui-bg-subtle h-8 w-8 rounded" />
+                  <div className="bg-ui-bg-subtle h-8 w-8 rounded-sm" />
                 )}
                 <div className="min-w-0">
                   <Text size="small" weight="plus" className="truncate">{b.config.brand_name}</Text>
@@ -198,7 +198,7 @@ export const HangTagBrandProfiles = ({ onDesign }: { onDesign?: (brand: HangTagB
               <Label size="small">Logo</Label>
               <div className="flex items-center gap-x-3">
                 {form.logo_url ? (
-                  <img src={form.logo_url} alt="" className="h-14 w-14 rounded border object-contain" />
+                  <img src={form.logo_url} alt="" className="h-14 w-14 rounded-sm border object-contain" />
                 ) : (
                   <Text size="small" className="text-ui-fg-subtle">None</Text>
                 )}

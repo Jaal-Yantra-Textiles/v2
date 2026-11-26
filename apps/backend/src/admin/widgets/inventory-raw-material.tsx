@@ -206,7 +206,7 @@ const InventoryRawMaterialWidget = ({
                   SKU
                 </Text>
                 <div className="flex items-center gap-x-2">
-                  <code className="text-ui-fg-base bg-ui-bg-field rounded px-1.5 py-0.5 font-mono text-xs">
+                  <code className="text-ui-fg-base bg-ui-bg-field rounded-sm px-1.5 py-0.5 font-mono text-xs">
                     {inventory_item.sku}
                   </code>
                   <button

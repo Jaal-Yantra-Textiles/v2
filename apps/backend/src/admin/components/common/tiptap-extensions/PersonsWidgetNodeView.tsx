@@ -12,7 +12,7 @@ export const PersonsWidgetNodeView: React.FC<NodeViewProps> = () => {
   const { count, isLoading, error, isSuccess } = usePersons();
 
   return (
-    <NodeViewWrapper className="persons-widget-node p-2 border rounded bg-ui-bg-subtle my-2">
+    <NodeViewWrapper className="persons-widget-node p-2 border rounded-sm bg-ui-bg-subtle my-2">
       <p className="text-ui-fg-subtle text-xs font-semibold">Persons Information</p>
       {isLoading && <span className="text-ui-fg-muted">Loading persons count...</span>}
       {error && <span className="text-ui-fg-error">Error: {error.message || 'Failed to fetch persons count.'}</span>}

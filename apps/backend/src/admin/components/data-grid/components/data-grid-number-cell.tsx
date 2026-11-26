@@ -88,7 +88,7 @@ const Inner = ({
         inputMode="decimal"
         step={props.step}
         className={clx(
-          "txt-compact-small size-full bg-transparent outline-none",
+          "txt-compact-small size-full bg-transparent outline-hidden",
           "placeholder:text-ui-fg-muted"
         )}
         tabIndex={-1}

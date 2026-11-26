@@ -69,7 +69,7 @@ const Pagination = (props: PaginationProps) => {
 
   return (
     <Table.Pagination
-      className="flex-shrink-0"
+      className="shrink-0"
       {...props}
       translations={translations}
     />
@@ -144,7 +144,7 @@ export function CardTable<T>({
                             navigate(`${to}`);
                           }
                         }}
-                        className="block outline-none"
+                        className="block outline-hidden"
                         role="button"
                         tabIndex={0}
                       >
@@ -160,7 +160,7 @@ export function CardTable<T>({
           </div>
 
           {calculatedPageCount > 0 && (
-            <div className={clx("flex-shrink-0", { "border-t": layout === "fill" })}>
+            <div className={clx("shrink-0", { "border-t": layout === "fill" })}>
               <Pagination
                 count={count}
                 pageSize={pageSize}

@@ -391,7 +391,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
               )}
 
               {(nonQueryableCustomEntities.length > 0 || nonQueryableCoreEntities.length > 0) && (
-                <div className="mt-3 rounded border border-ui-border-base bg-ui-bg-subtle px-3 py-2">
+                <div className="mt-3 rounded-sm border border-ui-border-base bg-ui-bg-subtle px-3 py-2">
                   <Text className="text-xs text-ui-fg-subtle">
                     Registered entities not available for read operations
                   </Text>
@@ -439,9 +439,9 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
             {options.entity && entityFields.length > 0 && (
               <div>
                 <Label>Fields to retrieve</Label>
-                <div className="mt-1 max-h-32 overflow-y-auto border rounded p-2 space-y-1">
+                <div className="mt-1 max-h-32 overflow-y-auto border rounded-sm p-2 space-y-1">
                   {entityFields.map((field: any) => (
-                    <label key={field.name} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-ui-bg-base-hover rounded px-1">
+                    <label key={field.name} className="flex items-center gap-2 text-sm cursor-pointer hover:bg-ui-bg-base-hover rounded-sm px-1">
                       <Checkbox
                         checked={(options.fields || []).includes(field.name)}
                         onCheckedChange={(checked) => {
@@ -572,7 +572,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
             {options.entity && entityFields.length > 0 && (
               <div>
                 <Label>Available Fields</Label>
-                <div className="mt-1 max-h-24 overflow-y-auto border rounded p-2 text-xs">
+                <div className="mt-1 max-h-24 overflow-y-auto border rounded-sm p-2 text-xs">
                   {entityFields.filter((f: any) => f.name !== "id" && !f.name.endsWith("_at")).map((field: any) => (
                     <span key={field.name} className="inline-block mr-2 mb-1">
                       <Badge size="2xsmall" color="grey">{field.name}</Badge>
@@ -660,7 +660,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
             {options.entity && entityFields.length > 0 && (
               <div>
                 <Label>Updatable Fields</Label>
-                <div className="mt-1 max-h-24 overflow-y-auto border rounded p-2 text-xs">
+                <div className="mt-1 max-h-24 overflow-y-auto border rounded-sm p-2 text-xs">
                   {entityFields.filter((f: any) => f.name !== "id" && !f.name.endsWith("_at")).map((field: any) => (
                     <span key={field.name} className="inline-block mr-2 mb-1">
                       <Badge size="2xsmall" color="grey">{field.name}</Badge>
@@ -741,7 +741,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
               </Text>
             </div>
 
-            <div className="p-2 bg-ui-bg-subtle border border-ui-tag-red-border rounded">
+            <div className="p-2 bg-ui-bg-subtle border border-ui-tag-red-border rounded-sm">
               <Text className="text-xs text-ui-tag-red-text">
                 ⚠️ This operation will permanently delete the record
               </Text>
@@ -821,7 +821,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
                   className={[
                     "flex-1 py-1.5 text-xs font-medium transition-colors",
                     condMode === "expression"
-                      ? "bg-ui-bg-base text-ui-fg-base shadow-sm"
+                      ? "bg-ui-bg-base text-ui-fg-base shadow-xs"
                       : "bg-ui-bg-subtle text-ui-fg-muted hover:text-ui-fg-base",
                   ].join(" ")}
                 >
@@ -837,7 +837,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
                   className={[
                     "flex-1 py-1.5 text-xs font-medium transition-colors border-l border-ui-border-base",
                     condMode === "keyword_match"
-                      ? "bg-ui-bg-base text-ui-fg-base shadow-sm"
+                      ? "bg-ui-bg-base text-ui-fg-base shadow-xs"
                       : "bg-ui-bg-subtle text-ui-fg-muted hover:text-ui-fg-base",
                   ].join(" ")}
                 >
@@ -889,7 +889,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
                     <div className="flex flex-col gap-1 mt-1 mb-2">
                       {kmFields.map((f, i) => (
                         <div key={i} className="flex items-center gap-1">
-                          <code className="flex-1 text-xs bg-ui-bg-subtle px-2 py-1 rounded font-mono truncate border border-ui-border-base">
+                          <code className="flex-1 text-xs bg-ui-bg-subtle px-2 py-1 rounded-sm font-mono truncate border border-ui-border-base">
                             {f}
                           </code>
                           <button
@@ -1013,7 +1013,7 @@ export function PropertiesPanel({ node, allNodes = [], edges = [], flowId, onUpd
 
                 {/* Preview of compiled filter_rule */}
                 {(kmKeywords.length > 0 || kmFields.length > 0) && (
-                  <div className="p-2 rounded bg-ui-bg-subtle border border-ui-border-base">
+                  <div className="p-2 rounded-sm bg-ui-bg-subtle border border-ui-border-base">
                     <Text className="text-xs text-ui-fg-muted font-medium mb-1">Compiled filter</Text>
                     <pre className="text-xs text-ui-fg-subtle overflow-x-auto whitespace-pre-wrap break-all">
                       {JSON.stringify(options.filter_rule || {}, null, 2)}
@@ -1281,7 +1281,7 @@ return {
                     {currentPackages.map((pkg) => (
                       <span 
                         key={pkg}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-ui-bg-subtle rounded border border-ui-border-base"
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-ui-bg-subtle rounded-sm border border-ui-border-base"
                       >
                         {pkg}
                         <button
@@ -1747,7 +1747,7 @@ return {
                 className="font-mono text-xs mt-1"
               />
               <Text className="text-xs text-ui-fg-subtle mt-1">
-                Array to iterate — one workflow call per element. Use <code className="bg-ui-bg-subtle px-1 rounded">{"{{ step.records }}"}</code>
+                Array to iterate — one workflow call per element. Use <code className="bg-ui-bg-subtle px-1 rounded-sm">{"{{ step.records }}"}</code>
               </Text>
             </div>
 
@@ -2283,7 +2283,7 @@ return {
             
             <div>
               <Text weight="plus" className="text-sm mb-1">Configuration</Text>
-              <pre className="text-xs bg-ui-bg-subtle p-2 rounded overflow-auto max-h-32">
+              <pre className="text-xs bg-ui-bg-subtle p-2 rounded-sm overflow-auto max-h-32">
                 {JSON.stringify(node.data.triggerConfig || {}, null, 2)}
               </pre>
             </div>

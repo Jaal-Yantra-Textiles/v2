@@ -171,7 +171,7 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
         <span className="text-sm font-semibold text-ui-fg-base">Fashion Library</span>
         <button
           onClick={onClose}
-          className="text-ui-fg-subtle hover:text-ui-fg-base transition-colors p-0.5 rounded text-xs"
+          className="text-ui-fg-subtle hover:text-ui-fg-base transition-colors p-0.5 rounded-sm text-xs"
           aria-label="Close"
         >
           ✕
@@ -218,12 +218,12 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
                     handlePinterestSearch(false)
                   }
                 }}
-                className="flex-1 rounded border border-ui-border-base bg-ui-bg-field px-2 py-1.5 text-sm outline-none focus:border-ui-fg-interactive"
+                className="flex-1 rounded-sm border border-ui-border-base bg-ui-bg-field px-2 py-1.5 text-sm outline-hidden focus:border-ui-fg-interactive"
               />
               <button
                 onClick={() => handlePinterestSearch(false)}
                 disabled={pinterestLoading || !pinterestQuery.trim()}
-                className="px-3 py-1.5 text-xs font-medium rounded bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90 disabled:opacity-50 transition-colors shrink-0"
+                className="px-3 py-1.5 text-xs font-medium rounded-sm bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90 disabled:opacity-50 transition-colors shrink-0"
               >
                 {pinterestLoading ? "..." : "Search"}
               </button>
@@ -241,7 +241,7 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
                     key={pin.id}
                     onClick={() => handleInsertPin(pin)}
                     title={pin.title || pin.description || "Insert pin"}
-                    className="group relative rounded overflow-hidden border border-ui-border-base hover:border-ui-fg-interactive transition-colors"
+                    className="group relative rounded-sm overflow-hidden border border-ui-border-base hover:border-ui-fg-interactive transition-colors"
                   >
                     {pin.images.small || pin.images.medium ? (
                       <img
@@ -262,7 +262,7 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
                       </span>
                     </div>
                     {pin.title && (
-                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-1 py-0.5">
+                      <div className="absolute bottom-0 left-0 right-0 bg-linear-to-t from-black/60 to-transparent px-1 py-0.5">
                         <span className="text-white text-[9px] line-clamp-1">{pin.title}</span>
                       </div>
                     )}
@@ -276,7 +276,7 @@ export function FashionPanel({ excalidrawAPI, getCanvasCenter, onClose, initialT
               <button
                 onClick={() => handlePinterestSearch(true)}
                 disabled={pinterestLoading}
-                className="w-full py-1.5 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors"
+                className="w-full py-1.5 text-xs font-medium rounded-sm border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors"
               >
                 {pinterestLoading ? "Loading..." : "Load more"}
               </button>

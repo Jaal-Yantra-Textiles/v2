@@ -426,7 +426,7 @@ const PersonsPage = () => {
                   id="include-deleted" 
                   checked={includeDeleted}
                   onChange={(e) => handleIncludeDeletedChange(e.target.checked)}
-                  className="h-4 w-4 rounded border-ui-border-base text-ui-fg-interactive"
+                  className="h-4 w-4 rounded-sm border-ui-border-base text-ui-fg-interactive"
                 />
                 <label htmlFor="include-deleted" className="text-ui-fg-subtle text-sm">
                   Include deleted persons
@@ -438,7 +438,7 @@ const PersonsPage = () => {
                   id="include-weavers" 
                   checked={includeWeavers}
                   onChange={(e) => handleIncludeWeaversChange(e.target.checked)}
-                  className="h-4 w-4 rounded border-ui-border-base text-ui-fg-interactive"
+                  className="h-4 w-4 rounded-sm border-ui-border-base text-ui-fg-interactive"
                 />
                 <label htmlFor="include-weavers" className="text-ui-fg-subtle text-sm">
                   Include weavers

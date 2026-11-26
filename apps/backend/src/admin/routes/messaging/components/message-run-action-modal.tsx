@@ -310,7 +310,7 @@ export const MessageRunActionModal = ({
                   </Tooltip>
                 )}
                 {message.content?.trim() && (
-                  <Text size="small" className="whitespace-pre-wrap break-words">
+                  <Text size="small" className="whitespace-pre-wrap wrap-break-word">
                     {message.content}
                   </Text>
                 )}

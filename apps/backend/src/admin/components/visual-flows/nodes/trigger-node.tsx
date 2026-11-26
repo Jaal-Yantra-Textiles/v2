@@ -37,13 +37,13 @@ export const TriggerNode = memo(({ data, selected }: NodeProps) => {
   return (
     <div
       className={`
-        px-4 py-3 rounded-lg border-2 shadow-sm min-w-[180px]
+        px-4 py-3 rounded-lg border-2 shadow-xs min-w-[180px]
         bg-ui-bg-base dark:bg-ui-bg-base
         ${selected ? "border-ui-border-interactive shadow-md" : "border-ui-border-base"}
       `}
     >
       <div className="flex items-center gap-2 mb-2">
-        <div className={`p-1.5 rounded ${getTriggerColor(nodeData.triggerType)}`}>
+        <div className={`p-1.5 rounded-sm ${getTriggerColor(nodeData.triggerType)}`}>
           <BoltSolid className="w-4 h-4 text-white" />
         </div>
         <Text weight="plus" className="text-sm text-ui-fg-base">

@@ -67,9 +67,9 @@ export default function InboundEmailDetailPage() {
         {[1, 2, 3].map((i) => (
           <Container key={i} className="p-6">
             <div className="animate-pulse space-y-3">
-              <div className="h-5 bg-ui-bg-subtle rounded w-1/3" />
-              <div className="h-4 bg-ui-bg-subtle rounded w-2/3" />
-              <div className="h-4 bg-ui-bg-subtle rounded w-1/2" />
+              <div className="h-5 bg-ui-bg-subtle rounded-sm w-1/3" />
+              <div className="h-4 bg-ui-bg-subtle rounded-sm w-2/3" />
+              <div className="h-4 bg-ui-bg-subtle rounded-sm w-1/2" />
             </div>
           </Container>
         ))}

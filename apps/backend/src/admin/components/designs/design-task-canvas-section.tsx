@@ -240,7 +240,7 @@ export function DesignTaskCanvasSection({ design, productionRuns }: DesignTaskCa
 
     return (
       <div
-        className="relative inline-flex items-center rounded-full border bg-black text-white shadow-sm"
+        className="relative inline-flex items-center rounded-full border bg-black text-white shadow-xs"
         style={{
           borderColor: '#2d2d2d',
           padding: '4px 10px',
@@ -261,8 +261,8 @@ export function DesignTaskCanvasSection({ design, productionRuns }: DesignTaskCa
         </span>
 
         {/* Connection handles */}
-        <Handle type="target" position={Position.Left} className="!bg-gray-400" style={{ opacity: 0.7 }} />
-        <Handle type="source" position={Position.Right} className="!bg-gray-400" style={{ opacity: 0.7 }} />
+        <Handle type="target" position={Position.Left} className="bg-gray-400!" style={{ opacity: 0.7 }} />
+        <Handle type="source" position={Position.Right} className="bg-gray-400!" style={{ opacity: 0.7 }} />
       </div>
     );
   };
@@ -758,7 +758,7 @@ export function DesignTaskCanvasSection({ design, productionRuns }: DesignTaskCa
               {filteredTemplates.map((template, index) => (
                 <div 
                   key={template.id || index}
-                  className="p-3 bg-white border border-gray-200 rounded-md shadow-sm"
+                  className="p-3 bg-white border border-gray-200 rounded-md shadow-xs"
                 >
                   <div className="font-medium text-sm mb-1">{template.name}</div>
                   {template.category && (
@@ -883,13 +883,13 @@ const EnhancedCanvas = ({ nodes, edges, nodeTypes, t }: EnhancedCanvasProps) => 
               type="button"
               disabled={zoomLevel >= 1.5}
               aria-label="Zoom in"
-              className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed border-r p-1 outline-none"
+              className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed border-r p-1 outline-hidden"
             >
               <PlusMini />
             </button>
             <div>
               <DropdownMenu>
-                <DropdownMenu.Trigger className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed flex w-[50px] items-center justify-center border-r p-1 outline-none">
+                <DropdownMenu.Trigger className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed flex w-[50px] items-center justify-center border-r p-1 outline-hidden">
                   <Text
                     as="span"
                     size="xsmall"
@@ -916,7 +916,7 @@ const EnhancedCanvas = ({ nodes, edges, nodeTypes, t }: EnhancedCanvasProps) => 
               type="button"
               disabled={zoomLevel <= 0.5}
               aria-label="Zoom out"
-              className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed border-r p-1 outline-none"
+              className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed border-r p-1 outline-hidden"
             >
               <MinusMini />
             </button>
@@ -925,7 +925,7 @@ const EnhancedCanvas = ({ nodes, edges, nodeTypes, t }: EnhancedCanvasProps) => 
             onClick={resetZoom}
             type="button"
             aria-label="Reset canvas"
-            className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed p-1 outline-none"
+            className="disabled:text-ui-fg-disabled transition-fg hover:bg-ui-bg-base-hover active:bg-ui-bg-base-pressed focus-visible:bg-ui-bg-base-pressed p-1 outline-hidden"
           >
             <ArrowPathMini />
           </button>

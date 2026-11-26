@@ -206,7 +206,7 @@ const CreateCampaignPage = () => {
               />
             </div>
           ) : (
-            <div className="bg-ui-bg-subtle p-3 rounded text-sm font-mono whitespace-pre-wrap">
+            <div className="bg-ui-bg-subtle p-3 rounded-sm text-sm font-mono whitespace-pre-wrap">
               {defaultRule?.caption_template || "Select a platform to see default template"}
             </div>
           )}

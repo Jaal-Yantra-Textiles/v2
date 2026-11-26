@@ -54,7 +54,7 @@ const ProductCardView = ({ node, selected }: { node: { attrs: ProductCardAttrs }
     <NodeViewWrapper
       data-type="product-card"
       data-drag-handle
-      className={`my-4 p-1 ${selected ? "outline outline-2 outline-[#d5b16d]" : ""}`}
+      className={`my-4 p-1 ${selected ? "outline-solid outline-2 outline-[#d5b16d]" : ""}`}
     >
       {imageUrl ? (
         <img src={imageUrl} alt={title} style={IMAGE_STYLE} draggable={false} />

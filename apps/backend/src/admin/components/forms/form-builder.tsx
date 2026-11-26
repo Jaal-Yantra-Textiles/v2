@@ -379,7 +379,7 @@ const SortableFieldRow = ({ field, selected, onSelect, onDelete }: SortableField
       <div className="flex items-center justify-between gap-x-2">
         <div className="flex items-center gap-x-2">
           <div
-            className="h-6 w-6 rounded bg-ui-bg-subtle flex items-center justify-center"
+            className="h-6 w-6 rounded-sm bg-ui-bg-subtle flex items-center justify-center"
             {...attributes}
             {...listeners}
             onClick={(e) => e.stopPropagation()}

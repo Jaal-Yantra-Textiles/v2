@@ -83,7 +83,7 @@ export const Markdown = memo(function Markdown({ content }: { content: string })
               )
             }
             return (
-              <code className="rounded bg-ui-bg-subtle px-1 py-0.5 font-mono text-[0.85em] text-ui-fg-base">
+              <code className="rounded-sm bg-ui-bg-subtle px-1 py-0.5 font-mono text-[0.85em] text-ui-fg-base">
                 {children}
               </code>
             )

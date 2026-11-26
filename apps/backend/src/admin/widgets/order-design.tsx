@@ -60,10 +60,10 @@ const DesignRow = ({ design }: { design: DesignType }) => (
         <img
           src={design.thumbnail_url}
           alt=""
-          className="size-8 shrink-0 rounded object-cover"
+          className="size-8 shrink-0 rounded-sm object-cover"
         />
       ) : (
-        <div className="bg-ui-bg-component size-8 shrink-0 rounded" />
+        <div className="bg-ui-bg-component size-8 shrink-0 rounded-sm" />
       )}
       <Text size="small" className="truncate">
         {design.name}

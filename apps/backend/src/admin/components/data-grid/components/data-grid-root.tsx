@@ -602,7 +602,7 @@ export const DataGridRoot = <
             ref={containerRef}
             autoFocus
             tabIndex={0}
-            className="relative h-full select-none overflow-auto outline-none"
+            className="relative h-full select-none overflow-auto outline-hidden"
             onFocus={handleRestoreGridFocus}
             onClick={handleRestoreGridFocus}
             data-container={true}
@@ -611,7 +611,7 @@ export const DataGridRoot = <
             <div role="grid" className="text-ui-fg-subtle grid">
               <div
                 role="rowgroup"
-                className="txt-compact-small-plus bg-ui-bg-subtle sticky top-0 z-[1] grid"
+                className="txt-compact-small-plus bg-ui-bg-subtle sticky top-0 z-1 grid"
               >
                 {grid.getHeaderGroups().map((headerGroup) => (
                   <div
@@ -863,7 +863,7 @@ const DataGridCell = <TData extends RowData>({
       data-row-index={rowIndex}
       data-column-index={columnIndex}
       className={clx(
-        "relative flex items-center border-b border-r p-0 outline-none"
+        "relative flex items-center border-b border-r p-0 outline-hidden"
       )}
       tabIndex={-1}
     >
@@ -877,7 +877,7 @@ const DataGridCell = <TData extends RowData>({
           <div
             onMouseDown={onDragToFillStart}
             className={clx(
-              "bg-ui-fg-interactive absolute bottom-0 right-0 z-[3] size-1.5 cursor-ns-resize",
+              "bg-ui-fg-interactive absolute bottom-0 right-0 z-3 size-1.5 cursor-ns-resize",
               {
                 "cursor-nwse-resize": multiColumnSelection,
               }

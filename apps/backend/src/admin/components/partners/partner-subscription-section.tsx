@@ -171,7 +171,7 @@ export const PartnerSubscriptionSection = ({ partnerId }: { partnerId: string })
             {plans.map((plan) => (
               <div
                 key={plan.id}
-                className="flex items-center justify-between p-3 rounded border border-ui-border-base bg-ui-bg-base"
+                className="flex items-center justify-between p-3 rounded-sm border border-ui-border-base bg-ui-bg-base"
               >
                 <div>
                   <Text size="small" weight="plus">{plan.name}</Text>

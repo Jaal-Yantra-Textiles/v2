@@ -71,7 +71,7 @@ export const VisualFlowEditorSection = ({ flow }: VisualFlowEditorSectionProps) 
                   return (
                     <div 
                       key={op.id} 
-                      className="flex items-center justify-between bg-ui-bg-subtle rounded px-3 py-2"
+                      className="flex items-center justify-between bg-ui-bg-subtle rounded-sm px-3 py-2"
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-ui-fg-muted text-xs">{index + 1}</span>

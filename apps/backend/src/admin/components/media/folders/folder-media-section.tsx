@@ -281,7 +281,7 @@ export const FolderMediaSection = ({ folder }: FolderMediaSectionProps) => {
                       toggleSelect(id)(e)
                     }}
                     className={clx(
-                      "absolute right-2 top-2 h-5 w-5 rounded-full border-2 border-white shadow transition-opacity",
+                      "absolute right-2 top-2 h-5 w-5 rounded-full border-2 border-white shadow-sm transition-opacity",
                       isSelected
                         ? "bg-emerald-400/90 opacity-100"
                         : "bg-black/20 opacity-0 group-hover:opacity-100 focus-visible:opacity-100",

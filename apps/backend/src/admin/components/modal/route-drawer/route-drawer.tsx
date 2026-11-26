@@ -49,7 +49,7 @@ const Root = ({ prev = "..", children }: RouteDrawerProps) => {
           <Drawer.Content
             aria-describedby={undefined}
             className={clx({
-              "!bg-ui-bg-disabled !inset-y-5 !right-5": stackedModalOpen,
+              "bg-ui-bg-disabled! inset-y-5! right-5!": stackedModalOpen,
             })}
           >
             {children}

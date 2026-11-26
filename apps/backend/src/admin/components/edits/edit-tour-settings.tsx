@@ -486,7 +486,7 @@ export const EditTourSettingsComponent = ({ form }: EditTourSettingsProps) => {
                                   <select
                                     value={value || "available"}
                                     onChange={(e) => onChange(e.target.value)}
-                                    className="bg-ui-bg-base txt-compact-small text-ui-fg-base placeholder:text-ui-fg-muted shadow-borders-base focus-visible:shadow-borders-interactive-with-active hover:bg-ui-bg-base-hover relative w-full appearance-none rounded-md px-2 py-1.5 outline-none"
+                                    className="bg-ui-bg-base txt-compact-small text-ui-fg-base placeholder:text-ui-fg-muted shadow-borders-base focus-visible:shadow-borders-interactive-with-active hover:bg-ui-bg-base-hover relative w-full appearance-none rounded-md px-2 py-1.5 outline-hidden"
                                   >
                                     <option value="available">Available — guide can be booked</option>
                                     <option value="na">Not available — placeholder profile</option>

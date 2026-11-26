@@ -51,7 +51,7 @@ export const FolderRelationshipsSection = ({ folder }: FolderRelationshipsSectio
           <div className="px-6 py-4">
             <div className="flex flex-col gap-y-2">
               {folder.child_folders.map((childFolder) => (
-                <div key={childFolder.id} className="border rounded p-3">
+                <div key={childFolder.id} className="border rounded-sm p-3">
                   <Link 
                     to={`/media/${childFolder.id}`}
                     className="font-medium text-ui-fg-interactive hover:text-ui-fg-interactive-hover"

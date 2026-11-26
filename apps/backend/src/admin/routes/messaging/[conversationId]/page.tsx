@@ -168,7 +168,7 @@ const ConversationThreadModal = () => {
                       onChange={(e) => setTitleDraft(e.target.value)}
                       onBlur={() => setEditingTitle(false)}
                       onKeyDown={(e) => e.key === "Escape" && setEditingTitle(false)}
-                      className="text-lg font-medium bg-transparent border-b border-ui-border-interactive outline-none w-full"
+                      className="text-lg font-medium bg-transparent border-b border-ui-border-interactive outline-hidden w-full"
                     />
                   </form>
                 ) : (

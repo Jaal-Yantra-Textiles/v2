@@ -141,7 +141,7 @@ export const ContentStep = ({ control, variables, onInsertVariable }: ContentSte
                               e.stopPropagation();
                               handleRemoveVariable((field as any).key);
                             }}
-                            className="absolute -top-2 -right-1 bg-white rounded-full p-1 shadow-sm border border-ui-border-base text-ui-fg-subtle hover:text-ui-fg-error hover:border-ui-fg-error transition-all"
+                            className="absolute -top-2 -right-1 bg-white rounded-full p-1 shadow-xs border border-ui-border-base text-ui-fg-subtle hover:text-ui-fg-error hover:border-ui-fg-error transition-all"
                           >
                             <XMark />
                           </button>

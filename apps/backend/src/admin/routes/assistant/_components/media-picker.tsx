@@ -46,7 +46,7 @@ const MediaTile = ({
       <button
         type="button"
         onClick={onToggle}
-        className={`relative h-20 w-20 cursor-pointer overflow-hidden rounded border shadow-sm transition-colors ${
+        className={`relative h-20 w-20 cursor-pointer overflow-hidden rounded border shadow-xs transition-colors ${
           isSelected
             ? "border-ui-border-interactive"
             : "border-ui-border-base hover:border-ui-border-strong"

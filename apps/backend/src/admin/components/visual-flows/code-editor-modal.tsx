@@ -210,18 +210,18 @@ export function CodeEditorModal({
           <StackedFocusModal.Description>
             <span className="block">
               <strong>Data:</strong>{" "}
-              <code className="bg-ui-bg-subtle px-1 rounded">$last</code>, 
-              <code className="bg-ui-bg-subtle px-1 rounded ml-1">$input</code>, 
-              <code className="bg-ui-bg-subtle px-1 rounded ml-1">$trigger</code>
+              <code className="bg-ui-bg-subtle px-1 rounded-sm">$last</code>, 
+              <code className="bg-ui-bg-subtle px-1 rounded-sm ml-1">$input</code>, 
+              <code className="bg-ui-bg-subtle px-1 rounded-sm ml-1">$trigger</code>
             </span>
             <span className="block mt-1">
               <strong>Packages:</strong>{" "}
-              <code className="bg-ui-bg-subtle px-1 rounded">_</code> (lodash), 
-              <code className="bg-ui-bg-subtle px-1 rounded ml-1">dayjs</code>, 
-              <code className="bg-ui-bg-subtle px-1 rounded ml-1">uuid</code>, 
-              <code className="bg-ui-bg-subtle px-1 rounded ml-1">validator</code>,
-              <code className="bg-ui-bg-subtle px-1 rounded ml-1">crypto</code>,
-              <code className="bg-ui-bg-subtle px-1 rounded ml-1">fetch</code>
+              <code className="bg-ui-bg-subtle px-1 rounded-sm">_</code> (lodash), 
+              <code className="bg-ui-bg-subtle px-1 rounded-sm ml-1">dayjs</code>, 
+              <code className="bg-ui-bg-subtle px-1 rounded-sm ml-1">uuid</code>, 
+              <code className="bg-ui-bg-subtle px-1 rounded-sm ml-1">validator</code>,
+              <code className="bg-ui-bg-subtle px-1 rounded-sm ml-1">crypto</code>,
+              <code className="bg-ui-bg-subtle px-1 rounded-sm ml-1">fetch</code>
             </span>
           </StackedFocusModal.Description>
         </StackedFocusModal.Header>
@@ -315,7 +315,7 @@ export function CodeEditorModal({
                 </Button>
               </div>
 
-              <div className="flex-1 overflow-y-auto rounded border border-ui-border-base bg-ui-bg-base p-2">
+              <div className="flex-1 overflow-y-auto rounded-sm border border-ui-border-base bg-ui-bg-base p-2">
                 {visualFlowCodegen.isPending && aiMessages.length === 0 ? (
                   <div className="flex h-full w-full items-center justify-center">
                     <div className="flex items-center gap-2">
@@ -335,14 +335,14 @@ export function CodeEditorModal({
                         key={idx}
                         className={
                           m.role === "user"
-                            ? "self-end max-w-[90%] rounded bg-ui-bg-subtle p-2"
-                            : "self-start max-w-[90%] rounded bg-ui-bg-subtle-hover p-2"
+                            ? "self-end max-w-[90%] rounded-sm bg-ui-bg-subtle p-2"
+                            : "self-start max-w-[90%] rounded-sm bg-ui-bg-subtle-hover p-2"
                         }
                       >
                         <Text className="text-[11px] text-ui-fg-subtle">
                           {m.role === "user" ? "You" : "AI"}
                         </Text>
-                        <pre className="mt-1 whitespace-pre-wrap break-words text-xs text-ui-fg-base font-mono">
+                        <pre className="mt-1 whitespace-pre-wrap wrap-break-word text-xs text-ui-fg-base font-mono">
                           {m.content}
                           {visualFlowCodegen.isPending && idx === aiMessages.length - 1 && m.role === "user" ? (
                             <Spinner className="inline-block ml-1 align-middle animate-spin" />
@@ -417,8 +417,8 @@ export function CodeEditorModal({
           <div className="flex w-full flex-col gap-2">
             {/* Validation errors from Monaco */}
             {errors.length > 0 && (
-              <div className="flex items-start gap-2 p-2 bg-ui-bg-subtle-hover border border-ui-border-error rounded">
-                <ExclamationCircle className="w-4 h-4 text-ui-fg-error mt-0.5 flex-shrink-0" />
+              <div className="flex items-start gap-2 p-2 bg-ui-bg-subtle-hover border border-ui-border-error rounded-sm">
+                <ExclamationCircle className="w-4 h-4 text-ui-fg-error mt-0.5 shrink-0" />
                 <div className="flex flex-col gap-1">
                   {errors.map((error: string, i: number) => (
                     <Text key={i} className="text-xs text-ui-fg-error">
@@ -439,7 +439,7 @@ export function CodeEditorModal({
             
             <div className="flex w-full items-center justify-between">
               <Text className="text-xs text-ui-fg-subtle">
-                Tip: Use <code className="bg-ui-bg-subtle px-1 rounded">return</code> to output data
+                Tip: Use <code className="bg-ui-bg-subtle px-1 rounded-sm">return</code> to output data
               </Text>
               <div className="flex items-center gap-x-2">
                 <StackedFocusModal.Close asChild>

@@ -227,7 +227,7 @@ function SortableBlockItem({
       </div>
 
       {/* Icon */}
-      <div className={`flex-shrink-0 ${
+      <div className={`shrink-0 ${
         isSelected ? "text-ui-fg-base" : "text-ui-fg-muted"
       }`}>
         <Icon />

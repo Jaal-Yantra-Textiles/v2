@@ -329,8 +329,8 @@ export const ProductionRunActivityTimeline = ({ runId }: { runId: string }) => {
               <div key={i} className="flex gap-3">
                 <div className="mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full bg-ui-bg-component" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-3 w-1/2 animate-pulse rounded bg-ui-bg-component" />
-                  <div className="h-3 w-1/4 animate-pulse rounded bg-ui-bg-component" />
+                  <div className="h-3 w-1/2 animate-pulse rounded-sm bg-ui-bg-component" />
+                  <div className="h-3 w-1/4 animate-pulse rounded-sm bg-ui-bg-component" />
                 </div>
               </div>
             ))}

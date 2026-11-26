@@ -138,7 +138,7 @@ export const DataTableRoot = <TData extends RowData>({
         ref={scrollableRef}
         onScroll={handleHorizontalScroll}
         className={clx("w-full", {
-          "min-h-0 flex-grow overflow-auto": layout === "fill",
+          "min-h-0 grow overflow-auto": layout === "fill",
           "overflow-x-auto": layout === "fit",
         })}
       >
@@ -226,7 +226,7 @@ export const DataTableRoot = <TData extends RowData>({
                         "cursor-pointer": !!to,
                         "bg-ui-bg-highlight hover:bg-ui-bg-highlight-hover":
                           row.getIsSelected(),
-                        "!bg-ui-bg-disabled !hover:bg-ui-bg-disabled":
+                        "bg-ui-bg-disabled! !hover:bg-ui-bg-disabled":
                           isRowDisabled,
                       },
                     )}
@@ -269,15 +269,15 @@ export const DataTableRoot = <TData extends RowData>({
                         <Table.Cell
                           key={cell.id}
                           className={clx({
-                            "!pl-0 !pr-0": shouldRenderAsLink,
-                            "bg-ui-bg-base group-data-[selected=true]/row:bg-ui-bg-highlight group-data-[selected=true]/row:group-hover/row:bg-ui-bg-highlight-hover group-hover/row:bg-ui-bg-base-hover transition-fg group-has-[[data-row-link]:focus-visible]:bg-ui-bg-base-hover sticky left-0 after:absolute after:inset-y-0 after:right-0 after:h-full after:w-px after:bg-transparent after:content-['']":
+                            "pl-0! pr-0!": shouldRenderAsLink,
+                            "bg-ui-bg-base group-data-[selected=true]/row:bg-ui-bg-highlight group-hover/row:group-data-[selected=true]/row:bg-ui-bg-highlight-hover group-hover/row:bg-ui-bg-base-hover transition-fg group-has-[[data-row-link]:focus-visible]:bg-ui-bg-base-hover sticky left-0 after:absolute after:inset-y-0 after:right-0 after:h-full after:w-px after:bg-transparent after:content-['']":
                               isStickyCell,
                             "bg-ui-bg-subtle group-hover/row:bg-ui-bg-subtle-hover":
                               isOdd && isStickyCell,
                             "left-[68px]": hasLeftOffset,
                             "after:bg-ui-border-base":
                               showStickyBorder && isStickyCell && !isSelectCell,
-                            "!bg-ui-bg-disabled !hover:bg-ui-bg-disabled":
+                            "bg-ui-bg-disabled! !hover:bg-ui-bg-disabled":
                               isRowDisabled,
                           })}
                           style={{
@@ -289,7 +289,7 @@ export const DataTableRoot = <TData extends RowData>({
                           {shouldRenderAsLink ? (
                             <Link
                               to={to}
-                              className="size-full outline-none"
+                              className="size-full outline-hidden"
                               data-row-link
                               tabIndex={isTabableLink ? 0 : -1}
                             >
@@ -381,7 +381,7 @@ const Pagination = (props: PaginationProps) => {
 
   return (
     <Table.Pagination
-      className="flex-shrink-0"
+      className="shrink-0"
       {...props}
       translations={translations}
     />

@@ -22,7 +22,7 @@ export const DataGridReadonlyCell = <TData extends RowData, TValue = any>({
   return (
     <div
       className={clx(
-        "txt-compact-small text-ui-fg-subtle flex size-full cursor-not-allowed items-center justify-between overflow-hidden px-4 py-2.5 outline-none",
+        "txt-compact-small text-ui-fg-subtle flex size-full cursor-not-allowed items-center justify-between overflow-hidden px-4 py-2.5 outline-hidden",
         color === "muted" && "bg-ui-bg-subtle",
         color === "normal" && "bg-ui-bg-base"
       )}

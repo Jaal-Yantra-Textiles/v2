@@ -681,7 +681,7 @@ const HangTagSettingsPage = () => {
                     <Label className="text-xs">Logo image</Label>
                     <div className="flex items-center gap-x-3">
                       {cfg.logo_url ? (
-                        <div className="flex items-center gap-x-3 p-2 rounded border border-ui-border-base bg-ui-bg-subtle">
+                        <div className="flex items-center gap-x-3 p-2 rounded-sm border border-ui-border-base bg-ui-bg-subtle">
                           <img src={cfg.logo_url} alt="logo" className="h-10 max-w-[100px] object-contain" />
                           <Button
                             variant="transparent"
@@ -712,21 +712,21 @@ const HangTagSettingsPage = () => {
                     <div className="flex flex-col gap-y-1">
                       <Label className="text-xs">Header background</Label>
                       <div className="flex items-center gap-x-2">
-                        <input type="color" value={cfg.header_color} onChange={(e) => set("header_color", e.target.value)} className="h-8 w-10 cursor-pointer rounded border border-ui-border-base p-0.5" />
+                        <input type="color" value={cfg.header_color} onChange={(e) => set("header_color", e.target.value)} className="h-8 w-10 cursor-pointer rounded-sm border border-ui-border-base p-0.5" />
                         <Input value={cfg.header_color} onChange={(e) => set("header_color", e.target.value)} className="font-mono text-xs" />
                       </div>
                     </div>
                     <div className="flex flex-col gap-y-1">
                       <Label className="text-xs">Header text</Label>
                       <div className="flex items-center gap-x-2">
-                        <input type="color" value={cfg.header_text_color} onChange={(e) => set("header_text_color", e.target.value)} className="h-8 w-10 cursor-pointer rounded border border-ui-border-base p-0.5" />
+                        <input type="color" value={cfg.header_text_color} onChange={(e) => set("header_text_color", e.target.value)} className="h-8 w-10 cursor-pointer rounded-sm border border-ui-border-base p-0.5" />
                         <Input value={cfg.header_text_color} onChange={(e) => set("header_text_color", e.target.value)} className="font-mono text-xs" />
                       </div>
                     </div>
                     <div className="flex flex-col gap-y-1">
                       <Label className="text-xs">Accent / dividers</Label>
                       <div className="flex items-center gap-x-2">
-                        <input type="color" value={cfg.accent_color} onChange={(e) => set("accent_color", e.target.value)} className="h-8 w-10 cursor-pointer rounded border border-ui-border-base p-0.5" />
+                        <input type="color" value={cfg.accent_color} onChange={(e) => set("accent_color", e.target.value)} className="h-8 w-10 cursor-pointer rounded-sm border border-ui-border-base p-0.5" />
                         <Input value={cfg.accent_color} onChange={(e) => set("accent_color", e.target.value)} className="font-mono text-xs" />
                       </div>
                     </div>
