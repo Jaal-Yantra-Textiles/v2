@@ -9076,6 +9076,46 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
     nextSteps: ["get_order_balance", "get_order"],
   },
   {
+    name: "send_order_refund_email",
+    description:
+      "Email the buyer that they were refunded, through the 'order-refunded' template: the refund amount, an optional note from you explaining why, what they have paid so far, and any balance still owed with when it will be asked for (from the payment schedule). Sensitive: requires confirm:true. " +
+      "🔑 Run with preview:true FIRST: it returns the recipient and the rendered subject and HTML, and sends nothing. " +
+      "amount defaults to the order's latest refund. Refunds made with the admin Refund button already email the buyer automatically (generic, no note) once per refund; use this to send the note, or for a refund made before that existed. A cancel's refunds are covered by the cancellation email.",
+    method: "POST",
+    path: "/admin/orders/:id/refund-email",
+    pathParams: ["id"],
+    write: true,
+    sensitive: true,
+    // The route refuses a send without confirm:true, so the rail's confirm is
+    // forwarded rather than consumed. `dry_run` is the dispatcher's own flag
+    // and never reaches the route; `preview` is the passthrough twin.
+    bodyParams: ["amount", "note", "preview", "confirm"],
+    inputSchema: obj(
+      {
+        id: STR("Order id, e.g. 'order_...'."),
+        amount: {
+          type: "number",
+          description: "Refunded amount in major units (e.g. 90 for A$90). Omit to use the order's latest refund.",
+        },
+        note: STR(
+          "Your explanation, shown to the buyer, e.g. 'Your order had a 50% deposit, but you were charged in full. We've refunded the difference.'"
+        ),
+        preview: {
+          type: "boolean",
+          description: "Return the recipient and the rendered email without sending. Do this first.",
+        },
+        confirm: {
+          type: "boolean",
+          description: "Must be true to send: the email cannot be recalled. Forwarded to the route.",
+        },
+      },
+      ["id"]
+    ),
+    sideEffects:
+      "Emails the buyer. Stamps the refund id on order.metadata.refund_emails_sent so the automatic email does not send it again. Moves no money.",
+    nextSteps: ["get_order_balance", "get_order"],
+  },
+  {
     name: "issue_order_tax_invoice",
     description:
       "Issue the GST tax invoice for an order: a numbered (JYT/2026-27/0001), frozen PDF bill with HSN, CGST+SGST or IGST and paid/balance. Only orders on our own store. Asking again for an unchanged order returns the SAME invoice; a changed order needs reissue:true, which cancels the old one. Sends nothing to the customer. Sensitive: requires confirm:true. " +

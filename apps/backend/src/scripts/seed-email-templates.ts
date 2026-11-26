@@ -1,5 +1,11 @@
 import { EMAIL_TEMPLATES_MODULE } from "../modules/email_templates";
 import { MedusaError } from "@medusajs/framework/utils";
+import {
+  ORDER_REFUNDED_FROM,
+  ORDER_REFUNDED_HTML,
+  ORDER_REFUNDED_SUBJECT,
+  ORDER_REFUNDED_VARIABLES,
+} from "../lib/payments/order-refunded-template";
 
 export const emailTemplatesData = [
   {
@@ -1454,6 +1460,20 @@ export const emailTemplatesData = [
       refund_reason: "Reason for refund (optional)",
     },
     template_type: "refund_processed",
+    is_active: true
+  },
+  {
+    // #2645: the buyer-facing refund email (automatic on payment.refunded, and
+    // POST /admin/orders/:id/refund-email with an admin note). House style of
+    // the live order-placed template. The HTML is also at
+    // src/scripts/templates/order-refunded.html for creating the live row.
+    name: "Order Refunded",
+    template_key: "order-refunded",
+    from: ORDER_REFUNDED_FROM,
+    subject: ORDER_REFUNDED_SUBJECT,
+    html_content: ORDER_REFUNDED_HTML,
+    variables: ORDER_REFUNDED_VARIABLES,
+    template_type: "transactional",
     is_active: true
   },
 

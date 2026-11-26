@@ -1,0 +1,205 @@
+/**
+ * The `order-refunded` email (#2645 "Refund email"), in the Jaal Yantra
+ * house style of the live `order-placed` template: dark header, textile
+ * stripes, cream body.
+ *
+ * 🔑 The operator creates the LIVE row from this (or from the identical
+ * `src/scripts/templates/order-refunded.html`, which a unit test keeps in step
+ * with this constant). The admin dry-run renders from this constant when no
+ * live row exists yet, so a preview works before the row is created.
+ *
+ * Variables: see `ORDER_REFUNDED_VARIABLES` and `RefundEmailVars`.
+ */
+
+export const ORDER_REFUNDED_FROM = "orders@jaalyantra.com"
+
+export const ORDER_REFUNDED_SUBJECT =
+  "We've refunded {{refund_amount}} on order {{order_display_id}}"
+
+export const ORDER_REFUNDED_VARIABLES: Record<string, string> = {
+  customer_first_name: "Buyer first name (customer, else shipping address)",
+  order_display_id: "Order number, already prefixed with # — do NOT add another #",
+  order_email: "Buyer email",
+  refund_amount: "This refund, formatted (e.g. A$90.00)",
+  note: "Admin explanation, or empty — renders the WHY block only when present",
+  payment_method: "How they paid, in buyer words (UPI via PayU), or empty",
+  paid_total: "Everything captured on the order, formatted, or empty",
+  refunded_total: "Every refund so far incl. this one, formatted, or empty",
+  net_paid: "Paid minus refunded, formatted, or empty",
+  balance_due: "Balance still owed (from the payment schedule), formatted, or empty",
+  balance_when: "'when your order ships' | 'when your order is ready' | 'once you approve your sample'",
+  balance_due_now: "true when the balance link is already out",
+  balance_link: "The balance pay link when due now, or empty",
+  partner_name: "Partner store name, or empty for Jaal Yantra",
+  business_url: "https://jaalyantra.com — the business site, footer only (never 'the store')",
+  current_year: "Current year",
+}
+
+export const ORDER_REFUNDED_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <title>Refund on order {{order_display_id}} — {{#if partner_name}}{{partner_name}}{{else}}Jaal Yantra{{/if}}</title>
+</head>
+
+<body style="margin:0;padding:0;background:#E9E2D4;font-family:Arial,Helvetica,sans-serif;color:#181818;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#E9E2D4;">
+<tr>
+<td align="center" style="padding:28px 12px;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:650px;background:#F8F5EE;">
+
+<!-- TEXTILE STRIPE -->
+<tr><td style="height:10px;background:#181818;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#C96B4B;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#D4A72C;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#315B61;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+<!-- HEADER -->
+<tr>
+<td style="padding:30px 34px 34px;background:#181818;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td align="left" valign="top">
+<div style="font-size:11px;line-height:1;letter-spacing:3px;font-weight:bold;color:#E9E2D4;text-transform:uppercase;">{{#if partner_name}}{{partner_name}}{{else}}JAAL YANTRA{{/if}}</div>
+<div style="font-size:9px;line-height:1.5;letter-spacing:1.5px;color:#99958C;margin-top:7px;text-transform:uppercase;">DESIGN · SOURCE · MAKE</div>
+</td>
+<td align="right" valign="top">
+<div style="display:inline-block;padding:7px 10px;border:1px solid #77736B;font-size:9px;letter-spacing:1.5px;color:#F8F5EE;text-transform:uppercase;">ORDER {{order_display_id}}</div>
+</td>
+</tr>
+</table>
+<div style="height:42px;"></div>
+<div style="font-size:38px;line-height:1.02;letter-spacing:-1.5px;font-weight:700;color:#F8F5EE;">We've refunded<br>{{refund_amount}}.</div>
+<div style="height:20px;"></div>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="width:32px;height:4px;background:#C96B4B;font-size:0;">&nbsp;</td>
+<td style="width:8px;font-size:0;">&nbsp;</td>
+<td style="width:32px;height:4px;background:#D4A72C;font-size:0;">&nbsp;</td>
+<td style="width:8px;font-size:0;">&nbsp;</td>
+<td style="width:32px;height:4px;background:#315B61;font-size:0;">&nbsp;</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- INTRO -->
+<tr>
+<td style="padding:34px 34px 10px;">
+<div style="font-size:14px;line-height:1.75;color:#56534D;">
+Hi <strong style="color:#181818;">{{customer_first_name}}</strong>, we've sent <strong style="color:#181818;">{{refund_amount}}</strong> back to you for order {{order_display_id}}{{#if payment_method}}, to the same {{payment_method}} payment you made{{/if}}.
+</div>
+</td>
+</tr>
+
+<!-- NOTE FROM US -->
+{{#if note}}
+<tr>
+<td style="padding:18px 34px 6px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="width:8px;background:#C96B4B;font-size:0;">&nbsp;</td>
+<td style="padding:17px 18px;background:#EDE7DA;">
+<div style="font-size:9px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#C96B4B;margin-bottom:8px;">WHY YOU'RE GETTING THIS</div>
+<div style="font-size:13px;line-height:1.7;color:#181818;">{{note}}</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+{{/if}}
+
+<!-- SUMMARY -->
+<tr>
+<td style="padding:18px 34px 6px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="width:8px;background:#315B61;font-size:0;">&nbsp;</td>
+<td style="padding:17px 18px;background:#EDE7DA;">
+<div style="font-size:9px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#315B61;margin-bottom:10px;">WHERE YOUR ORDER STANDS</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{#if paid_total}}
+<tr>
+<td style="padding:2px 8px 4px 0;font-size:12px;line-height:1.6;color:#56534D;">Paid so far</td>
+<td align="right" style="padding:2px 0 4px 8px;font-size:14px;font-weight:bold;color:#181818;white-space:nowrap;">{{paid_total}}</td>
+</tr>
+{{/if}}
+<tr>
+<td style="padding:4px 8px 4px 0;font-size:12px;line-height:1.6;color:#56534D;">Refunded{{#if refunded_total}} in total{{/if}}</td>
+<td align="right" style="padding:4px 0 4px 8px;font-size:14px;font-weight:bold;color:#315B61;white-space:nowrap;">&minus;{{#if refunded_total}}{{refunded_total}}{{else}}{{refund_amount}}{{/if}}</td>
+</tr>
+{{#if net_paid}}
+<tr>
+<td style="padding:8px 8px 4px 0;border-top:1px solid #D9D3C7;font-size:12px;line-height:1.6;color:#181818;font-weight:bold;">You have paid</td>
+<td align="right" style="padding:8px 0 4px 8px;border-top:1px solid #D9D3C7;font-size:14px;font-weight:bold;color:#181818;white-space:nowrap;">{{net_paid}}</td>
+</tr>
+{{/if}}
+{{#if balance_due}}
+<tr>
+<td style="padding:4px 8px 2px 0;font-size:12px;line-height:1.6;color:#56534D;">Balance still to pay</td>
+<td align="right" style="padding:4px 0 2px 8px;font-size:14px;font-weight:bold;color:#C96B4B;white-space:nowrap;">{{balance_due}}</td>
+</tr>
+{{/if}}
+</table>
+<div style="font-size:12px;line-height:1.65;color:#181818;margin-top:8px;">
+{{#if balance_due}}{{#if balance_due_now}}<strong>The balance of {{balance_due}} is due now.</strong>{{#if balance_link}} You can pay it here: <a href="{{balance_link}}" style="color:#315B61;text-decoration:underline;">pay the balance</a>.{{/if}}{{else}}<strong>Nothing to pay now.</strong> We'll send you a payment link for the balance of {{balance_due}} {{balance_when}}.{{/if}}{{else}}<strong>Nothing more to pay</strong> on this order.{{/if}}
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- TIMING -->
+<tr>
+<td style="padding:22px 34px 6px;">
+<div style="font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#181818;margin-bottom:8px;">WHEN YOU'LL SEE IT</div>
+<div style="font-size:13px;line-height:1.7;color:#56534D;">Refunds can take 5–10 business days to show in your account, depending on your bank or card provider. If it hasn't arrived after that, reply to this email and we'll chase it for you.</div>
+</td>
+</tr>
+
+<!-- FOOTNOTE -->
+<tr>
+<td style="padding:24px 34px 38px;">
+<div style="font-size:12px;line-height:1.7;color:#77736B;">Order <strong style="color:#181818;">{{order_display_id}}</strong> &middot; sent to {{order_email}}</div>
+<div style="height:8px;"></div>
+<div style="font-size:12px;line-height:1.7;color:#77736B;">Questions about this refund? Simply reply to this email and a person will answer.</div>
+</td>
+</tr>
+
+<!-- FOOTER -->
+<tr>
+<td style="background:#181818;padding:25px 34px 27px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td valign="top">
+<div style="font-size:13px;font-weight:bold;letter-spacing:2px;color:#F8F5EE;">{{#if partner_name}}{{partner_name}}{{else}}JAAL YANTRA{{/if}}</div>
+<div style="font-size:9px;letter-spacing:1px;color:#77736B;margin-top:7px;">जाल यंत्र — A network of making</div>
+<div style="font-size:10px;line-height:1.6;color:#77736B;margin-top:9px;">Jaal Yantra Textiles &middot; <a href="{{#if business_url}}{{business_url}}{{else}}https://jaalyantra.com{{/if}}" style="color:#F8F5EE;text-decoration:underline;">jaalyantra.com</a></div>
+</td>
+<td align="right" valign="top">
+<div style="font-size:9px;line-height:1.6;letter-spacing:1px;color:#77736B;text-transform:uppercase;">{{current_year}}<br>Textiles</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- BOTTOM WEAVE -->
+<tr><td style="height:5px;background:#315B61;font-size:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#D4A72C;font-size:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#C96B4B;font-size:0;">&nbsp;</td></tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>
+`

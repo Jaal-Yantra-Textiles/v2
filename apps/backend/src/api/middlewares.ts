@@ -21,6 +21,7 @@ import { z } from "@medusajs/framework/zod";
 import { personSchema, listPersonsQuerySchema, UpdatePersonSchema, ReadPersonQuerySchema } from "./admin/persons/validators";
 import { listEmailEditorProductsQuerySchema } from "./admin/email-editor/products/validators";
 import { issueOrderTaxInvoiceSchema } from "./admin/orders/[id]/tax-invoices/validators";
+import { sendOrderRefundEmailSchema } from "./admin/orders/[id]/refund-email/validators";
 import { sendTaxInvoiceSchema } from "./admin/tax-invoices/[id]/send/validators";
 import { OpsMaintenanceRunSchema, OpsMaintenanceRunsQuerySchema, OpsMaintenanceBatchSchema, OpsMaintenanceBatchesQuerySchema } from "./admin/ops/maintenance-jobs/validators";
 import { AdminPostLocationOwnershipReq } from "./admin/location-ownership/validators";
@@ -4936,6 +4937,12 @@ export default defineMiddlewares({
       matcher: "/admin/orders/:id/tax-invoices",
       method: "POST",
       middlewares: [validateAndTransformBody(wrapSchema(issueOrderTaxInvoiceSchema))],
+    },
+    // #2645 refund email: amount defaults to the latest refund; dry_run/preview render only.
+    {
+      matcher: "/admin/orders/:id/refund-email",
+      method: "POST",
+      middlewares: [validateAndTransformBody(wrapSchema(sendOrderRefundEmailSchema))],
     },
     {
       matcher: "/admin/tax-invoices/:id/pdf",

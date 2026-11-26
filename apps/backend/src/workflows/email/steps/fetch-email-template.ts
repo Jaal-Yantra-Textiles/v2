@@ -6,7 +6,7 @@ import type { ProcessedEmailTemplateData } from "../types"
 
 let templateHelpersRegistered = false
 
-const registerEmailTemplateHelpers = () => {
+export const registerEmailTemplateHelpers = () => {
   if (templateHelpersRegistered) {
     return
   }
