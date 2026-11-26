@@ -22,6 +22,15 @@ jest.mock(
   })
 )
 
+/**
+ * #2643 — the route re-aligns a deposit before opening a session, reading the
+ * collection's cart through `query`. These cases are about the customer and
+ * the save-card flag, so the collection has no cart: the re-align is a no-op.
+ */
+const noCartScope = () => ({
+  resolve: jest.fn(() => ({ graph: jest.fn().mockResolvedValue({ data: [] }) })),
+})
+
 const resolveCollectionPaymentContext = jest.fn()
 jest.mock("../../../../../../lib/payments/resolve-collection-customer", () => ({
   resolveCollectionPaymentContext: (...a: any[]) =>
@@ -61,7 +70,7 @@ describe("POST /store/payment-collections/:id/payment-sessions", () => {
       {
         params: { id: "pay_col_1" },
         body: { provider_id: "pp_stripe_stripe" },
-        scope: { resolve: jest.fn() },
+        scope: noCartScope(),
         // No auth_context at all — this IS the guest case.
       } as any,
       makeRes()
@@ -81,7 +90,7 @@ describe("POST /store/payment-collections/:id/payment-sessions", () => {
       {
         params: { id: "pay_col_1" },
         body: { provider_id: "pp_stripe_stripe" },
-        scope: { resolve: jest.fn() },
+        scope: noCartScope(),
       } as any,
       makeRes()
     )
@@ -101,7 +110,7 @@ describe("POST /store/payment-collections/:id/payment-sessions", () => {
       {
         params: { id: "pay_col_1" },
         body: { provider_id: "pp_stripe_stripe" },
-        scope: { resolve: jest.fn() },
+        scope: noCartScope(),
       } as any,
       makeRes()
     )
@@ -125,7 +134,7 @@ describe("POST /store/payment-collections/:id/payment-sessions", () => {
       {
         params: { id: "pay_col_1" },
         body: { provider_id: "pp_stripe_stripe" },
-        scope: { resolve: jest.fn() },
+        scope: noCartScope(),
         auth_context: { actor_id: "cus_signed_in" },
       } as any,
       makeRes()

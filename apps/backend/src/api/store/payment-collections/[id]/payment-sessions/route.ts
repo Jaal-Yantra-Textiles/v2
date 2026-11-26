@@ -15,6 +15,8 @@ import {
 } from "../../../../../modules/stripe-connect-payment/lib/resolve-connect"
 import { resolveCollectionPaymentContext } from "../../../../../lib/payments/resolve-collection-customer"
 import { saveCardSessionData } from "../../../../../lib/payments/save-card-intent"
+import { ensureCartPaymentCollection } from "../../../../../lib/payments/ensure-cart-collection"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 const DEFAULT_FIELDS = ["id", "currency_code", "amount", "*payment_sessions"]
 
@@ -84,6 +86,21 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     }
   }
 
+  /**
+   * 🔴 Put a deposit back BEFORE the card session is created (order #176,
+   * 2026-11-26: a 50% design-order deposit charged in full, 195 not 97.50).
+   *
+   * Core refreshes a cart's payment collection to the FULL cart total on every
+   * cart update (address, shipping method, region, promo). The JS SDK then
+   * posts straight here when the cart already has a collection, skipping
+   * /store/payment-collections, the only place that re-aligned a deposit. So
+   * the session was opened for whatever the collection held, i.e. the total.
+   *
+   * ensureCartPaymentCollection is a no-op for an ordinary cart, re-aligns a
+   * manual deposit, and refuses a drifted quote deposit rather than charge it.
+   */
+  await realignDepositForCollection(req, collectionId)
+
   const { customer_id: cartCustomerId, plan } =
     await resolveCollectionPaymentContext(req.scope, collectionId).catch(
       () => ({ customer_id: undefined, plan: undefined })
@@ -124,4 +141,23 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   res.status(200).json({ payment_collection: paymentCollection })
+}
+
+async function realignDepositForCollection(req: MedusaRequest, collectionId: string) {
+  const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: links } = await query.graph({
+    entity: "cart_payment_collection",
+    filters: { payment_collection_id: collectionId },
+    fields: ["cart_id"],
+  })
+  const cartId = links?.[0]?.cart_id
+  if (!cartId) return
+  const { data: carts } = await query.graph({
+    entity: "cart",
+    filters: { id: cartId },
+    fields: ["id", "currency_code", "total", "payment_collection.id", "payment_collection.amount"],
+  })
+  const cart = carts?.[0]
+  if (!cart) return
+  await ensureCartPaymentCollection(req.scope, cart)
 }

@@ -248,5 +248,68 @@ setupSharedTestSuite(() => {
       expect(terms.deposit_due_now).toBeCloseTo(after * 0.1, 2)
       expect(terms.balance_due_later).toBeCloseTo(after * 0.9, 2)
     })
+
+    /**
+     * Order #176, 2026-11-26: a 50% deposit charged IN FULL (195, not 97.50).
+     *
+     * The collection was made at the deposit, then a cart update (address,
+     * shipping method, region...) made core refresh it to the full total, and
+     * the SDK, seeing a collection already there, posted straight to
+     * /payment-sessions. Nothing put the deposit back, so the card session
+     * was opened for the total. The session route must re-align it.
+     */
+    it("keeps the deposit when the cart changes after the collection exists (#176)", async () => {
+      const c = await buildDesignOrder()
+      const set = await api.post(
+        `/admin/designs/orders/${c.lineItemId}/deposit`,
+        { deposit_pct: 50 },
+        adminHeaders
+      )
+      expect(set.status).toBe(200)
+
+      const collection = (
+        await api.post("/store/payment-collections", { cart_id: c.cartId }, customerHeaders)
+      ).data.payment_collection
+      const total = Number((await api.get(`/store/carts/${c.cartId}`, customerHeaders)).data.cart.total)
+      expect(Number(collection.amount)).toBeCloseTo(total * 0.5, 2)
+
+      // A checkout step that changes a tax-relevant address field: core's
+      // refresh re-sets the collection to the cart total.
+      await api.post(
+        `/store/carts/${c.cartId}`,
+        { shipping_address: { city: `Changed ${Date.now()}` } },
+        customerHeaders
+      )
+      const query: any = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+      const amountNow = async () =>
+        Number(
+          (
+            await query.graph({
+              entity: "payment_collection",
+              fields: ["amount"],
+              filters: { id: collection.id },
+            })
+          ).data[0].amount
+        )
+      const totalAfter = Number(
+        (await api.get(`/store/carts/${c.cartId}`, customerHeaders)).data.cart.total
+      )
+      // The premise: core really did reset it (else this test proves nothing).
+      expect(await amountNow()).toBeCloseTo(totalAfter, 2)
+
+      // The SDK path: an existing collection -> straight to payment-sessions.
+      const session = await api
+        .post(
+          `/store/payment-collections/${collection.id}/payment-sessions`,
+          { provider_id: "pp_system_default" },
+          customerHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(session.status).toBe(200)
+
+      // Read the row back: the deposit, not the total, is what gets charged.
+      expect(await amountNow()).toBeCloseTo(totalAfter * 0.5, 2)
+      expect(Number(session.data.payment_collection.amount)).toBeCloseTo(totalAfter * 0.5, 2)
+    })
   })
 })

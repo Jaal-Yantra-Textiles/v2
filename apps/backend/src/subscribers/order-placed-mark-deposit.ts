@@ -1,5 +1,5 @@
 import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
-import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { Logger } from "@medusajs/types"
 
 import { PAYMENT_SCHEDULE_MODULE } from "../modules/payment_schedule"
@@ -88,7 +88,7 @@ export default async function markDepositPaidOnOrderPlaced({
     if (schedule.source_type === "manual" && schedule.deposit_status === "pending") {
       const { data: orders } = await query.graph({
         entity: "order",
-        fields: ["id", "total", "payment_collections.amount"],
+        fields: ["id", "total", "currency_code", "payment_collections.amount"],
         filters: { id: data.id },
       })
       const order = orders?.[0] as any
@@ -97,6 +97,37 @@ export default async function markDepositPaidOnOrderPlaced({
         (sum: number, c: any) => sum + (Number(c?.amount) || 0),
         0
       )
+      // 🔴 #176 (2026-11-26): a 50% deposit order was charged IN FULL and this
+      // re-base quietly wrote the full charge in as "the deposit", so nothing
+      // looked wrong. Say so loudly. The schedule still records what was
+      // really collected (that is the money), but an admin hears about it.
+      const pct = Number(schedule.deposit_pct)
+      const expected =
+        Number.isFinite(pct) && pct > 0 && pct < 100
+          ? Math.round(total * pct) / 100
+          : null
+      if (expected !== null && collected - expected > 0.01) {
+        const cur = String(order?.currency_code ?? schedule.currency_code ?? "").toUpperCase()
+        const message =
+          `Order ${data.id} was meant to take a ${pct}% deposit (${expected} ${cur}) but collected ${collected} ${cur}. ` +
+          `The buyer was overcharged by ${Math.round((collected - expected) * 100) / 100} ${cur}. ` +
+          `Refund the difference; if a refund turns the order "fully paid", run the reinstate-balance-from-credit-line job.`
+        logger.error(`[deposit] OVERCHARGE ${message}`)
+        try {
+          const notifications: any = container.resolve(Modules.NOTIFICATION)
+          await notifications.createNotifications([
+            {
+              to: "",
+              channel: "feed",
+              template: "admin-ui",
+              data: { title: "Deposit order charged more than its deposit", description: message },
+            },
+          ])
+        } catch (e: any) {
+          logger.warn(`[deposit] overcharge feed post failed: ${e?.message ?? e}`)
+        }
+      }
+
       if (Number.isFinite(total) && total > 0 && collected > 0 && collected <= total) {
         const balance = Math.round((total - collected) * 100) / 100
         await schedules.updatePaymentSchedules({
