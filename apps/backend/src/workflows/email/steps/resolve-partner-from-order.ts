@@ -5,6 +5,7 @@ import { PARTNER_MODULE } from "../../../modules/partner"
 import PartnerService from "../../../modules/partner/service"
 import { resolveRetailPartnerId } from "../../../modules/partner_billing/resolve-retail-partner"
 import partnerOrderLink from "../../../links/partner-order"
+import { platformFallbackOrigin } from "../../../lib/carts/resolve-cart-link"
 
 export type PartnerOrderContext = {
   order: any
@@ -25,7 +26,7 @@ export type PartnerOrderContext = {
   partnerFromName: string
   /** The partner store name (falls back to partner name). */
   storeName: string
-  /** The partner storefront URL (from storefront_domain / metadata / FRONTEND_URL). */
+  /** The partner storefront URL (storefront_domain / metadata), else our shop — never FRONTEND_URL, the business site. */
   storeUrl: string
 }
 
@@ -36,7 +37,7 @@ const EMPTY = (order: any): PartnerOrderContext => ({
   partnerFromEmail: "",
   partnerFromName: "",
   storeName: "",
-  storeUrl: process.env.FRONTEND_URL || "",
+  storeUrl: platformFallbackOrigin(),
 })
 
 /**
@@ -185,7 +186,7 @@ export const resolvePartnerFromOrderStep = createStep(
       ? /^https?:\/\//i.test(domain)
         ? domain
         : `https://${domain}`
-      : process.env.FRONTEND_URL || ""
+      : platformFallbackOrigin()
 
     const result: PartnerOrderContext = {
       order,

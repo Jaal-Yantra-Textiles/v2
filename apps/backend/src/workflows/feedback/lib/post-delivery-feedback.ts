@@ -62,14 +62,15 @@ export function selectExistingFeedbackRequest(
 
 /**
  * Resolve the storefront base URL used to build the feedback link.
- * Precedence: explicit override → STORE_URL → FRONTEND_URL → "".
+ * Precedence: explicit override → STORE_URL → the shop (cicilabel.com).
+ * Never FRONTEND_URL: that is jaalyantra.com, the business site, not a store.
  * Returns a trailing-slash-trimmed string (or "" when none configured).
  */
 export function resolveFeedbackStoreBase(
   env: Record<string, string | undefined> = {},
   override?: string | null
 ): string {
-  const raw = (override || env.STORE_URL || env.FRONTEND_URL || "").trim()
+  const raw = (override || env.STORE_URL || "https://cicilabel.com").trim()
   return raw.replace(/\/+$/, "")
 }
 
