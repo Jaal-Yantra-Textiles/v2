@@ -1,0 +1,87 @@
+name: Deploy to Oracle A1
+
+# Prod on the A1 box (#1085). Runs after "Build ARM64 Image (Oracle A1)" has
+# pushed sha-<commit>-arm64, and asks the box to deploy exactly that image.
+#
+# 🔴 Two locks, both required:
+#   1. repo variable PROD_TARGET == 'oracle'  (flipped in the cutover window;
+#      the same variable switches "Deploy to AWS ECS" OFF)
+#   2. /opt/jyt/LIVE on the box               (created in the window, after
+#      AWS is scaled to 0)
+# Before the cutover this workflow is skipped, and even a manual run is
+# refused by the box.
+#
+# The SSH key (secret ORACLE_DEPLOY_SSH_KEY) is a forced-command key: on the
+# box it can only run /opt/jyt/deploy-hook.sh. The host key is pinned
+# (secret ORACLE_KNOWN_HOSTS), never trusted on first use.
+
+on:
+  workflow_run:
+    workflows: ["Build ARM64 Image (Oracle A1)"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      command:
+        description: "check (read-only connectivity test) or deploy"
+        type: choice
+        options: [check, deploy]
+        default: check
+      sha:
+        description: "Commit to deploy (full sha). Empty = current main."
+        type: string
+        default: ""
+
+concurrency:
+  group: deploy-oracle
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy on the A1 box
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: >-
+      (github.event_name == 'workflow_dispatch') ||
+      (vars.PROD_TARGET == 'oracle' && github.event.workflow_run.conclusion == 'success')
+    env:
+      HOST: ubuntu@130.61.141.163
+    steps:
+      - name: Pick command and commit
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            echo "cmd=deploy ${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ inputs.command }}" = "check" ]; then
+            echo "cmd=check" >> "$GITHUB_OUTPUT"
+          else
+            SHA="${{ inputs.sha }}"
+            [ -n "$SHA" ] || SHA="${{ github.sha }}"
+            echo "cmd=deploy $SHA" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: SSH key and pinned host key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.ORACLE_DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.ORACLE_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Run on the box
+        run: |
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=20 \
+              -o ServerAliveInterval=30 "$HOST" "${{ steps.pick.outputs.cmd }}"
+
+      - name: Public health (v3)
+        if: startsWith(steps.pick.outputs.cmd, 'deploy')
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -m 10 https://v3.jaalyantra.com/health || true)
+            echo "try $i: $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          exit 1
