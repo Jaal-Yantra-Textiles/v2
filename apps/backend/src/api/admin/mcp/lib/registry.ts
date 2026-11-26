@@ -6763,6 +6763,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "price_overrides",
       "override_currency",
       "country_code",
+      "deposit_pct",
+      "deposit_amount",
+      "balance_trigger",
     ],
     inputSchema: obj(
       {
@@ -6785,6 +6788,20 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         country_code: STR(
           "ISO-2 country the buyer purchases from, e.g. 'se'. 🔑 SET IT. The cart carries the country, and without one `resolveCartCheckoutLink` refuses to build a link at all — the order is created and `checkout_url` comes back null. A hand-written URL does not rescue it either: the storefront re-resolves the region from the cart and a Swedish buyer lands on /al/. Must be a country the order's own region serves."
         ),
+        deposit_pct: {
+          type: "number",
+          description:
+            "Optional: preview a deposit of this % (0–100, exclusive). Returned as `deposit` — split of the PRE-tax total; nothing is saved.",
+        },
+        deposit_amount: {
+          type: "number",
+          description: "Optional: preview a FIXED deposit instead of deposit_pct.",
+        },
+        balance_trigger: {
+          type: "string",
+          enum: ["manual", "dispatch"],
+          description: "With a deposit only: when the balance would be asked for.",
+        },
       },
       ["design_ids"]
     ),
@@ -6802,6 +6819,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "🔑 Pass `country_code`. Without it the cart names no country, `checkout_url` comes back null and the buyer cannot be sent anywhere — which then needs the `set-design-order-country` maintenance job to repair by hand. This is what happened to the €91 EUR order minted 2026-09-19.",
       "",
       "Refuses designs that are already in an open checkout rather than creating a second cart for them.",
+      "",
+      "💰 DEPOSIT AT CREATION: pass `deposit_pct` (e.g. 50) OR `deposit_amount` (fixed, in the order's currency), and optionally `balance_trigger` ('manual' default | 'dispatch'). The deposit is set BEFORE the PayU link and the email, so the first link charges ONLY the deposit and the email states the deposit due now, the balance and when it is due. 🔴 If the operator has agreed a deposit, pass it here — creating without it and setting it later means the buyer's first link asks for the full total. If the deposit is refused (e.g. a fixed amount not below the real total) the order still exists but NOTHING is sent; the error names the cart — fix it with set_design_order_deposit.",
     ].join("\n"),
     method: "POST",
     path: "/admin/designs/draft-order",
@@ -6814,6 +6833,9 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "price_overrides",
       "override_currency",
       "country_code",
+      "deposit_pct",
+      "deposit_amount",
+      "balance_trigger",
     ],
     inputSchema: obj(
       {
@@ -6839,11 +6861,27 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         country_code: STR(
           "ISO-2 country the buyer purchases from, e.g. 'se'. 🔑 SET IT. The cart carries the country, and without one `resolveCartCheckoutLink` refuses to build a link at all — the order is created and `checkout_url` comes back null. A hand-written URL does not rescue it either: the storefront re-resolves the region from the cart and a Swedish buyer lands on /al/. Must be a country the order's own region serves."
         ),
+        deposit_pct: {
+          type: "number",
+          description:
+            "Optional deposit: percentage of the total (tax included) collected now, greater than 0 and less than 100. Follows the live total. Instead of deposit_amount.",
+        },
+        deposit_amount: {
+          type: "number",
+          description:
+            "Optional FIXED deposit in the order's currency, above 0 and below the total. Instead of deposit_pct.",
+        },
+        balance_trigger: {
+          type: "string",
+          enum: ["manual", "dispatch"],
+          description:
+            "With a deposit only: 'manual' (default — raised with request_order_balance) or 'dispatch' (raised when the order ships). The email tells the buyer which.",
+        },
       },
       ["design_ids"]
     ),
     sideEffects:
-      "Creates a cart with one custom-priced line item per design. With a customer_id, also attaches the buyer and emails them a checkout link.",
+      "Creates a cart with one custom-priced line item per design; with a deposit, opens its payment schedule before any link or email. With a customer_id, also attaches the buyer and emails them a checkout link (and PayU link for INR) for what is due now.",
     nextSteps: ["get_design_order", "attach_design_order_customer"],
   },
   {
@@ -6976,14 +7014,16 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "",
       "`balance_trigger` decides when the balance is asked for: 'manual' (default — only when an admin calls request_order_balance) or 'dispatch' (raised automatically when the order ships).",
       "",
-      "If the buyer already opened checkout, their unpaid payment request for the full total is cleared so checkout makes the deposit one. Refuses with 409 when a payment was already taken, when a deposit is already set (unless `replace: true` on an unpaid manual one), or when the order is converted or cancelled. Nothing is emailed.",
+      "If the buyer already opened checkout, their unpaid payment request for the full total is cleared so checkout makes the deposit one. Refuses with 409 when a payment was already taken, when a deposit is already set (unless `replace: true` on an unpaid manual one), or when the order is converted or cancelled.",
+      "",
+      "📧 `notify_buyer` (default TRUE): after the deposit is saved, a FRESH PayU link for the deposit is minted (INR only; the old full-total link is switched off) and the design-order email is RE-SENT with the deposit due now, the balance and when it is due. The result reports `payment_link`, `replaced_payment_link_invoice` and `email` (sent / reason). `notify_buyer: false` sends nothing and mints nothing, but still switches the old PayU link off (`closed_payment_link_invoice`) — the checkout link keeps working for the deposit. ⚠️ A UPI QR from the old email cannot be switched off; a payment on it is flagged to the admin feed.",
     ].join("\n"),
     method: "POST",
     path: "/admin/designs/orders/:lineItemId/deposit",
     pathParams: ["lineItemId"],
     write: true,
     sensitive: true,
-    bodyParams: ["deposit_pct", "deposit_amount", "balance_trigger", "replace"],
+    bodyParams: ["deposit_pct", "deposit_amount", "balance_trigger", "replace", "notify_buyer"],
     inputSchema: obj(
       {
         lineItemId: STR("The design order's cart line item id (`cali_...`)."),
@@ -7005,11 +7045,16 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
           description:
             "Replace the order's existing deposit. Only an UNPAID manual deposit can be replaced.",
         },
+        notify_buyer: {
+          type: "boolean",
+          description:
+            "Default true: mint a fresh PayU link for the deposit (INR) and re-send the design-order email stating deposit, balance and when it is due. false sends nothing (the old PayU link is still switched off).",
+        },
       },
       ["lineItemId"]
     ),
     sideEffects:
-      "Creates a payment schedule on the design order's cart, so its checkout charges the deposit instead of the total; may clear an unpaid payment collection. Sends nothing.",
+      "Creates a payment schedule on the design order's cart, so its checkout charges the deposit instead of the total; may clear an unpaid payment collection. By default also switches off the old PayU link, mints a new one for the deposit and emails the buyer (notify_buyer: false sends nothing).",
     nextSteps: ["get_design_order", "get_order_balance", "request_order_balance"],
   },
   {

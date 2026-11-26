@@ -3,16 +3,118 @@ jest.mock("../../email/workflows/send-design-order-created-email", () => ({
   sendDesignOrderCreatedEmailWorkflow: () => ({ run: runWorkflow }),
 }))
 
+jest.mock("../../../modules/payment_schedule", () => ({
+  PAYMENT_SCHEDULE_MODULE: "payment_schedule",
+}))
+
 import { BOT_SUPPRESSED_SEND_ID } from "../../../lib/bot-recipients"
-import { deliverDesignOrderEmail, emailLineItems } from "../deliver-design-order-email"
+import {
+  balanceWhen,
+  deliverDesignOrderEmail,
+  emailDeposit,
+  emailLineItems,
+} from "../deliver-design-order-email"
 
 /** `graphCart` is what the cart reads back as — deliberately separate from the
  *  object handed in, because the caller's cart predates its own line items. */
-const scopeWith = (graphCart: any) => ({
+const scopeWith = (graphCart: any, schedule: any = null) => ({
   resolve: (key: string) =>
     key === "query"
       ? { graph: jest.fn(async () => ({ data: graphCart ? [graphCart] : [] })) }
-      : { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+      : key === "payment_schedule"
+        ? {
+            findByCartId: jest.fn(async () => {
+              if (schedule instanceof Error) throw schedule
+              return schedule
+            }),
+          }
+        : { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+})
+
+/** A 50% manual deposit, as set_design_order_deposit / create write it. */
+const manualSchedule = (over: any = {}) => ({
+  id: "psch_1",
+  source_type: "manual",
+  deposit_status: "pending",
+  currency_code: "inr",
+  deposit_pct: 50,
+  deposit_amount: 5500,
+  total_due: 11000,
+  balance_trigger: "manual",
+  ...over,
+})
+
+describe("#2645 — the deposit section of the design-order email", () => {
+  it("says what is due now, the balance and when, from the live total", async () => {
+    // Stored 5500 was set before GST; the live total is 11550 → 50% is 5775.
+    await deliverDesignOrderEmail(scopeWith(cart({ total: 11550 }), manualSchedule()), {
+      cart: { id: "cart_01" },
+      checkoutUrl: "https://x/c",
+    })
+    const data = runWorkflow.mock.calls[0][0].input.data
+    expect(data.total).toBe(11550)
+    expect(data.deposit).toEqual({
+      amount: 5775,
+      deposit_pct: 50,
+      balance_amount: 5775,
+      balance_trigger: "manual",
+      balance_when: "when your order is ready — we'll email you a payment link",
+    })
+  })
+
+  it("a fixed deposit has no percentage, and dispatch says 'ready to ship'", () => {
+    const { deposit } = emailDeposit({
+      schedule: manualSchedule({ deposit_pct: null, deposit_amount: 800, balance_trigger: "dispatch" }),
+      total: 8400,
+      currencyCode: "inr",
+    })
+    expect(deposit).toEqual({
+      amount: 800,
+      deposit_pct: null,
+      balance_amount: 7600,
+      balance_trigger: "dispatch",
+      balance_when: "when your order is ready to ship — we'll email you a payment link",
+    })
+  })
+
+  it("the balance is the remainder to the cent, not a second percentage", () => {
+    // 10% of 287.049 = 28.70 (rounded); 90% would be 258.3441 — the remainder is 258.35.
+    const { deposit } = emailDeposit({
+      schedule: manualSchedule({ deposit_pct: 10 }),
+      total: 287.049,
+      currencyCode: "inr",
+    })
+    expect(deposit!.amount).toBe(28.7)
+    expect(deposit!.balance_amount).toBe(258.35)
+  })
+
+  it("no schedule → no deposit section (pay in full, as before)", async () => {
+    await deliverDesignOrderEmail(scopeWith(cart()), { cart: cart(), checkoutUrl: "https://x/c" })
+    expect(runWorkflow.mock.calls[0][0].input.data.deposit).toBeNull()
+  })
+
+  it("refuses to send when the deposit cannot be charged as set (never quotes the total instead)", async () => {
+    const out = await deliverDesignOrderEmail(
+      scopeWith(cart(), manualSchedule({ deposit_status: "paid" })),
+      { cart: cart(), checkoutUrl: "https://x/c" }
+    )
+    expect(out.sent).toBe(false)
+    expect(runWorkflow).not.toHaveBeenCalled()
+  })
+
+  it("refuses to send when the schedule cannot be read (fails closed)", async () => {
+    const out = await deliverDesignOrderEmail(scopeWith(cart(), new Error("db down")), {
+      cart: cart(),
+      checkoutUrl: "https://x/c",
+    })
+    expect(out.sent).toBe(false)
+    expect(out.reason).toMatch(/deposit/)
+    expect(runWorkflow).not.toHaveBeenCalled()
+  })
+
+  it("balanceWhen defaults to the manual wording", () => {
+    expect(balanceWhen(undefined)).toBe(balanceWhen("manual"))
+  })
 })
 
 const cart = (over: any = {}) => ({

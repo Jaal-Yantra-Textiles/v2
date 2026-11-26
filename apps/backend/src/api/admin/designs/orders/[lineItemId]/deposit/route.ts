@@ -2,28 +2,41 @@ import {
   AuthenticatedMedusaRequest,
   MedusaResponse,
 } from "@medusajs/framework/http"
-import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import designLineItemLink from "../../../../../../links/design-line-item-link"
-import { PAYMENT_SCHEDULE_MODULE } from "../../../../../../modules/payment_schedule"
+import { resolveCartCheckoutLink } from "../../../../../../lib/carts/resolve-cart-link"
+import {
+  closeTrackedPayuLink,
+  createPayuLinkForCart,
+} from "../../../../../../lib/payments/payu-cart-link"
+import { deliverDesignOrderEmail } from "../../../../../../workflows/designs/deliver-design-order-email"
+import { applyDesignOrderDeposit } from "../../apply-deposit"
 import { hasLinkedSaleOrder } from "../../linked-sale-order"
-import { decideDeposit } from "../../mutate-design-order"
 
 /**
  * POST /admin/designs/orders/:lineItemId/deposit
  *
- * Put a deposit on a design order, so the buyer's existing checkout link
- * collects `deposit_pct` of the total now and the rest is raised later with
- * `POST /admin/orders/:id/balance`. The rules are `decideDeposit`'s.
+ * Put a deposit on a design order, so the buyer's checkout collects
+ * `deposit_pct` of the total (or a fixed `deposit_amount`) now and the rest is
+ * raised later with `POST /admin/orders/:id/balance`. The rules are
+ * `decideDeposit`'s; the writes are `applyDesignOrderDeposit`'s, shared with
+ * create (#2645).
  *
- * Body: { deposit_pct: number, balance_trigger?: "manual" | "dispatch" }
+ * Body: { deposit_pct?: number, deposit_amount?: number,
+ *         balance_trigger?: "manual" | "dispatch", replace?: boolean,
+ *         notify_buyer?: boolean (default true) }
  *
- * 🔴 A stale payment collection. If the buyer already opened checkout, the
- * cart holds a collection for the FULL total, and `ensureCartPaymentCollection`
- * refuses a deposit cart whose collection disagrees with its schedule. So an
- * unpaid collection is cleared here and checkout makes the right one next time.
- * A collection with any payment on it is refused instead: money was taken
- * against the full figure, and that needs a human, not a quiet delete.
+ * ## notify_buyer (#2645)
+ *
+ * 🔴 The buyer's first email and PayU link were for the FULL total. Setting a
+ * deposit afterwards changed what checkout charges, but the link in their
+ * inbox still asked for everything. So by default a fresh PayU link is minted
+ * for the deposit (INR only — `createPayuLinkForCart` switches the old one off)
+ * and the design-order email is re-sent with the deposit, the balance and when
+ * the balance is due. `notify_buyer: false` sends nothing, but the old
+ * full-total link is STILL switched off: a link nobody should pay must not stay
+ * payable. The checkout link keeps working and charges the deposit.
  */
 export async function POST(
   req: AuthenticatedMedusaRequest,
@@ -38,10 +51,17 @@ export async function POST(
       deposit_amount?: unknown
       balance_trigger?: unknown
       replace?: unknown
+      notify_buyer?: unknown
     }
+    if (body.notify_buyer !== undefined && typeof body.notify_buyer !== "boolean") {
+      res.status(400).json({
+        reason: "bad_notify_buyer",
+        message: "notify_buyer must be true or false.",
+      })
+      return
+    }
+    const notifyBuyer = body.notify_buyer !== false
     const query = req.scope.resolve(ContainerRegistrationKeys.QUERY) as any
-    const cartService = req.scope.resolve(Modules.CART) as any
-    const schedules: any = req.scope.resolve(PAYMENT_SCHEDULE_MODULE)
 
     const { data: linkRows } = await query.graph({
       entity: designLineItemLink.entryPoint,
@@ -53,134 +73,68 @@ export async function POST(
       return
     }
 
-    const [lineItem] = await cartService.listLineItems(
-      { id: lineItemId },
-      { select: ["id", "cart_id"] }
-    )
-    // query.graph, not retrieveCart: only the graph computes `total`.
-    const cart = lineItem?.cart_id
-      ? (
-          await query.graph({
-            entity: "cart",
-            fields: [
-              "id",
-              "currency_code",
-              "total",
-              "completed_at",
-              "metadata",
-              "payment_collection.id",
-              "payment_collection.amount",
-              "payment_collection.payments.id",
-            ],
-            filters: { id: lineItem.cart_id },
-          })
-        ).data?.[0] ?? null
-      : null
-
-    const existing = cart ? await schedules.findByCartId(cart.id) : null
-    const decision = decideDeposit({
-      cart,
+    const applied = await applyDesignOrderDeposit(req.scope, {
+      lineItemId,
+      designId: linkRows[0].design_id,
+      hasLinkedOrder: await hasLinkedSaleOrder(query, linkRows[0].design_id),
       depositPct: body.deposit_pct,
       depositAmount: body.deposit_amount,
       balanceTrigger: body.balance_trigger,
-      hasLinkedOrder: await hasLinkedSaleOrder(query, linkRows[0].design_id),
-      hasSchedule: Boolean(existing),
       replace: body.replace === true,
-      existingSchedule: existing,
+      setBy: (req as any).auth_context?.actor_id ?? null,
     })
 
-    if (!decision.ok) {
-      const status =
-        decision.reason === "no_cart"
-          ? 404
-          : decision.reason === "not_a_pct" ||
-              decision.reason === "not_an_amount" ||
-              decision.reason === "pct_and_amount" ||
-              decision.reason === "bad_balance_trigger" ||
-              decision.reason === "no_total"
-            ? 400
-            : 409
-      res.status(status).json({ message: decision.message, reason: decision.reason })
+    if (!applied.ok) {
+      res.status(applied.status).json({ message: applied.message, reason: applied.reason })
       return
     }
+    const cartId = applied.deposit.cart_id
 
-    const collection = cart.payment_collection
-    let clearedCollectionId: string | null = null
-    if (collection?.id) {
-      if ((collection.payments ?? []).length) {
-        res.status(409).json({
-          reason: "collection_has_payments",
-          message:
-            `The buyer's checkout already holds a payment against payment collection ${collection.id}. ` +
-            "Resolve that payment before putting a deposit on this order.",
-        })
-        return
+    /**
+     * Tell the buyer, or at least stop the old link. Both never throw and never
+     * fail the response: the schedule is saved, and this response is the
+     * operator's only view of whether the buyer was told.
+     */
+    let buyerNotification: Record<string, unknown>
+    if (notifyBuyer) {
+      const { link } = await resolveCartCheckoutLink(req.scope, cartId)
+      const payu = await createPayuLinkForCart(req.scope, cartId, {
+        description: `Design order ${cartId} (deposit)`,
+      })
+      const email = await deliverDesignOrderEmail(req.scope, {
+        cart: { id: cartId },
+        checkoutUrl: link.url,
+        paymentLink: payu.payment_link,
+        paymentLinkExpiresLabel: payu.expires_label ?? null,
+        paymentQrKind: payu.qr_kind ?? null,
+      })
+      buyerNotification = {
+        notified: true,
+        checkout_url: link.url,
+        checkout_url_reason: link.url ? null : link.reason,
+        payment_link: payu.payment_link,
+        /** Why there is no payment link — non-INR is the ordinary case. */
+        payment_link_reason: payu.reason,
+        payment_link_expires_at: payu.expires_at ?? null,
+        replaced_payment_link_invoice: payu.replaced_invoice_number ?? null,
+        email,
       }
-      const link: any = req.scope.resolve(ContainerRegistrationKeys.LINK)
-      await link.dismiss([
-        {
-          [Modules.CART]: { cart_id: cart.id },
-          [Modules.PAYMENT]: { payment_collection_id: collection.id },
-        },
-      ])
-      await (req.scope.resolve(Modules.PAYMENT) as any).deletePaymentCollections([
-        collection.id,
-      ])
-      clearedCollectionId = collection.id
+    } else {
+      const closed = await closeTrackedPayuLink(req.scope, cartId, "deposit_set")
+      buyerNotification = {
+        notified: false,
+        payment_link: null,
+        payment_link_reason: "notify_buyer was false, so no new link was minted.",
+        closed_payment_link_invoice: closed.closed_invoice_number,
+        closed_payment_link_error: closed.error,
+        email: null,
+      }
     }
-
-    const setBy = (req as any).auth_context?.actor_id ?? null
-    const schedule = decision.replaces_schedule
-      ? await schedules.replaceManualDeposit(existing.id, {
-          total_due: decision.total_due,
-          quote_deposit_pct: decision.deposit_pct,
-          fixed_deposit_amount: decision.deposit_amount,
-          balance_trigger: decision.balance_trigger,
-          metadata: {
-            set_by: setBy,
-            replaced: {
-              deposit_pct: existing.deposit_pct ?? null,
-              deposit_amount: Number(existing.deposit_amount),
-            },
-          },
-        })
-      : await schedules.openForCart({
-          cart_id: cart.id,
-          currency_code: cart.currency_code,
-          total_due: decision.total_due,
-          source_type: "manual",
-          source_id: lineItemId,
-          // Same rail rule as accept-quote: PayU is INR-only.
-          rail: String(cart.currency_code).toLowerCase() === "inr" ? "payu" : "stripe",
-          quote_deposit_pct: decision.deposit_pct,
-          fixed_deposit_amount: decision.deposit_amount,
-          balance_trigger: decision.balance_trigger,
-          metadata: {
-            design_id: linkRows[0].design_id,
-            set_by: setBy,
-          },
-        })
-
-    logger?.info?.(
-      `[deposit] design order ${lineItemId} (cart ${cart.id}): ` +
-        `${schedule.deposit_pct == null ? "fixed" : `${schedule.deposit_pct}%`} = ` +
-        `${schedule.deposit_amount} of ${decision.total_due} ${String(cart.currency_code).toUpperCase()}` +
-        (clearedCollectionId ? `; cleared unpaid collection ${clearedCollectionId}` : "")
-    )
 
     res.status(200).json({
       design_order_deposit: {
-        line_item_id: lineItemId,
-        cart_id: cart.id,
-        schedule_id: schedule.id,
-        currency_code: cart.currency_code,
-        total_due: decision.total_due,
-        deposit_pct: schedule.deposit_pct == null ? null : Number(schedule.deposit_pct),
-        deposit_amount: Number(schedule.deposit_amount),
-        balance_amount: Number(schedule.balance_amount),
-        balance_trigger: schedule.balance_trigger,
-        cleared_payment_collection_id: clearedCollectionId,
-        replaced_schedule: decision.replaces_schedule,
+        ...applied.deposit,
+        ...buyerNotification,
       },
     })
   } catch (e: any) {

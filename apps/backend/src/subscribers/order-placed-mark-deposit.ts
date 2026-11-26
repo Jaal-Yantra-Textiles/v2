@@ -2,6 +2,7 @@ import { SubscriberArgs, SubscriberConfig } from "@medusajs/framework"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import type { Logger } from "@medusajs/types"
 
+import { decideDepositRebase } from "../lib/payments/deposit-rebase"
 import { PAYMENT_SCHEDULE_MODULE } from "../modules/payment_schedule"
 import { deliverDepositReceivedEmail } from "../workflows/designs/deliver-deposit-received-email"
 
@@ -74,9 +75,14 @@ export default async function markDepositPaidOnOrderPlaced({
      * A MANUAL deposit (design order) was set before tax and freight were
      * known, so its stored total and balance are from the cart as it was then.
      * Re-base them on the order as placed: the total is the order's, the
-     * deposit is what checkout actually collected, and the balance is the
-     * difference — the same figure the order will report as outstanding, so
-     * `request_order_balance` reconciles instead of refusing.
+     * deposit is what checkout collected WHEN that matches the planned deposit,
+     * and the balance is the difference — the same figure the order will report
+     * as outstanding, so `request_order_balance` reconciles instead of refusing.
+     *
+     * 🔴 #176 / #2645: when the collection is NOT the planned deposit, the
+     * re-base used to write it in anyway, hiding a full charge as "the deposit".
+     * `decideDepositRebase` flags it and, for an overcharge, keeps the planned
+     * figures (see that file for why not refuse, and why an undercharge differs).
      */
     // The figures the buyer is told about — re-based below when the order allows.
     let figures = {
@@ -84,6 +90,9 @@ export default async function markDepositPaidOnOrderPlaced({
       deposit: Number(schedule.deposit_amount),
       balance: Number(schedule.balance_amount),
     }
+    // An overcharged buyer is not sent "deposit received, balance due": both
+    // figures would contradict their bank statement. An admin is alerted instead.
+    let emailBuyer = true
 
     if (schedule.source_type === "manual" && schedule.deposit_status === "pending") {
       const { data: orders } = await query.graph({
@@ -97,22 +106,17 @@ export default async function markDepositPaidOnOrderPlaced({
         (sum: number, c: any) => sum + (Number(c?.amount) || 0),
         0
       )
-      // 🔴 #176 (2026-11-26): a 50% deposit order was charged IN FULL and this
-      // re-base quietly wrote the full charge in as "the deposit", so nothing
-      // looked wrong. Say so loudly. The schedule still records what was
-      // really collected (that is the money), but an admin hears about it.
-      const pct = Number(schedule.deposit_pct)
-      const expected =
-        Number.isFinite(pct) && pct > 0 && pct < 100
-          ? Math.round(total * pct) / 100
-          : null
-      if (expected !== null && collected - expected > 0.01) {
+      const verdict = decideDepositRebase({
+        orderTotal: total,
+        collected,
+        depositPct: schedule.deposit_pct,
+        fixedDeposit: schedule.deposit_amount,
+      })
+
+      if (verdict.alert) {
         const cur = String(order?.currency_code ?? schedule.currency_code ?? "").toUpperCase()
-        const message =
-          `Order ${data.id} was meant to take a ${pct}% deposit (${expected} ${cur}) but collected ${collected} ${cur}. ` +
-          `The buyer was overcharged by ${Math.round((collected - expected) * 100) / 100} ${cur}. ` +
-          `Refund the difference; if a refund turns the order "fully paid", run the reinstate-balance-from-credit-line job.`
-        logger.error(`[deposit] OVERCHARGE ${message}`)
+        const message = `Order ${data.id}: ${verdict.alert.replace(/\{CUR\}/g, cur)}`
+        logger.error(`[deposit] ${verdict.kind === "over" ? "OVERCHARGE" : "UNDERCHARGE"} ${message}`)
         try {
           const notifications: any = container.resolve(Modules.NOTIFICATION)
           await notifications.createNotifications([
@@ -120,27 +124,34 @@ export default async function markDepositPaidOnOrderPlaced({
               to: "",
               channel: "feed",
               template: "admin-ui",
-              data: { title: "Deposit order charged more than its deposit", description: message },
+              data: {
+                title:
+                  verdict.kind === "over"
+                    ? "Deposit order charged more than its deposit"
+                    : "Deposit order collected less than its deposit",
+                description: message,
+              },
             },
           ])
         } catch (e: any) {
-          logger.warn(`[deposit] overcharge feed post failed: ${e?.message ?? e}`)
+          logger.warn(`[deposit] mismatch feed post failed: ${e?.message ?? e}`)
         }
       }
 
-      if (Number.isFinite(total) && total > 0 && collected > 0 && collected <= total) {
-        const balance = Math.round((total - collected) * 100) / 100
+      if (verdict.write) {
         await schedules.updatePaymentSchedules({
           id: schedule.id,
-          total_due: total,
-          deposit_amount: collected,
-          balance_amount: balance,
+          total_due: verdict.write.total,
+          deposit_amount: verdict.write.deposit,
+          balance_amount: verdict.write.balance,
         })
-        figures = { total, deposit: collected, balance }
+        figures = verdict.write
         logger.info(
-          `[deposit] schedule=${schedule.id} re-based on order=${data.id}: total ${total}, deposit ${collected}, balance ${balance}`
+          `[deposit] schedule=${schedule.id} re-based on order=${data.id} (${verdict.kind}): ` +
+            `total ${verdict.write.total}, deposit ${verdict.write.deposit}, balance ${verdict.write.balance}`
         )
       }
+      emailBuyer = verdict.kind !== "over"
     }
 
     if (schedule.deposit_status === "pending") {
@@ -157,7 +168,7 @@ export default async function markDepositPaidOnOrderPlaced({
        * The helper never throws and skips when nothing is outstanding (an
        * admin "prepaid" convert captures the full total).
        */
-      if (schedule.source_type === "manual") {
+      if (schedule.source_type === "manual" && emailBuyer) {
         await deliverDepositReceivedEmail(container, {
           orderId: data.id,
           depositAmount: figures.deposit,

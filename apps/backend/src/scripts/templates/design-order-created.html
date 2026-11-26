@@ -1,0 +1,388 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  <title>Your order — Jaal Yantra</title>
+</head>
+
+<body style="margin:0;padding:0;background:#E9E2D4;font-family:Arial,Helvetica,sans-serif;color:#181818;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#E9E2D4;">
+<tr>
+<td align="center" style="padding:28px 12px;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+style="max-width:650px;background:#F8F5EE;">
+
+<!-- TEXTILE STRIPE -->
+<tr><td style="height:10px;background:#181818;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#C96B4B;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#D4A72C;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#315B61;font-size:0;line-height:0;">&nbsp;</td></tr>
+
+<!-- HEADER -->
+<tr>
+<td style="padding:30px 34px 34px;background:#181818;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td align="left" valign="top">
+<div style="font-size:11px;line-height:1;letter-spacing:3px;font-weight:bold;color:#E9E2D4;text-transform:uppercase;">
+JAAL YANTRA
+</div>
+<div style="font-size:9px;line-height:1.5;letter-spacing:1.5px;color:#99958C;margin-top:7px;text-transform:uppercase;">
+DESIGN · SOURCE · MAKE
+</div>
+</td>
+<td align="right" valign="top">
+<div style="display:inline-block;padding:7px 10px;border:1px solid #77736B;font-size:9px;letter-spacing:1.5px;color:#F8F5EE;text-transform:uppercase;">
+ORDER / READY
+</div>
+</td>
+</tr>
+</table>
+
+<div style="height:42px;"></div>
+
+<div style="font-size:38px;line-height:1.02;letter-spacing:-1.5px;font-weight:700;color:#F8F5EE;">
+Your order<br>
+is ready.
+</div>
+
+<div style="height:20px;"></div>
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="width:32px;height:4px;background:#C96B4B;font-size:0;">&nbsp;</td>
+<td style="width:8px;font-size:0;">&nbsp;</td>
+<td style="width:32px;height:4px;background:#D4A72C;font-size:0;">&nbsp;</td>
+<td style="width:8px;font-size:0;">&nbsp;</td>
+<td style="width:32px;height:4px;background:#315B61;font-size:0;">&nbsp;</td>
+</tr>
+</table>
+
+</td>
+</tr>
+
+<!-- INTRO -->
+<tr>
+<td style="padding:34px 34px 20px;">
+<div style="font-size:14px;line-height:1.75;color:#56534D;">
+We've put your pieces together into one order. Everything is priced and held —
+it just needs paying for, and then we start making.
+</div>
+</td>
+</tr>
+
+<!-- SUMMARY LABEL -->
+<tr>
+<td style="padding:18px 34px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td>
+<div style="font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#181818;">
+WHAT IS WAITING
+</div>
+</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- WOVEN DIVIDER -->
+<tr>
+<td style="padding:0 34px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="height:1px;background:#181818;font-size:0;">&nbsp;</td>
+<td style="width:20px;text-align:center;font-size:11px;color:#C96B4B;">✦</td>
+<td style="height:1px;background:#181818;font-size:0;">&nbsp;</td>
+</tr>
+</table>
+</td>
+</tr>
+
+<!-- TOTALS -->
+<tr>
+<td style="padding:0 34px 26px;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+
+<tr>
+<td style="padding:18px 8px 12px 0;font-size:9px;letter-spacing:1.5px;font-weight:bold;text-transform:uppercase;color:#77736B;border-bottom:2px solid #181818;">
+PIECES
+</td>
+<td align="right" style="padding:18px 0 12px 8px;font-size:9px;letter-spacing:1.5px;font-weight:bold;text-transform:uppercase;color:#77736B;border-bottom:2px solid #181818;">
+PRICE
+</td>
+</tr>
+
+{{#each items}}
+<tr>
+<td style="padding:14px 8px 14px 0;border-bottom:1px solid #D9D3C7;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+{{#if thumbnail}}
+<td width="64" valign="top" style="width:64px;">
+<img src="{{thumbnail}}" width="64" height="64" alt="{{title}}"
+style="display:block;width:64px;height:64px;object-fit:cover;border:0;background:#EDE7DA;">
+</td>
+<td width="14" style="width:14px;font-size:0;">&nbsp;</td>
+{{/if}}
+<td valign="middle">
+<div style="font-size:13px;line-height:1.45;font-weight:bold;color:#181818;">
+{{title}}
+</div>
+<div style="font-size:11px;line-height:1.5;color:#77736B;margin-top:3px;">
+Qty {{quantity}} &times; {{formatMoney ../currency_code unit_price}}
+</div>
+</td>
+</tr>
+</table>
+</td>
+<td align="right" valign="middle" style="padding:14px 0 14px 8px;border-bottom:1px solid #D9D3C7;font-size:13px;line-height:1.5;font-weight:bold;color:#181818;white-space:nowrap;">
+{{formatMoney ../currency_code line_total}}
+</td>
+</tr>
+{{/each}}
+
+{{#if tax_total}}
+<tr>
+<td style="padding:12px 8px 12px 0;border-bottom:1px solid #D9D3C7;font-size:12px;line-height:1.5;color:#56534D;">
+GST
+</td>
+<td align="right" style="padding:12px 0 12px 8px;border-bottom:1px solid #D9D3C7;font-size:12px;line-height:1.5;color:#56534D;white-space:nowrap;">
+{{formatMoney currency_code tax_total}}
+</td>
+</tr>
+{{/if}}
+
+<tr>
+<td style="padding:18px 8px 18px 0;font-size:13px;line-height:1.5;font-weight:bold;color:#181818;">
+Total &middot; {{item_count}} piece(s)
+</td>
+<td align="right" style="padding:18px 0 18px 8px;font-size:18px;line-height:1.3;font-weight:bold;color:#181818;white-space:nowrap;">
+{{formatMoney currency_code total}}
+</td>
+</tr>
+
+<!-- DEPOSIT (#2645) — only when a deposit is set; see design-order-created.deposit-section.html -->
+{{#if deposit}}
+<tr>
+<td style="padding:16px 8px 6px 0;border-top:2px solid #181818;font-size:13px;line-height:1.5;font-weight:bold;color:#C96B4B;">
+Deposit due now{{#if deposit.deposit_pct}} &middot; {{deposit.deposit_pct}}%{{/if}}
+</td>
+<td align="right" style="padding:16px 0 6px 8px;border-top:2px solid #181818;font-size:18px;line-height:1.3;font-weight:bold;color:#C96B4B;white-space:nowrap;">
+{{formatMoney currency_code deposit.amount}}
+</td>
+</tr>
+<tr>
+<td style="padding:6px 8px 16px 0;font-size:12px;line-height:1.6;color:#56534D;">
+Balance &mdash; due {{deposit.balance_when}}
+</td>
+<td align="right" valign="top" style="padding:6px 0 16px 8px;font-size:13px;line-height:1.5;font-weight:bold;color:#181818;white-space:nowrap;">
+{{formatMoney currency_code deposit.balance_amount}}
+</td>
+</tr>
+<tr>
+<td colspan="2" style="padding:0 0 4px 0;font-size:12px;line-height:1.7;color:#56534D;">
+You pay only the deposit today. We start making once it arrives, and we&rsquo;ll ask for the balance of
+<strong style="color:#181818;">{{formatMoney currency_code deposit.balance_amount}}</strong>
+{{deposit.balance_when}}.
+</td>
+</tr>
+{{/if}}
+
+</table>
+
+</td>
+</tr>
+
+<!-- CHECKOUT BUTTON -->
+<tr>
+<td style="padding:0 34px 10px;">
+
+<table role="presentation" cellpadding="0" cellspacing="0" border="0">
+<tr>
+<td style="background:#181818;">
+<a href="{{checkout_url}}"
+style="display:inline-block;padding:16px 30px;font-size:12px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#F8F5EE;text-decoration:none;">
+{{#if deposit}}PAY DEPOSIT &nbsp;→{{else}}CHECKOUT &nbsp;→{{/if}}
+</a>
+</td>
+</tr>
+</table>
+
+<div style="height:14px;"></div>
+
+<div style="font-size:11px;line-height:1.7;color:#77736B;">
+If the button doesn't work, paste this into your browser:<br>
+<span style="color:#315B61;word-break:break-all;">{{checkout_url}}</span>
+</div>
+
+</td>
+</tr>
+
+<!-- PAYU LINK + QR (INR ORDERS ONLY) -->
+{{#if payment_link}}
+<tr>
+<td style="padding:18px 34px 10px;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td style="width:8px;background:#D4A72C;font-size:0;">&nbsp;</td>
+
+<td style="padding:17px 18px;background:#EDE7DA;">
+
+<div style="font-size:9px;font-weight:bold;letter-spacing:1.5px;text-transform:uppercase;color:#315B61;margin-bottom:7px;">
+{{#if deposit}}PAY YOUR DEPOSIT BY UPI OR CARD{{else}}PAY BY UPI OR CARD{{/if}}
+</div>
+
+{{#if deposit}}
+<div style="font-size:12px;line-height:1.65;color:#181818;margin-bottom:10px;">
+This QR and link charge your <strong>deposit of {{formatMoney currency_code deposit.amount}}</strong> only &mdash; not the full total.
+</div>
+{{/if}}
+
+{{#if payment_qr_url}}
+<div style="font-size:12px;line-height:1.65;color:#56534D;margin-bottom:10px;">
+{{#if payment_qr_is_upi}}
+Scan this with any UPI app (Google Pay, PhonePe, Paytm, BHIM) to pay:
+{{else}}
+Scan this with your phone camera to open the payment page, then pay by UPI or card:
+{{/if}}
+</div>
+<img src="{{payment_qr_url}}" width="180" height="180" alt="{{#if payment_qr_is_upi}}UPI QR code to pay for your order{{else}}QR code that opens your payment page{{/if}}"
+style="display:block;width:180px;height:180px;border:0;background:#FFFFFF;margin-bottom:12px;">
+{{/if}}
+
+<div style="font-size:12px;line-height:1.65;color:#56534D;">
+{{#if deposit}}Or open the payment link for the same deposit amount:{{else}}Or open the payment link for the same amount:{{/if}}<br>
+<a href="{{payment_link}}" style="color:#C96B4B;font-weight:bold;word-break:break-all;">{{payment_link}}</a>
+</div>
+
+{{#if payment_link_expires_at}}
+<div style="font-size:12px;line-height:1.65;color:#181818;margin-top:10px;">
+{{#if payment_qr_is_upi}}
+<strong>Please pay by {{payment_link_expires_at}}.</strong>
+After that the link stops working. Your order stays held, and you can still use the checkout button above or reply to this email for a fresh QR.
+{{else}}
+<strong>This QR and link work until {{payment_link_expires_at}}.</strong>
+After that they stop working for your safety. Your order stays held, and you can still use the checkout button above or reply to this email for a fresh link.
+{{/if}}
+</div>
+{{/if}}
+
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+{{/if}}
+
+{{#if awaiting_materials}}
+<!-- AWAITING MATERIALS (#2626) -->
+<tr>
+<td style="padding:8px 34px 6px;">
+
+<div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#315B61;font-weight:bold;">
+YOUR CLOTH IS BEING MADE
+</div>
+<div style="height:10px;"></div>
+<div style="font-size:14px;line-height:1.7;color:#181818;">
+Your fabric isn't taken off a shelf. It is being woven by hand for you right now, so this takes a little longer than a usual order.
+</div>
+<div style="height:14px;"></div>
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+{{#each awaiting_materials_lines}}
+<tr>
+<td style="padding:10px 0;border-top:1px solid #E4DFD3;font-size:13px;line-height:1.7;color:#181818;">
+<strong>{{design}}</strong><br>
+<span style="color:#4A4741;">
+{{#if suppliers}}Woven by {{suppliers}}{{else}}Woven by our handloom partners{{/if}},
+then cut and stitched {{#if maker}}by {{maker}}{{else}}in our workshop{{/if}},
+then on its way to you.
+</span>
+</td>
+</tr>
+{{/each}}
+</table>
+
+<div style="height:14px;"></div>
+<div style="font-size:13px;line-height:1.7;color:#4A4741;">
+We'll write as each stage finishes. If you haven't sent your full measurements yet (or a garment whose fit you like),
+and if you have any feedback on fit, length or anything else, just reply to this email.
+</div>
+
+</td>
+</tr>
+{{/if}}
+
+<!-- FOOTNOTE -->
+<tr>
+<td style="padding:24px 34px 38px;">
+
+<div style="font-size:12px;line-height:1.7;color:#77736B;">
+Your order reference:
+<strong style="color:#181818;">{{cart_id}}</strong>
+</div>
+
+<div style="height:8px;"></div>
+
+<div style="font-size:12px;line-height:1.7;color:#77736B;">
+Nothing is charged until you check out, and the prices above are the ones we
+quoted you. If anything looks wrong, simply reply to this email.
+</div>
+
+</td>
+</tr>
+
+<!-- FOOTER -->
+<tr>
+<td style="background:#181818;padding:25px 34px 27px;">
+
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr>
+
+<td valign="top">
+<div style="font-size:13px;font-weight:bold;letter-spacing:2px;color:#F8F5EE;">
+JAAL YANTRA
+</div>
+<div style="font-size:9px;letter-spacing:1px;color:#77736B;margin-top:7px;">
+जाल यंत्र — A network of making
+</div>
+</td>
+
+<td align="right" valign="top">
+<div style="font-size:9px;line-height:1.6;letter-spacing:1px;color:#77736B;text-transform:uppercase;">
+{{current_year}}<br>
+Textiles
+</div>
+</td>
+
+</tr>
+</table>
+
+</td>
+</tr>
+
+<!-- BOTTOM WEAVE -->
+<tr><td style="height:5px;background:#315B61;font-size:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#D4A72C;font-size:0;">&nbsp;</td></tr>
+<tr><td style="height:5px;background:#C96B4B;font-size:0;">&nbsp;</td></tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

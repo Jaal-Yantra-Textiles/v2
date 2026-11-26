@@ -91,11 +91,17 @@ export async function processPayuLinkWebhook(
    * deposit link as "not verified".
    */
   let minAmount: number | undefined = cart.total ? Number(cart.total) : undefined
+  // #2645 — the cart's total when what is due is a DEPOSIT, so an overpayment
+  // on it is flagged as "do not raise the balance", not just "refund it".
+  let depositCartTotal: number | null = null
   try {
     const schedules: any = scope.resolve(PAYMENT_SCHEDULE_MODULE)
     const schedule = await schedules.findByCartId(cartId)
     const plan = planCartCollection({ cartTotal: cart.total, schedule })
     if (plan.basis !== "refuse" && Number.isFinite(plan.amount)) minAmount = plan.amount
+    if (plan.basis === "deposit" && Number(plan.amount) < Number(cart.total)) {
+      depositCartTotal = Number(cart.total)
+    }
   } catch {
     /* fall back to the cart total */
   }
@@ -292,6 +298,7 @@ export async function processPayuLinkWebhook(
       mihpayid,
       paid: paidAmount,
       due: minAmount,
+      deposit_cart_total: depositCartTotal,
     })
   }
   return { completed: true, order_id: result.order_id }

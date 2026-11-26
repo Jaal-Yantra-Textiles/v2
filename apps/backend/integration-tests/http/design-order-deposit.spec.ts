@@ -188,15 +188,40 @@ setupSharedTestSuite(() => {
       expect(t.deposit_due_now).toBeCloseTo(d.deposit_amount, 2)
       expect(t.balance_due_later).toBeCloseTo(d.balance_amount, 2)
 
-      // One schedule per cart, and the price is frozen under it.
+      // One schedule per cart.
       const again = await deposit(a.lineItemId, { deposit_pct: 20 })
       expect(again.status).toBe(409)
       expect(again.data.reason).toBe("already_has_deposit")
+
+      /**
+       * #2566 changed the rule this used to pin ("the price is frozen under a
+       * deposit", 409 has_deposit): an UNPAID PERCENTAGE deposit has nothing
+       * to protect, so a reprice re-splits it on the new total and the buyer
+       * is asked for 10% of the right number. That is the money-safe choice —
+       * nothing was paid, the stale collection is cleared, and the deposit
+       * keeps its agreed percentage. A paid, quote or fixed-amount deposit
+       * still refuses (`depositBlocksEdit`, unit-tested). #2645 fixed this
+       * stale expectation.
+       */
       const reprice = await api
         .post(`/admin/designs/orders/${a.lineItemId}/reprice`, { unit_price: 999 }, adminHeaders)
         .catch((e: any) => e.response)
-      expect(reprice.status).toBe(409)
-      expect(reprice.data.reason).toBe("has_deposit")
+      expect(reprice.status).toBe(200)
+      const r = reprice.data.design_order_reprice
+      expect(r.deposit.deposit_pct).toBe(10)
+      expect(r.deposit.deposit_amount).toBeCloseTo(Math.round(Number(r.total) * 10) / 100, 2)
+      expect(r.deposit.deposit_amount + r.deposit.balance_amount).toBeCloseTo(Number(r.total), 2)
+      // The old-deposit collection was cleared; checkout's next one is the new deposit.
+      expect(Number((await collect(a.cartId)).amount)).toBeCloseTo(r.deposit.deposit_amount, 2)
+
+      // A FIXED deposit still freezes the price.
+      const f = await buildDesignOrder()
+      expect((await deposit(f.lineItemId, { deposit_amount: 1 })).status).toBe(200)
+      const frozen = await api
+        .post(`/admin/designs/orders/${f.lineItemId}/reprice`, { unit_price: 999 }, adminHeaders)
+        .catch((e: any) => e.response)
+      expect(frozen.status).toBe(409)
+      expect(frozen.data.reason).toBe("has_deposit")
 
       // ── A buyer who already opened checkout: the full-total collection ────
       // is cleared so the next checkout makes the deposit one.
@@ -241,12 +266,23 @@ setupSharedTestSuite(() => {
       const collection = (
         await api.post("/store/payment-collections", { cart_id: c.cartId }, customerHeaders)
       ).data.payment_collection
-      expect(Number(collection.amount)).toBeCloseTo(after * 0.1, 2)
+      expect(Number(collection.amount)).toBeCloseTo(Math.round(after * 10) / 100, 2)
 
+      /**
+       * #2645 — the rounding rule: the DEPOSIT is rounded to the cent, and the
+       * balance is the remainder (total − deposit, to the cent), never a second
+       * percentage. A taxed total can carry sub-cent precision (287.049): 10%
+       * rounds to 28.70 and the balance is 258.35, while "90% of the total"
+       * would be 258.3441 — the half-cent this assertion used to fail on.
+       * Deposit + balance must give back the total; two percentages do not.
+       */
+      const round2 = (n: number) => Math.round(n * 100) / 100
+      const expectedDeposit = round2(after * 0.1)
       const terms = (await api.get(`/store/carts/${c.cartId}/quote-terms`, customerHeaders)).data
         .quote_terms
-      expect(terms.deposit_due_now).toBeCloseTo(after * 0.1, 2)
-      expect(terms.balance_due_later).toBeCloseTo(after * 0.9, 2)
+      expect(terms.deposit_due_now).toBeCloseTo(expectedDeposit, 2)
+      expect(terms.balance_due_later).toBeCloseTo(round2(after - expectedDeposit), 2)
+      expect(terms.deposit_due_now + terms.balance_due_later).toBeCloseTo(after, 2)
     })
 
     /**
@@ -310,6 +346,72 @@ setupSharedTestSuite(() => {
       // Read the row back: the deposit, not the total, is what gets charged.
       expect(await amountNow()).toBeCloseTo(totalAfter * 0.5, 2)
       expect(Number(session.data.payment_collection.amount)).toBeCloseTo(totalAfter * 0.5, 2)
+    })
+
+    /**
+     * #2645 item 5b — a QUOTE schedule's deposit is fixed at mint, so the
+     * #176 re-align does not apply to it. Core's reset-to-full-total on a cart
+     * update must then make checkout REFUSE, never open a session for the
+     * total. Same premise check as #176: core really reset the collection.
+     */
+    it("a QUOTE deposit cart refuses after core resets its collection, never charges the total", async () => {
+      const c = await buildDesignOrder()
+      const total = Number(
+        (await api.get(`/store/carts/${c.cartId}`, customerHeaders)).data.cart.total
+      )
+      const schedules: any = getContainer().resolve("payment_schedule")
+      await schedules.openForCart({
+        cart_id: c.cartId,
+        currency_code: "usd",
+        total_due: total,
+        source_type: "quote",
+        rail: "stripe",
+        quote_deposit_pct: 30,
+      })
+      const deposit = Math.round(total * 30) / 100
+
+      const collection = (
+        await api.post("/store/payment-collections", { cart_id: c.cartId }, customerHeaders)
+      ).data.payment_collection
+      expect(Number(collection.amount)).toBeCloseTo(deposit, 2)
+
+      await api.post(
+        `/store/carts/${c.cartId}`,
+        { shipping_address: { city: `Quote ${Date.now()}` } },
+        customerHeaders
+      )
+      const query: any = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+      const readCollection = async () =>
+        (
+          await query.graph({
+            entity: "payment_collection",
+            fields: ["amount", "payment_sessions.id", "payment_sessions.amount"],
+            filters: { id: collection.id },
+          })
+        ).data[0]
+      // The premise: core reset the quote cart's collection to the (new) total.
+      const totalAfter = Number(
+        (await api.get(`/store/carts/${c.cartId}`, customerHeaders)).data.cart.total
+      )
+      expect(Number((await readCollection()).amount)).toBeCloseTo(totalAfter, 2)
+      expect(totalAfter).not.toBeCloseTo(deposit, 2)
+
+      const session = await api
+        .post(
+          `/store/payment-collections/${collection.id}/payment-sessions`,
+          { provider_id: "pp_system_default" },
+          customerHeaders
+        )
+        .catch((e: any) => e.response)
+      // Refused, loudly — and no session exists for the full total.
+      expect(session.status).toBeGreaterThanOrEqual(400)
+      expect(JSON.stringify(session.data)).toMatch(/payment schedule says/)
+      const after = await readCollection()
+      expect(
+        (after.payment_sessions ?? []).filter(
+          (s: any) => Math.round(Number(s.amount) * 100) === Math.round(totalAfter * 100)
+        )
+      ).toHaveLength(0)
     })
   })
 })

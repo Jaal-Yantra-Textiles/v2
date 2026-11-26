@@ -243,3 +243,56 @@ export const createPayuLinkForCart = async (
     qr_kind: minted.ok ? "upi" : "link",
   }
 }
+
+/**
+ * Switch a cart's tracked PayU link off WITHOUT minting a new one (#2645).
+ *
+ * A deposit set after the order was emailed leaves the buyer holding a link
+ * for the FULL total. When the caller is not sending a fresh link
+ * (`notify_buyer: false`), that old link must still stop being payable, or a
+ * buyer who pays it is charged in full on a deposit order. The checkout link
+ * keeps working and charges the deposit.
+ *
+ * ⚠️ The UPI intent minted with the link cannot be switched off at PayU. A
+ * payment on it lands in `processPayuLinkWebhook`, which flags it.
+ *
+ * Never throws. Returns the closed invoice number, or null when there was
+ * nothing open (or PayU refused, which is logged).
+ */
+export const closeTrackedPayuLink = async (
+  scope: any,
+  cartId: string,
+  reason: string,
+  opts?: { now?: Date }
+): Promise<{ closed_invoice_number: string | null; error: string | null }> => {
+  const logger: any = scope.resolve(ContainerRegistrationKeys.LOGGER)
+  try {
+    const cartService: any = scope.resolve(Modules.CART)
+    const [cart] = await cartService.listCarts({ id: cartId }, { select: ["id", "metadata"] })
+    const tracked = readTrackedLink(cart?.metadata)
+    if (!tracked || tracked.closed_at) return { closed_invoice_number: null, error: null }
+
+    const off = await deactivatePayuLink(tracked.invoice_number)
+    if (!off.ok) {
+      logger?.error?.(
+        `[payu-cart-link] could NOT switch off link ${tracked.invoice_number} on cart ${cartId} ` +
+          `(${reason}): ${off.error}. It stays payable until PayU's own expiry — close it in the PayU dashboard.`
+      )
+      return { closed_invoice_number: null, error: off.error }
+    }
+    await cartService.updateCarts(cartId, {
+      metadata: {
+        ...(cart.metadata ?? {}),
+        [PAYU_LINK_METADATA_KEY]: {
+          ...tracked,
+          closed_at: (opts?.now ?? new Date()).toISOString(),
+          closed_reason: reason,
+        },
+      },
+    })
+    return { closed_invoice_number: tracked.invoice_number, error: null }
+  } catch (e: any) {
+    logger?.error?.(`[payu-cart-link] closing the link on cart ${cartId} failed: ${e?.message ?? e}`)
+    return { closed_invoice_number: null, error: e?.message ?? String(e) }
+  }
+}

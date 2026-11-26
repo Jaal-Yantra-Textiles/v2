@@ -8,6 +8,11 @@ import {
 import { createDraftOrderFromDesignsWorkflow } from "../../../../workflows/designs/create-draft-order-from-designs"
 import designLineItemLink from "../../../../links/design-line-item-link"
 import { blockingDesignIds } from "../orders/mutate-design-order"
+import {
+  applyDesignOrderDeposit,
+  type AppliedDeposit,
+  type ApplyDepositResult,
+} from "../orders/apply-deposit"
 import { resolveCartCheckoutLink } from "../../../../lib/carts/resolve-cart-link"
 import { createPayuLinkForCart } from "../../../../lib/payments/payu-cart-link"
 import { deliverDesignOrderEmail } from "../../../../workflows/designs/deliver-design-order-email"
@@ -20,6 +25,12 @@ export type CreateDesignOrderBody = {
   override_currency?: string
   /** ISO-2 the buyer purchases from. See the validator for why it matters. */
   country_code?: string
+  /** #2645 — a deposit at creation: % of the total collected now. */
+  deposit_pct?: number
+  /** #2645 — OR a fixed deposit, in the cart's currency. */
+  deposit_amount?: number
+  /** #2645 — when the balance is asked for. Default "manual". */
+  balance_trigger?: "manual" | "dispatch"
 }
 
 /**
@@ -54,7 +65,13 @@ export const createDesignDraftOrder = async (
     price_overrides,
     override_currency,
     country_code,
+    deposit_pct,
+    deposit_amount,
+    balance_trigger,
   } = req.validatedBody as CreateDesignOrderBody
+  const wantsDeposit =
+    (deposit_pct !== undefined && deposit_pct !== null) ||
+    (deposit_amount !== undefined && deposit_amount !== null)
 
   /**
    * Prevent a duplicate cart — but only for designs in a LIVE checkout.
@@ -139,6 +156,58 @@ export const createDesignDraftOrder = async (
   })
 
   /**
+   * #2645 — the deposit goes on BEFORE the link and the email. Both price off
+   * the schedule, so a schedule opened afterwards would leave the buyer's first
+   * link asking for the full total and the first email quoting it (#176's
+   * overcharge, by PayU).
+   *
+   * 🔴 If the deposit is refused (e.g. a fixed amount not below the real
+   * total), NOTHING is sent: no PayU link, no email. The cart exists and is
+   * returned with a 4xx naming it, so the operator sets the deposit with
+   * `set_design_order_deposit` (which then sends the link and email). Sending
+   * the full-total link "because the deposit failed" is the bug itself.
+   */
+  let deposit: AppliedDeposit | null = null
+  if (wantsDeposit) {
+    const lineItemId = await firstDesignLineItemId(query, cart.id)
+    const applied: ApplyDepositResult = lineItemId
+      ? await applyDesignOrderDeposit(req.scope, {
+          lineItemId: lineItemId.line_item_id,
+          designId: lineItemId.design_id,
+          // A cart this request just made has no order behind it. Asking the
+          // design's links would refuse a repeat design order as "converted".
+          hasLinkedOrder: false,
+          depositPct: deposit_pct,
+          depositAmount: deposit_amount,
+          balanceTrigger: balance_trigger,
+          setBy: (req as any).auth_context?.actor_id ?? null,
+        })
+      : {
+          ok: false,
+          status: 409,
+          reason: "no_cart",
+          message: "The new design order has no design line to hang a deposit on.",
+        }
+    if (!applied.ok) {
+      logger?.error?.(
+        `[design-order] cart ${cart.id} created but its deposit was refused (${applied.reason}): ${applied.message}. Nothing was sent to the buyer.`
+      )
+      res.status(applied.status === 404 ? 409 : applied.status).json({
+        reason: applied.reason,
+        message:
+          `The design order (cart ${cart.id}) was created, but the deposit was refused: ${applied.message} ` +
+          "No payment link or email was sent. Set the deposit with set_design_order_deposit, which then sends them.",
+        cart,
+        deposit: null,
+        email: null,
+        payment_link: null,
+      })
+      return
+    }
+    deposit = applied.deposit
+  }
+
+  /**
    * 🔴 This was `STORE_URL + "/checkout/cart/" + cart.id` — one hardcoded shop
    * for all 14 tenants, and no country segment, so the storefront middleware
    * re-regioned the cart to `NEXT_PUBLIC_DEFAULT_REGION` (#2051's shape). The
@@ -181,5 +250,29 @@ export const createDesignDraftOrder = async (
     /** Why there is no payment link — non-INR is the ordinary case. */
     payment_link_reason: payu.reason,
     payment_link_expires_at: payu.expires_at ?? null,
+    /** The schedule opened at creation (#2645). Null when no deposit was asked for. */
+    deposit,
   })
+}
+
+/**
+ * The new cart's first design line — the deposit's `source_id`, exactly as the
+ * deposit route records it. Read back, because the cart the workflow returns
+ * predates its own line items.
+ */
+const firstDesignLineItemId = async (
+  query: any,
+  cartId: string
+): Promise<{ line_item_id: string; design_id: string } | null> => {
+  const { data } = await query.graph({
+    entity: "cart",
+    fields: ["id", "items.id", "items.metadata"],
+    filters: { id: cartId },
+  })
+  const items: any[] = data?.[0]?.items ?? []
+  for (const li of items) {
+    const designId = String(li?.metadata?.design_id ?? "").trim()
+    if (li?.id && designId) return { line_item_id: li.id, design_id: designId }
+  }
+  return null
 }
