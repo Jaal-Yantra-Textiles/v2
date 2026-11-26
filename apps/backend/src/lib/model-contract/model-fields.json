@@ -4704,6 +4704,29 @@
       "website"
     ]
   },
+  "WorkNote (modules/notes/models/work-note.ts)": {
+    "file": "modules/notes/models/work-note.ts",
+    "fields": [
+      "board",
+      "body",
+      "created_at",
+      "created_by",
+      "deleted_at",
+      "done_at",
+      "done_by",
+      "due_at",
+      "entity_id",
+      "entity_name",
+      "href",
+      "id",
+      "kind",
+      "metadata",
+      "node_key",
+      "ref",
+      "status",
+      "updated_at"
+    ]
+  },
   "WorkOrder (modules/work_orders/models/work-order.ts)": {
     "file": "modules/work_orders/models/work-order.ts",
     "fields": [

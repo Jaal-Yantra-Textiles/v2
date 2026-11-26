@@ -10,6 +10,7 @@ import { EditDesignForm } from "../edits/edit-design"
 import { LinkDesignPartnerForm } from "../forms/link-design-partner/link-design-partner-form"
 import { useDesign, type AdminDesign } from "../../hooks/api/designs"
 import type { FormRegistry } from "./node-forms"
+import { AddWorkNoteForm } from "../work-notes/add-work-note-form"
 
 /**
  * Node KEY → the real form for it, per spine (#1847 step 3).
@@ -203,9 +204,29 @@ const DESIGN_FORMS: SpineForms = {
    */
 }
 
+/**
+ * The Pending work board (#2625 S2): add a note. Registered on THIS board only
+ * — every queue shares the spine `queue`, and a note form on "Products
+ * awaiting creation" would file notes onto a board that does not show them.
+ */
+const PENDING_WORK_FORMS: SpineForms = {
+  create: { notes: { Form: AddWorkNoteForm, label: "note" } },
+  edit: {},
+  addAnother: {},
+}
+
 const SPINE_FORMS: Record<string, SpineForms> = {
   design: DESIGN_FORMS,
+  "queue:pending-work": PENDING_WORK_FORMS,
 }
+
+/**
+ * The registry key for a workspace. A record spine's forms are the same for
+ * every record (`design`), but a queue's id is the BOARD, and boards differ in
+ * what they can create — so the queue spine is keyed `queue:<board>`.
+ */
+export const formsKeyFor = (spine: string, id: string): string =>
+  spine === "queue" ? `queue:${id}` : spine
 
 const EMPTY: SpineForms = { create: {}, edit: {}, addAnother: {} }
 

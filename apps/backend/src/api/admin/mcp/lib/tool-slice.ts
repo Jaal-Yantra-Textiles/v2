@@ -249,6 +249,12 @@ const PREFIX_DOMAINS: ReadonlyArray<readonly [string, AdminToolDomain]> = [
    * that enforces this is the reason the gap was caught rather than shipped.
    */
   ["/admin/graph", "observability"],
+  /*
+   * #2625 S3 — the Pending work notes. CORE, not one domain: "work on N-12"
+   * can be about anything, and the session must be able to read the note
+   * before it knows which slice the work belongs to.
+   */
+  ["/admin/work-notes", "core"],
 ]
 
 /** Classify one tool by the route it wraps. */

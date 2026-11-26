@@ -9500,4 +9500,83 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       "Creates one 'note' activity on the run's timeline. Nothing else changes — no status, no money, no message to anybody.",
     nextSteps: ["list_production_run_activities", "get_production_run"],
   },
+  // ---- #2625 S3 — notes on the Pending work board ---------------------------
+  {
+    name: "list_work_notes",
+    description:
+      "The founder's notes and follow-ups on the Pending work board, each with a quotable reference like N-12. Read. Open notes by default, overdue first, then by due date. When the founder says 'work on N-12', read it with get_work_note, do the work, then close_work_note. status=done or all for the history; node_key narrows to one board box (e.g. 'balances-due').",
+    method: "GET",
+    path: "/admin/work-notes",
+    queryParams: ["status", "node_key", "entity_id", "limit"],
+    inputSchema: obj(
+      {
+        status: { type: "string", enum: ["open", "done", "all"], description: "Default open." },
+        node_key: STR("Optional: only notes pinned to this board box, e.g. 'partners-to-pay'."),
+        entity_id: STR("Optional: only notes about this record id."),
+        limit: INT("Max rows, 1–200. Default 100."),
+      },
+      []
+    ),
+    nextSteps: ["get_work_note", "close_work_note", "add_work_note"],
+  },
+  {
+    name: "get_work_note",
+    description:
+      "One note from the Pending work board by its reference ('N-12', '12') or id. Read. Returns the text, due date, the board box it sits on and the record link (href, an admin path).",
+    method: "GET",
+    path: "/admin/work-notes/:ref",
+    pathParams: ["ref"],
+    inputSchema: obj({ ref: STR("Note reference like 'N-12', or the note id 'wnote_...'.") }, ["ref"]),
+    nextSteps: ["close_work_note"],
+  },
+  {
+    name: "add_work_note",
+    description:
+      "File a note or follow-up on the Pending work board; the reply carries its reference (N-12) — tell the founder that reference. Write. Use it for work you are leaving undone, a customer to chase, or anything the founder asks you to 'note down'. A due_at makes it a follow-up. Pin it to a board box with node_key (partners-to-pay, runs-without-price, products-awaiting, runs-awaiting-dispatch, runs-rejected, goods-to-count, runs-with-partner, design-orders-unpaid, quotes-waiting, balances-due) and link the record with entity_name/entity_id and href (admin path, e.g. '/orders/order_01…').",
+    method: "POST",
+    path: "/admin/work-notes",
+    write: true,
+    sensitive: true,
+    bodyParams: ["body", "kind", "due_at", "node_key", "entity_name", "entity_id", "href"],
+    inputSchema: obj(
+      {
+        body: STR("The note, in plain words: what needs doing and for whom."),
+        kind: { type: "string", enum: ["note", "follow_up"], description: "Default note." },
+        due_at: STR("Optional due date, e.g. '2026-11-30'."),
+        node_key: STR("Optional board box this note belongs on."),
+        entity_name: STR("Optional: the record's type, e.g. 'order', 'design', 'partner'."),
+        entity_id: STR("Optional: the record's id."),
+        href: STR("Optional: the record's admin path, e.g. '/orders/order_01…'."),
+      },
+      ["body"]
+    ),
+    sideEffects: "Creates one open note on the board. Messages nobody.",
+    nextSteps: ["list_work_notes"],
+  },
+  {
+    name: "close_work_note",
+    description:
+      "Mark a Pending work note done (it drops off the board, keeps its reference), reopen it, or edit its text or due date. Write. Pass ref 'N-12' and status 'done' once the work is actually done — read the data back first; never close a note on a write that only reported success.",
+    method: "POST",
+    path: "/admin/work-notes/:ref",
+    pathParams: ["ref"],
+    write: true,
+    sensitive: true,
+    bodyParams: ["status", "body", "due_at", "kind", "node_key", "href"],
+    inputSchema: obj(
+      {
+        ref: STR("Note reference like 'N-12', or the note id."),
+        status: { type: "string", enum: ["done", "open"], description: "done closes it; open reopens it." },
+        body: STR("Optional: replace the note text."),
+        due_at: STR("Optional: new due date, e.g. '2026-12-02'."),
+        kind: { type: "string", enum: ["note", "follow_up"] },
+        node_key: STR("Optional: move it to another board box."),
+        href: STR("Optional: the record's admin path."),
+      },
+      ["ref"]
+    ),
+    previewPath: "/admin/work-notes/:ref",
+    sideEffects: "Changes only the note. Messages nobody.",
+    nextSteps: ["list_work_notes"],
+  },
 ]

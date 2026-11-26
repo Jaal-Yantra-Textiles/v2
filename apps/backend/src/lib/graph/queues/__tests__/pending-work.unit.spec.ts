@@ -68,4 +68,13 @@ describe("pending work — the board", () => {
     expect(failed.sublabel).not.toMatch(/^0/)
     expect(g.spine.sublabel).toContain("1 could not be read")
   })
+
+  it("a note pinned to a box shows on that box", () => {
+    const g = buildPendingWorkGraph([
+      { bucket: bucket("notes"), result: { count: 1, items: [], summary: "none overdue", byBox: { "balances-due": 1 } } },
+      { bucket: bucket("balances-due", "customer"), result: { count: 2, items: [] } },
+    ])
+    expect(g.nodes.find((n) => n.key === "balances-due")!.sublabel).toBe("2 · 1 note")
+    expect(g.nodes.find((n) => n.key === "notes")!.sublabel).toBe("1 · none overdue")
+  })
 })
