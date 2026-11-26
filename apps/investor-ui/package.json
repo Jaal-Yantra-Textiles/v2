@@ -92,7 +92,7 @@
     "react-i18next": "13.5.0",
     "react-jwt": "^1.2.0",
     "react-router-dom": "6.30.4",
-    "zod": "4.2.0"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@medusajs/admin-shared": "2.19.0",
