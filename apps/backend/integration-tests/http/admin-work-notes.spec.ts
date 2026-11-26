@@ -8,7 +8,8 @@
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 
-jest.setTimeout(60 * 1000)
+// 120 s: a cold single-file CI boot overran 60 s in the beforeAll hook (#2629 test (1)).
+jest.setTimeout(120 * 1000)
 
 setupSharedTestSuite(() => {
   let headers: any
