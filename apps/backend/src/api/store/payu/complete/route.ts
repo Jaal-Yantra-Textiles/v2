@@ -67,14 +67,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       id: paymentSession.id,
       currency_code: paymentSession.currency_code,
       amount: paymentSession.amount,
+      /**
+       * 🔴 What the buyer's redirect says is recorded, never trusted (#2574).
+       * The txnid stays the SESSION's own — a buyer-chosen txnid would let one
+       * real payment be replayed onto another cart — and no "success" status
+       * is stamped. authorizePayment asks PayU's verify_payment.
+       */
       data: {
         ...(paymentSession.data || {}),
         payu_status: payu_status || "",
-        mihpayid: mihpayid || "",
-        txnid: txnid || (paymentSession.data?.txnid as string) || "",
+        payu_redirect_mihpayid: mihpayid || "",
+        payu_redirect_txnid: txnid || "",
         payu_hash: hash || "",
         payu_amount: amount || "",
-        status: "success",
       },
     })
   } catch (e: any) {

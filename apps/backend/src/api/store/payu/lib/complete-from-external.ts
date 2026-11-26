@@ -15,6 +15,7 @@
  * the existing order id instead of throwing.
  */
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
+import { mintPayuExternalProof } from "../../../../lib/payments/payu-external-proof"
 import {
   completeCartWorkflow,
   createPaymentSessionsWorkflow,
@@ -54,13 +55,16 @@ export function buildSessionData(
   ref?: Record<string, unknown>
 ): Record<string, unknown> | undefined {
   if (provider.includes("payu")) {
-    // PayU.authorizePayment reads these flat keys, re-verifies txnid, captures.
+    // PayU.authorizePayment re-verifies the PROVEN txnid with PayU and checks
+    // the amount. `txnid` itself is overwritten by initiatePayment's fresh one
+    // (Medusa merges caller data under provider data), hence the proof keys.
     return {
       payu_status: "success",
       txnid: ref?.txnid,
       mihpayid: ref?.mihpayid,
       mode: ref?.mode,
       bank_ref_num: ref?.bank_ref_num,
+      ...mintPayuExternalProof(String(ref?.txnid ?? "")),
     }
   }
   return ref ? { external_payment: ref } : undefined
@@ -92,6 +96,9 @@ export async function completeCartFromExternalPayment(
       "payment_collection.amount",
       "payment_collection.payment_sessions.id",
       "payment_collection.payment_sessions.provider_id",
+      "payment_collection.payment_sessions.currency_code",
+      "payment_collection.payment_sessions.amount",
+      "payment_collection.payment_sessions.data",
     ],
     filters: { id: cartId },
   })
@@ -124,13 +131,24 @@ export async function completeCartFromExternalPayment(
 
   // Ensure a session on the chosen provider to authorize (paid out-of-band).
   const sessions: any[] = cart.payment_collection?.payment_sessions || []
-  if (!sessions.some((s) => s.provider_id === provider)) {
+  const existing = sessions.find((s) => s.provider_id === provider)
+  if (!existing) {
     await createPaymentSessionsWorkflow(scope).run({
       input: {
         payment_collection_id: pcId!,
         provider_id: provider,
         data: buildSessionData(provider, ref),
       },
+    })
+  } else if (provider.includes("payu")) {
+    // A checkout session already on the cart carries ITS OWN (unpaid) txnid;
+    // point it at the verified link txn, or authorize would check the wrong one.
+    const paymentModule: any = scope.resolve(Modules.PAYMENT)
+    await paymentModule.updatePaymentSession({
+      id: existing.id,
+      currency_code: existing.currency_code ?? cart.currency_code,
+      amount: existing.amount,
+      data: { ...(existing.data ?? {}), ...buildSessionData(provider, ref) },
     })
   }
 
