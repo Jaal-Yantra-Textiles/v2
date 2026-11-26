@@ -102,6 +102,32 @@ export const paymentMethodWords = (payment: any): string | null => {
   return null
 }
 
+const isManualProvider = (id: unknown) => {
+  const p = String(id || "").toLowerCase()
+  return p.includes("system_default") || p.includes("manual")
+}
+
+/** Every payment in the collection is the cash / manual provider. */
+export const isManualOnlyCollection = (c: any): boolean => {
+  const payments: any[] = Array.isArray(c?.payments) ? c.payments : []
+  return payments.length > 0 && payments.every((p) => isManualProvider(p?.provider_id))
+}
+
+/**
+ * What a cancellation must give back: money actually CAPTURED, less any
+ * refund already made. An authorization (a card hold, or a COD order that
+ * was never paid) is released, not refunded. Null when nothing is owed back.
+ */
+export const cancellationRefund = (order: any): string | null => {
+  const money = formatMoneyFor(order?.currency_code)
+  const collections: any[] = Array.isArray(order?.payment_collections) ? order.payment_collections : []
+  const owed = collections.reduce(
+    (sum, c) => sum + (readAmount(c?.captured_amount) ?? 0) - (readAmount(c?.refunded_amount) ?? 0),
+    0
+  )
+  return owed > 0.009 ? money(Math.round(owed * 100) / 100) : null
+}
+
 export type ConfirmationPayment = {
   /** What we hold for this order (captured, or authorised and about to be). */
   paid: string | null
@@ -117,7 +143,10 @@ export const confirmationPayment = (order: any): ConfirmationPayment => {
   const held = collections.reduce((sum, c) => {
     const captured = readAmount(c?.captured_amount) ?? 0
     const authorized = readAmount(c?.authorized_amount) ?? 0
-    return sum + Math.max(captured, authorized)
+    // 🔴 A cash / manual payment is AUTHORIZED at checkout though nobody has
+    // paid (COD): only what was captured is money. A card hold (Stripe/PayU)
+    // is about to be captured, so it still counts.
+    return sum + (isManualOnlyCollection(c) ? captured : Math.max(captured, authorized))
   }, 0)
   const summaryPaid = readAmount(order?.summary?.paid_total) ?? 0
   const paid = Math.max(held, summaryPaid)
@@ -126,9 +155,11 @@ export const confirmationPayment = (order: any): ConfirmationPayment => {
   const firstPayment = collections.flatMap((c) => c?.payments ?? [])[0] ?? null
   const balance = total !== null ? Math.round((total - paid) * 100) / 100 : null
 
+  const unpaidCash =
+    paid <= 0 && collections.some((c) => isManualOnlyCollection(c))
   return {
     paid: paid > 0 ? money(paid) : null,
-    method: paymentMethodWords(firstPayment),
+    method: unpaidCash ? "cash on delivery" : paymentMethodWords(firstPayment),
     balance_due: balance !== null && balance > 0.009 ? money(balance) : null,
     paid_in_full: total !== null && paid > 0 && balance !== null && balance <= 0.009,
   }
