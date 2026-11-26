@@ -1,0 +1,11 @@
+[Unit]
+Description=Deploy the newest latest-arm64 image if it changed (#1085)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/opt/jyt/auto-deploy.sh auto
+# A deploy (migrate + boot) can take ~10 min.
+TimeoutStartSec=20min

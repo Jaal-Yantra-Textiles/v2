@@ -14,9 +14,21 @@ for p in "$@"; do PROFILES="$PROFILES --profile $p"; done
 ssh "$HOST" 'test -f /opt/jyt/secrets.env' \
   || { echo "no /opt/jyt/secrets.env on $HOST: run render-env.sh first" >&2; exit 1; }
 scp -q "$DIR/compose.yml" "$DIR/cloudflared.yml" "$HOST:/opt/jyt/"
-# The forced-command target of GitHub's deploy key (deploy-to-oracle.yml).
-scp -q "$DIR/deploy-hook.sh" "$HOST:/opt/jyt/deploy-hook.sh"
-ssh "$HOST" 'chmod 755 /opt/jyt/deploy-hook.sh'
+# cosign verifies every image before auto-deploy.sh runs it. Pinned release,
+# checked against the release's own checksum file.
+ssh "$HOST" 'set -e; V=v2.4.1; command -v cosign >/dev/null && cosign version 2>/dev/null | grep -q "$V" && exit 0
+  cd /tmp && B=cosign-linux-arm64
+  curl -fsSLO "https://github.com/sigstore/cosign/releases/download/$V/$B"
+  curl -fsSL "https://github.com/sigstore/cosign/releases/download/$V/cosign_checksums.txt" | grep " $B\$" | sha256sum -c -
+  sudo install -m 755 "$B" /usr/local/bin/cosign && rm -f "$B" && cosign version | head -3'
+
+# The box deploys itself after cutover (auto-deploy.sh, every 2 min). It is a
+# no-op until /opt/jyt/LIVE exists, so installing it early is safe.
+scp -q "$DIR/auto-deploy.sh" "$DIR/jyt-auto-deploy.service" "$DIR/jyt-auto-deploy.timer" "$HOST:/tmp/"
+ssh "$HOST" 'set -e; install -m 755 /tmp/auto-deploy.sh /opt/jyt/auto-deploy.sh
+  sudo install -m 644 /tmp/jyt-auto-deploy.service /tmp/jyt-auto-deploy.timer /etc/systemd/system/
+  rm -f /tmp/auto-deploy.sh /tmp/jyt-auto-deploy.service /tmp/jyt-auto-deploy.timer
+  sudo systemctl daemon-reload && sudo systemctl enable --now jyt-auto-deploy.timer'
 
 # First deploy only: the on-box Postgres password. Never overwritten, since
 # the data volume is initialised with it.
