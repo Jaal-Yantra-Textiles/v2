@@ -95,7 +95,7 @@
     "react-router-dom": "6.20.1",
     "remark-gfm": "^4.0.1",
     "typescript": "^5.9.3",
-    "zod": "^4.2.0"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@medusajs/admin-shared": "2.14.2",
