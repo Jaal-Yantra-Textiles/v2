@@ -252,6 +252,7 @@ import { listSocialPlatformsQuerySchema, SocialPlatformSchema, UpdateSocialPlatf
 import { CreateDeploymentAccountSchema, UpdateDeploymentAccountSchema, ListDeploymentAccountsQuerySchema } from "./admin/deployment-accounts/validators";
 import { StoreAiSearchSchema } from "./store/ai/search/validators";
 import { StoreShippingEstimateSchema } from "./store/shipping-estimate/validators";
+import { StoreDeliveryCheckSchema } from "./store/delivery-check/validators";
 import { StoreAiChatSchema } from "./store/ai/chat/validators";
 import { StoreGenerateAiImageReqSchema } from "./store/ai/imagegen/validators";
 import { StoreTryOnReqSchema } from "./store/ai/tryon/validators";
@@ -5833,6 +5834,14 @@ export default defineMiddlewares({
       method: "GET",
       middlewares: [
         validateAndTransformQuery(wrapSchema(StoreShippingEstimateSchema), {}),
+      ],
+    },
+    {
+      // Storefront delivery check — read-only carrier lookups, never a 500.
+      matcher: "/store/delivery-check",
+      method: "GET",
+      middlewares: [
+        validateAndTransformQuery(wrapSchema(StoreDeliveryCheckSchema), {}),
       ],
     },
 

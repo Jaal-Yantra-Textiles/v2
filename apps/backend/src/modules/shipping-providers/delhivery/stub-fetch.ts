@@ -128,6 +128,17 @@ export function createDelhiveryStubFetch() {
     }
 
     if (url.includes("/c/api/pin-codes/json/")) {
+      const pin = new URL(url, "https://stub.local").searchParams.get("filter_codes")
+      // 799999: a pin Delhivery does not serve (empty list, HTTP 200 — the
+      // real shape of "no"). 799998: served, but prepaid only (no COD).
+      if (pin === "799999") return json({ delivery_codes: [] })
+      if (pin === "799998") {
+        return json({
+          delivery_codes: [
+            { postal_code: { pin: 799998, pre_paid: "Y", cash: "N", cod: "N" } },
+          ],
+        })
+      }
       return json({
         delivery_codes: [
           { postal_code: { pin: 470226, pre_paid: "Y", cash: "Y", cod: "Y" } },
