@@ -39,6 +39,15 @@ describe("selectFeedbackRemindersDue", () => {
     expect(selectFeedbackRemindersDue(rows, { now: NOW, minAgeDays: 5 })).toEqual([])
   })
 
+  it("never nudges a buyer who already answered on the feedback page", () => {
+    const answered = baseRow({ answered_at: daysAgo(1) })
+    expect(selectFeedbackRemindersDue([answered], { now: NOW, minAgeDays: 5 })).toEqual([])
+    // Same row unanswered IS due — the answered_at guard is what excluded it.
+    expect(
+      selectFeedbackRemindersDue([baseRow({ answered_at: null })], { now: NOW, minAgeDays: 5 })
+    ).toHaveLength(1)
+  })
+
   it("skips rows already reminded (idempotency)", () => {
     const row = baseRow({
       metadata: { source: "post_delivery_request", reminder_sent_at: NOW.toISOString() },

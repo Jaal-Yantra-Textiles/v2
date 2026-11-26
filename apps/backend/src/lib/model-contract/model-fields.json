@@ -1388,6 +1388,7 @@
   "Feedback (modules/feedback/models/feedback.ts)": {
     "file": "modules/feedback/models/feedback.ts",
     "fields": [
+      "answered_at",
       "artwork_affinity",
       "chosen_artwork_id",
       "comment",
