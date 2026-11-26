@@ -142,24 +142,25 @@ Cutover (a maintenance window: writes must stop while the data moves):
    orders are lost.**
 
 ## Automatic deploy (after cutover)
-`.github/workflows/deploy-to-oracle.yml` runs after every successful "Build ARM64
-Image (Oracle A1)" on main and SSHes to the box with a forced-command key that can
-only run `/opt/jyt/deploy-hook.sh`:
-`deploy <sha>` → pull `sha-<sha>-arm64` → `pnpm predeploy:force` with the new image
-(old server keeps serving) → `up -d` server + worker + tunnel → wait for `/health`
-→ on failure, put the previous image back. `check` is a read-only connectivity test
-(run it from the Actions tab: workflow_dispatch, command = check).
+The box deploys itself. GitHub cannot SSH in (the security list admits port 22
+only from a few fixed addresses), so `jyt-auto-deploy.timer` runs
+`/opt/jyt/auto-deploy.sh auto` every 2 minutes. When `latest-arm64` (pushed by
+"Build ARM64 Image (Oracle A1)" on each merge) points at a new image it: pulls it →
+runs `pnpm predeploy:force` with it while the old server serves → pins `JYT_IMAGE`
+to its digest in `/opt/jyt/.env` → restarts server + worker + tunnel → waits for
+`/health` → on failure restores the previous image. Every outcome goes to ntfy.
+A failed image is not retried; the next build is.
 
-Two locks, both needed before anything deploys:
-- repo variable `PROD_TARGET=oracle` (`gh variable set PROD_TARGET --body oracle`).
-  The same variable makes "Deploy to AWS ECS" skip every job, so a merge can never
-  scale ECS back up beside the box.
-- `/opt/jyt/LIVE` on the box (`ssh ubuntu@… touch /opt/jyt/LIVE`).
-Both are set in the cutover window, after ECS is at 0.
+- `auto-deploy.sh check` — what is pinned and running; changes nothing.
+- `auto-deploy.sh deploy ghcr.io/jaal-yantra-textiles/v2:sha-<commit>-arm64` — deploy
+  or roll back to one build by hand.
+- Log: `/opt/jyt/deploy.log`.
 
-Secrets: `ORACLE_DEPLOY_SSH_KEY` (private key), `ORACLE_KNOWN_HOSTS` (the box's
-pinned host keys). The public half sits in the box's `~/.ssh/authorized_keys` as
-`restrict,command="/opt/jyt/deploy-hook.sh" ssh-ed25519 … jyt-github-deploy`.
+Two locks, both set in the cutover window after ECS is at 0:
+- `/opt/jyt/LIVE` on the box. Without it `auto` does nothing.
+- repo variable `PROD_TARGET=oracle` (`gh variable set PROD_TARGET --body oracle`),
+  which makes "Deploy to AWS ECS" skip every job, so a merge can never scale ECS
+  back up beside the box or migrate the abandoned RDS.
 
 ## Not covered yet
 - Database migrations: `RUN_MIGRATIONS_ON_BOOT` stays off. After cutover they have to
