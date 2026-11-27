@@ -86,6 +86,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.serializer
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import com.jyt.partner.models.ProposeOrderLinesBody
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
@@ -526,6 +527,37 @@ class PartnerApi private constructor(
 
     suspend fun inventoryOrderCharges(id: String): InventoryOrderChargesResponse =
         get("partners/inventory-orders/$id/charges")
+
+    /** #1752/#2659 — PROPOSE the order's lines: edit quantities/prices,
+     *  remove a line, add an item the order doesn't list, attach photos.
+     *  Staged only; an admin approves before anything changes. */
+    suspend fun proposeInventoryOrderLines(id: String, body: ProposeOrderLinesBody) {
+        val request = baseRequest("partners/inventory-orders/$id/order-lines")
+            .put(
+                json.encodeToString(ProposeOrderLinesBody.serializer(), body)
+                    .toRequestBody("application/json".toMediaType())
+            ).build()
+        execute(request)
+    }
+
+    /** #2659 — upload photos to storage (`POST /partners/uploads`, multipart
+     *  `files`) and get their public URLs back. */
+    suspend fun uploadPartnerFiles(parts: List<MediaPart>): List<UploadFile> {
+        val boundary = "JYTPartnerBoundary-${java.util.UUID.randomUUID()}"
+        var payload = ByteArray(0)
+        for (part in parts) {
+            payload += "--$boundary\r\n".toByteArray()
+            payload += "Content-Disposition: form-data; name=\"files\"; filename=\"${part.filename}\"\r\n".toByteArray()
+            payload += "Content-Type: ${part.mimeType}\r\n\r\n".toByteArray()
+            payload += part.bytes
+            payload += "\r\n".toByteArray()
+        }
+        payload += "--$boundary--\r\n".toByteArray()
+        val request = baseRequest("partners/uploads")
+            .post(payload.toRequestBody("multipart/form-data; boundary=$boundary".toMediaType()))
+            .build()
+        return decodeBody<UploadFilesResponse>(execute(request)).files
+    }
 
     /** Pending → Processing — the partner acknowledges the commission. */
     suspend fun startInventoryOrder(id: String) {

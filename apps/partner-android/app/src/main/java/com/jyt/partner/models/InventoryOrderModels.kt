@@ -125,6 +125,8 @@ data class PartnerInventoryOrder(
     @SerialName("partner_info") val partnerInfo: InventoryOrderPartnerInfo? = null,
     /** Carrier shipments, newest first (the partner GET detail route). */
     val shipments: List<InventoryShipment>? = null,
+    /** #1752/#2659 — the partner's own proposal awaiting admin approval. */
+    @SerialName("pending_change") val pendingChange: InventoryOrderPendingChange? = null,
     @SerialName("created_at") val createdAt: String? = null,
     @SerialName("updated_at") val updatedAt: String? = null,
 ) {
@@ -133,6 +135,58 @@ data class PartnerInventoryOrder(
     /** What the partner still owes on this order, summed over lines. */
     val outstandingQuantity: Double
         get() = orderLines.orEmpty().sumOf { it.outstanding }
+}
+
+/** #1752/#2659 — a proposal the partner staged and an admin has not decided
+ *  yet. Nothing in it has touched the real lines. */
+@Serializable
+data class InventoryOrderPendingChange(
+    val id: String,
+    val status: String? = null,
+    @SerialName("proposed_lines") val proposedLines: List<ProposedOrderLine>? = null,
+    @SerialName("submitted_at") val submittedAt: String? = null,
+)
+
+/** A cloth the order does not list yet, named by the partner (#2659). */
+@Serializable
+data class ProposedNewMaterial(
+    val name: String,
+    val color: String? = null,
+    val composition: String? = null,
+    @SerialName("unit_of_measure") val unitOfMeasure: String? = null,
+)
+
+/** One staged line. With [id] it edits/removes an existing line; without it,
+ *  it's a NEW item the admin turns into inventory on approval. [key] is the
+ *  server's handle for a new item and is never sent back. */
+@Serializable
+data class ProposedOrderLine(
+    val id: String? = null,
+    val quantity: Double? = null,
+    val price: Double? = null,
+    @SerialName("extra_cost") val extraCost: Double? = null,
+    val remove: Boolean? = null,
+    @SerialName("new_material") val newMaterial: ProposedNewMaterial? = null,
+    val photos: List<String>? = null,
+    val key: String? = null,
+)
+
+/** `PUT /partners/inventory-orders/:id/order-lines` — the FULL desired line
+ *  set. Nulls are omitted on the wire (explicitNulls = false). */
+@Serializable
+data class ProposeOrderLinesBody(
+    @SerialName("order_lines") val orderLines: List<Line>,
+) {
+    @Serializable
+    data class Line(
+        val id: String? = null,
+        val quantity: Double? = null,
+        val price: Double? = null,
+        @SerialName("extra_cost") val extraCost: Double? = null,
+        val remove: Boolean? = null,
+        @SerialName("new_material") val newMaterial: ProposedNewMaterial? = null,
+        val photos: List<String>? = null,
+    )
 }
 
 @Serializable
