@@ -163,22 +163,37 @@ export function transformForWhatsApp(imageUrl: string): string {
 }
 
 /**
- * Transform image for Facebook with optimal settings
+ * Facebook's hard ceiling for a photo it fetches by URL. Over it, Graph rejects
+ * the upload with 100/1366046 "Can't read files" — and for an album that fails
+ * the WHOLE Facebook post (the Instagram half can still succeed, as it did on
+ * spost 01M8EHEW003KS4AT3RJVMMY2CK, 2026-11-27: four 18–23 MB camera JPEGs).
+ */
+export const FACEBOOK_MAX_PHOTO_BYTES = 10 * 1024 * 1024
+
+/** Longest edge sent to Facebook. It displays at most ~2048 px anyway. */
+const FACEBOOK_MAX_EDGE = 2048
+
+/**
+ * Rewrite one of OUR media URLs so Facebook fetches a resized JPEG instead of
+ * the camera original. Measured: a 23.3 MB DSC JPEG → 1.18 MB at these settings.
  *
- * @param imageUrl - Original image URL
- * @returns Transformed URL optimized for Facebook
+ * - `fit: "scale-down"` — never crop, never enlarge (the old version of this
+ *   function cropped everything to 1200×630; nothing called it).
+ * - `format: "jpeg"` — `auto` can hand Meta's fetcher WebP/AVIF.
+ * - Already-rewritten URLs are left alone: rewriting a rewrite 404s.
+ * - Non-Cloudflare URLs are returned untouched.
  */
 export function transformForFacebook(imageUrl: string): string {
-  if (!isCloudflareUrl(imageUrl)) {
+  if (!imageUrl || !isCloudflareUrl(imageUrl)) {
     return imageUrl
   }
-  
-  // Facebook is more flexible, but optimize for common sizes
+  if (imageUrl.includes("/cdn-cgi/image/")) {
+    return imageUrl
+  }
   return transformImageUrl(imageUrl, {
-    width: 1200,
-    height: 630, // 1.91:1 - Good for link previews
-    fit: "cover",
+    width: FACEBOOK_MAX_EDGE,
+    fit: "scale-down",
     quality: 85,
-    format: "auto",
+    format: "jpeg",
   })
 }

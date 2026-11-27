@@ -1,7 +1,7 @@
 import { MedusaError } from "@medusajs/utils"
 import FacebookService from "./facebook-service"
 import InstagramService from "./instagram-service"
-import { transformForInstagram, transformForFacebook } from "./image-transformer"
+import { transformForInstagram } from "./image-transformer"
 
 export type ContentType = "photo" | "video" | "text" | "reel" | "carousel"
 

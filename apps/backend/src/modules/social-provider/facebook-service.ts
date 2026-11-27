@@ -1,5 +1,6 @@
 import { MedusaError } from "@medusajs/utils";
 import { OAuth2Token } from "./types";
+import { transformForFacebook } from "./image-transformer";
 
 interface FacebookAuthResponse {
   access_token: string;
@@ -194,7 +195,8 @@ export default class FacebookService {
     if (input.message) body.set("message", input.message)
     // Encode URL to handle spaces and special characters
     if (input.image_url) {
-      const encodedUrl = input.image_url.replace(/ /g, '%20')
+      // Resized: Facebook rejects photos over 10 MB (see transformForFacebook).
+      const encodedUrl = transformForFacebook(input.image_url.replace(/ /g, '%20'))
       body.set("url", encodedUrl)
     }
     body.set("access_token", pageAccessToken)
@@ -273,7 +275,8 @@ export default class FacebookService {
     for (const imageUrl of input.image_urls) {
       const uploadBody = new URLSearchParams()
       // Encode URL to handle spaces and special characters
-      const encodedUrl = imageUrl.replace(/ /g, '%20')
+      // Resized: one photo over 10 MB fails the whole album (see transformForFacebook).
+      const encodedUrl = transformForFacebook(imageUrl.replace(/ /g, '%20'))
       uploadBody.set("url", encodedUrl)
       uploadBody.set("published", "false") // Don't publish individually
       uploadBody.set("access_token", pageAccessToken)
