@@ -1,10 +1,12 @@
 import { Metadata } from "next"
 
 import FeaturedProducts from "@modules/home/components/featured-products"
+import Genesis from "@modules/home/components/genesis"
 import Hero from "@modules/home/components/hero"
 import HolidaySection from "@modules/home/components/holidays"
 import { getHomeMedia } from "@modules/home/components/home-media"
 import HomeMediaStrip from "@modules/home/components/media-strip"
+import Provenance from "@modules/home/components/provenance"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
 import {
@@ -120,6 +122,8 @@ export default async function Home(props: {
           )}
         </ul>
       </div>
+      <Genesis />
+      <Provenance />
     </>
   )
 }
