@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 /// An inventory order — the raw material the partner is commissioned to
@@ -23,6 +24,12 @@ struct InventoryOrderDetailView: View {
   @State private var showReadyConfirm = false
   @State private var showReceiptSheet = false
   @State private var showShipmentSheet = false
+  @State private var showEditLinesSheet = false
+
+  /// #1752 — a partner may propose line edits only before the goods ship.
+  private var canProposeLines: Bool {
+    display.statusEnum == .pending || display.statusEnum == .processing
+  }
 
   private var display: PartnerInventoryOrder {
     detail ?? listRow
@@ -128,6 +135,11 @@ struct InventoryOrderDetailView: View {
     }
     .sheet(isPresented: $showShipmentSheet) {
       CreateInventoryShipmentSheet(orderID: orderID) {
+        Task { await load() }
+      }
+    }
+    .sheet(isPresented: $showEditLinesSheet) {
+      EditOrderLinesSheet(order: display) {
         Task { await load() }
       }
     }
@@ -307,6 +319,23 @@ struct InventoryOrderDetailView: View {
           .foregroundStyle(.secondary)
         }
         .padding(.vertical, 2)
+      }
+      if let pending = display.pending_change {
+        let added = (pending.proposed_lines ?? []).filter { $0.id == nil && $0.remove != true }
+        Label(
+          added.isEmpty
+            ? "Your changes are waiting for approval"
+            : "Your changes (incl. \(added.count) new item\(added.count == 1 ? "" : "s")) are waiting for approval",
+          systemImage: "clock"
+        )
+        .font(.footnote).foregroundStyle(.orange)
+      }
+      if canProposeLines {
+        Button {
+          showEditLinesSheet = true
+        } label: {
+          Label("Update quantities & items", systemImage: "square.and.pencil")
+        }
       }
     }
   }
@@ -630,6 +659,329 @@ private struct DeliveryReceiptSheet: View {
     } catch {
       sendError = (error as? LocalizedError)?.errorDescription
         ?? "Couldn't record the delivery."
+    }
+  }
+}
+
+// MARK: - Propose line edits (#1752, #2659)
+
+/// One editable row of the proposal — an existing line (has `lineID`) or a
+/// new item the partner adds. Photos are either already uploaded (`photoURLs`)
+/// or freshly picked (`newPhotos`, uploaded on submit).
+private struct EditableLine: Identifiable {
+  let id = UUID()
+  var lineID: String?
+  var title: String
+  var quantity: String
+  var price: String
+  var extraCost: Double?
+  var remove = false
+  // New item fields
+  var name = ""
+  var color = ""
+  var composition = ""
+  var unit = "Meter"
+  var photoURLs: [String] = []
+  var newPhotos: [MediaFilePick] = []
+
+  var isNew: Bool { lineID == nil }
+}
+
+/// The mobile counterpart of the partner-ui inventory-order edit form, plus
+/// #2659: add cloth the order doesn't list and attach photos. Sends the FULL
+/// desired line set; the admin approves before anything changes.
+struct EditOrderLinesSheet: View {
+  let order: PartnerInventoryOrder
+  let onDone: () -> Void
+
+  @Environment(\.dismiss) private var dismiss
+  @State private var rows: [EditableLine] = []
+  @State private var sending = false
+  @State private var sendError: String?
+  @State private var pickerItems: [PhotosPickerItem] = []
+  @State private var pickerTarget: UUID?
+  @State private var cameraTarget: UUID?
+
+  var body: some View {
+    NavigationStack {
+      withPickers(
+        form
+          .navigationTitle("Update order")
+          .navigationBarTitleDisplayMode(.inline)
+          .toolbar { toolbarContent }
+          .onAppear(perform: prefill)
+      )
+    }
+  }
+
+  private var form: some View {
+    Form {
+      Section {
+        Text("Enter what you actually have. The team approves your changes before they apply.")
+          .font(.footnote).foregroundStyle(.secondary)
+      }
+      ForEach($rows) { $row in
+        rowSection($row)
+      }
+      Section {
+        Button {
+          rows.append(EditableLine(lineID: nil, title: "", quantity: "", price: ""))
+        } label: {
+          Label("Add an item not on the order", systemImage: "plus.circle")
+        }
+      }
+      if let sendError {
+        Section { Text(sendError).foregroundStyle(.red).font(.footnote) }
+      }
+    }
+  }
+
+  @ToolbarContentBuilder
+  private var toolbarContent: some ToolbarContent {
+    ToolbarItem(placement: .cancellationAction) {
+      Button("Cancel") { dismiss() }.disabled(sending)
+    }
+    ToolbarItem(placement: .confirmationAction) {
+      if sending {
+        ProgressView()
+      } else {
+        Button("Send") { Task { await submit() } }
+      }
+    }
+  }
+
+  private func rowSection(_ row: Binding<EditableLine>) -> some View {
+    let line = row.wrappedValue
+    return Section(line.isNew ? "New item" : line.title) {
+      if line.isNew {
+        TextField("Name (e.g. Matty Cotton)", text: row.name)
+        TextField("Colour", text: row.color)
+        TextField("Composition (optional)", text: row.composition)
+        TextField("Unit", text: row.unit)
+      }
+      if !line.remove {
+        numberField("Quantity", text: row.quantity)
+        numberField("Price per unit", text: row.price)
+        photosRow(line)
+      }
+      if line.isNew {
+        Button("Remove this item", role: .destructive) {
+          rows.removeAll { $0.id == line.id }
+        }
+      } else {
+        Toggle("Take off the order", isOn: row.remove)
+      }
+    }
+  }
+
+  private func numberField(_ label: String, text: Binding<String>) -> some View {
+    HStack {
+      Text(label)
+      Spacer()
+      TextField("0", text: text)
+        .keyboardType(.decimalPad)
+        .multilineTextAlignment(.trailing)
+        .frame(maxWidth: 120)
+    }
+  }
+
+  private var pickerPresented: Binding<Bool> {
+    Binding(get: { pickerTarget != nil }, set: { if !$0 { pickerTarget = nil } })
+  }
+
+  private var cameraPresented: Binding<Bool> {
+    Binding(get: { cameraTarget != nil }, set: { if !$0 { cameraTarget = nil } })
+  }
+
+  private func withPickers<V: View>(_ content: V) -> some View {
+    content
+      .photosPicker(
+        isPresented: pickerPresented,
+        selection: $pickerItems,
+        maxSelectionCount: 6,
+        matching: .images
+      )
+      .onChange(of: pickerItems) { items in
+        addPicked(items)
+      }
+      .fullScreenCover(isPresented: cameraPresented) {
+        CameraPicker { pick in addCameraPick(pick) }
+          .ignoresSafeArea()
+      }
+  }
+
+  private func addPicked(_ items: [PhotosPickerItem]) {
+    guard let target = pickerTarget, !items.isEmpty else { return }
+    Task { @MainActor in
+      var picks: [MediaFilePick] = []
+      for item in items {
+        if let pick = await MediaLoader.load(item) { picks.append(pick) }
+      }
+      if let index = rows.firstIndex(where: { $0.id == target }) {
+        rows[index].newPhotos.append(contentsOf: picks)
+      }
+      pickerItems = []
+      pickerTarget = nil
+    }
+  }
+
+  private func addCameraPick(_ pick: MediaFilePick) {
+    guard let target = cameraTarget,
+          let index = rows.firstIndex(where: { $0.id == target }) else { return }
+    rows[index].newPhotos.append(pick)
+  }
+
+  @ViewBuilder
+  private func photosRow(_ row: EditableLine) -> some View {
+    let count = row.photoURLs.count + row.newPhotos.count
+    VStack(alignment: .leading, spacing: 6) {
+      if count > 0 {
+        ScrollView(.horizontal, showsIndicators: false) {
+          HStack(spacing: 6) {
+            ForEach(row.photoURLs, id: \.self) { url in
+              AsyncImage(url: URL(string: url)) { image in
+                image.resizable().scaledToFill()
+              } placeholder: { Color.gray.opacity(0.2) }
+              .frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 6))
+            }
+            ForEach(Array(row.newPhotos.enumerated()), id: \.offset) { _, pick in
+              if let image = UIImage(data: pick.data) {
+                Image(uiImage: image).resizable().scaledToFill()
+                  .frame(width: 56, height: 56).clipShape(RoundedRectangle(cornerRadius: 6))
+              }
+            }
+          }
+        }
+      }
+      HStack {
+        Button {
+          pickerTarget = row.id
+        } label: {
+          Label("Gallery", systemImage: "photo.on.rectangle")
+        }
+        .buttonStyle(.bordered)
+        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+          Button {
+            cameraTarget = row.id
+          } label: {
+            Label("Camera", systemImage: "camera")
+          }
+          .buttonStyle(.bordered)
+        }
+      }
+      .font(.footnote)
+    }
+  }
+
+  /// Start from the partner's pending proposal when there is one, so a second
+  /// visit edits what they already sent instead of starting over.
+  private func prefill() {
+    guard rows.isEmpty else { return }
+    let staged = order.pending_change?.proposed_lines ?? []
+    let stagedByID = Dictionary(
+      staged.compactMap { l in l.id.map { ($0, l) } },
+      uniquingKeysWith: { a, _ in a }
+    )
+    for line in order.order_lines ?? [] {
+      let s = stagedByID[line.id]
+      rows.append(EditableLine(
+        lineID: line.id,
+        title: line.displayName,
+        quantity: Self.format(s?.quantity ?? line.quantity),
+        price: Self.format(s?.price ?? line.price),
+        extraCost: s?.extra_cost ?? line.extra_cost,
+        remove: s?.remove ?? false,
+        photoURLs: s?.photos ?? []
+      ))
+    }
+    for line in staged where line.id == nil && line.remove != true {
+      guard let material = line.new_material else { continue }
+      rows.append(EditableLine(
+        lineID: nil,
+        title: "",
+        quantity: Self.format(line.quantity ?? 0),
+        price: Self.format(line.price ?? 0),
+        name: material.name,
+        color: material.color ?? "",
+        composition: material.composition ?? "",
+        unit: material.unit_of_measure ?? "Meter",
+        photoURLs: line.photos ?? []
+      ))
+    }
+  }
+
+  private static func format(_ value: Double) -> String {
+    value == value.rounded() ? String(Int(value)) : String(value)
+  }
+
+  private static func number(_ text: String) -> Double? {
+    Double(text.replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces))
+  }
+
+  @MainActor
+  private func submit() async {
+    sendError = nil
+    // Validate before uploading anything.
+    for row in rows where !row.remove {
+      if row.isNew && row.name.trimmingCharacters(in: .whitespaces).isEmpty {
+        sendError = "Every new item needs a name."
+        return
+      }
+      guard let qty = Self.number(row.quantity), qty > 0 else {
+        sendError = "Quantity must be more than 0 for \(row.isNew ? row.name : row.title). To drop a line, switch on \"Take off the order\"."
+        return
+      }
+      guard let price = Self.number(row.price), price >= 0 else {
+        sendError = "Enter a price (0 or more) for \(row.isNew ? row.name : row.title)."
+        return
+      }
+      _ = (qty, price)
+    }
+    sending = true
+    defer { sending = false }
+    do {
+      var lines: [ProposeOrderLinesBody.Line] = []
+      for row in rows {
+        if row.remove, let id = row.lineID {
+          lines.append(.init(id: id, remove: true))
+          continue
+        }
+        var photos = row.photoURLs
+        if !row.newPhotos.isEmpty {
+          let uploaded = try await PartnerAPI.shared.uploadPartnerFiles(
+            parts: row.newPhotos.map {
+              PartnerAPI.MediaPart(filename: $0.filename, mimeType: $0.mimeType, data: $0.data)
+            }
+          )
+          photos.append(contentsOf: uploaded.map(\.url))
+        }
+        let material: ProposedNewMaterial? = row.isNew
+          ? ProposedNewMaterial(
+              name: row.name.trimmingCharacters(in: .whitespaces),
+              color: row.color.isEmpty ? nil : row.color,
+              composition: row.composition.isEmpty ? nil : row.composition,
+              unit_of_measure: row.unit.isEmpty ? nil : row.unit
+            )
+          : nil
+        lines.append(.init(
+          id: row.lineID,
+          quantity: Self.number(row.quantity),
+          price: Self.number(row.price),
+          // Sent back as it was: the server writes null over an omitted one.
+          extra_cost: row.extraCost,
+          new_material: material,
+          photos: photos.isEmpty ? nil : photos
+        ))
+      }
+      try await PartnerAPI.shared.proposeInventoryOrderLines(
+        id: order.id, body: ProposeOrderLinesBody(order_lines: lines)
+      )
+      NotificationCenter.default.post(name: .inventoryOrderDidMutate, object: nil)
+      onDone()
+      dismiss()
+    } catch {
+      sendError = (error as? LocalizedError)?.errorDescription
+        ?? "Couldn't send your changes."
     }
   }
 }

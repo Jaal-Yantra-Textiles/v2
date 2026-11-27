@@ -289,6 +289,38 @@ actor PartnerAPI {
     try await get(path: "partners/inventory-orders/\(id)/charges")
   }
 
+  /// #1752/#2659 — PROPOSE the order's lines: edit quantities/prices, remove
+  /// a line, add an item the order doesn't list, attach photos. Staged only;
+  /// an admin approves before anything changes.
+  func proposeInventoryOrderLines(id: String, body: ProposeOrderLinesBody) async throws {
+    var request = URLRequest(url: Self.makeURL("partners/inventory-orders/\(id)/order-lines"))
+    request.httpMethod = "PUT"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = try JSONEncoder().encode(body)
+    _ = try await authorizedData(request)
+  }
+
+  /// #2659 — upload photos to storage (`POST /partners/uploads`, multipart
+  /// `files`) and get their public URLs back.
+  func uploadPartnerFiles(parts: [MediaPart]) async throws -> [UploadedFile] {
+    let boundary = "JYTPartnerBoundary-\(UUID().uuidString)"
+    var request = URLRequest(url: Self.makeURL("partners/uploads"))
+    request.httpMethod = "POST"
+    request.setValue(
+      "multipart/form-data; boundary=\(boundary)",
+      forHTTPHeaderField: "Content-Type"
+    )
+    request.httpBody = Self.multipartBody(boundary: boundary, parts: parts)
+    let data = try await authorizedData(request)
+    do {
+      return try decoder.decode(UploadFilesResponse.self, from: data).files
+    } catch let error as DecodingError {
+      throw PartnerError.decoding(Self.summarize(error))
+    } catch {
+      throw PartnerError.invalidResponse
+    }
+  }
+
   /// Pending → Processing — the partner acknowledges the commission.
   func startInventoryOrder(id: String) async throws {
     try await post(path: "partners/inventory-orders/\(id)/start")
