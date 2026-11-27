@@ -8,6 +8,7 @@ import {
   type CarrierAnswer,
   type DeliveryCheckResult,
   codFromRates,
+  delhiveryCodFromAnswers,
   etaFromRates,
   mergeDeliveryAnswers,
 } from "./merge"
@@ -276,7 +277,8 @@ export async function runDeliveryCheck(
   ])
   const bucket = weightBucket(grams)
 
-  const key = `delivery-check:v1:${origin.location_id ?? "none"}:${country}:${input.postal_code}:${bucket}`
+  // v2: results carry `delhivery_cod` (courier cash on delivery).
+  const key = `delivery-check:v2:${origin.location_id ?? "none"}:${country}:${input.postal_code}:${bucket}`
 
   let cache: any = null
   try {
@@ -357,16 +359,19 @@ export async function runDeliveryCheck(
       }
     }
 
-    const result = mergeDeliveryAnswers({
-      country_code: country,
-      postal_code: input.postal_code,
-      answers,
-      zone_covers_country: origin.zone_countries.size
-        ? origin.zone_countries.has(country)
-        : origin.location_id
-          ? false
-          : null,
-    })
+    const result: DeliveryCheckResult = {
+      ...mergeDeliveryAnswers({
+        country_code: country,
+        postal_code: input.postal_code,
+        answers,
+        zone_covers_country: origin.zone_countries.size
+          ? origin.zone_countries.has(country)
+          : origin.location_id
+            ? false
+            : null,
+      }),
+      delhivery_cod: domestic ? delhiveryCodFromAnswers(answers) : false,
+    }
 
     const degraded = answers.some((a) => a.status === "error")
     if (cache) {

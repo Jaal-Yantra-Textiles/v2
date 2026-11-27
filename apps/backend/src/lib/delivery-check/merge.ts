@@ -44,6 +44,19 @@ export type DeliveryCheckResult = {
   country_code: string
   postal_code: string
   courier_count?: number
+  /**
+   * Delhivery's own COD flag for this PIN (null = not asked / no answer).
+   * Courier cash on delivery follows Delhivery alone, not a Shiprocket courier
+   * flag, so it is carried separately from the merged `cod_available`.
+   */
+  delhivery_cod?: boolean | null
+}
+
+/** Delhivery's COD answer out of the carrier answers, or null. */
+export function delhiveryCodFromAnswers(answers: CarrierAnswer[]): boolean | null {
+  const a = answers.find((x) => x.carrier === "delhivery")
+  if (!a || a.status !== "ok") return null
+  return a.serviceable ? a.cod === true : false
 }
 
 export const ZONE_SOURCE = "store_shipping_zones"

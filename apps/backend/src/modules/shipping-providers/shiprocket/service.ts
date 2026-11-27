@@ -12,7 +12,7 @@ import {
 import { ShiprocketClient, ShiprocketOptions } from "./client"
 import { CreateShipmentInput, ShipmentItem } from "../provider-interface"
 import { deriveShiprocketRateContext } from "./rate-context"
-import { resolveShipmentPaymentMode } from "./payment-mode"
+import { codCollectable, isCodOrder, resolveShipmentPaymentMode } from "./payment-mode"
 import { FlatFallbackConfig, resolveFlatFallbackAmount } from "./flat-fallback"
 import {
   SHIPROCKET_RATE_CURRENCY,
@@ -471,6 +471,8 @@ class ShiprocketFulfillmentService extends AbstractFulfillmentProviderService {
       payment_status: paymentStatus,
       destination_country_code: shippingAddress?.country_code,
       sub_total: subTotal,
+      cod_requested: isCodOrder(order),
+      cod_total: codCollectable(order, subTotal, items as any[]),
     })
 
     if (paymentMode.warn_uncaptured) {

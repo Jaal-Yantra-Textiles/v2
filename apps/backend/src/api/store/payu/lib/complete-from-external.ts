@@ -129,13 +129,26 @@ export async function completeCartFromExternalPayment(
 
   // Ensure a session on the chosen provider to authorize (paid out-of-band).
   const sessions: any[] = cart.payment_collection?.payment_sessions || []
-  let existing = sessions.find((s) => s.provider_id === provider)
+  const isPayu = provider.includes("payu")
+  /**
+   * 🔴 A NON-PayU provider (the cash provider fallback) always gets a FRESH
+   * session carrying `external_payment`: that marker is what tells courier
+   * cash on delivery (2026-11-27) the order is already paid — without it the
+   * cash provider + a courier method reads as COD and the courier would
+   * collect the total again. A session the buyer opened lacks it, and it
+   * cannot be added by update (the system provider's update replaces the data
+   * with `{}`); creating a session keeps caller data and replaces the old one.
+   * Server-only: the store payment-sessions route strips the key.
+   */
+  let existing = isPayu ? sessions.find((s) => s.provider_id === provider) : undefined
   if (!existing) {
     const { result: created } = await createPaymentSessionsWorkflow(scope).run({
       input: {
         payment_collection_id: pcId!,
         provider_id: provider,
-        data: buildSessionData(provider, ref),
+        data: isPayu
+          ? buildSessionData(provider, ref)
+          : { external_payment: ref ?? { source: "payu_link" } },
       },
     })
     existing = created as any

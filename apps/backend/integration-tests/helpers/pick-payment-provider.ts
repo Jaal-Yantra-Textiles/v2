@@ -31,3 +31,32 @@ export const pickTestPaymentProvider = <T extends PaymentProviderLike>(
   const list = providers || []
   return list.find((p) => p?.id === SYSTEM_PAYMENT_PROVIDER_ID) || list[0]
 }
+
+/**
+ * Mark a collection's system-provider session as PAID OUT OF BAND (2026-11-27).
+ *
+ * The system provider auto-authorizes, so fixtures use it as "the buyer paid".
+ * It is also the CASH provider: since courier cash on delivery, completing a
+ * courier cart on it is refused unless the PIN/cap rules allow cash, and an
+ * allowed one is stamped COD for the courier to collect. A fixture that means
+ * "paid" says so with the same server-only marker a paid PayU link sets
+ * (`external_payment`), which the store payment-sessions route strips from
+ * buyer data — so this runs server-side.
+ *
+ * 🔑 It RE-CREATES the session: `updatePaymentSession` on the system provider
+ * replaces the data with the provider's `{}`, so an update would drop the
+ * marker. Creating a session keeps caller data (and replaces the old one).
+ */
+export async function markSystemSessionPaidOutOfBand(
+  container: any,
+  paymentCollectionId: string
+): Promise<void> {
+  const { createPaymentSessionsWorkflow } = await import("@medusajs/medusa/core-flows")
+  await createPaymentSessionsWorkflow(container).run({
+    input: {
+      payment_collection_id: paymentCollectionId,
+      provider_id: SYSTEM_PAYMENT_PROVIDER_ID,
+      data: { external_payment: { source: "test-fixture" } },
+    },
+  })
+}

@@ -11,7 +11,10 @@ import {
 } from "../helpers/create-customer"
 import { setupCheckoutInfrastructure } from "../helpers/setup-checkout-infrastructure"
 import { DESIGN_MODULE } from "../../src/modules/designs"
-import { pickTestPaymentProvider } from "../helpers/pick-payment-provider"
+import {
+  markSystemSessionPaidOutOfBand,
+  pickTestPaymentProvider,
+} from "../helpers/pick-payment-provider"
 
 jest.setTimeout(90 * 1000)
 
@@ -188,6 +191,7 @@ setupSharedTestSuite(() => {
               customerHeaders
             )
             .catch(() => null)
+          await markSystemSessionPaidOutOfBand(getContainer(), payCollId)
 
           const completeRes = await api
             .post(`/store/carts/${cartId}/complete`, {}, customerHeaders)

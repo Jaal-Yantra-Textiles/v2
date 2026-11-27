@@ -78,11 +78,12 @@ describe("resolveShipmentPaymentMode", () => {
   })
 
   describe("domestic — COD is a real choice and stays available", () => {
-    it("still ships COD for the unsettled domestic order, collecting the subtotal", () => {
+    it("ships COD for a domestic order placed as COD, collecting the subtotal", () => {
       const result = resolveShipmentPaymentMode({
         payment_status: "awaiting",
         destination_country_code: "IN",
         sub_total: 4500,
+        cod_requested: true,
       })
 
       expect(result.payment_mode).toBe("cod")
@@ -91,6 +92,37 @@ describe("resolveShipmentPaymentMode", () => {
       // Domestic COD is the intended flow, so there is nothing to warn about.
       expect(result.warn_uncaptured).toBe(false)
     })
+
+    it("collects the ORDER total (with shipping) when one is given", () => {
+      const result = resolveShipmentPaymentMode({
+        destination_country_code: "IN",
+        sub_total: 4500,
+        cod_requested: true,
+        cod_total: 4620,
+      })
+
+      expect(result.payment_mode).toBe("cod")
+      expect(result.cod_amount).toBe(4620)
+    })
+
+    /**
+     * 🔴 The defect (2026-11-27): core never passes `payment_status` to a
+     * fulfillment provider, so "not settled → COD" made EVERY domestic parcel
+     * COD — a prepaid buyer would be asked for cash at the door.
+     */
+    it.each([undefined, "awaiting", "authorized", null])(
+      "ships PREPAID when the order was not placed as COD (payment_status=%p)",
+      (status) => {
+        const result = resolveShipmentPaymentMode({
+          payment_status: status,
+          destination_country_code: "IN",
+          sub_total: 4500,
+        })
+
+        expect(result.payment_mode).toBe("prepaid")
+        expect(result.cod_amount).toBeUndefined()
+      }
+    )
 
     it.each(["captured", "paid"])(
       "ships prepaid once the money is in (%s)",
@@ -117,6 +149,7 @@ describe("resolveShipmentPaymentMode", () => {
         payment_status: "awaiting",
         destination_country_code: "",
         sub_total: 900,
+        cod_requested: true,
       })
 
       expect(result.international).toBe(false)
