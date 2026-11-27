@@ -116,6 +116,7 @@
     "@sentry/opentelemetry": "^10.40.0",
     "@tanstack/react-query": "5.107.1",
     "@tanstack/react-query-devtools": "5.107.1",
+    "@tanstack/react-table": "9.3.1",
     "@tiptap/extension-highlight": "^3.0.7",
     "@tiptap/extension-image": "^3.0.7",
     "@tiptap/extension-link": "^3.0.7",
