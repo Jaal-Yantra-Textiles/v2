@@ -3042,8 +3042,37 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id"]
     ),
     sideEffects:
-      "Calls the live social platform API and creates a public post. Failed publishes are recorded on the post for retry; partial successes (e.g. Facebook ok, Instagram failed) are reported per-platform. An Instagram Reel that Instagram is still processing after ~60 s returns pending:true and the post stays 'scheduled' — NOT a failure: a job publishes it within minutes (get_social_post shows status 'posted' + insights.instagram_permalink). Do NOT publish it again while pending — that is refused.",
-    nextSteps: ["get_social_post", "list_social_posts"],
+      "Calls the live social platform API and creates a public post. Failed publishes are recorded on the post for retry; partial successes (e.g. Facebook ok, Instagram failed) are reported per-platform. An Instagram REEL returns pending:true at once and the post stays 'scheduled' — NOT a failure: a background workflow uploads the video, waits for Instagram to process it, then waits for confirm_instagram_reel (insights.instagram_reel.stage 'awaiting_confirmation'). If processing fails the admin feed is alerted and the post becomes 'failed'. Do NOT publish it again while it is in progress — that is refused.",
+    nextSteps: ["get_social_post", "confirm_instagram_reel", "list_social_posts"],
+  },
+  {
+    name: "confirm_instagram_reel",
+    description:
+      "Make a processed Instagram Reel go LIVE. Instagram Reels publish in two stages: publish_social_post starts a background workflow that uploads the video and waits until Instagram has processed it; the post then shows insights.instagram_reel.stage = 'awaiting_confirmation' and waits for THIS call. PLATFORM-DESTRUCTIVE (creates a public post): requires confirm:true AND a human reason. Refused (409) while the Reel is still processing. Check get_social_post first.",
+    method: "POST",
+    path: "/admin/social-posts/:id/reel/confirm",
+    pathParams: ["id"],
+    previewPath: "/admin/social-posts/:id",
+    write: true,
+    dangerous: true,
+    inputSchema: obj({ id: STR("Social post id, e.g. 'spost_...'.") }, ["id"]),
+    sideEffects:
+      "Completes the confirmation step of the publish-instagram-reel workflow; the Reel is published to Instagram in the background within seconds and the post becomes 'posted' with insights.instagram_permalink.",
+    nextSteps: ["get_social_post"],
+  },
+  {
+    name: "cancel_instagram_reel",
+    description:
+      "Abandon an Instagram Reel before it goes live — nothing is posted. Works while it waits for confirmation (the workflow stops and alerts) and as an escape hatch for a post stuck showing a Reel in progress (clears it and marks the post failed so it can be published again). Sensitive: requires confirm:true.",
+    method: "POST",
+    path: "/admin/social-posts/:id/reel/cancel",
+    pathParams: ["id"],
+    previewPath: "/admin/social-posts/:id",
+    write: true,
+    sensitive: true,
+    inputSchema: obj({ id: STR("Social post id, e.g. 'spost_...'.") }, ["id"]),
+    sideEffects: "Stops the Reel workflow (nothing published) and marks the post 'failed'.",
+    nextSteps: ["get_social_post", "publish_social_post"],
   },
 
   // ===== Observability (#844) =============================================

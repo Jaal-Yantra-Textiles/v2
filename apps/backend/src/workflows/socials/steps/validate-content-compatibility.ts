@@ -43,7 +43,11 @@ export const validateContentCompatibilityStep = createStep(
 
     // Instagram caption limits (2,200 characters, 30 hashtags) — refused by
     // Instagram otherwise, after the video has already been uploaded.
-    if (isInstagramPlatform && (input.publish_target === "instagram" || input.publish_target === "both")) {
+    // (An Instagram-only platform arrives with publish_target "single".)
+    const goesToInstagram =
+      input.platform_name === "instagram" ||
+      (isInstagramPlatform && (input.publish_target === "instagram" || input.publish_target === "both"))
+    if (goesToInstagram) {
       const problem = instagramCaptionProblem(input.caption)
       if (problem) {
         throw new MedusaError(MedusaError.Types.INVALID_DATA, problem)

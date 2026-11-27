@@ -1,5 +1,9 @@
 import { AdminSocialPost } from "../../hooks/api/social-posts"
-import { usePublishSocialPost } from "../../hooks/api/social-posts"
+import {
+  useCancelInstagramReel,
+  useConfirmInstagramReel,
+  usePublishSocialPost,
+} from "../../hooks/api/social-posts"
 import { CommonField, CommonSection } from "../common/section-views"
 import { useTranslation } from "react-i18next"
 import dayjs from "dayjs"
@@ -57,10 +61,14 @@ export const SocialPostGeneralSection = ({
     })
   }
 
-  // Instagram Reel handed off to the finish-instagram-reels job.
-  const reelPending = ((post.insights || {}) as Record<string, any>).instagram_reel_pending as
-    | { container_id: string; started_at: string }
+  // Instagram Reel in the publish-instagram-reel workflow: processing, or
+  // processed and waiting for an admin to confirm it.
+  const reelPending = ((post.insights || {}) as Record<string, any>).instagram_reel as
+    | { transaction_id: string; stage: "processing" | "awaiting_confirmation"; started_at: string; awaiting_since?: string }
     | undefined
+  const reelReady = reelPending?.stage === "awaiting_confirmation"
+  const { mutate: confirmReel, isPending: isConfirming } = useConfirmInstagramReel()
+  const { mutate: cancelReel, isPending: isCancelling } = useCancelInstagramReel()
 
   const actionGroups = [
     {
@@ -85,6 +93,31 @@ export const SocialPostGeneralSection = ({
         },
       ],
     },
+    // Instagram Reel: confirm once processed, or cancel (nothing is posted).
+    ...(reelPending
+      ? [
+          {
+            actions: [
+              ...(reelReady
+                ? [
+                    {
+                      label: t("Confirm Reel (go live)"),
+                      icon: <Newspaper />,
+                      onClick: () => confirmReel(post.id),
+                      disabled: isConfirming,
+                    },
+                  ]
+                : []),
+              {
+                label: t("Cancel Reel"),
+                icon: <Trash />,
+                onClick: () => cancelReel(post.id),
+                disabled: isCancelling,
+              },
+            ],
+          },
+        ]
+      : []),
     // Sync Insights action (only for published posts)
     ...(post.status === "posted" ? [{
       actions: [
@@ -128,9 +161,11 @@ export const SocialPostGeneralSection = ({
     },
     {
       label: t("fields.status", "Status"),
-      value: reelPending
-        ? `Instagram Reel processing (since ${dayjs(reelPending.started_at).format("HH:mm")}) — publishes on its own`
-        : post.status,
+      value: reelReady
+        ? `Instagram Reel ready (since ${dayjs(reelPending!.awaiting_since).format("HH:mm")}) — confirm to go live`
+        : reelPending
+          ? `Instagram is processing the Reel (since ${dayjs(reelPending.started_at).format("HH:mm")})`
+          : post.status,
     },
     {
       label: t("fields.scheduled_at", "Scheduled At"),

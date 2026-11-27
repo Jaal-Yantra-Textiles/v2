@@ -95,6 +95,8 @@ export interface PublishResult {
   pending?: boolean
   containerId?: string
   igUserId?: string
+  /** The publish-instagram-reel workflow handling this Reel. */
+  transactionId?: string
 }
 
 export interface PublishResponse {

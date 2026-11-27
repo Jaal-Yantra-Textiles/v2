@@ -47,3 +47,25 @@ export const instagramCaptionProblem = (caption: string): string | null => {
   }
   return null
 }
+
+/**
+ * What the Reel workflow's wait step does with one container status:
+ * `ready` (publish), `retry` (Instagram still processing — the step throws a
+ * plain error so the engine retries it later), or `fail` (Instagram has given
+ * up on this video — a permanent failure: no more retries, alert, compensate).
+ */
+export const reelProcessingVerdict = (statusCode: string | undefined): "ready" | "retry" | "fail" => {
+  if (statusCode === "FINISHED") return "ready"
+  if (statusCode === "ERROR" || statusCode === "EXPIRED") return "fail"
+  return "retry"
+}
+
+/** Where a Reel stands, as stored on the post (`insights.instagram_reel`). */
+export type InstagramReelStage = "processing" | "awaiting_confirmation"
+
+export type InstagramReelMarker = {
+  transaction_id: string
+  stage: InstagramReelStage
+  started_at: string
+  awaiting_since?: string
+}

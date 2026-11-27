@@ -7,19 +7,20 @@
  *   Reels options (share_to_feed, cover_url, thumb_offset);
  * - a Reel still processing after the in-request budget is PENDING, not
  *   failed, and carries the container id for the finish-instagram-reels job;
- * - the job's single check: FINISHED publishes, ERROR fails, an hour fails;
+ * - the Reel workflow's wait step: FINISHED publishes, ERROR/EXPIRED fail for
+ *   good, anything else retries;
  * - video detection by URL, Reels options from metadata, caption limits.
  *
  * Graph calls are faked at `fetch`.
  */
 import ContentPublishingService from "../content-publishing-service"
 import InstagramService from "../instagram-service"
-import { checkPendingReel, PENDING_REEL_MAX_AGE_MS } from "../finish-pending-reel"
 import {
   countHashtags,
   instagramCaptionProblem,
   isVideoUrl,
   readReelOptions,
+  reelProcessingVerdict,
 } from "../reel"
 
 type Call = { url: string; method: string; body: URLSearchParams | null }
@@ -128,31 +129,18 @@ describe("ContentPublishingService — Instagram Reel", () => {
   })
 })
 
-describe("checkPendingReel — the finish-instagram-reels job's single check", () => {
-  const pending = { container_id: "cont_1", ig_user_id: "1789", started_at: new Date().toISOString() }
-  const ig = () => new InstagramService()
-
-  it("FINISHED → published, with media id and permalink", async () => {
-    global.fetch = fakeGraph(["FINISHED"]).fetchMock as any
-    await expect(checkPendingReel(pending, "tok", ig())).resolves.toEqual({
-      kind: "posted",
-      media_id: "media_9",
-      permalink: "https://www.instagram.com/reel/abc/",
-    })
+describe("reelProcessingVerdict — the Reel workflow's wait step", () => {
+  it("publishes only when Instagram says FINISHED", () => {
+    expect(reelProcessingVerdict("FINISHED")).toBe("ready")
   })
-
-  it("ERROR → failed with the reason", async () => {
-    global.fetch = fakeGraph(["ERROR"]).fetchMock as any
-    const out = await checkPendingReel(pending, "tok", ig())
-    expect(out.kind).toBe("failed")
-    expect((out as any).error).toContain("bad codec")
+  it("gives up for good on ERROR or EXPIRED (permanent failure: no retries, alert)", () => {
+    expect(reelProcessingVerdict("ERROR")).toBe("fail")
+    expect(reelProcessingVerdict("EXPIRED")).toBe("fail")
   })
-
-  it("still processing → left alone, until it is older than an hour", async () => {
-    global.fetch = fakeGraph(["IN_PROGRESS"]).fetchMock as any
-    await expect(checkPendingReel(pending, "tok", ig())).resolves.toEqual({ kind: "still-processing" })
-    const later = new Date(Date.now() + PENDING_REEL_MAX_AGE_MS + 60_000)
-    await expect(checkPendingReel(pending, "tok", ig(), later)).resolves.toMatchObject({ kind: "failed" })
+  it("retries anything else — still processing, or a status it does not know", () => {
+    expect(reelProcessingVerdict("IN_PROGRESS")).toBe("retry")
+    expect(reelProcessingVerdict("PUBLISHED")).toBe("retry")
+    expect(reelProcessingVerdict(undefined)).toBe("retry")
   })
 })
 

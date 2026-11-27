@@ -13,6 +13,7 @@ import {
   updatePostWithResultsStep,
 } from "./steps"
 import { guardPendingReelStep } from "./steps/guard-pending-reel"
+import { startInstagramReelStep } from "./steps/start-instagram-reel"
 
 /**
  * Unified Social Post Publishing Workflow
@@ -120,6 +121,10 @@ export const publishSocialPostUnifiedWorkflow = createWorkflow(
       platform_name: platformData.platform_name,
       updated_post_from_workflow: publishData.updated_post,
     })
+
+    // Step 12: an Instagram Reel starts its long-running workflow only now,
+    // after the post is marked — so no background step can race the marker.
+    startInstagramReelStep({ results: publishData.results, post_id: input.post_id })
 
     return new WorkflowResponse({
       success: finalData.success,

@@ -49,8 +49,8 @@ export const updatePostWithResultsStep = createStep(
     // For Facebook/Instagram, update the post ourselves
     const socials = container.resolve(SOCIALS_MODULE) as SocialsService
 
-    // An Instagram Reel still processing is PENDING, not failed: the
-    // finish-instagram-reels job publishes it and settles the post.
+    // An Instagram Reel handed to the publish-instagram-reel workflow is
+    // PENDING, not failed: the workflow publishes it and settles the post.
     const isPending = (r: any) => r.platform === "instagram" && r.pending === true
     const pendingReel = input.merged_results.find(isPending)
     const allSucceeded = input.merged_results.every((r: any) => r.success)
@@ -63,19 +63,23 @@ export const updatePostWithResultsStep = createStep(
     const currentInsights = (input.post.insights as Record<string, unknown>) || {}
     const insights: Record<string, any> = {
       ...currentInsights,
-      publish_results: input.merged_results,
+      // The queued Reel's input (reelStart) is for startInstagramReelStep only.
+      publish_results: input.merged_results.map(({ reelStart, ...r }: any) => r),
       published_at: new Date().toISOString(),
       last_retry_at: input.is_retry ? new Date().toISOString() : undefined,
     }
 
-    if (pendingReel && !anyFailed) {
-      insights.instagram_reel_pending = {
-        container_id: pendingReel.containerId,
-        ig_user_id: pendingReel.igUserId,
+    if (pendingReel && !anyFailed && pendingReel.transactionId) {
+      // The publish-instagram-reel workflow owns the Reel from here; this
+      // marker is how the post page and the confirm/cancel routes find it.
+      insights.instagram_reel = {
+        transaction_id: pendingReel.transactionId,
+        stage: "processing",
         started_at: new Date().toISOString(),
       }
-    } else {
-      delete insights.instagram_reel_pending
+    } else if (!pendingReel && insights.instagram_reel) {
+      // null, not delete: insights MERGES on update, a deleted key survives.
+      insights.instagram_reel = null
     }
 
     // Set Facebook post URL and ID
