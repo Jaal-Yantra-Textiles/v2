@@ -46,11 +46,15 @@ struct InventoryOrderLine: Codable, Identifiable, Hashable {
   var inventory_items: [InventoryItemSummary]?
   var line_fulfillments: [LineFulfillment]?
 
-  /// The material's display name — raw-material name, else SKU, else line id.
+  /// The material's display name — raw-material name, else the inventory
+  /// item's TITLE, else SKU. Items created from an order line (#2659) have a
+  /// title and often no raw material or SKU; they all read "Material" before.
   var displayName: String {
-    inventory_items?.first?.raw_materials?.first?.name
-      ?? inventory_items?.first?.sku
-      ?? "Material"
+    let item = inventory_items?.first
+    if let name = item?.raw_materials?.first?.name, !name.isEmpty { return name }
+    if let title = item?.title, !title.isEmpty { return title }
+    if let sku = item?.sku, !sku.isEmpty { return sku }
+    return "Material"
   }
 
   var fulfilled: Double {
