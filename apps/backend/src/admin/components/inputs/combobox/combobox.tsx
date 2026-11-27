@@ -324,6 +324,7 @@ const ComboboxImpl = <T extends Value = string>(
         {allowClear && controlledValue && (
           <button
             type="button"
+            aria-label="Clear selection"
             onClick={(e) => {
               e.preventDefault()
               handleValueChange(undefined)
