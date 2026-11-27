@@ -6,7 +6,7 @@ type Pillar = {
 }
 
 /**
- * The five promises that separate a Cici Label piece from a mass-produced
+ * The six promises that separate a Cici Label piece from a mass-produced
  * one. Kept as plain data so the copy can be edited without touching the
  * markup below.
  */

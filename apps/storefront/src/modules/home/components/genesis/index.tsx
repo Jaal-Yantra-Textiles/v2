@@ -2,8 +2,10 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 
 const INK = "#1c1917"
 
+// The Dhauladhar: the snow range that stands behind Dharamshala. Sharp,
+// broken peaks — the only range drawn with straight-ish strokes.
 const FAR_RIDGE =
-  "M -40 318 C 72 302 132 232 252 224 C 364 217 408 268 512 264 C 622 260 664 174 774 164 C 874 155 918 236 1022 244 C 1124 252 1166 192 1268 186 C 1368 180 1422 242 1480 254"
+  "M -40 300 L 60 262 L 112 276 L 190 204 L 232 218 L 300 156 L 342 180 L 402 140 L 452 172 L 522 198 L 590 162 L 650 184 L 722 116 L 772 152 L 822 140 L 882 188 L 952 160 L 1012 202 L 1082 150 L 1132 174 L 1202 132 L 1262 170 L 1322 206 L 1392 184 L 1480 232"
 
 const MID_RIDGE =
   "M -40 386 C 92 374 154 300 270 292 C 380 285 426 340 534 334 C 640 328 688 244 796 232 C 896 221 942 306 1046 314 C 1150 322 1196 254 1298 246 C 1394 239 1442 312 1480 322"
@@ -13,6 +15,17 @@ const NEAR_RIDGE =
 
 const WASH_CLOSE = " L 1500 620 L -40 620 Z"
 
+/** A deodar (Himalayan cedar): three tiers on a stub of trunk, 27 units tall,
+ *  drawn from its base so it can stand on a ridge point. */
+const DEODAR = "M 0 -27 L -5 -17 L -2 -17 L -7 -9 L -2 -9 L -9 0 L -1 0 L -1 3 L 1 3 L 1 0 L 9 0 L 2 -9 L 7 -9 L 2 -17 L 5 -17 Z"
+
+/** Where the deodars stand on the near ridge, with a little size variety. */
+const DEODARS: Array<[x: number, y: number, scale: number]> = [
+  [214, 371, 0.9], [238, 366, 1.15], [262, 361, 0.8],
+  [806, 303, 1], [832, 300, 1.25], [858, 304, 0.9],
+  [1304, 319, 0.85], [1330, 315, 1.1], [1356, 318, 0.95],
+]
+
 /**
  * Origin band that closes the collection rails: a hand-drawn ridge of the
  * Dharamshala valley under the brand's first statement.
@@ -20,7 +33,8 @@ const WASH_CLOSE = " L 1500 620 L -40 620 Z"
  * Everything is a single pen language — cubic beziers, tapered ink gradients,
  * a turbulence wobble so no line is mechanically straight, a second offset
  * pass on the front ridge, and a light wash behind each range for depth.
- * No ornaments: just the ranges, the mist between them and the paper grain.
+ * The far range is the snow-capped Dhauladhar; a few deodars stand on the
+ * near ridge. Otherwise just the ranges, the mist and the paper grain.
  *
  * Static on purpose — this is the quiet beat between the hero, the postcard
  * and the media grid.
@@ -35,8 +49,10 @@ const Genesis = () => {
       <svg
         aria-hidden
         viewBox="0 0 1440 620"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[82%] w-full"
+        // Keep the drawing's proportions and crop the sides on a narrow screen;
+        // "none" squeezed 1440 units into a phone and turned slopes into spikes.
+        preserveAspectRatio="xMidYMax slice"
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-[52%] w-full small:h-[72%]"
       >
         <defs>
           {/* Drags every stroke a few pixels off true, like a nib. */}
@@ -80,9 +96,19 @@ const Genesis = () => {
             <stop offset="100%" stopColor={INK} stopOpacity="0" />
           </linearGradient>
 
-          {/* Pale-to-nothing washes so the ranges sit back in the paper. */}
-          <linearGradient id="genesis-wash-far" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#c8b79b" stopOpacity="0.4" />
+          {/* Far range by HEIGHT, not by shape: whatever rises above the snow
+              line reads white, the rest fades into the paper. */}
+          <linearGradient
+            id="genesis-wash-far"
+            gradientUnits="userSpaceOnUse"
+            x1="0"
+            x2="0"
+            y1="110"
+            y2="340"
+          >
+            <stop offset="0%" stopColor="#fffdf8" stopOpacity="0.95" />
+            <stop offset="24%" stopColor="#fffdf8" stopOpacity="0.8" />
+            <stop offset="38%" stopColor="#c8b79b" stopOpacity="0.36" />
             <stop offset="100%" stopColor="#c8b79b" stopOpacity="0.04" />
           </linearGradient>
 
@@ -161,6 +187,18 @@ const Genesis = () => {
             vectorEffect="non-scaling-stroke"
           />
         </g>
+
+        {/* A few deodars on the near ridge, kept faint so they read as
+            distance, not decoration. */}
+        <g fill={INK} fillOpacity="0.11">
+          {DEODARS.map(([x, y, k]) => (
+            <path
+              key={`${x}-${y}`}
+              d={DEODAR}
+              transform={`translate(${x} ${y + 3}) scale(${k})`}
+            />
+          ))}
+        </g>
       </svg>
 
       {/* Paper grain, so the band reads as stock rather than a gradient. */}
@@ -178,6 +216,17 @@ const Genesis = () => {
         </filter>
         <rect width="100%" height="100%" filter="url(#genesis-grain)" />
       </svg>
+
+      {/* Paper glow behind the words: the ridges stay visible at the edges but
+          fade where the text sits, so no line crosses a sentence at full ink. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 46% 42% at 50% 46%, rgba(247,244,239,0.92) 0%, rgba(247,244,239,0.6) 55%, rgba(247,244,239,0) 100%)",
+        }}
+      />
 
       <div className="content-container relative z-10 flex flex-col items-center py-28 text-center small:py-40">
         <div className="flex items-center gap-3">
@@ -232,7 +281,7 @@ const Genesis = () => {
           </span>
         </LocalizedClientLink>
 
-        <p className="mt-16 txt-small uppercase tracking-[0.32em] text-neutral-900/35">
+        <p className="mt-16 txt-small uppercase tracking-[0.2em] text-neutral-900/35 small:tracking-[0.32em]">
           Kangra Valley · Himachal Pradesh
         </p>
       </div>

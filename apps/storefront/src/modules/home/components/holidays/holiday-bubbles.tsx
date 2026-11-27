@@ -147,11 +147,28 @@ export default function HolidayBubbles({
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText("HOLIDAYS").then(() => {
+  const handleCopy = async () => {
+    const done = () => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
-    })
+    }
+    try {
+      await navigator.clipboard.writeText("HOLIDAYS")
+      done()
+    } catch {
+      // In-app browsers (Instagram, WhatsApp) and plain http have no
+      // clipboard API — fall back to a hidden textarea so the tap still works.
+      const el = document.createElement("textarea")
+      el.value = "HOLIDAYS"
+      el.setAttribute("readonly", "")
+      el.style.position = "fixed"
+      el.style.opacity = "0"
+      document.body.appendChild(el)
+      el.select()
+      const ok = document.execCommand("copy")
+      document.body.removeChild(el)
+      if (ok) done()
+    }
   }
 
   const dateShort = new Date().toLocaleDateString("en", {
@@ -244,7 +261,7 @@ export default function HolidayBubbles({
             <div className="flex flex-col justify-between px-8 py-10 small:px-14 small:py-14">
               <div>
                 <p
-                  className="text-[9px] tracking-[0.34em] uppercase font-sans"
+                  className="text-[10px] tracking-[0.32em] uppercase font-sans"
                   style={{ color: `${INK}66` }}
                 >
                   Cici Label · Postcard
@@ -289,7 +306,9 @@ export default function HolidayBubbles({
                 <div className="mt-9 -mr-7 rotate-[-9deg]">
                   <Postmark
                     label={countryCode.toUpperCase()}
-                    date={dateShort}
+                    // Rendered on the server too: the server's date can be a
+                    // day off from the visitor's, so print it once mounted.
+                    date={mounted ? dateShort : ""}
                   />
                 </div>
 
@@ -297,7 +316,7 @@ export default function HolidayBubbles({
                   type="button"
                   onClick={handleCopy}
                   aria-label="Copy discount code HOLIDAYS"
-                  className="relative z-10 shrink-0 outline-none"
+                  className="relative z-10 shrink-0 rounded-[2px] outline-none focus-visible:ring-2 focus-visible:ring-[#171512]/40 focus-visible:ring-offset-4 focus-visible:ring-offset-[#f6efe3]"
                   initial={false}
                   whileHover={{ rotate: -3, scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
@@ -312,7 +331,7 @@ export default function HolidayBubbles({
                       style={{ backgroundColor: "#e8cd97", color: "#2a2416" }}
                     >
                       <Shimmer />
-                      <span className="text-[7px] tracking-[0.26em] uppercase opacity-60">
+                      <span className="text-[8px] tracking-[0.24em] uppercase opacity-70">
                         Cici Label
                       </span>
                       <span className="mt-2 font-serif text-[30px] leading-none small:text-[34px]">
@@ -321,7 +340,7 @@ export default function HolidayBubbles({
                       <span className="font-serif text-[15px] leading-tight small:text-[17px]">
                         off
                       </span>
-                      <span className="mt-2 text-[6.5px] tracking-[0.3em] uppercase opacity-70">
+                      <span className="mt-2 text-[8px] tracking-[0.26em] uppercase opacity-75">
                         Holidays
                       </span>
                     </div>
@@ -332,7 +351,7 @@ export default function HolidayBubbles({
               {/* Address block */}
               <div className="mt-9 small:mt-12">
                 <p
-                  className="text-[9px] tracking-[0.3em] uppercase font-sans"
+                  className="text-[10px] tracking-[0.28em] uppercase font-sans"
                   style={{ color: `${INK}59` }}
                 >
                   Deliver to
@@ -357,7 +376,7 @@ export default function HolidayBubbles({
               {/* Footer row */}
               <div className="mt-8 flex flex-wrap items-center justify-between gap-3">
                 <motion.span
-                  className="text-[9px] tracking-[0.24em] uppercase font-sans"
+                  className="text-[10px] tracking-[0.22em] uppercase font-sans"
                   style={{ color: `${INK}73` }}
                   animate={{ opacity: copied ? 1 : [0.5, 0.9, 0.5] }}
                   transition={{ duration: 2.6, repeat: copied ? 0 : Infinity }}
@@ -367,7 +386,7 @@ export default function HolidayBubbles({
 
                 <LocalizedClientLink
                   href="/store"
-                  className="group inline-flex items-center gap-2 text-[10px] font-sans uppercase tracking-[0.2em]"
+                  className="group inline-flex items-center gap-2 text-[11px] font-sans uppercase tracking-[0.2em]"
                   style={{ color: INK }}
                 >
                   Shop handmade
