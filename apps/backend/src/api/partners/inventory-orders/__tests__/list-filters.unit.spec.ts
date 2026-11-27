@@ -74,4 +74,20 @@ describe("applyInventoryOrderListFilters (#484 partner inventory-orders search)"
     const { count } = applyInventoryOrderListFilters(orders, { q: "   " })
     expect(count).toBe(3)
   })
+
+  it("lists the newest order first, before paginating (partner list showed new orders last)", () => {
+    const dated = [
+      { ...make({ id: "invord_old" }), created_at: "2026-11-07T05:37:44.139Z" },
+      { ...make({ id: "invord_new" }), created_at: "2026-11-27T03:21:33.705Z" },
+      { ...make({ id: "invord_mid" }), created_at: new Date("2026-11-15T00:00:00Z") },
+      { ...make({ id: "invord_nodate" }) },
+    ]
+    const { items } = applyInventoryOrderListFilters(dated, {})
+    expect(items.map((o) => o.id)).toEqual(["invord_new", "invord_mid", "invord_old", "invord_nodate"])
+
+    const page1 = applyInventoryOrderListFilters(dated, { offset: 0, limit: 1 })
+    expect(page1.items[0].id).toBe("invord_new")
+    expect(page1.count).toBe(4)
+  })
 })
+
