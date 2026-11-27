@@ -3,7 +3,7 @@ name: Partner Android Release
 # Builds the partner app (`apps/partner-android`, com.jyt.partner) as a SIGNED
 # Android App Bundle against production and uploads it to Google Play.
 #
-#   push to main (app changed) → Play INTERNAL track, released to internal testers
+#   push to main (app changed) → Play PRODUCTION track, released to every partner (founder, 2026-11-27)
 #   Run workflow (manual)      → pick the track and the release status
 #
 # `partner-android-check.yml` stays the PR gate (tests + debug build). This job
@@ -198,7 +198,7 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: ${{ env.PACKAGE_NAME }}
           releaseFiles: apps/partner-android/app/build/outputs/bundle/release/app-release.aab
-          track: ${{ inputs.track || 'internal' }}
+          track: ${{ inputs.track || 'production' }}
           status: ${{ inputs.status || 'completed' }}
           releaseName: ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})
 
@@ -211,5 +211,5 @@ jobs:
         run: |
           {
             echo "### Partner Android ${{ steps.version.outputs.name }} (${{ steps.version.outputs.code }})"
-            echo "Uploaded to Play track \`${{ inputs.track || 'internal' }}\` as \`${{ inputs.status || 'completed' }}\`, backend ${{ env.BACKEND_URL }}, push ${{ steps.firebase.outputs.push }}."
+            echo "Uploaded to Play track \`${{ inputs.track || 'production' }}\` as \`${{ inputs.status || 'completed' }}\`, backend ${{ env.BACKEND_URL }}, push ${{ steps.firebase.outputs.push }}."
           } >> "$GITHUB_STEP_SUMMARY"
