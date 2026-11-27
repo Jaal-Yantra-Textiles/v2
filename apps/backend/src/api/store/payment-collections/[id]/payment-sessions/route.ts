@@ -17,6 +17,7 @@ import { resolveCollectionPaymentContext } from "../../../../../lib/payments/res
 import { saveCardSessionData } from "../../../../../lib/payments/save-card-intent"
 import { stripReservedPayuSessionKeys } from "../../../../../lib/payments/payu-session-reserved-keys"
 import { ensureCartPaymentCollection } from "../../../../../lib/payments/ensure-cart-collection"
+import { syncCodFeeForSession } from "../../../../../lib/cod/cod-fee"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 const DEFAULT_FIELDS = ["id", "currency_code", "amount", "*payment_sessions"]
@@ -100,6 +101,16 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
    * ensureCartPaymentCollection is a no-op for an ordinary cart, re-aligns a
    * manual deposit, and refuses a drifted quote deposit rather than charge it.
    */
+  /**
+   * The ₹200 COD fee (2026-11-27): on for a cash session on a courier cart
+   * that may pay cash, off for anything else. Before the deposit re-align and
+   * the session, because it changes the total the session is opened for.
+   */
+  const feeCartId = await cartIdForCollection(req, collectionId)
+  if (feeCartId) {
+    await syncCodFeeForSession(req.scope, feeCartId, pid)
+  }
+
   await realignDepositForCollection(req, collectionId)
 
   const { customer_id: cartCustomerId, plan } =
@@ -150,6 +161,19 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
   })
 
   res.status(200).json({ payment_collection: paymentCollection })
+}
+
+async function cartIdForCollection(
+  req: MedusaRequest,
+  collectionId: string
+): Promise<string | null> {
+  const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+  const { data: links } = await query.graph({
+    entity: "cart_payment_collection",
+    filters: { payment_collection_id: collectionId },
+    fields: ["cart_id"],
+  })
+  return links?.[0]?.cart_id ?? null
 }
 
 async function realignDepositForCollection(req: MedusaRequest, collectionId: string) {

@@ -10,6 +10,7 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 import { createPaymentSessionsWorkflow } from "@medusajs/medusa/core-flows"
 
+import { syncCodFeeForSession } from "../../../../lib/cod/cod-fee"
 import { ensureCartPaymentCollection } from "../../../../lib/payments/ensure-cart-collection"
 import { saveCardSessionData } from "../../../../lib/payments/save-card-intent"
 import {
@@ -114,6 +115,12 @@ export async function ensureStripeSession(
    * deposit the buyer had just been promised and charged the whole total.
    * `ensureCartPaymentCollection` makes that decision once, for both rails.
    */
+  // Paying by card: take off a COD fee left from choosing cash earlier
+  // (2026-11-27). Changes the total, so re-read the cart.
+  if (await syncCodFeeForSession(scope, cartId, provider)) {
+    cart = await readCart()
+  }
+
   const { id: pcId, plan } = await ensureCartPaymentCollection(scope, cart)
 
   // Ensure a Stripe session (initiatePayment → creates the PaymentIntent).

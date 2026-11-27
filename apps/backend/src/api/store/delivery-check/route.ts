@@ -2,6 +2,7 @@ import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
 import { evaluateCartCourierCod } from "../../../lib/cod/cart-courier-cod"
+import { courierCodFee } from "../../../lib/cod/courier-cod"
 import { runDeliveryCheck } from "../../../lib/delivery-check"
 import { normalizePostalCode } from "../../../lib/delivery-check/validate"
 import { getStoreFromPublishableKey } from "../helpers"
@@ -60,7 +61,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
      * answer from the (cached, budgeted) check above — so the checkout offers
      * cash exactly when the server will accept it. Only this store's carts.
      */
-    let courier_cod: { allowed: boolean; reason: string } | null = null
+    let courier_cod: { allowed: boolean; reason: string; fee: number } | null = null
     if (q.cart_id) {
       try {
         const evaluated = await evaluateCartCourierCod(req.scope, q.cart_id, {
@@ -71,6 +72,9 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
           courier_cod = {
             allowed: evaluated.decision.allowed,
             reason: evaluated.decision.reason,
+            // Shown to the buyer BEFORE they choose cash (INR, pre-tax; it is
+            // taxed as shipping is).
+            fee: courierCodFee(),
           }
         }
       } catch {

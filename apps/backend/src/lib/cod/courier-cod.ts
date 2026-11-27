@@ -19,11 +19,11 @@ import type { DelhiveryPinCodeResult } from "../../modules/shipping-providers/de
  *    the answer is no;
  *  - it is not a design order and has no deposit / payment schedule (those are
  *    paid by link, in parts);
- *  - the cart total is at or under the founder's COD cap.
+ *  - the cart total (before the COD fee) is at or under the founder's cap,
+ *    ₹15,000 by default (`COD_COURIER_MAX_ORDER_TOTAL_INR` overrides; "0"
+ *    switches courier COD off).
  *
- * 🔑 The cap is the switch. `COD_COURIER_MAX_ORDER_TOTAL_INR` unset, blank, 0
- * or not a number means courier COD is OFF. That is deliberate: how much cash
- * a courier may carry for us is a money decision only the founder makes.
+ * Every store, partner stores included (founder, 2026-11-27).
  */
 
 export const COD_PROVIDER_PREFIX = "pp_system_default"
@@ -49,12 +49,39 @@ export type CourierCodDecision = {
   max_total: number | null
 }
 
-/** The founder's cap in INR, or null when courier COD is off. */
+/**
+ * The founder's cap (2026-11-27): ₹15,000. It is compared with the cart
+ * TOTAL — items + shipping + tax, after discounts — EXCLUDING the COD fee
+ * itself, so adding the fee never pushes an order over the cap.
+ */
+export const DEFAULT_COD_COURIER_MAX_TOTAL_INR = 15000
+
+/**
+ * The cap in INR, or null when courier COD is off.
+ * `COD_COURIER_MAX_ORDER_TOTAL_INR` overrides the default; "0" (or any
+ * non-positive / non-numeric value) switches courier COD off.
+ */
 export function courierCodMaxTotal(env: Record<string, string | undefined> = process.env): number | null {
   const raw = String(env.COD_COURIER_MAX_ORDER_TOTAL_INR ?? "").trim()
-  if (!raw) return null
+  if (!raw) return DEFAULT_COD_COURIER_MAX_TOTAL_INR
   const n = Number(raw)
   return Number.isFinite(n) && n > 0 ? n : null
+}
+
+/**
+ * The founder's COD fee (2026-11-27): ₹200 on a courier cash order. It is
+ * added to the courier shipping charge, so it is taxed exactly as shipping is
+ * (the shipping method's own tax lines and tax-inclusive setting), lands in
+ * the order total, and is collected by the courier with it.
+ * `COD_COURIER_FEE_INR` overrides; "0" charges no fee.
+ */
+export const DEFAULT_COD_COURIER_FEE_INR = 200
+
+export function courierCodFee(env: Record<string, string | undefined> = process.env): number {
+  const raw = String(env.COD_COURIER_FEE_INR ?? "").trim()
+  if (!raw) return DEFAULT_COD_COURIER_FEE_INR
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_COD_COURIER_FEE_INR
 }
 
 /** PURE. Everything except the Delhivery call, so the rule is unit-testable. */

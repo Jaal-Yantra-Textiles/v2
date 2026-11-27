@@ -1,4 +1,9 @@
-import { courierCodMaxTotal, courierCodRefusalMessage, decideCourierCod } from "../courier-cod"
+import {
+  courierCodFee,
+  courierCodMaxTotal,
+  courierCodRefusalMessage,
+  decideCourierCod,
+} from "../courier-cod"
 
 const OK = {
   country_code: "in",
@@ -10,12 +15,28 @@ const OK = {
   max_total: 5000 as number | null,
 }
 
-describe("courierCodMaxTotal — the founder's cap is the switch", () => {
-  it.each([undefined, "", "  ", "0", "-5", "abc"])("is OFF for %p", (v) => {
-    expect(courierCodMaxTotal({ COD_COURIER_MAX_ORDER_TOTAL_INR: v as any })).toBeNull()
+describe("courierCodMaxTotal — ₹15,000 unless overridden", () => {
+  it.each([undefined, "", "  "])("defaults to ₹15,000 for %p (on when merged)", (v) => {
+    expect(courierCodMaxTotal({ COD_COURIER_MAX_ORDER_TOTAL_INR: v as any })).toBe(15000)
   })
-  it("reads a positive number", () => {
+  it.each(["0", "-5", "abc"])("an override of %p switches courier COD off", (v) => {
+    expect(courierCodMaxTotal({ COD_COURIER_MAX_ORDER_TOTAL_INR: v })).toBeNull()
+  })
+  it("reads a positive override", () => {
     expect(courierCodMaxTotal({ COD_COURIER_MAX_ORDER_TOTAL_INR: "5000" })).toBe(5000)
+  })
+})
+
+describe("courierCodFee — ₹200 unless overridden", () => {
+  it("defaults to ₹200", () => {
+    expect(courierCodFee({})).toBe(200)
+  })
+  it("reads an override, including 0 (no fee)", () => {
+    expect(courierCodFee({ COD_COURIER_FEE_INR: "150" })).toBe(150)
+    expect(courierCodFee({ COD_COURIER_FEE_INR: "0" })).toBe(0)
+  })
+  it("ignores a nonsense override", () => {
+    expect(courierCodFee({ COD_COURIER_FEE_INR: "-3" })).toBe(200)
   })
 })
 

@@ -1,7 +1,7 @@
 import { MedusaError, Modules } from "@medusajs/framework/utils"
 
 import { evaluateCartCourierCod } from "./cart-courier-cod"
-import { courierCodRefusalMessage, isCodProvider } from "./courier-cod"
+import { courierCodFee, courierCodRefusalMessage, isCodProvider } from "./courier-cod"
 
 /**
  * Cash on delivery by courier, enforced on the server (founder, 2026-11-27).
@@ -73,6 +73,17 @@ export async function assertCourierCodAllowed(cart: any, container: any): Promis
     throw new MedusaError(
       MedusaError.Types.NOT_ALLOWED,
       courierCodRefusalMessage(evaluated.decision)
+    )
+  }
+
+  // The COD fee must be on the order, or the courier collects ₹200 short. It
+  // is added when the cash session is opened; a later cart change (a new
+  // shipping method re-prices it) can drop it.
+  const fee = courierCodFee()
+  if ((evaluated.courier_method?.cod_fee ?? 0) !== fee) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      `Cash on delivery has a ₹${fee.toLocaleString("en-IN")} fee that isn't on this order yet. Please choose cash on delivery again.`
     )
   }
   await record(true)
