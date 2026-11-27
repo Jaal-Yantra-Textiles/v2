@@ -177,10 +177,11 @@ internal class OrderEdits(order: PartnerInventoryOrder) {
      *  send only uploads what is still missing (#2659 follow-up). */
     private val uploaded = mutableMapOf<Uri, String>()
 
-    /** Upload new photos ONE AT A TIME (shrunk first), then send the FULL
-     *  desired line set. One photo per request keeps every request far under
-     *  Cloudflare's 100 MB body cap — a whole row of full-size camera photos
-     *  in one request went over it and came back as a bare 403. */
+    /** Upload new photos ONE AT A TIME (shrunk first) straight to storage
+     *  through presigned URLs — the same initiate/parts/complete flow the
+     *  shared folders use — then send the FULL desired line set. Before this
+     *  a row's full-size photos went through our API in ONE request, passed
+     *  Cloudflare's 100 MB body cap and came back as a bare 403. */
     suspend fun send(context: Context, orderId: String) {
         val api = PartnerApi.get(context)
         val lines = (rows.values + added).map { row ->
@@ -191,17 +192,19 @@ internal class OrderEdits(order: PartnerInventoryOrder) {
                 for (uri in row.newPhotos) {
                     val url = uploaded[uri] ?: run {
                         val part = readPart(context, uri) ?: return@run null
-                        val result = try {
-                            api.uploadPartnerFiles(listOf(part))
+                        val file = PartnerApi.FolderUploadInput(
+                            name = part.filename,
+                            mimeType = part.mimeType,
+                            size = part.bytes.size.toLong(),
+                        ) { ByteArrayInputStream(part.bytes) }
+                        try {
+                            api.uploadToStorage(file).also { uploaded[uri] = it }
                         } catch (e: PartnerException.Http) {
-                            if (e.status == 403 || e.status == 413) {
-                                throw IllegalStateException(
-                                    "A photo for ${row.label} is too large to upload. Remove it, or take it again with the camera."
-                                )
-                            }
-                            throw e
+                            throw IllegalStateException(
+                                "A photo for ${row.label} could not be uploaded. Try again, or remove that photo.",
+                                e,
+                            )
                         }
-                        result.firstOrNull()?.url?.also { uploaded[uri] = it }
                     }
                     if (url != null) photos += url
                 }
