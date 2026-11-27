@@ -1,4 +1,16 @@
+import imageLoader from "@lib/util/image-loader"
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
+
+/**
+ * The real Dhauladhar behind the drawn foothills. Set the public media URL of
+ * the photo here (or override per deploy with NEXT_PUBLIC_GENESIS_PHOTO_URL).
+ * Set it to "" in code to fall back to the drawn snow range alone.
+ */
+const GENESIS_PHOTO_URL =
+  process.env.NEXT_PUBLIC_GENESIS_PHOTO_URL ||
+  // The founder's own photo from Dharamshala, evening light on the snow.
+  "https://automatic.jaalyantra.com/automatica/IMG_0138-357d62ad975e71d4.jpg"
+const GENESIS_PHOTO_ALT = "The snow peaks of the Dhauladhar above Dharamshala"
 
 const INK = "#1c1917"
 
@@ -39,9 +51,40 @@ const DEODARS: Array<[x: number, y: number, scale: number]> = [
  * Static on purpose — this is the quiet beat between the hero, the postcard
  * and the media grid.
  */
-const Genesis = () => {
+const Genesis = ({ photoUrl = GENESIS_PHOTO_URL }: { photoUrl?: string }) => {
+  const hasPhoto = Boolean(photoUrl)
+
   return (
     <section className="relative w-full overflow-hidden bg-gradient-to-b from-[#f7f4ef] via-[#f1eade] to-[#e7ddcc]">
+      {/* The photograph: real snow peaks at the back. Toned towards the
+          paper (desaturated, warmed, multiplied) and faded out at the top
+          and bottom, so it reads as part of the plate, not a pasted banner. */}
+      {hasPhoto && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-[440px] small:h-[620px]"
+          style={{
+            maskImage:
+              "linear-gradient(to bottom, transparent 0%, black 26%, black 62%, transparent 94%)",
+            WebkitMaskImage:
+              "linear-gradient(to bottom, transparent 0%, black 26%, black 62%, transparent 94%)",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={imageLoader({ src: photoUrl, width: 1600 })}
+            srcSet={`${imageLoader({ src: photoUrl, width: 900 })} 900w, ${imageLoader({ src: photoUrl, width: 1600 })} 1600w, ${imageLoader({ src: photoUrl, width: 2400 })} 2400w`}
+            sizes="100vw"
+            alt={GENESIS_PHOTO_ALT}
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            className="h-full w-full object-cover object-[center_46%] opacity-90 mix-blend-multiply"
+            style={{ filter: "saturate(0.8) sepia(0.12) contrast(0.94) brightness(1.06)" }}
+          />
+        </div>
+      )}
+
       {/* ---------------------------------------------------------------
           The ridge plate. Filled washes give the ranges body; the ink
           strokes on top give them a drawn edge.
@@ -52,7 +95,7 @@ const Genesis = () => {
         // Keep the drawing's proportions and crop the sides on a narrow screen;
         // "none" squeezed 1440 units into a phone and turned slopes into spikes.
         preserveAspectRatio="xMidYMax slice"
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-[52%] w-full small:h-[72%]"
+        className={`pointer-events-none absolute inset-x-0 bottom-0 w-full ${hasPhoto ? "h-[300px] small:h-[420px]" : "h-[52%] small:h-[72%]"}`}
       >
         <defs>
           {/* Drags every stroke a few pixels off true, like a nib. */}
@@ -124,39 +167,49 @@ const Genesis = () => {
           </radialGradient>
         </defs>
 
-        {/* Far range: wash, then edge. */}
-        <path d={FAR_RIDGE + WASH_CLOSE} fill="url(#genesis-wash-far)" />
-        <g
-          filter="url(#genesis-wobble)"
-          fill="none"
-          stroke="url(#genesis-ink-soft)"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path
-            d={FAR_RIDGE}
-            strokeWidth="1.1"
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
+        {/* Far range: wash, then edge. With a photo, the real peaks take
+            this place and the drawing starts at the foothills. */}
+        {!hasPhoto && (
+          <>
+            <path d={FAR_RIDGE + WASH_CLOSE} fill="url(#genesis-wash-far)" />
+            <g
+              filter="url(#genesis-wobble)"
+              fill="none"
+              stroke="url(#genesis-ink-soft)"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path
+                d={FAR_RIDGE}
+                strokeWidth="1.1"
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          </>
+        )}
 
         <ellipse cx="720" cy="430" rx="760" ry="58" fill="url(#genesis-mist)" />
 
-        {/* Mid range. */}
-        <path d={MID_RIDGE + WASH_CLOSE} fill="url(#genesis-wash-mid)" />
-        <g
-          filter="url(#genesis-wobble)"
-          fill="none"
-          stroke="url(#genesis-ink-soft)"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path
-            d={MID_RIDGE}
-            strokeWidth="1.2"
-            vectorEffect="non-scaling-stroke"
-          />
-        </g>
+        {/* Mid range — drawing only. Over a photo its wash would veil the
+            real peaks, so there the front pen line carries the drawing alone. */}
+        {!hasPhoto && (
+          <>
+            <path d={MID_RIDGE + WASH_CLOSE} fill="url(#genesis-wash-mid)" />
+            <g
+              filter="url(#genesis-wobble)"
+              fill="none"
+              stroke="url(#genesis-ink-soft)"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path
+                d={MID_RIDGE}
+                strokeWidth="1.2"
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          </>
+        )}
 
         {/* Near range: broad under-stroke, crisp edge, second pencil pass. */}
         <g
@@ -228,7 +281,7 @@ const Genesis = () => {
         }}
       />
 
-      <div className="content-container relative z-10 flex flex-col items-center py-28 text-center small:py-40">
+      <div className={`content-container relative z-10 flex flex-col items-center text-center ${hasPhoto ? "pt-28 pb-[300px] small:pt-40 small:pb-[440px]" : "py-28 small:py-40"}`}>
         <div className="flex items-center gap-3">
           <span aria-hidden className="h-px w-8 bg-neutral-900/20" />
           <p className="txt-small uppercase tracking-[0.28em] text-ui-fg-muted">
