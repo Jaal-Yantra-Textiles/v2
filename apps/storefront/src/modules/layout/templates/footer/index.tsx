@@ -1,17 +1,24 @@
 import { listCategories } from "@lib/data/categories"
 import { listCollections } from "@lib/data/collections"
 import { buildPublicMediaUrl, listPublicMedia } from "@lib/data/media"
+import { getPartnerShowcase } from "@lib/data/partner-showcase"
 import { Text, clx } from "@medusajs/ui"
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import MedusaCTA from "@modules/layout/components/medusa-cta"
 import NewsletterForm from "@modules/layout/components/newsletter-form"
 
+const FOOTER_PARTNER_LIMIT = 8
+
 export default async function Footer() {
   const { collections } = await listCollections({
     fields: "*products",
   })
   const productCategories = await listCategories()
+  const { partners, count } = await getPartnerShowcase()
+
+  const footerPartners = partners.slice(0, FOOTER_PARTNER_LIMIT)
+  const hasMorePartners = count > footerPartners.length
 
 
   return (
@@ -184,6 +191,46 @@ export default async function Footer() {
             </div>
           </div>
         </div>
+        {footerPartners.length > 0 && (
+          <div className="flex flex-col gap-y-2 border-t border-ui-border-base py-8">
+            <span className="txt-small-plus txt-ui-fg-base">Our Partners</span>
+            <ul className="flex flex-wrap gap-x-6 gap-y-2 text-ui-fg-subtle txt-small">
+              {footerPartners.map((partner) => (
+                <li key={partner.id}>
+                  {partner.is_public ? (
+                    <LocalizedClientLink
+                      className="hover:text-ui-fg-base"
+                      href={`/partners/${encodeURIComponent(partner.handle)}`}
+                    >
+                      {partner.name}
+                    </LocalizedClientLink>
+                  ) : partner.storefront_url ? (
+                    <a
+                      href={partner.storefront_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="hover:text-ui-fg-base"
+                    >
+                      {partner.name}
+                    </a>
+                  ) : (
+                    <span>{partner.name}</span>
+                  )}
+                </li>
+              ))}
+              {hasMorePartners && (
+                <li>
+                  <LocalizedClientLink
+                    className="hover:text-ui-fg-base"
+                    href="/partners"
+                  >
+                    View all {count} partners →
+                  </LocalizedClientLink>
+                </li>
+              )}
+            </ul>
+          </div>
+        )}
         <div className="border-t border-ui-border-base py-16">
           <NewsletterForm />
         </div>
