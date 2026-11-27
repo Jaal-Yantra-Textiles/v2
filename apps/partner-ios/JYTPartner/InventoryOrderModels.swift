@@ -108,6 +108,8 @@ struct PartnerInventoryOrder: Codable, Identifiable, Hashable {
   var partner_info: InventoryOrderPartnerInfo?
   /// Carrier shipments, newest first — detail read only.
   var shipments: [InventoryShipment]?
+  /// #1752/#2659 — the partner's own proposal awaiting admin approval, if any.
+  var pending_change: InventoryOrderPendingChange?
   var created_at: Date?
   var updated_at: Date?
 
@@ -119,6 +121,52 @@ struct PartnerInventoryOrder: Codable, Identifiable, Hashable {
   var outstandingQuantity: Double {
     order_lines?.reduce(0) { $0 + $1.outstanding } ?? 0
   }
+}
+
+/// #1752/#2659 — a proposal the partner staged and an admin has not decided
+/// yet. Nothing in it has touched the real lines.
+struct InventoryOrderPendingChange: Codable, Hashable {
+  var id: String
+  var status: String?
+  var proposed_lines: [ProposedOrderLine]?
+  var submitted_at: Date?
+}
+
+/// A cloth the order does not list yet, named by the partner (#2659).
+struct ProposedNewMaterial: Codable, Hashable {
+  var name: String
+  var color: String?
+  var composition: String?
+  var unit_of_measure: String?
+}
+
+/// One staged line. With `id` it edits/removes an existing line; without it,
+/// it's a NEW item (`new_material`) the admin turns into inventory on approval.
+struct ProposedOrderLine: Codable, Hashable {
+  var id: String?
+  var quantity: Double?
+  var price: Double?
+  var extra_cost: Double?
+  var remove: Bool?
+  var new_material: ProposedNewMaterial?
+  var photos: [String]?
+  /// Server handle for a new item; never sent by the app.
+  var key: String?
+}
+
+/// `PUT /partners/inventory-orders/:id/order-lines` — the FULL desired line
+/// set. Optionals encode as absent, so an edit never sends `key`.
+struct ProposeOrderLinesBody: Encodable {
+  struct Line: Encodable {
+    var id: String?
+    var quantity: Double?
+    var price: Double?
+    var extra_cost: Double?
+    var remove: Bool?
+    var new_material: ProposedNewMaterial?
+    var photos: [String]?
+  }
+  var order_lines: [Line]
 }
 
 struct PartnerInventoryOrderListResponse: Codable {
