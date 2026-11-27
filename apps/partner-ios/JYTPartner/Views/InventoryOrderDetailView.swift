@@ -31,6 +31,9 @@ struct InventoryOrderDetailView: View {
   @State private var editsKey: String?
   @State private var editing: EditableLine?
   @State private var sendingEdits = false
+  /// Photos already uploaded from this phone, so a retry after a failed send
+  /// only uploads what is still missing (#2659 follow-up).
+  @State private var uploadedPhotos: [String: String] = [:]
 
   private var editedCount: Int {
     lineEdits.values.filter(\.edited).count
@@ -549,13 +552,27 @@ struct InventoryOrderDetailView: View {
           continue
         }
         var photos = row.photoURLs
-        if !row.newPhotos.isEmpty {
-          let uploaded = try await PartnerAPI.shared.uploadPartnerFiles(
-            parts: row.newPhotos.map {
-              PartnerAPI.MediaPart(filename: $0.filename, mimeType: $0.mimeType, data: $0.data)
-            }
-          )
-          photos.append(contentsOf: uploaded.map(\.url))
+        // ONE photo at a time, shrunk first, straight to storage through
+        // presigned URLs. Through our API a whole row of camera photos in one
+        // request went over Cloudflare's 100 MB body cap and came back as a
+        // bare 403 before reaching the server.
+        for photo in row.newPhotos {
+          let key = "\(photo.filename)|\(photo.data.count)|\(photo.data.hashValue)"
+          if let url = uploadedPhotos[key] {
+            photos.append(url)
+            continue
+          }
+          let part = PhotoShrinker.part(for: photo)
+          do {
+            let url = try await PartnerAPI.shared.uploadToStorage(
+              filename: part.filename, mimeType: part.mimeType, data: part.data
+            )
+            uploadedPhotos[key] = url
+            photos.append(url)
+          } catch PartnerError.http {
+            actionError = "A photo for \(row.label) could not be uploaded. Try again, or remove that photo."
+            return
+          }
         }
         lines.append(.init(
           id: row.lineID,

@@ -321,6 +321,83 @@ actor PartnerAPI {
     }
   }
 
+  /// Upload ONE file straight to storage through presigned URLs — the
+  /// initiate → presigned parts → PUT → complete flow the shared folders use
+  /// on Android and the web. Returns the file's public URL. Only small JSON
+  /// calls go through our API; the bytes never meet Cloudflare's 100 MB proxy
+  /// cap, which turned a row of full-size photos into a bare 403 (#2659).
+  func uploadToStorage(filename: String, mimeType: String, data: Data) async throws -> String {
+    // 1. Initiate.
+    let initBody = try JSONSerialization.data(withJSONObject: [
+      "name": filename, "type": mimeType, "size": data.count,
+    ])
+    let initData = try await authorizedData(Self.jsonPost("partners/medias/uploads/initiate", body: initBody))
+    guard let initObj = try JSONSerialization.jsonObject(with: initData) as? [String: Any],
+          let uploadId = initObj["uploadId"] as? String,
+          let key = initObj["key"] as? String else {
+      throw PartnerError.invalidResponse
+    }
+    let partSize = max((initObj["partSize"] as? Int) ?? 0, 5 * 1024 * 1024)
+    let totalParts = max(1, (data.count + partSize - 1) / partSize)
+
+    // 2–4. Presign every part, PUT each, keep the ETags (unquoted).
+    var parts: [[String: Any]] = []
+    var partNumber = 1
+    while partNumber <= totalParts {
+      let batch = Array(partNumber...min(partNumber + 3, totalParts))
+      let partsBody = try JSONSerialization.data(withJSONObject: [
+        "uploadId": uploadId, "key": key, "partNumbers": batch,
+      ])
+      let partsData = try await authorizedData(Self.jsonPost("partners/medias/uploads/parts", body: partsBody))
+      guard let partsObj = try JSONSerialization.jsonObject(with: partsData) as? [String: Any],
+            let urls = partsObj["urls"] as? [[String: Any]] else {
+        throw PartnerError.invalidResponse
+      }
+      for pn in batch {
+        guard let urlString = urls.first(where: { ($0["partNumber"] as? Int) == pn })?["url"] as? String,
+              let url = URL(string: urlString) else {
+          throw PartnerError.invalidResponse
+        }
+        let start = (pn - 1) * partSize
+        let chunk = data.subdata(in: start..<min(start + partSize, data.count))
+        var put = URLRequest(url: url)
+        put.httpMethod = "PUT"
+        put.timeoutInterval = 300
+        // No Authorization header: the URL's signature is the credential.
+        let (_, response) = try await session.upload(for: put, from: chunk)
+        let status = Self.statusCode(response) ?? 0
+        guard (200..<300).contains(status) else {
+          throw PartnerError.http(status: status, message: "Upload to storage failed")
+        }
+        let etag = ((response as? HTTPURLResponse)?.value(forHTTPHeaderField: "ETag") ?? "")
+          .replacingOccurrences(of: "\"", with: "")
+        parts.append(["PartNumber": pn, "ETag": etag])
+      }
+      partNumber += batch.count
+    }
+
+    // 5. Complete — returns the public URL.
+    let completeBody = try JSONSerialization.data(withJSONObject: [
+      "uploadId": uploadId, "key": key, "parts": parts,
+      "name": filename, "type": mimeType, "size": data.count,
+    ])
+    let completeData = try await authorizedData(Self.jsonPost("partners/medias/uploads/complete", body: completeBody))
+    guard let completeObj = try JSONSerialization.jsonObject(with: completeData) as? [String: Any],
+          let s3 = completeObj["s3"] as? [String: Any],
+          let location = s3["location"] as? String else {
+      throw PartnerError.invalidResponse
+    }
+    return location
+  }
+
+  private static func jsonPost(_ path: String, body: Data) -> URLRequest {
+    var request = URLRequest(url: makeURL(path))
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = body
+    return request
+  }
+
   /// Pending → Processing — the partner acknowledges the commission.
   func startInventoryOrder(id: String) async throws {
     try await post(path: "partners/inventory-orders/\(id)/start")
