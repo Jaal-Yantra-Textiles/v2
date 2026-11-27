@@ -6,6 +6,7 @@ import { CaptionInputWithSuggestions } from "../../social-posts/caption-input-wi
 import FileModal from "../../../routes/inventory/[id]/raw-materials/create/media/page"
 import { XMark } from "@medusajs/icons"
 import { SocialPostPreview } from "./preview"
+import { InstagramCaptionLimits, ReelOptionsFields } from "../../social-posts/reel-options-fields"
 
 
 interface DesignerStepProps {
@@ -238,11 +239,12 @@ export const SocialPostDesignerStep = ({
                         </Select.Trigger>
                         <Select.Content>
                           <Select.Item value="photo">📷 Photo</Select.Item>
+                          <Select.Item value="reel">🎬 Video / Reel</Select.Item>
                         </Select.Content>
                       </Select>
                     </Form.Control>
                     <Text size="small" className="text-ui-fg-subtle mt-1">
-                      Note: Only photo posts are currently supported.
+                      Video / Reel posts one video: a Facebook video and an Instagram Reel.
                     </Text>
                     <Form.ErrorMessage />
                   </Form.Item>
@@ -361,6 +363,46 @@ export const SocialPostDesignerStep = ({
                 />
               )}
 
+              {publishTarget !== "facebook" && <InstagramCaptionLimits control={control} />}
+
+              {postType === "reel" && (
+                <Form.Field
+                  control={control}
+                  name="media_urls"
+                  render={({ field: { value, onChange } }) => {
+                    const urls = Array.isArray(value) ? value : []
+                    return (
+                      <Form.Item>
+                        <Form.Label>Video</Form.Label>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          {urls.map((url, index) => (
+                            <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border bg-ui-bg-subtle">
+                              <video src={url} className="h-full w-full object-cover" muted playsInline />
+                              <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/50 p-0.5">
+                                <XMark
+                                  className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
+                                  onClick={() => onChange(urls.filter((u) => u !== url))}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                          <FileModal
+                            onSave={(picked: string[]) => onChange(Array.isArray(picked) ? picked.slice(0, 1) : [])}
+                            initialUrls={urls}
+                          />
+                        </div>
+                        <Text size="small" className="text-ui-fg-subtle mt-2">
+                          One video (mp4 or mov), vertical 9:16 works best for Reels.
+                        </Text>
+                        <Form.ErrorMessage />
+                      </Form.Item>
+                    )
+                  }}
+                />
+              )}
+
+              {postType === "reel" && publishTarget !== "facebook" && <ReelOptionsFields control={control} />}
+
               <Form.Field
                 control={control}
                 name="auto_publish"
@@ -453,6 +495,8 @@ export const SocialPostDesignerStep = ({
                 )}
               />
 
+              <InstagramCaptionLimits control={control} />
+
               <Form.Field
                 control={control}
                 name="media_urls"
@@ -463,8 +507,12 @@ export const SocialPostDesignerStep = ({
                       <Form.Label>Media</Form.Label>
                       <div className="mt-2 flex flex-wrap items-center gap-3">
                         {urls.map((url, index) => (
-                          <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border">
-                            <img src={url} alt={`Selected media ${index + 1}`} className="h-full w-full object-cover" />
+                          <div key={index} className="relative h-20 w-20 overflow-hidden rounded-md border bg-ui-bg-subtle">
+                            {postType === "reel" ? (
+                              <video src={url} className="h-full w-full object-cover" muted playsInline />
+                            ) : (
+                              <img src={url} alt={`Selected media ${index + 1}`} className="h-full w-full object-cover" />
+                            )}
                             <div className="absolute top-1 right-1 flex items-center justify-center rounded-full bg-white/50 p-0.5">
                               <XMark
                                 className="text-ui-fg-muted hover:text-ui-fg-subtle cursor-pointer"
@@ -475,7 +523,7 @@ export const SocialPostDesignerStep = ({
                         ))}
                         <FileModal
                           onSave={(picked: string[]) => {
-                            const next = Array.isArray(picked) ? picked.slice(0, 10) : []
+                            const next = Array.isArray(picked) ? picked.slice(0, postType === "reel" ? 1 : 10) : []
                             onChange(next)
                           }}
                           initialUrls={urls}
@@ -484,13 +532,15 @@ export const SocialPostDesignerStep = ({
                       <Text size="small" className="text-ui-fg-subtle mt-2">
                         {postType === "photo"
                           ? "Select 1-10 images for carousel"
-                          : "Select exactly one video for reel"}
+                          : "Select exactly one video (mp4 or mov) for the Reel; vertical 9:16 works best"}
                       </Text>
                       <Form.ErrorMessage />
                     </Form.Item>
                   )
                 }}
               />
+
+              {postType === "reel" && <ReelOptionsFields control={control} />}
             </div>
           )}
 

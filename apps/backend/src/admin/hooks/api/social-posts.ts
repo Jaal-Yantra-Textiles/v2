@@ -145,10 +145,12 @@ export const useCreateSocialPost = (): UseMutationResult<
 export const usePublishSocialPost = (): UseMutationResult<
   {
     success: boolean
+    /** Instagram Reel handed to the background workflow — not a failure. */
+    pending?: boolean
     post: AdminSocialPost
     results: {
       facebook?: { platform: string; success: boolean; postId?: string; error?: string }
-      instagram?: { platform: string; success: boolean; postId?: string; permalink?: string; error?: string }
+      instagram?: { platform: string; success: boolean; postId?: string; permalink?: string; error?: string; pending?: boolean }
     }
   },
   Error,
@@ -164,6 +166,10 @@ export const usePublishSocialPost = (): UseMutationResult<
     onSuccess: (data) => {
       if (data.success) {
         toast.success("Post published successfully!")
+      } else if (data.pending) {
+        toast.info("Instagram is processing the Reel", {
+          description: "Once it is ready, this post asks you to confirm before it goes live.",
+        })
       } else {
         toast.warning("Published with some errors. Check post details.")
       }
@@ -173,6 +179,34 @@ export const usePublishSocialPost = (): UseMutationResult<
     onError: (error) => {
       toast.error(error.message)
     },
+  })
+}
+
+/** Make a processed Instagram Reel go live (completes the workflow's confirmation step). */
+export const useConfirmInstagramReel = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (post_id: string) =>
+      sdk.client.fetch<{ success: boolean }>(`/admin/social-posts/${post_id}/reel/confirm`, { method: "POST" }),
+    onSuccess: () => {
+      toast.success("Reel confirmed", { description: "It goes live on Instagram in a few seconds." })
+      queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.all })
+    },
+    onError: (error: Error) => toast.error(error.message),
+  })
+}
+
+/** Abandon an Instagram Reel before it goes live (nothing is posted). */
+export const useCancelInstagramReel = () => {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (post_id: string) =>
+      sdk.client.fetch<{ success: boolean }>(`/admin/social-posts/${post_id}/reel/cancel`, { method: "POST" }),
+    onSuccess: () => {
+      toast.info("Reel cancelled", { description: "Nothing was posted. You can publish the post again." })
+      queryClient.invalidateQueries({ queryKey: socialPostsQueryKeys.all })
+    },
+    onError: (error: Error) => toast.error(error.message),
   })
 }
 

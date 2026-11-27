@@ -1,33 +1,34 @@
-import { StepResponse } from "@medusajs/framework/workflows-sdk"
 import { createSocialPostWorkflow } from "../socials/create-social-post"
-import { publishSocialPostWorkflow } from "../socials/publish-post"
+import { publishSocialPostUnifiedWorkflow } from "../socials/publish-social-post-unified"
 
 /**
- * Hook listener for when a SocialPost is created.
- * Add follow-up actions here (e.g., auto-schedule, analytics enqueue, notifications, etc.).
+ * When a SocialPost is created: publish it ONLY if it asked to be, with
+ * `metadata.auto_publish: true`.
+ *
+ * 🔴 This used to publish any post that merely had media attached
+ * (`if (!autoPublish && !hasMedia) return`), so a draft with a photo went
+ * live the moment it was saved — contradicting the admin form's "Auto
+ * publish" toggle and the MCP tool's "draft by default". It also went
+ * through the legacy workflow, which bypasses the Instagram Reel flow.
+ * Now it runs the same unified workflow as the Publish button.
  */
 createSocialPostWorkflow.hooks.socialPostCreated(async ({ post }, { container }) => {
   if (!post?.id) {
     return
   }
-  console.log(post)
   const meta = (post.metadata || {}) as Record<string, any>
-  const autoPublish = meta.auto_publish === true
-  const hasMedia = Array.isArray(post.media_attachments) && (post.media_attachments as any[]).length > 0
-
-  if (!autoPublish && !hasMedia) {
+  if (meta.auto_publish !== true) {
     return
   }
 
   try {
-    const workflow = publishSocialPostWorkflow(container)
-    await workflow.run({
+    await publishSocialPostUnifiedWorkflow(container).run({
       input: {
         post_id: post.id,
-        page_id: meta.page_id as string | undefined,
+        override_page_id: meta.page_id as string | undefined,
       },
     })
   } catch (e: any) {
-    console.error("socialPostCreated hook: publish failed", e)
+    console.error("socialPostCreated hook: auto-publish failed", e?.message || e)
   }
 })

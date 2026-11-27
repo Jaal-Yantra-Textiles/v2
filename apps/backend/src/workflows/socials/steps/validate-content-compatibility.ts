@@ -1,5 +1,6 @@
 import { createStep, StepResponse } from "@medusajs/workflows-sdk"
 import { MedusaError } from "@medusajs/utils"
+import { instagramCaptionProblem } from "../../../modules/social-provider/reel"
 
 /**
  * Step 8: Validate Content Compatibility
@@ -38,6 +39,19 @@ export const validateContentCompatibilityStep = createStep(
         MedusaError.Types.INVALID_DATA,
         "Text-only posts are not supported on Instagram. Please add media."
       )
+    }
+
+    // Instagram caption limits (2,200 characters, 30 hashtags) — refused by
+    // Instagram otherwise, after the video has already been uploaded.
+    // (An Instagram-only platform arrives with publish_target "single".)
+    const goesToInstagram =
+      input.platform_name === "instagram" ||
+      (isInstagramPlatform && (input.publish_target === "instagram" || input.publish_target === "both"))
+    if (goesToInstagram) {
+      const problem = instagramCaptionProblem(input.caption)
+      if (problem) {
+        throw new MedusaError(MedusaError.Types.INVALID_DATA, problem)
+      }
     }
 
     // Validate target accounts for Facebook/Instagram

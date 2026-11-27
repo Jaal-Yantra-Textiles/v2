@@ -1,9 +1,11 @@
 import { createStep, StepResponse } from "@medusajs/workflows-sdk"
+import { readReelOptions } from "../../../modules/social-provider/reel"
 
 /**
  * Step 6: Extract Content
  * 
- * Extracts post content (caption and media attachments).
+ * Extracts post content (caption, media attachments, and Instagram Reels
+ * options from `metadata.reel`).
  */
 export const extractContentStep = createStep(
   "extract-content",
@@ -16,6 +18,8 @@ export const extractContentStep = createStep(
 
     console.log(`[Extract Content] ✓ Caption length: ${caption.length}, Media: ${mediaAttachments.length}`)
 
-    return new StepResponse({ caption, media_attachments: mediaAttachments })
+    const reel = readReelOptions(input.post.metadata)
+
+    return new StepResponse({ caption, media_attachments: mediaAttachments, reel })
   }
 )
