@@ -4,6 +4,34 @@ import UIKit
 import UniformTypeIdentifiers
 
 /// A picked file ready for upload.
+/// Shrinks a picked photo before upload: longest side 2000 px, JPEG 0.82.
+/// A few hundred KB instead of a multi-MB camera original. Videos and
+/// anything that won't decode go up as they are.
+enum PhotoShrinker {
+  static let maxSide: CGFloat = 2000
+
+  static func part(for pick: MediaFilePick) -> PartnerAPI.MediaPart {
+    guard pick.mimeType.hasPrefix("image/"),
+          let image = UIImage(data: pick.data) else {
+      return PartnerAPI.MediaPart(filename: pick.filename, mimeType: pick.mimeType, data: pick.data)
+    }
+    let longest = max(image.size.width, image.size.height)
+    let scale = longest > maxSide ? maxSide / longest : 1
+    let size = CGSize(width: (image.size.width * scale).rounded(), height: (image.size.height * scale).rounded())
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 1
+    // draw(in:) applies the photo's orientation, so the upload is upright.
+    let resized = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+      image.draw(in: CGRect(origin: .zero, size: size))
+    }
+    guard let data = resized.jpegData(compressionQuality: 0.82) else {
+      return PartnerAPI.MediaPart(filename: pick.filename, mimeType: pick.mimeType, data: pick.data)
+    }
+    let base = (pick.filename as NSString).deletingPathExtension
+    return PartnerAPI.MediaPart(filename: "\(base).jpg", mimeType: "image/jpeg", data: data)
+  }
+}
+
 struct MediaFilePick {
   let filename: String
   let mimeType: String

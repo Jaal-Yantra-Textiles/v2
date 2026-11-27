@@ -31,6 +31,9 @@ struct InventoryOrderDetailView: View {
   @State private var editsKey: String?
   @State private var editing: EditableLine?
   @State private var sendingEdits = false
+  /// Photos already uploaded from this phone, so a retry after a failed send
+  /// only uploads what is still missing (#2659 follow-up).
+  @State private var uploadedPhotos: [String: String] = [:]
 
   private var editedCount: Int {
     lineEdits.values.filter(\.edited).count
@@ -549,13 +552,26 @@ struct InventoryOrderDetailView: View {
           continue
         }
         var photos = row.photoURLs
-        if !row.newPhotos.isEmpty {
-          let uploaded = try await PartnerAPI.shared.uploadPartnerFiles(
-            parts: row.newPhotos.map {
-              PartnerAPI.MediaPart(filename: $0.filename, mimeType: $0.mimeType, data: $0.data)
+        // ONE photo per request, shrunk first. A whole row of camera photos in
+        // one request went over Cloudflare's 100 MB body cap and came back as
+        // a bare 403 before reaching the server.
+        for photo in row.newPhotos {
+          let key = "\(photo.filename)|\(photo.data.count)|\(photo.data.hashValue)"
+          if let url = uploadedPhotos[key] {
+            photos.append(url)
+            continue
+          }
+          let part = PhotoShrinker.part(for: photo)
+          do {
+            let uploaded = try await PartnerAPI.shared.uploadPartnerFiles(parts: [part])
+            if let url = uploaded.first?.url {
+              uploadedPhotos[key] = url
+              photos.append(url)
             }
-          )
-          photos.append(contentsOf: uploaded.map(\.url))
+          } catch PartnerError.http(let status, _) where status == 403 || status == 413 {
+            actionError = "A photo for \(row.label) is too large to upload. Remove it, or take it again with the camera."
+            return
+          }
         }
         lines.append(.init(
           id: row.lineID,
