@@ -580,6 +580,15 @@ export type InventoryOrderChangeLine = {
   photos?: string[]
   /** #2659 — server handle for a proposed new item (rename/drop by key). */
   key?: string
+  /** #2659 — admin-chosen landing place, applied on approval. */
+  attach?: InventoryOrderChangeAttach
+}
+
+export type InventoryOrderChangeAttach = {
+  raw_material_group_id?: string
+  new_group_name?: string
+  variant_id?: string
+  required_quantity?: number
 }
 
 export type InventoryOrderChangeCharge = {
@@ -676,6 +685,8 @@ export type ReviseProposedNewLineInput = {
   key: string
   drop?: true
   new_material?: Partial<NonNullable<InventoryOrderChangeLine["new_material"]>>
+  /** Replace where the item lands on approval; `null` clears it. */
+  attach?: InventoryOrderChangeAttach | null
 }
 
 export const useReviseProposedNewLine = (
