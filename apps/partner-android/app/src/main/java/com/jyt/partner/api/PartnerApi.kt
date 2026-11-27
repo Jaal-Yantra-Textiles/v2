@@ -748,13 +748,20 @@ class PartnerApi private constructor(
      * reports 0..100 across all parts. The S3 PUTs carry no auth header —
      * the URL's signature is the credential.
      */
-    suspend fun uploadToSharedFolder(
-        folderId: String,
-        file: FolderUploadInput,
-        onProgress: (Int) -> Unit = {},
-    ): SharedFolderMediaFile? {
-        onProgress(0)
+    /**
+     * Steps 1–5 of the folder upload on their own: initiate → presigned part
+     * URLs → PUT the parts straight to storage → complete. Returns the file's
+     * public URL. The bytes never pass through our API (or Cloudflare's
+     * 100 MB proxy cap in front of it) — only the small JSON calls do.
+     */
+    suspend fun uploadToStorage(file: FolderUploadInput, onProgress: (Int) -> Unit = {}): String =
+        uploadToStorageSession(file, onProgress).s3.location
 
+    private suspend fun uploadToStorageSession(
+        file: FolderUploadInput,
+        onProgress: (Int) -> Unit,
+    ): CompleteUploadResponse {
+        onProgress(0)
         // 1. Initiate the multipart session.
         val init = postDecoding<InitiateUploadResponse>(
             "partners/medias/uploads/initiate",
@@ -791,7 +798,7 @@ class PartnerApi private constructor(
         }
 
         // 5. Complete the multipart session.
-        val complete = postDecoding<CompleteUploadResponse>(
+        return postDecoding<CompleteUploadResponse>(
             "partners/medias/uploads/complete",
             json.encodeToString(
                 CompleteUploadBody.serializer(),
@@ -805,6 +812,14 @@ class PartnerApi private constructor(
                 ),
             ),
         )
+    }
+
+    suspend fun uploadToSharedFolder(
+        folderId: String,
+        file: FolderUploadInput,
+        onProgress: (Int) -> Unit = {},
+    ): SharedFolderMediaFile? {
+        val complete = uploadToStorageSession(file, onProgress)
 
         // 6. Register the file against the folder.
         val registered = postDecoding<RegisterFolderUploadResponse>(
