@@ -11,13 +11,36 @@
 
 /** A staged line op, mirroring the admin order-lines update shape. */
 export type ProposedLine = {
-  id: string
+  /** An existing line on the order. Absent on a proposed NEW line (#2659). */
+  id?: string
   inventory_item_id?: string
   quantity?: number
   price?: number
   extra_cost?: number | null
   remove?: boolean
+  /**
+   * #2659 — a cloth the order does not list yet, named by the partner. Only on
+   * a new line. Approval creates the inventory item + raw material through the
+   * same path as the admin's `new_material` line.
+   */
+  new_material?: {
+    name: string
+    color?: string
+    composition?: string
+    unit_of_measure?: string
+  }
+  /** #2659 — photo urls (from POST /partners/uploads) for this line. */
+  photos?: string[]
+  /**
+   * #2659 — server-assigned handle for a proposed NEW line, so an admin can
+   * rename or drop that one item before approving. Never a column.
+   */
+  key?: string
 }
+
+/** Is this staged entry a proposed NEW line rather than an edit/removal? */
+export const isProposedNewLine = (line: ProposedLine | null | undefined): boolean =>
+  !!line && !line.id && !line.remove && !!line.new_material?.name?.trim()
 
 export type ProposedCharge = {
   type: "tax"
@@ -219,10 +242,46 @@ export const removesEveryLine = (
   if (owned.length === 0) {
     return false
   }
+  // #2659 — a proposal that swaps every listed cloth for ones the partner
+  // actually has is a correction, not a cancellation: something survives.
+  if ((lines ?? []).some((l) => isProposedNewLine(l))) {
+    return false
+  }
   const removed = new Set(
     (lines ?? [])
       .filter((l) => l?.remove && l?.id)
       .map((l) => String(l.id))
   )
   return owned.every((id) => removed.has(id))
+}
+
+/**
+ * PURE (#2659): the staged line set after an admin renames or drops ONE
+ * proposed new line, found by its server-assigned `key`. Returns null when no
+ * new line carries that key, so the route can answer 404 instead of guessing.
+ */
+export const reviseProposedNewLine = (
+  lines: ProposedLine[] | null | undefined,
+  key: string,
+  revision: {
+    drop?: boolean
+    new_material?: Partial<NonNullable<ProposedLine["new_material"]>>
+  }
+): ProposedLine[] | null => {
+  const list = Array.isArray(lines) ? lines : []
+  const index = list.findIndex((l) => isProposedNewLine(l) && l.key === key)
+  if (index < 0) return null
+  if (revision.drop) {
+    return list.filter((_, i) => i !== index)
+  }
+  const current = list[index]
+  const patch = Object.fromEntries(
+    Object.entries(revision.new_material ?? {}).filter(([, v]) => v !== undefined)
+  )
+  const next = [...list]
+  next[index] = {
+    ...current,
+    new_material: { ...current.new_material!, ...patch },
+  }
+  return next
 }

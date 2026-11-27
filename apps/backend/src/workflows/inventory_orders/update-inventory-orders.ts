@@ -10,7 +10,7 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import type { Link } from "@medusajs/modules-sdk";
 import type { IEventBusModuleService, RemoteQueryFunction, UpdateInventoryLevelInput } from "@medusajs/types";
 import { createInventoryLevelsWorkflow, updateInventoryLevelsWorkflow } from "@medusajs/medusa/core-flows";
-import { createMaterialsForLines } from "./lib/create-sample-material-lines"
+import { cleanPhotoUrls, createMaterialsForLines } from "./lib/create-sample-material-lines"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders";
 import InventoryOrderService from "../../modules/inventory_orders/service";
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders";
@@ -59,6 +59,12 @@ export type UpdateInventoryOrderLineInput = {
   extra_cost?: number;
   batch_number?: number | null; // Batch tag for separate-batch quick-add lines
   remove?: boolean; // If true, remove this orderline
+  /**
+   * #2659 — photos of what is on this line (a partner's proposal from the
+   * mobile app). Appended to the line's `metadata.photos`; on a NEW line that
+   * names a `new_material`, they also become the created item's thumbnail.
+   */
+  photos?: string[];
 };
 
 export type UpdateInventoryOrderInput = {
@@ -214,6 +220,35 @@ export const updateInventoryOrderStep = createStep(
   }
 );
 
+/**
+ * PURE (#2659): a line's metadata with `photos` appended, de-duplicated. Every
+ * other metadata key is kept as it was.
+ *
+ * 🔴 Stored as ONE newline-joined STRING, not an array. The shipped partner
+ * apps decode a line's `metadata` as a string→string map (iOS
+ * `[String: String]`, Android `Map<String, String>`); an array value there
+ * fails the decode of the WHOLE order, so every installed app would stop
+ * opening that order the moment a photo was attached. URLs hold no newlines.
+ */
+export const LINE_PHOTOS_KEY = "photos";
+
+export const readLinePhotos = (metadata: unknown): string[] => {
+  const raw = (metadata as any)?.[LINE_PHOTOS_KEY];
+  if (typeof raw === "string") return raw.split("\n").map((p) => p.trim()).filter(Boolean);
+  if (Array.isArray(raw)) return raw.filter((p): p is string => typeof p === "string");
+  return [];
+};
+
+export const mergeLinePhotos = (
+  metadata: Record<string, unknown> | null | undefined,
+  photos: string[]
+): Record<string, unknown> => {
+  const base = metadata && typeof metadata === "object" ? { ...metadata } : {};
+  const merged = readLinePhotos(base);
+  for (const p of photos) if (!merged.includes(p)) merged.push(p);
+  return { ...base, [LINE_PHOTOS_KEY]: merged.join("\n") };
+};
+
 // Step 3: Update orderlines (add, update, remove, relink)
 export const updateOrderLinesStep = createStep(
   "update-inventory-orderlines-step",
@@ -232,6 +267,13 @@ export const updateOrderLinesStep = createStep(
     // item and no variant to point at. Create it first, so every branch below
     // sees a line of one shape. Done before the variant resolution because a
     // line carries one form or the other, never both.
+    // #2659 — a line's photos describe the cloth, so a new material named on
+    // that line carries them into the item it creates (thumbnail + metadata).
+    for (const line of input.order_lines as any[]) {
+      if (line?.new_material && !line.new_material.photos && line.photos?.length) {
+        line.new_material = { ...line.new_material, photos: line.photos };
+      }
+    }
     const materialsCreated = await createMaterialsForLines(
       container,
       input.order_lines as any
@@ -298,7 +340,7 @@ export const updateOrderLinesStep = createStep(
     }
 
     const created: Array<{ id: string; inventory_item_id?: string; variant_id?: string | null }> = [];
-    const updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }> = [];
+    const updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any; prevMetadata?: any }> = [];
     const removed: Array<{ id: string; inventory_item_id?: string; variant_id?: string; quantity: number; price: any }> = [];
 
     /**
@@ -421,7 +463,14 @@ export const updateOrderLinesStep = createStep(
       if (line.id) {
         const prev = byId.get(line.id);
         // Capture prior values before overwriting so compensation restores them in place.
-        updated.push({ id: line.id, prevQuantity: prev?.quantity, prevPrice: prev?.price, prevExtraCost: prev?.extra_cost });
+        const photos = cleanPhotoUrls(line.photos);
+        updated.push({
+          id: line.id,
+          prevQuantity: prev?.quantity,
+          prevPrice: prev?.price,
+          prevExtraCost: prev?.extra_cost,
+          ...(photos.length ? { prevMetadata: prev?.metadata ?? null } : {}),
+        });
         // Update orderline fields
         await inventoryOrderService.updateOrderLines({
           selector: { id: line.id },
@@ -430,6 +479,11 @@ export const updateOrderLinesStep = createStep(
             price: line.price,
             ...(line.extra_cost !== undefined ? { extra_cost: line.extra_cost } : {}),
             ...(line.batch_number !== undefined ? { batch_number: line.batch_number } : {}),
+            // #2659 — APPEND, never replace: an earlier proposal's photos are
+            // still evidence of what was sent.
+            ...(photos.length
+              ? { metadata: mergeLinePhotos(prev?.metadata, photos) }
+              : {}),
           }
         });
         // If inventory_item_id changed, handle link update (not implemented here, but can be compared with currentOrderlines)
@@ -445,6 +499,9 @@ export const updateOrderLinesStep = createStep(
           color: info?.color ?? null,
           material_name: info?.material_name ?? null,
           raw_material_id: info?.raw_material_id ?? null,
+          ...(cleanPhotoUrls(line.photos).length
+            ? { metadata: mergeLinePhotos(null, cleanPhotoUrls(line.photos)) }
+            : {}),
         });
         // Create link to inventory item
         if (line.inventory_item_id) {
@@ -497,7 +554,7 @@ export const updateOrderLinesStep = createStep(
   async (
     compensationData: {
       created: Array<{ id: string; inventory_item_id?: string; variant_id?: string | null }>;
-      updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any }>;
+      updated: Array<{ id: string; prevQuantity: number; prevPrice: any; prevExtraCost: any; prevMetadata?: any }>;
       removed: Array<{ id: string; inventory_item_id?: string; variant_id?: string; quantity: number; price: any }>;
       order_id: string;
     },
@@ -529,7 +586,12 @@ export const updateOrderLinesStep = createStep(
     for (const u of compensationData.updated || []) {
       await inventoryOrderService.updateOrderLines({
         selector: { id: u.id },
-        data: { quantity: u.prevQuantity, price: u.prevPrice, extra_cost: u.prevExtraCost },
+        data: {
+          quantity: u.prevQuantity,
+          price: u.prevPrice,
+          extra_cost: u.prevExtraCost,
+          ...(u.prevMetadata !== undefined ? { metadata: u.prevMetadata } : {}),
+        },
       });
     }
     // Restore removed lines (same ids) + recreate their links

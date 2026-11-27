@@ -34,11 +34,14 @@ export async function PUT(
 
   const payload = (req.validatedBody ?? req.body ?? {}) as PartnerUpdateOrderLines
   const lines = payload.order_lines.map((l) => ({
-    id: l.id,
+    ...(l.id ? { id: l.id } : {}),
     quantity: l.quantity,
     price: l.price,
     extra_cost: l.extra_cost ?? null,
     remove: !!l.remove,
+    // #2659 — a new cloth named by the partner, and photos for any line.
+    ...(l.new_material ? { new_material: l.new_material } : {}),
+    ...(l.photos?.length ? { photos: l.photos } : {}),
   }))
 
   const { result, errors } = await stageInventoryOrderChangeWorkflow(

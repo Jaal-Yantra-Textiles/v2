@@ -27,6 +27,12 @@ export type NewMaterialInput = {
   color?: string
   composition?: string
   unit_of_measure?: string
+  /**
+   * #2659 — photos of the cloth, uploaded by whoever named it (a partner's
+   * proposal from the mobile app, usually). The first becomes the item's
+   * thumbnail; all of them are kept on the item's metadata.
+   */
+  photos?: string[]
 }
 
 export type MaterialLine = {
@@ -75,6 +81,24 @@ export function materialItemTitle(material: NewMaterialInput): string {
 }
 
 /**
+ * PURE: the photo urls worth keeping — http(s) only, trimmed, de-duplicated,
+ * at most 10. Anything else (a data: uri, a local file path, a typo) is dropped
+ * rather than stored as a thumbnail no browser can load.
+ */
+export function cleanPhotoUrls(photos: unknown): string[] {
+  if (!Array.isArray(photos)) return []
+  const out: string[] = []
+  for (const p of photos) {
+    if (typeof p !== "string") continue
+    const url = p.trim()
+    if (!/^https?:\/\//i.test(url)) continue
+    if (!out.includes(url)) out.push(url)
+    if (out.length >= 10) break
+  }
+  return out
+}
+
+/**
  * Create an inventory item + raw material for each planned line and return the
  * new item id by line index.
  */
@@ -92,12 +116,21 @@ export async function createMaterialsForLines(
   for (const { index, material } of plan) {
     const title = materialItemTitle(material)
 
+    const photos = cleanPhotoUrls(material.photos)
+    const unit = material.unit_of_measure?.trim()
+
     const [item] = await inventoryService.createInventoryItems([
       {
         title,
         // No SKU here — `createRawMaterialWorkflow` generates one, and a
         // placeholder would have to be unique across the whole catalogue.
         requires_shipping: true,
+        // #2659 — the unit used to reach only the raw-material record, so an
+        // item named "12 m of Matty Cotton" came out with no unit at all.
+        ...(unit ? { unit_of_measure: unit } : {}),
+        ...(photos.length
+          ? { thumbnail: photos[0], metadata: { photos } }
+          : {}),
       },
     ])
 

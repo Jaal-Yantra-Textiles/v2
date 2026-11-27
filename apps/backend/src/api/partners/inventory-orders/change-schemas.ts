@@ -5,8 +5,10 @@ import { z } from "@medusajs/framework/zod"
  *
  * A partner stages edits, removals and `tax` — never applies them. So these are
  * deliberately narrower than the admin order-lines update:
- *   - every line entry MUST carry an `id` (a partner edits/removes existing
- *     lines; they cannot add new goods lines or name arbitrary items);
+ *   - a line entry either carries an `id` (edit/remove an existing line) or,
+ *     since #2659, is a NEW line naming a `new_material` — cloth the order
+ *     does not list. A partner can never point a line at an arbitrary
+ *     EXISTING inventory item or variant; approval creates a fresh item;
  *   - the only charge type a partner may propose is `tax` (a partner must not
  *     write a discount/adjustment that lowers what they are owed, and shipping
  *     is the shipment flow's business).
@@ -48,13 +50,59 @@ export const partnerUpdateOrderLinesSchema = z.object({
     .array(
       z
         .object({
-          id: z.string().min(1, "A line entry must reference the existing line id"),
+          id: z.string().min(1, "A line entry must reference the existing line id").optional(),
           quantity: z.number().optional(),
           price: z.number().optional(),
           extra_cost: z.number().nonnegative().optional(),
           remove: z.boolean().optional(),
+          /**
+           * #2659 — a cloth the order does not list. Only on a line with NO
+           * `id`; approval creates the inventory item (+ raw material).
+           */
+          new_material: z
+            .object({
+              name: z.string().trim().min(1, "A new item needs a name").max(200),
+              color: z.string().trim().max(100).optional(),
+              composition: z.string().trim().max(200).optional(),
+              unit_of_measure: z.string().trim().max(30).optional(),
+            })
+            .strict()
+            .optional(),
+          /** #2659 — photo urls from POST /partners/uploads. */
+          photos: z
+            .array(z.string().trim().url("A photo must be a URL").regex(/^https?:\/\//i, "A photo must be an http(s) URL"))
+            .max(10, "At most 10 photos per line")
+            .optional(),
         })
+        .strict()
         .superRefine((val, ctx) => {
+          if (!val.id) {
+            if (val.remove) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["id"],
+                message: "A removal must reference the existing line id",
+              })
+              return
+            }
+            if (!val.new_material) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["id"],
+                message:
+                  "A line entry must reference the existing line id, or name a new item with new_material",
+              })
+              return
+            }
+          } else if (val.new_material) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["new_material"],
+              message:
+                "new_material is only for a NEW line — an existing line keeps its item",
+            })
+            return
+          }
           if (val.remove) return
           /**
            * 🔑 GREATER THAN ZERO, not "at least 1". The goods on these lines are
