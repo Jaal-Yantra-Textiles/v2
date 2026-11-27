@@ -22,7 +22,9 @@ const PHOTO_1 = "https://cdn.example.com/matty-1.jpg"
 const PHOTO_2 = "https://cdn.example.com/matty-2.jpg"
 const LINE_PHOTO = "https://cdn.example.com/beige-check.jpg"
 
-jest.setTimeout(60 * 1000)
+// 120 s: the app boot alone ran past 60 s on CI (#2665 run 45957448762);
+// the shared config default is 90 s and this spec must not lower it.
+jest.setTimeout(120 * 1000)
 
 async function registerPartner(api: any, email: string, handle: string) {
   await api.post("/auth/partner/emailpass/register", { email, password: PARTNER_PASSWORD })
@@ -411,6 +413,97 @@ setupSharedTestSuite(() => {
       expect(links).toHaveLength(1)
       expect(links[0].inventory_item_id).toBe(grouped.id)
       expect(Number(links[0].required_quantity)).toBe(2.5)
+    })
+
+    it("existing-line photos fill a MISSING item picture (+ raw material media, photo_pending cleared) and never overwrite a chosen thumbnail", async () => {
+      const unique = orderId.slice(-6).toLowerCase()
+      const container = getContainer()
+      const query: any = container.resolve(ContainerRegistrationKeys.QUERY)
+      const CHOSEN = "https://cdn.example.com/chosen.jpg"
+      const OLD_MEDIA = "https://cdn.example.com/old-swatch.jpg"
+      const P1 = "https://cdn.example.com/partner-beige.jpg"
+      const P2 = "https://cdn.example.com/partner-matty-1.jpg"
+      const P3 = "https://cdn.example.com/partner-matty-2.jpg"
+
+      // Admin adds "Matty Cotton" the real way (item + raw material, no picture),
+      // flagged photo_pending like the prod rows.
+      const addLine = await api.put(
+        `/admin/inventory-orders/${orderId}/order-lines`,
+        {
+          data: { quantity: 2, total_price: 0 },
+          order_lines: [
+            { id: lineA.id, inventory_item_id: itemA, quantity: 1, price: 0 },
+            { new_material: { name: `Matty Cotton ${unique}`, unit_of_measure: "Meter" }, quantity: 1, price: 0 },
+          ],
+        },
+        adminHeaders
+      )
+      expect(addLine.status).toBe(200)
+      const before = await readOrder(orderId)
+      const mattyLine = before.orderlines.find((l: any) => l.id !== lineA.id)
+      const mattyItemId = mattyLine.inventory_items[0].id
+
+      const inventory: any = container.resolve("inventory")
+      await inventory.updateInventoryItems({
+        id: mattyItemId,
+        metadata: { photo_pending: true, supplier_partner_id: "keep-me" },
+      })
+      const { data: rmRows } = await query.graph({
+        entity: "inventory_item",
+        filters: { id: mattyItemId },
+        fields: ["raw_materials.id"],
+      })
+      const rmsBefore = rmRows[0].raw_materials
+      const rawMaterialId = (Array.isArray(rmsBefore) ? rmsBefore[0] : rmsBefore).id
+      const rawMaterials: any = container.resolve("raw_materials")
+      await rawMaterials.updateRawMaterials([{ id: rawMaterialId, media: { files: [OLD_MEDIA] } }])
+
+      // The beige item already has a picture somebody chose.
+      await inventory.updateInventoryItems({ id: itemA, thumbnail: CHOSEN })
+
+      const stage = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        {
+          order_lines: [
+            { id: lineA.id, quantity: 3, price: 10, photos: [P1] },
+            { id: mattyLine.id, quantity: 12, price: 150, photos: [P2, P3] },
+          ],
+        },
+        { headers: ownerHeaders }
+      )
+      expect(stage.status).toBe(200)
+      const approve = await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${stage.data.change.id}/approve`,
+        {},
+        adminHeaders
+      )
+      expect(approve.status).toBe(200)
+
+      // Read the item rows back.
+      const { data: items } = await query.graph({
+        entity: "inventory_item",
+        filters: { id: [itemA, mattyItemId] },
+        fields: ["id", "thumbnail", "metadata", "raw_materials.id", "raw_materials.media"],
+      })
+      const beige = items.find((i: any) => i.id === itemA)
+      const matty = items.find((i: any) => i.id === mattyItemId)
+
+      // Never overwrite a chosen thumbnail.
+      expect(beige.thumbnail).toBe(CHOSEN)
+
+      // A missing picture is filled from the first photo; photo_pending cleared,
+      // other metadata kept.
+      expect(matty.thumbnail).toBe(P2)
+      expect(matty.metadata?.photo_pending).toBeUndefined()
+      expect(matty.metadata?.supplier_partner_id).toBe("keep-me")
+
+      // Raw material media keeps what it had and gains every photo.
+      const rm = Array.isArray(matty.raw_materials) ? matty.raw_materials[0] : matty.raw_materials
+      expect(rm.media).toEqual({ files: [OLD_MEDIA, P2, P3] })
+
+      // The line metadata is unchanged in shape: one newline-joined string.
+      const after = await readOrder(orderId)
+      expect(after.orderlines.find((l: any) => l.id === mattyLine.id).metadata?.photos).toBe(`${P2}\n${P3}`)
     })
 
     it("lets a partner replace the only listed cloth with new ones (not an emptying)", async () => {
