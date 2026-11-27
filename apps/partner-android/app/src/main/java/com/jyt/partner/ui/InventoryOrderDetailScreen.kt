@@ -27,6 +27,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.ExpandLess
@@ -110,7 +114,17 @@ fun InventoryOrderDetailScreen(
     var showReadyConfirm by remember { mutableStateOf(false) }
     var showReceipt by remember { mutableStateOf(false) }
     var showShipment by remember { mutableStateOf(false) }
-    var showEditLines by remember { mutableStateOf(false) }
+    // #2659 — per-line edits, kept on the phone until sent as one proposal.
+    var editingRow by remember { mutableStateOf<EditableLine?>(null) }
+    var sendingEdits by remember { mutableStateOf(false) }
+    var showGoodsMenu by remember { mutableStateOf(false) }
+    // Recreated only when the order really changed on the server, so a plain
+    // pull-to-refresh does not throw away edits the partner has not sent.
+    val edits = remember(detail?.id, detail?.updatedAt, detail?.pendingChange?.submittedAt, detail != null) {
+        detail?.let { OrderEdits(it) }
+    }
+    val editable = detail?.statusEnum == InventoryOrderStatus.PENDING ||
+        detail?.statusEnum == InventoryOrderStatus.PROCESSING
 
     suspend fun load() = coroutineScope {
         loading = detail == null
@@ -154,6 +168,7 @@ fun InventoryOrderDetailScreen(
         )
 
         val current = detail
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         when {
             loading -> DetailSkeleton()
             current == null -> Box(Modifier.fillMaxSize().padding(24.dp)) {
@@ -208,34 +223,12 @@ fun InventoryOrderDetailScreen(
                 if (steps.isNotEmpty()) {
                     item {
                         SectionCard("Your next step") {
+                            // The buttons live in the bar pinned to the bottom.
                             Text(
                                 nextStepHint(current.statusEnum),
                                 fontSize = 13.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            steps.forEachIndexed { index, step ->
-                                val onClick = {
-                                    when (step) {
-                                        OrderStep.START -> showStartConfirm = true
-                                        OrderStep.RECORD_DELIVERY -> showReceipt = true
-                                        OrderStep.READY_FOR_DELIVERY -> showReadyConfirm = true
-                                        OrderStep.CREATE_SHIPMENT -> showShipment = true
-                                    }
-                                }
-                                val modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = if (index == 0) 6.dp else 0.dp)
-                                // The first step leads; the rest are alternatives.
-                                if (index == 0) {
-                                    Button(onClick = onClick, enabled = !acting, modifier = modifier) {
-                                        Text(step.label, fontWeight = FontWeight.SemiBold)
-                                    }
-                                } else {
-                                    OutlinedButton(onClick = onClick, enabled = !acting, modifier = modifier) {
-                                        Text(step.label)
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -243,7 +236,40 @@ fun InventoryOrderDetailScreen(
                 val lines = current.orderLines.orEmpty()
                 if (lines.isNotEmpty()) {
                     item {
-                        SectionCard("Goods") {
+                        SectionCard(
+                            "Goods",
+                            action = if (editable && edits != null) {
+                                {
+                                    Box {
+                                        IconButton(onClick = { showGoodsMenu = true }) {
+                                            Icon(Icons.Filled.MoreVert, contentDescription = "More")
+                                        }
+                                        DropdownMenu(
+                                            expanded = showGoodsMenu,
+                                            onDismissRequest = { showGoodsMenu = false },
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Add an item not on the order") },
+                                                leadingIcon = { Icon(Icons.Filled.Add, contentDescription = null) },
+                                                onClick = {
+                                                    showGoodsMenu = false
+                                                    editingRow = EditableLine(
+                                                        lineId = null, title = "", quantity = "", price = "", extraCost = null,
+                                                    )
+                                                },
+                                            )
+                                        }
+                                    }
+                                }
+                            } else null,
+                        ) {
+                            if (editable) {
+                                Text(
+                                    "Tap a material to change its quantity, price or photos.",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                             // One table-like block: rows separated by hairlines,
                             // not stacked cards.
                             lines.forEachIndexed { index, line ->
@@ -253,7 +279,24 @@ fun InventoryOrderDetailScreen(
                                         modifier = Modifier.padding(vertical = 8.dp),
                                     )
                                 }
-                                GoodsLineCard(line = line, currencyCode = current.currencyCode)
+                                val row = edits?.rows?.get(line.id)
+                                GoodsLineCard(
+                                    line = line,
+                                    currencyCode = current.currencyCode,
+                                    edit = row,
+                                    onEdit = if (editable && row != null) ({ editingRow = row }) else null,
+                                )
+                            }
+                            edits?.added?.forEach { row ->
+                                HorizontalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant,
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                )
+                                NewItemRow(
+                                    row = row,
+                                    currencyCode = current.currencyCode,
+                                    onEdit = if (editable) ({ editingRow = row }) else null,
+                                )
                             }
                             current.pendingChange?.let { pending ->
                                 val added = pending.proposedLines.orEmpty()
@@ -265,17 +308,6 @@ fun InventoryOrderDetailScreen(
                                     color = MaterialTheme.colorScheme.tertiary,
                                     modifier = Modifier.padding(top = 8.dp),
                                 )
-                            }
-                            // #1752 — proposals only before the goods ship.
-                            if (current.statusEnum == InventoryOrderStatus.PENDING ||
-                                current.statusEnum == InventoryOrderStatus.PROCESSING
-                            ) {
-                                OutlinedButton(
-                                    onClick = { showEditLines = true },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                                ) {
-                                    Text("Update quantities & items")
-                                }
                             }
                         }
                     }
@@ -373,6 +405,69 @@ fun InventoryOrderDetailScreen(
             }
             }
         }
+        }
+
+        // Pinned actions: they never scroll away. The list above ends where
+        // this bar starts, so nothing hides behind it.
+        val hasEdits = editable && edits?.hasEdits == true
+        if (detail != null && (steps.isNotEmpty() || hasEdits)) {
+            androidx.compose.material3.Surface(tonalElevation = 3.dp, shadowElevation = 6.dp) {
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    if (hasEdits) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Button(
+                                onClick = {
+                                    val e = edits ?: return@Button
+                                    e.problem()?.let { actionError = it; return@Button }
+                                    scope.launch {
+                                        sendingEdits = true
+                                        try {
+                                            e.send(context, orderId)
+                                            reload()
+                                        } catch (ex: Exception) {
+                                            actionError = ex.message ?: "Couldn't send your changes."
+                                        }
+                                        sendingEdits = false
+                                    }
+                                },
+                                enabled = !sendingEdits,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                if (sendingEdits) {
+                                    CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                                } else {
+                                    Text("Send changes for approval (${edits?.editedCount ?: 0})", fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
+                    steps.forEachIndexed { index, step ->
+                        val onClick = {
+                            when (step) {
+                                OrderStep.START -> showStartConfirm = true
+                                OrderStep.RECORD_DELIVERY -> showReceipt = true
+                                OrderStep.READY_FOR_DELIVERY -> showReadyConfirm = true
+                                OrderStep.CREATE_SHIPMENT -> showShipment = true
+                            }
+                        }
+                        val modifier = Modifier.fillMaxWidth()
+                        // The first step leads, unless unsent edits do.
+                        if (index == 0 && !hasEdits) {
+                            Button(onClick = onClick, enabled = !acting, modifier = modifier) {
+                                Text(step.label, fontWeight = FontWeight.SemiBold)
+                            }
+                        } else {
+                            OutlinedButton(onClick = onClick, enabled = !acting, modifier = modifier) {
+                                Text(step.label)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (showStartConfirm) {
@@ -440,14 +535,22 @@ fun InventoryOrderDetailScreen(
         )
     }
 
-    if (showEditLines && detail != null) {
-        EditOrderLinesSheet(
-            order = detail!!,
-            onDismiss = { showEditLines = false },
-            onSent = {
-                showEditLines = false
-                scope.launch { reload() }
+    editingRow?.let { row ->
+        val e = edits
+        val isListed = e?.added?.any { it.key == row.key } == true
+        LineEditSheet(
+            row = row,
+            onSave = { draft ->
+                row.takeFrom(draft)
+                if (row.isNew && !isListed) e?.added?.add(row)
+                editingRow = null
             },
+            onRemoveNew = if (row.isNew && isListed) ({
+                if (row.staged) e?.removedStaged = true
+                e?.added?.remove(row)
+                editingRow = null
+            }) else null,
+            onDismiss = { editingRow = null },
         )
     }
 
@@ -478,9 +581,18 @@ fun InventoryOrderDetailScreen(
  *  the Goods section. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun GoodsLineCard(line: InventoryOrderLine, currencyCode: String?) {
+internal fun GoodsLineCard(
+    line: InventoryOrderLine,
+    currencyCode: String?,
+    /** #2659 — this line's local edit, if the order is still editable. */
+    edit: EditableLine? = null,
+    /** Opens the editor for THIS line; null = read-only. */
+    onEdit: (() -> Unit)? = null,
+) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
@@ -502,7 +614,16 @@ internal fun GoodsLineCard(line: InventoryOrderLine, currencyCode: String?) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            if (onEdit != null) {
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Edit ${line.displayName}",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 8.dp).size(18.dp),
+                )
+            }
         }
+        edit?.let { EditSummary(it, currencyCode) }
         if (line.quantity > 0.0) {
             val progress = (line.fulfilled / line.quantity).coerceIn(0.0, 1.0).toFloat()
             Row(
@@ -994,5 +1115,61 @@ internal fun DeliveryReceiptSheet(
                 }
             }
         }
+    }
+}
+
+/** #2659 — what this phone will send for a line: the edited quantity × price
+ *  (or "taking off the order"), tagged so it reads as not-yet-applied. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun EditSummary(row: EditableLine, currencyCode: String?) {
+    if (!row.edited && !row.staged) return
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        val photos = row.photoUrls.size + row.newPhotos.size
+        val what = when {
+            row.remove -> "Taking off the order"
+            else -> {
+                val price = parseEditNumber(row.price)
+                "${row.quantity} × ${price?.let { formatCurrency(it, currencyCode) } ?: row.price}" +
+                    if (photos > 0) " · $photos photo${if (photos == 1) "" else "s"}" else ""
+            }
+        }
+        LineStatChip(what, if (row.edited) LineStatTone.OUTSTANDING else LineStatTone.AWAITING)
+        LineStatChip(
+            if (row.edited) "Edited — not sent" else "Waiting for approval",
+            if (row.edited) LineStatTone.OUTSTANDING else LineStatTone.AWAITING,
+        )
+    }
+}
+
+/** #2659 — an item the partner added that the order does not list. */
+@Composable
+internal fun NewItemRow(row: EditableLine, currencyCode: String?, onEdit: (() -> Unit)?) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onEdit != null) Modifier.clickable(onClick = onEdit) else Modifier),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                listOf(row.name, row.color).filter { it.isNotBlank() }.joinToString(" — "),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f),
+            )
+            if (onEdit != null) {
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = "Edit ${row.name}",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+        LineStatChip("New item", LineStatTone.SENT)
+        EditSummary(row, currencyCode)
     }
 }

@@ -76,11 +76,17 @@ data class InventoryOrderLine(
     @SerialName("line_fulfillments") val lineFulfillments: List<LineFulfillment>? = null,
     val ledger: LineLedger? = null,
 ) {
+    /** Raw-material name, else the inventory item's TITLE, else SKU. Items
+     *  created from an order line (#2659) have a title and often no raw
+     *  material or SKU — they all read "Material" before. */
     val displayName: String
-        get() = inventoryItems?.firstOrNull()
-            ?.rawMaterials?.firstOrNull()?.name
-            ?: inventoryItems?.firstOrNull()?.sku
-            ?: "Material"
+        get() {
+            val item = inventoryItems?.firstOrNull()
+            return item?.rawMaterials?.firstOrNull()?.name?.takeIf { it.isNotBlank() }
+                ?: item?.title?.takeIf { it.isNotBlank() }
+                ?: item?.sku?.takeIf { it.isNotBlank() }
+                ?: "Material"
+        }
 
     /** What the partner has sent. The server's ledger when present; before
      *  #2289 the app summed `quantity`, a field the API never sends (rows carry
