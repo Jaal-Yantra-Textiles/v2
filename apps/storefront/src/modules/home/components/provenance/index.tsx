@@ -1,5 +1,8 @@
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 
+import { ButtonMark, NeedleMark } from "./making-marks"
+import StitchedSection from "./stitched-section"
+
 type Pillar = {
   title: string
   body: string
@@ -39,8 +42,8 @@ const PILLARS: Pillar[] = [
 
 const Provenance = () => {
   return (
-    <section className="w-full border-t border-neutral-900/10 bg-white">
-      <div className="content-container grid grid-cols-1 gap-12 py-24 small:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] small:gap-20 small:py-32">
+    <StitchedSection className="w-full border-t border-neutral-900/10 bg-white pb-16">
+      <div className="content-container relative z-10 grid grid-cols-1 gap-12 py-24 small:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] small:gap-20 small:py-32">
         <div className="max-w-md">
           <p className="txt-small uppercase tracking-[0.28em] text-ui-fg-muted">
             The making
@@ -65,12 +68,19 @@ const Provenance = () => {
               →
             </span>
           </LocalizedClientLink>
+
+          {/* The needle (its thread runs through the pillars) and a button. */}
+          <div className="mt-14 flex items-end gap-10 small:mt-20">
+            <NeedleMark className="h-48 w-12 shrink-0 small:h-60 small:w-[60px]" />
+            <ButtonMark className="h-28 w-auto small:h-36" />
+          </div>
         </div>
 
         <dl className="grid grid-cols-1 gap-x-10 gap-y-9 small:grid-cols-2">
           {PILLARS.map((pillar, index) => (
             <div
               key={pillar.title}
+              data-pillar
               className="border-t border-neutral-900/10 pt-5"
             >
               <span
@@ -89,7 +99,7 @@ const Provenance = () => {
           ))}
         </dl>
       </div>
-    </section>
+    </StitchedSection>
   )
 }
 

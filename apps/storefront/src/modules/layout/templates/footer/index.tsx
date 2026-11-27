@@ -8,6 +8,9 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import MedusaCTA from "@modules/layout/components/medusa-cta"
 import NewsletterForm from "@modules/layout/components/newsletter-form"
 
+import FooterThreads from "./footer-threads"
+import FooterWeave from "./footer-weave"
+
 const FOOTER_PARTNER_LIMIT = 8
 
 export default async function Footer() {
@@ -22,7 +25,10 @@ export default async function Footer() {
 
 
   return (
-    <footer className="border-t border-ui-border-base w-full bg-white relative">
+    <footer className="border-t border-ui-border-base w-full bg-white relative overflow-hidden">
+      {/* A loose hand-woven cloth, and dye-coloured threads drifting over it. */}
+      <FooterWeave />
+      <FooterThreads />
       <div className="content-container flex flex-col w-full relative z-10">
         <div className="flex flex-col gap-y-6 xsmall:flex-row items-start justify-between py-24">
           <div className="flex flex-col gap-y-4">
