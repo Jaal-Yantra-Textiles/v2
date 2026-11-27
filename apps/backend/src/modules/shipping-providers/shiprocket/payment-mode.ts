@@ -47,8 +47,18 @@ const SETTLED = new Set(["captured", "paid"])
 export function resolveShipmentPaymentMode(input: {
   payment_status?: unknown
   destination_country_code?: unknown
-  /** What COD would collect. Ignored on a prepaid shipment. */
+  /** What COD would collect when `cod_total` is absent. Ignored on prepaid. */
   sub_total: number
+  /**
+   * The order was placed as cash on delivery (`order.metadata.payment_mode ===
+   * "cod"`, stamped server-side at checkout). 🔴 Until 2026-11-27 COD was
+   * inferred from "not settled" — but core never passes `payment_status` to a
+   * fulfillment provider, so every domestic parcel booked here went COD,
+   * including prepaid ones. COD now needs the order to SAY so.
+   */
+  cod_requested?: boolean
+  /** What the courier collects on a COD parcel: the order total. */
+  cod_total?: number
 }): ShipmentPaymentMode {
   const destinationCountry = String(input.destination_country_code || "")
     .trim()
@@ -73,7 +83,7 @@ export function resolveShipmentPaymentMode(input: {
     }
   }
 
-  if (settled) {
+  if (settled || !input.cod_requested) {
     return {
       payment_mode: "prepaid",
       cod_amount: undefined,
@@ -82,10 +92,28 @@ export function resolveShipmentPaymentMode(input: {
     }
   }
 
+  const codTotal = Number(input.cod_total)
   return {
     payment_mode: "cod",
-    cod_amount: input.sub_total,
+    cod_amount: Number.isFinite(codTotal) && codTotal > 0 ? codTotal : input.sub_total,
     warn_uncaptured: false,
     international: false,
   }
+}
+
+/** The order says it is cash on delivery (stamped server-side at checkout). */
+export const isCodOrder = (order: any): boolean => order?.metadata?.payment_mode === "cod"
+
+/**
+ * What a COD parcel collects: the order total when this box carries the whole
+ * order, else only this box's goods (two boxes must not each collect the
+ * total). Mirrors `buildCreateShipmentInput`.
+ */
+export function codCollectable(order: any, shippedLineSum: number, items: any[]): number {
+  const orderItems: any[] = order?.items ?? []
+  const shippedQty = (items ?? []).reduce((s, i) => s + (Number(i?.quantity) || 0), 0)
+  const orderQty = orderItems.reduce((s, i) => s + (Number(i?.quantity) || 0), 0)
+  const whole = orderItems.length > 0 && shippedQty >= orderQty
+  const total = Number(order?.total)
+  return whole && Number.isFinite(total) && total > 0 ? total : shippedLineSum
 }

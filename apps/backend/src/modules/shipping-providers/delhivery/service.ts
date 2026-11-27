@@ -11,6 +11,11 @@ import {
 import { DelhiveryClient, DelhiveryOptions } from "./client"
 import { delhiveryWarehouseNameForLocation } from "./warehouse-name"
 import { declaredValueForShipment } from "./declared-value"
+import {
+  codCollectable,
+  isCodOrder,
+  resolveShipmentPaymentMode,
+} from "../shiprocket/payment-mode"
 import { Logger } from "@medusajs/framework/types"
 
 type InjectedDeps = { logger: Logger }
@@ -298,12 +303,17 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         )
       }
 
-      // Detect payment mode from order payment status
-      const paymentStatus = (order as any)?.payment_status
-      const paymentMode: "Pre-paid" | "COD" =
-        paymentStatus === "captured" || paymentStatus === "paid"
-          ? "Pre-paid"
-          : "Pre-paid" // Default to Pre-paid; COD requires explicit setup
+      // COD only when the order SAYS so: `metadata.payment_mode === "cod"`,
+      // stamped at checkout for a courier cash order (2026-11-27). The courier
+      // collects the order total (only this box's goods on a partial).
+      const mode = resolveShipmentPaymentMode({
+        payment_status: (order as any)?.payment_status,
+        destination_country_code: shippingAddress?.country_code,
+        sub_total: declaredValue || 0,
+        cod_requested: isCodOrder(order),
+        cod_total: codCollectable(order, declaredValue || 0, items as any[]),
+      })
+      const paymentMode: "Pre-paid" | "COD" = mode.payment_mode === "cod" ? "COD" : "Pre-paid"
 
       // Let Delhivery auto-assign waybill (waybill: "")
       const result = await this.client.createShipment({
@@ -317,6 +327,7 @@ class DelhiveryFulfillmentService extends AbstractFulfillmentProviderService {
         country: shippingAddress.country_code || "India",
         order_id: (order as any)?.id || fulfillment.id || "",
         payment_mode: paymentMode,
+        cod_amount: mode.payment_mode === "cod" ? mode.cod_amount : undefined,
         pickup_location_name: pickupLocationName,
         product_desc: productDesc,
         weight: totalWeight || 500,

@@ -1,6 +1,8 @@
 import { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
+import { evaluateCartCourierCod } from "../../../lib/cod/cart-courier-cod"
+import { courierCodFee } from "../../../lib/cod/courier-cod"
 import { runDeliveryCheck } from "../../../lib/delivery-check"
 import { normalizePostalCode } from "../../../lib/delivery-check/validate"
 import { getStoreFromPublishableKey } from "../helpers"
@@ -52,7 +54,34 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
       variant_id: q.variant_id,
       cart_id: q.cart_id,
     })
-    return res.json(result)
+
+    /**
+     * With a cart: may this cart pay cash to the courier, at THIS address?
+     * The same rule the cart-completion guard enforces, fed Delhivery's
+     * answer from the (cached, budgeted) check above — so the checkout offers
+     * cash exactly when the server will accept it. Only this store's carts.
+     */
+    let courier_cod: { allowed: boolean; reason: string; fee: number } | null = null
+    if (q.cart_id) {
+      try {
+        const evaluated = await evaluateCartCourierCod(req.scope, q.cart_id, {
+          delhiveryCod: result.delhivery_cod ?? null,
+          address: { country_code: postal.country_code, postal_code: postal.postal_code },
+        })
+        if (evaluated && salesChannelIds.includes(evaluated.sales_channel_id ?? "")) {
+          courier_cod = {
+            allowed: evaluated.decision.allowed,
+            reason: evaluated.decision.reason,
+            // Shown to the buyer BEFORE they choose cash (INR, pre-tax; it is
+            // taxed as shipping is).
+            fee: courierCodFee(),
+          }
+        }
+      } catch {
+        courier_cod = null
+      }
+    }
+    return res.json({ ...result, courier_cod })
   } catch (e: any) {
     const logger: any = req.scope.resolve(ContainerRegistrationKeys.LOGGER)
     logger.error(`[delivery-check] unexpected failure: ${e?.message || e}`)

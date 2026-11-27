@@ -118,4 +118,41 @@ describe("Delhivery createFulfillment", () => {
 
     expect(delhiveryStubState.lastManifestBody.shipments[0].weight).toBe(500)
   })
+
+  /**
+   * Courier cash on delivery (2026-11-27). Delhivery always booked "Pre-paid",
+   * so a COD order's parcel would be handed over with nothing collected.
+   */
+  it("books a COD order as COD, collecting the order total", async () => {
+    delhiveryStubState.registeredWarehouses.add(EXPECTED_PICKUP)
+    const service = buildService()
+
+    await service.createFulfillment(
+      {},
+      ITEMS,
+      {
+        ...ORDER,
+        payment_status: "authorized",
+        total: 2450,
+        items: [{ ...ORDER.items[0], quantity: 1, unit_price: 2300 }],
+        metadata: { payment_mode: "cod" },
+      },
+      FULFILLMENT
+    )
+
+    const shipment = delhiveryStubState.lastManifestBody.shipments[0]
+    expect(shipment.payment_mode).toBe("COD")
+    expect(Number(shipment.cod_amount)).toBe(2450)
+  })
+
+  it("books a prepaid order as Pre-paid with nothing to collect", async () => {
+    delhiveryStubState.registeredWarehouses.add(EXPECTED_PICKUP)
+    const service = buildService()
+
+    await service.createFulfillment({}, ITEMS, { ...ORDER, total: 2450 }, FULFILLMENT)
+
+    const shipment = delhiveryStubState.lastManifestBody.shipments[0]
+    expect(shipment.payment_mode).toBe("Pre-paid")
+    expect(Number(shipment.cod_amount || 0)).toBe(0)
+  })
 })

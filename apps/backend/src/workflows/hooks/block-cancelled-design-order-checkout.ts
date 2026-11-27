@@ -1,6 +1,8 @@
 import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
 import { MedusaError } from "@medusajs/framework/utils"
 
+import { assertCourierCodAllowed } from "../../lib/cod/assert-courier-cod"
+
 /**
  * A cancelled design order cannot be checked out.
  *
@@ -14,7 +16,7 @@ import { MedusaError } from "@medusajs/framework/utils"
  * `validate` runs before payment authorization, so refusing here takes no
  * money.
  */
-completeCartWorkflow.hooks.validate(async ({ cart }) => {
+completeCartWorkflow.hooks.validate(async ({ cart }, ctx?: { container: any }) => {
   const cancelledAt = (cart as any)?.metadata?.cancelled_at
   if (typeof cancelledAt === "string" && cancelledAt.trim()) {
     throw new MedusaError(
@@ -22,4 +24,8 @@ completeCartWorkflow.hooks.validate(async ({ cart }) => {
       "This order was cancelled and can no longer be paid for. Please contact us for a new link."
     )
   }
+
+  // 🔑 Medusa allows ONE handler per hook, so every completeCart validation
+  // lives in this handler. Courier cash on delivery (2026-11-27):
+  await assertCourierCodAllowed(cart, ctx?.container)
 })

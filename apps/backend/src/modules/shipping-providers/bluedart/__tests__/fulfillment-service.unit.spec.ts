@@ -151,20 +151,37 @@ describe("BlueDartFulfillmentService", () => {
     expect(input.dimensions_cm).toBeUndefined()
   })
 
-  it("treats an uncaptured order as COD", async () => {
+  it("books COD for an order placed as COD", async () => {
     const createShipment = jest.fn().mockResolvedValue({ awb: "1" })
     const svc = buildService(createShipment)
 
     await svc.createFulfillment(
       {},
       ITEMS,
-      { ...ORDER, payment_status: "awaiting" },
+      { ...ORDER, payment_status: "awaiting", metadata: { payment_mode: "cod" } } as any,
       { id: "ful_1" } as any
     )
 
     const input = createShipment.mock.calls[0][0]
     expect(input.payment_mode).toBe("cod")
     expect(input.cod_amount).toBe(5000)
+  })
+
+  // 🔴 Core passes no payment_status: "uncaptured → COD" made every parcel COD.
+  it("books PREPAID for an uncaptured order that was not placed as COD", async () => {
+    const createShipment = jest.fn().mockResolvedValue({ awb: "1" })
+    const svc = buildService(createShipment)
+
+    await svc.createFulfillment(
+      {},
+      ITEMS,
+      { ...ORDER, payment_status: undefined } as any,
+      { id: "ful_1" } as any
+    )
+
+    const input = createShipment.mock.calls[0][0]
+    expect(input.payment_mode).toBe("prepaid")
+    expect(input.cod_amount).toBeUndefined()
   })
 
   it("cancels by waybill, and no-ops when there is none to cancel", async () => {

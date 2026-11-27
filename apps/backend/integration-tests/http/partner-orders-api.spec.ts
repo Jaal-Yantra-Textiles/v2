@@ -1,6 +1,9 @@
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
-import { pickTestPaymentProvider } from "../helpers/pick-payment-provider"
+import {
+  markSystemSessionPaidOutOfBand,
+  pickTestPaymentProvider,
+} from "../helpers/pick-payment-provider"
 import { ProductStatus, Modules } from "@medusajs/framework/utils"
 
 const TEST_PARTNER_PASSWORD = "supersecret"
@@ -261,6 +264,7 @@ async function placeOrder(
       { provider_id: provider.id },
       { headers: storeHeaders }
     )
+    await markSystemSessionPaidOutOfBand(getSharedTestEnv().getContainer(), payCollId)
   }
 
   // 6. Complete cart → order

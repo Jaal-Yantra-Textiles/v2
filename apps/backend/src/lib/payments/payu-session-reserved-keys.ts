@@ -20,6 +20,9 @@ export const RESERVED_PAYU_SESSION_KEYS = [
   "partner_merchant_key",
   "partner_merchant_salt",
   "partner_mode",
+  // "Already paid out-of-band" — set only by a paid link's server completion.
+  // Courier cash on delivery trusts it to NOT collect at the door (2026-11-27).
+  "external_payment",
 ] as const
 
 export function stripReservedPayuSessionKeys(

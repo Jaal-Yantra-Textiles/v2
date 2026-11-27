@@ -1,6 +1,9 @@
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
-import { pickTestPaymentProvider } from "../helpers/pick-payment-provider"
+import {
+  markSystemSessionPaidOutOfBand,
+  pickTestPaymentProvider,
+} from "../helpers/pick-payment-provider"
 import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 import {
   setupQuoteFixture,
@@ -535,6 +538,10 @@ setupSharedTestSuite(() => {
             { provider_id: provider!.id },
             buyer.headers
           )
+        )
+        await markSystemSessionPaidOutOfBand(
+          getSharedTestEnv().getContainer(),
+          payColl.data.payment_collection.id
         )
 
         const complete = await loud("complete", () =>

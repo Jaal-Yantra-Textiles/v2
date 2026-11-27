@@ -2,7 +2,10 @@ import { ContainerRegistrationKeys, Modules } from "@medusajs/framework/utils"
 
 import { createAdminUser, getAuthHeaders } from "../helpers/create-admin-user"
 import { mintBody, setupQuoteFixture, type QuoteFixture } from "../helpers/setup-quote-fixture"
-import { pickTestPaymentProvider } from "../helpers/pick-payment-provider"
+import {
+  markSystemSessionPaidOutOfBand,
+  pickTestPaymentProvider,
+} from "../helpers/pick-payment-provider"
 import { getSharedTestEnv, setupSharedTestSuite } from "./shared-test-setup"
 import { PAYMENT_SCHEDULE_MODULE } from "../../src/modules/payment_schedule"
 import { reconcileBalanceForSchedule } from "../../src/lib/payments/reconcile-balance"
@@ -95,6 +98,7 @@ setupSharedTestSuite(() => {
         { provider_id: pickTestPaymentProvider(providers)!.id },
         { headers: storeHeaders }
       )
+      await markSystemSessionPaidOutOfBand(container(), collection.id)
       const complete = await api.post(`/store/carts/${cartId}/complete`, {}, {
         headers: storeHeaders,
       })

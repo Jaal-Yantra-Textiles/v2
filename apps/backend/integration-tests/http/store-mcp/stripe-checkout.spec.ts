@@ -17,6 +17,7 @@ import { Modules } from "@medusajs/utils"
 import { createAdminUser, getAuthHeaders } from "../../helpers/create-admin-user"
 import { createTestCustomer } from "../../helpers/create-customer"
 import { setupCheckoutInfrastructure } from "../../helpers/setup-checkout-infrastructure"
+import { markSystemSessionPaidOutOfBand } from "../../helpers/pick-payment-provider"
 import { getSharedTestEnv, setupSharedTestSuite } from "../shared-test-setup"
 
 jest.setTimeout(120000)
@@ -128,6 +129,7 @@ setupSharedTestSuite(() => {
         { provider_id: "pp_system_default" },
         storeHeaders()
       )
+      await markSystemSessionPaidOutOfBand(getContainer(), pcId)
       const completeRes = await api.post(
         `/store/carts/${cartId}/complete`,
         {},

@@ -18,6 +18,11 @@ import { CreateShipmentInput, ShipmentItem } from "../provider-interface"
 // node16 module resolution. No cycle — resolver.ts imports ./bluedart/adapter
 // directly, never this file or the barrel.
 import { resolveShippingProvider } from "../resolver"
+import {
+  codCollectable,
+  isCodOrder,
+  resolveShipmentPaymentMode,
+} from "../shiprocket/payment-mode"
 
 type InjectedDeps = { logger: Logger } & Record<string, unknown>
 
@@ -241,14 +246,22 @@ class BlueDartFulfillmentService extends AbstractFulfillmentProviderService {
       totalWeight = Math.max(400, totalQty * 400)
     }
 
-    const paymentStatus = (order as any)?.payment_status
-    const isPrepaid = paymentStatus === "captured" || paymentStatus === "paid"
     const subTotal = shipItems.reduce((s, i) => s + i.unit_price * i.quantity, 0)
+    // COD only when the order SAYS so (stamped at checkout) — the same rule as
+    // Shiprocket and Delhivery. Core never passes `payment_status` here, so the
+    // old "not captured → COD" made every parcel COD.
+    const mode = resolveShipmentPaymentMode({
+      payment_status: (order as any)?.payment_status,
+      destination_country_code: (order as any)?.shipping_address?.country_code,
+      sub_total: subTotal,
+      cod_requested: isCodOrder(order),
+      cod_total: codCollectable(order, subTotal, items as any[]),
+    })
 
     const input: CreateShipmentInput = {
       reference_id: (order as any)?.id || fulfillment.id || "",
-      payment_mode: isPrepaid ? "prepaid" : "cod",
-      cod_amount: isPrepaid ? undefined : subTotal,
+      payment_mode: mode.payment_mode,
+      cod_amount: mode.cod_amount,
       // Blue Dart keeps NO pickup-location registry (#1296) — the collection
       // address travels inline on every call, built by the adapter from the
       // stock location. This name is a label, never a carrier-side handle.
