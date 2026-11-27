@@ -28,7 +28,7 @@ export const DataGridCellContainer = ({
     <div className="group/container relative size-full">
       <div
         className={clx(
-          "bg-ui-bg-base group/cell relative flex size-full items-center gap-x-2 px-4 py-2.5 outline-none",
+          "bg-ui-bg-base group/cell relative flex size-full items-center gap-x-2 px-4 py-2.5 outline-hidden",
           {
             "bg-ui-tag-red-bg text-ui-tag-red-text":
               hasError && !isAnchor && !isSelected && !isDragSelected,
@@ -48,13 +48,13 @@ export const DataGridCellContainer = ({
             return (
               <div className="flex items-center justify-center">
                 <Tooltip content={message} delayDuration={0}>
-                  <ExclamationCircle className="text-ui-tag-red-icon z-[3]" />
+                  <ExclamationCircle className="text-ui-tag-red-icon z-3" />
                 </Tooltip>
               </div>
             )
           }}
         />
-        <div className="relative z-[1] flex size-full items-center justify-center">
+        <div className="relative z-1 flex size-full items-center justify-center">
           <RenderChildren isAnchor={isAnchor} placeholder={placeholder}>
             {children}
           </RenderChildren>
@@ -64,7 +64,7 @@ export const DataGridCellContainer = ({
           <div
             {...overlayProps}
             data-cell-overlay="true"
-            className="absolute inset-0 z-[2]"
+            className="absolute inset-0 z-2"
           />
         )}
       </div>

@@ -1,8 +1,7 @@
-import { createColumnHelper } from "@tanstack/react-table";
-import { Badge } from "@medusajs/ui";
+import { Badge, createDataTableColumnHelper } from "@medusajs/ui";
 import { AdminEmailTemplate } from "../api/email-templates";
 
-const columnHelper = createColumnHelper<AdminEmailTemplate>();
+const columnHelper = createDataTableColumnHelper<AdminEmailTemplate>();
 
 export const useEmailTemplatesTableColumns = () => {
   return [

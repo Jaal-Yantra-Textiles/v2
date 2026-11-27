@@ -1,8 +1,8 @@
-import { createColumnHelper } from "@tanstack/react-table"
+import { createDataTableColumnHelper } from "@medusajs/ui"
 import { useMemo } from "react"
 import type { AdminPaymentReport } from "../api/payment-reports"
 
-const columnHelper = createColumnHelper<AdminPaymentReport>()
+const columnHelper = createDataTableColumnHelper<AdminPaymentReport>()
 
 export const usePaymentReportTableColumns = () => {
   return useMemo(

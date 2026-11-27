@@ -1,7 +1,7 @@
-import { createColumnHelper } from "@tanstack/react-table";
+import { createDataTableColumnHelper } from "@medusajs/ui";
 import { AdminAgreement } from "../api/agreement";
 
-const columnHelper = createColumnHelper<AdminAgreement>();
+const columnHelper = createDataTableColumnHelper<AdminAgreement>();
 
 export const useAgreementsTableColumns = () => {
   return [

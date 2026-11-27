@@ -9,12 +9,12 @@ import {
   DataTableFilteringState,
   Badge,
   StatusBadge,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { CurrencyDollar } from "@medusajs/icons"
 import { useMemo, useState, useCallback } from "react"
-import { createColumnHelper } from "@tanstack/react-table"
 import { Link, useNavigate } from "react-router-dom"
 import debounce from "lodash/debounce"
 
@@ -38,7 +38,7 @@ const UOM_LABELS: Record<string, string> = {
   Other: "Other",
 }
 
-const columnHelper = createColumnHelper<AdminEnergyRate>()
+const columnHelper = createDataTableColumnHelper<AdminEnergyRate>()
 
 const useColumns = () => {
   return useMemo(

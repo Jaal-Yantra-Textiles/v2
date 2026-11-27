@@ -105,7 +105,7 @@ export const NodeItemList = ({
     return (
       <div className="border-t px-6 py-4">
         <Text size="small">These items could not be loaded.</Text>
-        <Text size="xsmall" className="text-ui-fg-muted mt-1 break-words">
+        <Text size="xsmall" className="text-ui-fg-muted mt-1 wrap-break-word">
           {(error as Error | undefined)?.message ?? "The request returned nothing."}
         </Text>
       </div>

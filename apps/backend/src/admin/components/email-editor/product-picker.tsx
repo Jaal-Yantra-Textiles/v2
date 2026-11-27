@@ -87,9 +87,9 @@ export const ProductPicker = ({ open, onOpenChange, onPick }: ProductPickerProps
                       onClick={() => onPick(productCardFromProduct(product, currency))}
                     >
                       {product.thumbnail ? (
-                        <img src={product.thumbnail} alt="" className="h-12 w-12 rounded object-cover" />
+                        <img src={product.thumbnail} alt="" className="h-12 w-12 rounded-sm object-cover" />
                       ) : (
-                        <div className="bg-ui-bg-subtle h-12 w-12 rounded" />
+                        <div className="bg-ui-bg-subtle h-12 w-12 rounded-sm" />
                       )}
                       <div className="flex min-w-0 flex-col">
                         <Text size="small" weight="plus" className="truncate">

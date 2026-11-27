@@ -70,7 +70,7 @@ const RichContent = ({ text, isOutbound }: { text: string; isOutbound: boolean }
       )}
 
       {/* Text with inline links */}
-      <div className="whitespace-pre-wrap break-words">
+      <div className="whitespace-pre-wrap wrap-break-word">
         {parts.map((part, i) =>
           URL_REGEX.test(part) ? (
             <a
@@ -229,7 +229,7 @@ const ReplyPreview = ({ snapshot, isOutbound }: { snapshot: Message["reply_to_sn
         {snapshot.sender_name || (isReplyFromPartner ? "Partner" : "Admin")}
       </div>
       {snapshot.media_url && snapshot.media_mime_type?.startsWith("image/") && (
-        <img src={snapshot.media_url} alt="" className="h-8 w-8 rounded object-cover inline-block mr-1" />
+        <img src={snapshot.media_url} alt="" className="h-8 w-8 rounded-sm object-cover inline-block mr-1" />
       )}
       <span className={clx(isOutbound ? "text-ui-fg-on-color/60" : "text-ui-fg-muted")}>
         {snapshot.content || (snapshot.media_url ? "Media" : "")}
@@ -330,7 +330,7 @@ export const MessageBubble = ({
 
         {isOutbound && message.status === "failed" && message.fail_reason && (
           <div
-            className="mt-1 text-[10px] text-red-300 text-right break-words"
+            className="mt-1 text-[10px] text-red-300 text-right wrap-break-word"
             title={message.fail_reason}
           >
             {message.fail_reason}

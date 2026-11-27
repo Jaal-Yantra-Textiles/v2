@@ -126,7 +126,7 @@ const AIDescriptionChatModal = ({
                     AI Ready
                   </Badge>
                 </div>
-                <div className="relative h-48 w-48 overflow-hidden rounded-lg border-2 border-ui-border-strong shadow-sm">
+                <div className="relative h-48 w-48 overflow-hidden rounded-lg border-2 border-ui-border-strong shadow-xs">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={selectedImageUrl}
@@ -208,7 +208,7 @@ const AIDescriptionChatModal = ({
                       AI Generated
                     </Badge>
                   </div>
-                  <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 shadow-sm">
+                  <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 shadow-xs">
                     <Heading level="h3" className="text-ui-fg-base">
                       {generatedTitle}
                     </Heading>
@@ -219,7 +219,7 @@ const AIDescriptionChatModal = ({
                   <Text size="small" weight="plus" className="text-ui-fg-base">
                     Generated Description
                   </Text>
-                  <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 shadow-sm max-h-64 overflow-y-auto">
+                  <div className="rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4 shadow-xs max-h-64 overflow-y-auto">
                     <Text className="whitespace-pre-wrap leading-relaxed text-ui-fg-base">
                       {generatedDescription}
                     </Text>

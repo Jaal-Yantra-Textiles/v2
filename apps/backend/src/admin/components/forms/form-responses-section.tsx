@@ -6,10 +6,10 @@ import {
   useDataTable,
   DataTablePaginationState,
   toast,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { useMemo, useState } from "react"
-import { createColumnHelper } from "@tanstack/react-table"
 import { Eye, SquareTwoStack } from "@medusajs/icons"
 import { EntityActions } from "../persons/personsActions"
 import { AdminFormResponse, useFormResponses } from "../../hooks/api/forms"
@@ -23,7 +23,7 @@ type FormResponsesSectionProps = {
   formId: string
 }
 
-const columnHelper = createColumnHelper<AdminFormResponse>()
+const columnHelper = createDataTableColumnHelper<AdminFormResponse>()
 
 export const FormResponsesSection = ({ formId }: FormResponsesSectionProps) => {
   const [pagination, setPagination] = useState<DataTablePaginationState>({

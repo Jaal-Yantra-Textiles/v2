@@ -7,6 +7,7 @@ import {
   createDataTableFilterHelper,
   DataTablePaginationState,
   DataTableFilteringState,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
@@ -14,14 +15,13 @@ import { ListBullet, PencilSquare } from "@medusajs/icons"
 import CreateButton from "../../../components/creates/create-button"
 import { useMemo, useState, useCallback } from "react"
 import { EntityActions } from "../../../components/persons/personsActions"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useForms, AdminForm } from "../../../hooks/api/forms"
 import { useFormsTableColumns } from "../../../hooks/columns/useFormsTableColumns"
 import { useNavigate } from "react-router-dom"
 import debounce from "lodash/debounce"
 import { TableSkeleton } from "../../../components/table/skeleton"
 
-const columnHelper = createColumnHelper<AdminForm>()
+const columnHelper = createDataTableColumnHelper<AdminForm>()
 
 export const useColumns = () => {
   const columns = useFormsTableColumns()

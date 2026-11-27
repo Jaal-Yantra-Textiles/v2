@@ -315,7 +315,7 @@ const ReadingPane = ({
       <div className="border-ui-border-base flex flex-col gap-3 border-b px-6 py-4">
         <div className="flex items-start gap-3">
           <div className="min-w-0">
-            <Heading level="h3" className="break-words">{email.subject}</Heading>
+            <Heading level="h3" className="wrap-break-word">{email.subject}</Heading>
             <Text size="small" className="text-ui-fg-subtle">
               {email.from_address} · {new Date(email.received_at).toLocaleString()} · {email.folder}
             </Text>

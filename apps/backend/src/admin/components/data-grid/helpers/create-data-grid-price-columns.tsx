@@ -1,5 +1,5 @@
 import { HttpTypes } from "@medusajs/types"
-import { ColumnDef } from "@tanstack/react-table"
+import { ColumnDef, RowData } from "../../../lib/legacy-table"
 import { TFunction } from "i18next"
 import { FieldPath, FieldValues } from "react-hook-form"
 
@@ -10,7 +10,7 @@ import { createDataGridHelper } from "./create-data-grid-column-helper"
 import { IncludesTaxTooltip } from "../../common/tax-badge"
 
 type CreateDataGridPriceColumnsProps<
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 > = {
   currencies?: string[]
@@ -25,7 +25,7 @@ type CreateDataGridPriceColumnsProps<
 }
 
 export const createDataGridPriceColumns = <
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 >({
   currencies,

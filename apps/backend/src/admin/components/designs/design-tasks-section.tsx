@@ -280,7 +280,7 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
                       
                       {/* Close button */}
                       <div 
-                        className="flex items-center justify-center py-2 mt-2 bg-ui-bg-subtle hover:bg-ui-bg-base-hover rounded-md cursor-pointer shadow-sm"
+                        className="flex items-center justify-center py-2 mt-2 bg-ui-bg-subtle hover:bg-ui-bg-base-hover rounded-md cursor-pointer shadow-xs"
                         onClick={() => setIsExpanded(false)}
                         role="button"
                       >
@@ -318,7 +318,7 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
                 <Link
                   key={run.runId}
                   to={`/production-runs/${run.runId}`}
-                  className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-subtle-hover"
+                  className="outline-hidden focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-subtle-hover"
                 >
                   <div className="rounded-md bg-ui-bg-subtle px-3 py-2 transition-colors flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -360,7 +360,7 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
       <Link
         to={link}
         key={task.id}
-        className={`outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover ${task.isSubtask ? "ml-6 border-l-2 border-ui-border-base pl-3" : ""}`}
+        className={`outline-hidden focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover ${task.isSubtask ? "ml-6 border-l-2 border-ui-border-base pl-3" : ""}`}
       >
         <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors">
           <div className="flex items-center gap-3">
@@ -375,7 +375,7 @@ export const DesignTasksSection = ({ design }: DesignTasksSectionProps) => {
                       <div className="bg-ui-tag-blue-bg text-ui-tag-blue text-xs font-medium rounded-full px-2 py-0.5 cursor-help">
                         {task.subtaskCount}
                       </div>
-                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-ui-bg-base text-ui-fg-base text-xs rounded shadow-elevation-flyout w-48 hidden group-hover:block z-10">
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-ui-bg-base text-ui-fg-base text-xs rounded-sm shadow-elevation-flyout w-48 hidden group-hover:block z-10">
                         <p className="font-medium mb-1">{t("Subtasks")}</p>
                         <p>{t("This task has {{count}} subtasks", { count: task.subtaskCount })}</p>
                         <p className="mt-1 text-ui-fg-subtle">{t("View in canvas to see relationships")}</p>

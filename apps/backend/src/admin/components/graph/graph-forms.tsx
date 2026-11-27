@@ -86,7 +86,7 @@ const withDesign = (
     return (
       <div className="flex flex-col gap-y-1 p-6">
         <Text size="small">This design could not be loaded.</Text>
-        <Text size="xsmall" className="text-ui-fg-muted break-words">
+        <Text size="xsmall" className="text-ui-fg-muted wrap-break-word">
           {(error as Error | undefined)?.message ?? "The request returned no design."}
         </Text>
       </div>

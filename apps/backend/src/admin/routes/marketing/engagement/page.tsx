@@ -10,8 +10,8 @@ import {
   Text,
   clx,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useQuery } from "@tanstack/react-query"
 import { useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "react-router-dom"
@@ -50,7 +50,7 @@ type EngagementResponse = {
   summary: Record<EngagementStatus | "total", number>
 }
 
-const columnHelper = createColumnHelper<EmailEngagement>()
+const columnHelper = createDataTableColumnHelper<EmailEngagement>()
 
 const statusToTone = (
   status: EngagementStatus

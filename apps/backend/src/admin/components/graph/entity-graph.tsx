@@ -99,7 +99,7 @@ export const EntityGraph = ({ spine, id, title = "Graph", expandHref }: Props) =
           <Text size="small" className="text-ui-fg-subtle">
             The graph could not be loaded.
           </Text>
-          <Text size="xsmall" className="text-ui-fg-muted mt-1 break-words">
+          <Text size="xsmall" className="text-ui-fg-muted mt-1 wrap-break-word">
             {(error as Error | undefined)?.message ?? "The request returned no graph."}
           </Text>
         </div>

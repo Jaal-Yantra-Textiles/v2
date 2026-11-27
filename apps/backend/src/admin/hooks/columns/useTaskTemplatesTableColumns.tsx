@@ -1,9 +1,8 @@
 import { AdminTaskTemplate } from "../api/task-templates";
-import { createColumnHelper } from "@tanstack/react-table";
 import { useMemo } from "react";
-import { Badge } from "@medusajs/ui";
+import { Badge, createDataTableColumnHelper } from "@medusajs/ui";
 
-const columnHelper = createColumnHelper<AdminTaskTemplate>();
+const columnHelper = createDataTableColumnHelper<AdminTaskTemplate>();
 
 const getPriorityColor = (priority: string) => {
   switch (priority) {

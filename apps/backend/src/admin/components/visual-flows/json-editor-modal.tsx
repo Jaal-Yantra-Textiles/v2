@@ -176,9 +176,9 @@ export function JsonEditorModal({
                 type="button"
                 onClick={() => handleSetMode("visual")}
                 className={[
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-medium transition-colors",
                   mode === "visual"
-                    ? "bg-ui-bg-base text-ui-fg-base shadow-sm"
+                    ? "bg-ui-bg-base text-ui-fg-base shadow-xs"
                     : "text-ui-fg-muted hover:text-ui-fg-base",
                 ].join(" ")}
               >
@@ -189,9 +189,9 @@ export function JsonEditorModal({
                 type="button"
                 onClick={() => handleSetMode("raw")}
                 className={[
-                  "flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-medium transition-colors",
+                  "flex items-center gap-1.5 px-2.5 py-1 rounded-sm text-xs font-medium transition-colors",
                   mode === "raw"
-                    ? "bg-ui-bg-base text-ui-fg-base shadow-sm"
+                    ? "bg-ui-bg-base text-ui-fg-base shadow-xs"
                     : "text-ui-fg-muted hover:text-ui-fg-base",
                 ].join(" ")}
               >

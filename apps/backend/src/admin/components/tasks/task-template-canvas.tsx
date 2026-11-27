@@ -128,7 +128,7 @@ export function TaskTemplateCanvas({
         {/* Info icon with tooltip */}
         <div className="absolute -top-2 -right-2 z-10">
           <Tooltip content={getTemplateDetails()}>
-            <div className="bg-white rounded-full p-1 shadow-sm border border-gray-200 cursor-help">
+            <div className="bg-white rounded-full p-1 shadow-xs border border-gray-200 cursor-help">
               <InformationCircle className="text-gray-500 h-3 w-3" />
             </div>
           </Tooltip>
@@ -161,13 +161,13 @@ export function TaskTemplateCanvas({
         <Handle
           type="target"
           position={Position.Top}
-          className="w-10 !bg-blue-500"
+          className="w-10 bg-blue-500!"
           style={{ opacity: 0.6 }}
         />
         <Handle
           type="source"
           position={Position.Bottom}
-          className="w-10 !bg-blue-500"
+          className="w-10 bg-blue-500!"
           style={{ opacity: 0.6 }}
         />
       </div>

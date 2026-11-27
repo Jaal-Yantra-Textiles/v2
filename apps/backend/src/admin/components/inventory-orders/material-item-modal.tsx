@@ -247,7 +247,7 @@ export const MaterialItemModal = ({
     return (
       <FocusModal open={open} onOpenChange={onOpenChange}>
         <FocusModal.Content
-          className="!top-6 flex h-[calc(100vh-3rem)] max-h-[calc(100vh-3rem)] flex-col"
+          className="top-6! flex h-[calc(100vh-3rem)] max-h-[calc(100vh-3rem)] flex-col"
           overlayProps={{ className: "bg-transparent" }}
         >
           <FocusModal.Header>

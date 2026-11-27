@@ -836,7 +836,7 @@ const ProductionRunDetailPage = () => {
                       <Link
                         key={taskId}
                         to={`tasks/${taskId}`}
-                        className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
+                        className="outline-hidden focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
                       >
                         <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-3 py-2 transition-colors">
                           <div className="flex items-center justify-between gap-x-2">

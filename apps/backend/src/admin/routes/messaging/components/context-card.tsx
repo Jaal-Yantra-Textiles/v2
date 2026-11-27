@@ -19,7 +19,7 @@ export const ContextCard = ({
 }) => {
   if (type === "production_run") {
     return (
-      <div className="rounded border border-ui-border-base bg-ui-bg-base p-2 text-xs text-ui-fg-base">
+      <div className="rounded-sm border border-ui-border-base bg-ui-bg-base p-2 text-xs text-ui-fg-base">
         <div className="flex items-center justify-between mb-1">
           <span className="font-medium">Production Run</span>
           <Badge color={statusColor(snapshot.status) as any} size="2xsmall">
@@ -37,7 +37,7 @@ export const ContextCard = ({
 
   if (type === "design") {
     return (
-      <div className="rounded border border-ui-border-base bg-ui-bg-base p-2 text-xs text-ui-fg-base">
+      <div className="rounded-sm border border-ui-border-base bg-ui-bg-base p-2 text-xs text-ui-fg-base">
         <div className="flex items-center justify-between mb-1">
           <span className="font-medium">Design</span>
           {snapshot.status && (
@@ -52,7 +52,7 @@ export const ContextCard = ({
           {snapshot.color && <div>Color: {snapshot.color}</div>}
         </div>
         {snapshot.thumbnail && (
-          <img src={snapshot.thumbnail} alt={snapshot.name} className="mt-1 rounded max-h-20 object-cover" />
+          <img src={snapshot.thumbnail} alt={snapshot.name} className="mt-1 rounded-sm max-h-20 object-cover" />
         )}
       </div>
     )
@@ -60,7 +60,7 @@ export const ContextCard = ({
 
   if (type === "inventory_item") {
     return (
-      <div className="rounded border border-ui-border-base bg-ui-bg-base p-2 text-xs text-ui-fg-base">
+      <div className="rounded-sm border border-ui-border-base bg-ui-bg-base p-2 text-xs text-ui-fg-base">
         <div className="font-medium mb-1">Inventory Item</div>
         <div className="text-ui-fg-muted">
           {snapshot.title && <div>{snapshot.title}</div>}

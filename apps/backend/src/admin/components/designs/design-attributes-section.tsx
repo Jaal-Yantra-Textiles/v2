@@ -139,7 +139,7 @@ export const DesignAttributesSection = ({
               >
                 <div className="flex flex-col items-center">
                   <div
-                    className="w-8 h-8 rounded-md border border-ui-border-base shadow-sm"
+                    className="w-8 h-8 rounded-md border border-ui-border-base shadow-xs"
                     style={{ backgroundColor: color.code }}
                   />
                   <Text className="text-ui-fg-subtle mt-0.5" size="xsmall">

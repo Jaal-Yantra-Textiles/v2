@@ -125,7 +125,7 @@ function FiltersPopover({
           align="end"
           sideOffset={8}
           collisionPadding={16}
-          className={clx("w-72 flex flex-col !p-0")}
+          className={clx("w-72 flex flex-col p-0!")}
         >
           {/* Date range section */}
           <div className="px-4 pt-4 pb-3 flex flex-col gap-y-3">
@@ -140,7 +140,7 @@ function FiltersPopover({
                   key={d}
                   onClick={() => set("preset", d)}
                   className={clx(
-                    "flex-1 text-xs py-1.5 rounded border transition-colors",
+                    "flex-1 text-xs py-1.5 rounded-sm border transition-colors",
                     draft.preset === d
                       ? "border-ui-border-interactive bg-ui-bg-interactive text-ui-fg-on-inverted"
                       : "border-ui-border-base bg-ui-bg-base text-ui-fg-base hover:bg-ui-bg-hover"
@@ -152,7 +152,7 @@ function FiltersPopover({
               <button
                 onClick={() => set("preset", null)}
                 className={clx(
-                  "flex-1 text-xs py-1.5 rounded border transition-colors",
+                  "flex-1 text-xs py-1.5 rounded-sm border transition-colors",
                   draft.preset === null
                     ? "border-ui-border-interactive bg-ui-bg-interactive text-ui-fg-on-inverted"
                     : "border-ui-border-base bg-ui-bg-base text-ui-fg-base hover:bg-ui-bg-hover"
@@ -649,7 +649,7 @@ function MetricCard({ label, value, icon: IconComponent }: { label: string; valu
 
 function SourceRow({ source, visitors, IconComponent }: { source: string; visitors: number; IconComponent: React.ComponentType<any> }) {
   return (
-    <div className="flex items-center justify-between py-2 hover:bg-ui-bg-subtle-hover rounded px-2 -mx-2">
+    <div className="flex items-center justify-between py-2 hover:bg-ui-bg-subtle-hover rounded-sm px-2 -mx-2">
       <div className="flex items-center gap-x-2">
         <IconComponent className="text-ui-fg-subtle" />
         <Text size="small">{source}</Text>
@@ -693,7 +693,7 @@ function RankedBarList({ items }: { items: { name: string; value: number }[] }) 
 
 function PageRow({ page, visitors }: { page: string; visitors: number }) {
   return (
-    <div className="flex items-center justify-between py-2 hover:bg-ui-bg-subtle-hover rounded px-2 -mx-2">
+    <div className="flex items-center justify-between py-2 hover:bg-ui-bg-subtle-hover rounded-sm px-2 -mx-2">
       <Text size="small" className="font-mono text-ui-fg-subtle">{page}</Text>
       <Text size="small" className="text-ui-fg-subtle font-medium">{visitors}</Text>
     </div>

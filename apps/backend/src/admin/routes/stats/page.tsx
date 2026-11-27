@@ -11,11 +11,11 @@ import {
   useDataTable,
   toast,
   usePrompt,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { PencilSquare, Trash, SquareTwoStack, Plus } from "@medusajs/icons"
 import { useNavigate } from "react-router-dom"
 import { useCallback, useMemo, useState } from "react"
-import { createColumnHelper } from "@tanstack/react-table"
 import debounce from "lodash/debounce"
 import {
   StatsDashboard,
@@ -27,7 +27,7 @@ import {
 import { ActionMenu } from "../../components/common/action-menu"
 
 const PAGE_SIZE = 20
-const columnHelper = createColumnHelper<StatsDashboard>()
+const columnHelper = createDataTableColumnHelper<StatsDashboard>()
 
 const StatsPage = () => {
   const navigate = useNavigate()

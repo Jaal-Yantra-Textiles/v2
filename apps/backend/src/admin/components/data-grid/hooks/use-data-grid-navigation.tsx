@@ -1,11 +1,11 @@
-import { Column, Row, VisibilityState } from "@tanstack/react-table"
+import { Column, Row, VisibilityState, RowData } from "../../../lib/legacy-table"
 import { ScrollToOptions, Virtualizer } from "@tanstack/react-virtual"
 import { Dispatch, SetStateAction, useCallback } from "react"
 import { FieldValues } from "react-hook-form"
 import { DataGridMatrix, DataGridQueryTool } from "../models"
 import { DataGridCoordinates } from "../types"
 
-type UseDataGridNavigationOptions<TData, TFieldValues extends FieldValues> = {
+type UseDataGridNavigationOptions<TData extends RowData, TFieldValues extends FieldValues> = {
   matrix: DataGridMatrix<TData, TFieldValues>
   anchor: DataGridCoordinates | null
   visibleRows: Row<TData>[]
@@ -18,7 +18,7 @@ type UseDataGridNavigationOptions<TData, TFieldValues extends FieldValues> = {
   setSingleRange: (coords: DataGridCoordinates | null) => void
 }
 
-export const useDataGridNavigation = <TData, TFieldValues extends FieldValues>({
+export const useDataGridNavigation = <TData extends RowData, TFieldValues extends FieldValues>({
   matrix,
   anchor,
   visibleColumns,

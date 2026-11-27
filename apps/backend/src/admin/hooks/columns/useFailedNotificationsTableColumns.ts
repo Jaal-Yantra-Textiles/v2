@@ -1,7 +1,7 @@
-import { createColumnHelper } from "@tanstack/react-table";
+import { createDataTableColumnHelper } from "@medusajs/ui";
 import { Notification } from "../api/notifications";
 
-const columnHelper = createColumnHelper<Notification>();
+const columnHelper = createDataTableColumnHelper<Notification>();
 
 export const useFailedNotificationsTableColumns = () => {
   return [

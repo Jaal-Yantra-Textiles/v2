@@ -1038,7 +1038,7 @@ const AssistantChat = ({
                 <img
                   src={a.url}
                   alt={a.name}
-                  className="h-8 w-8 rounded object-cover"
+                  className="h-8 w-8 rounded-sm object-cover"
                 />
                 <Text size="xsmall" className="max-w-[160px] truncate">
                   {a.name}

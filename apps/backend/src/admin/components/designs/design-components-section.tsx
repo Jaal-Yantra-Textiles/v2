@@ -34,7 +34,7 @@ const ComponentRow = ({ item, designId }: { item: DesignComponentLink; designId:
   return (
     <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-3 transition-colors hover:bg-ui-bg-component-hover">
       <div className="flex items-start justify-between gap-2">
-        <Link to={`/designs/${item.component_design_id}`} className="flex-1 min-w-0 outline-none">
+        <Link to={`/designs/${item.component_design_id}`} className="flex-1 min-w-0 outline-hidden">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-ui-fg-base font-medium truncate">{name}</span>
             {item.role && <Badge size="2xsmall" color="grey">{item.role}</Badge>}
@@ -100,7 +100,7 @@ export const DesignComponentsSection = ({ design }: DesignComponentsSectionProps
               const parent = item.parent_design
               const name = parent?.name || item.parent_design_id
               return (
-                <Link key={item.id} to={`/designs/${item.parent_design_id}`} className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover">
+                <Link key={item.id} to={`/designs/${item.parent_design_id}`} className="outline-hidden focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover">
                   <div className="shadow-elevation-card-rest bg-ui-bg-component rounded-md px-4 py-2.5 transition-colors">
                     <div className="flex items-center gap-2">
                       <span className="text-ui-fg-base font-medium flex-1 truncate">{name}</span>

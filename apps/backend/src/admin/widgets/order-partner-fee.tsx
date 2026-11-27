@@ -119,8 +119,8 @@ const OrderPartnerFeeWidget = ({ data: order }: DetailWidgetProps<AdminOrder>) =
 
       {isLoading || !fee ? (
         <div className="px-6 py-4">
-          <div className="bg-ui-bg-subtle h-4 w-32 animate-pulse rounded" />
-          <div className="bg-ui-bg-subtle mt-2 h-4 w-24 animate-pulse rounded" />
+          <div className="bg-ui-bg-subtle h-4 w-32 animate-pulse rounded-sm" />
+          <div className="bg-ui-bg-subtle mt-2 h-4 w-24 animate-pulse rounded-sm" />
         </div>
       ) : (
         <div className="flex flex-col gap-y-3 px-6 py-4">

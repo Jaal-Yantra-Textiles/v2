@@ -185,7 +185,7 @@ export const DataTableFilter = ({
             <Popover.Portal>
               <Popover.Content
                 className={clx(
-                  "bg-ui-bg-base text-ui-fg-base shadow-elevation-flyout z-[1] h-full max-h-[200px] w-[300px] overflow-auto rounded-lg p-1 outline-none",
+                  "bg-ui-bg-base text-ui-fg-base shadow-elevation-flyout z-1 h-full max-h-[200px] w-[300px] overflow-auto rounded-lg p-1 outline-hidden",
                 )}
                 data-name="filters_menu_content"
                 align="start"
@@ -204,7 +204,7 @@ export const DataTableFilter = ({
                 {availableFilters.map((filter) => {
                   return (
                     <div
-                      className="bg-ui-bg-base hover:bg-ui-bg-base-hover focus-visible:bg-ui-bg-base-pressed text-ui-fg-base data-[disabled]:text-ui-fg-disabled txt-compact-small relative flex cursor-pointer select-none items-center rounded-md px-2 py-1.5 outline-none transition-colors data-[disabled]:pointer-events-none"
+                      className="bg-ui-bg-base hover:bg-ui-bg-base-hover focus-visible:bg-ui-bg-base-pressed text-ui-fg-base data-disabled:text-ui-fg-disabled txt-compact-small relative flex cursor-pointer select-none items-center rounded-md px-2 py-1.5 outline-hidden transition-colors data-disabled:pointer-events-none"
                       role="menuitem"
                       key={filter.key}
                       onClick={() => {

@@ -104,7 +104,7 @@ function MessageContent({ content }: { content: string }) {
                 part.startsWith("`") && part.endsWith("`") ? (
                   <code
                     key={j}
-                    className="bg-ui-bg-base px-1 py-0.5 rounded text-xs font-mono"
+                    className="bg-ui-bg-base px-1 py-0.5 rounded-sm text-xs font-mono"
                   >
                     {part.slice(1, -1)}
                   </code>

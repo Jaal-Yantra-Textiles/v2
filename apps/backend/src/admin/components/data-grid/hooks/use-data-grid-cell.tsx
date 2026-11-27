@@ -1,4 +1,4 @@
-import { CellContext } from "@tanstack/react-table"
+import { CellContext, RowData } from "../../../lib/legacy-table"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { useDataGridContext } from "../context"
@@ -13,14 +13,14 @@ import {
   shouldRestoreAnchorFocus,
 } from "../utils"
 
-type UseDataGridCellOptions<TData, TValue> = {
+type UseDataGridCellOptions<TData extends RowData, TValue> = {
   context: CellContext<TData, TValue>
 }
 
 const textCharacterRegex = /^.$/u
 const numberCharacterRegex = /^[0-9]$/u
 
-export const useDataGridCell = <TData, TValue>({
+export const useDataGridCell = <TData extends RowData, TValue>({
   context,
 }: UseDataGridCellOptions<TData, TValue>) => {
   const {

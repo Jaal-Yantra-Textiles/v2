@@ -7,8 +7,8 @@ import {
   StatusBadge,
   Text,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
 import { useCallback } from "react"
 import { useSearchParams } from "react-router-dom"
 import {
@@ -25,7 +25,7 @@ import {
 } from "./format"
 
 const PAGE_SIZE = 20
-const columnHelper = createColumnHelper<AdsAd>()
+const columnHelper = createDataTableColumnHelper<AdsAd>()
 
 type Props = { platformId: string; kind: AdsPlatformKind | null }
 

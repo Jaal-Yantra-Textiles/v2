@@ -165,10 +165,10 @@ const AbandonedCartDetailPage = () => {
                   <img
                     src={item.thumbnail}
                     alt={item.title}
-                    className="h-10 w-10 rounded object-cover bg-ui-bg-subtle"
+                    className="h-10 w-10 rounded-sm object-cover bg-ui-bg-subtle"
                   />
                 ) : (
-                  <div className="h-10 w-10 rounded bg-ui-bg-subtle flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-sm bg-ui-bg-subtle flex items-center justify-center">
                     <ShoppingCart className="text-ui-fg-muted" />
                   </div>
                 )}
@@ -269,7 +269,7 @@ const AbandonedCartDetailPage = () => {
           <Text size="xsmall" className="text-ui-fg-subtle">
             Storefront URL the customer can use to resume this cart.
           </Text>
-          <code className="text-xs break-all text-ui-fg-base bg-ui-bg-subtle p-2 rounded block">
+          <code className="text-xs break-all text-ui-fg-base bg-ui-bg-subtle p-2 rounded-sm block">
             {cart.recovery_url}
           </code>
           {cart.partner ? (

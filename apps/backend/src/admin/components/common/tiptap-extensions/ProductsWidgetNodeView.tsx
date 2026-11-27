@@ -7,7 +7,7 @@ export const ProductsWidgetNodeView: React.FC<NodeViewProps> = () => {
   const { count, isLoading, error, isSuccess } = useProducts(); 
 
   return (
-    <NodeViewWrapper className="products-widget-node p-2 border rounded bg-ui-bg-subtle my-2">
+    <NodeViewWrapper className="products-widget-node p-2 border rounded-sm bg-ui-bg-subtle my-2">
       <p className="text-ui-fg-subtle text-xs font-semibold">Product Information</p>
       {isLoading && <span className="text-ui-fg-muted">Loading product count...</span>}
       {error && <span className="text-ui-fg-error">Error: {error.message || 'Failed to fetch product count.'}</span>}

@@ -1,4 +1,5 @@
-import type { Column, Table } from "@tanstack/react-table"
+import type { RowData } from "../../../lib/legacy-table"
+import type { Column, Table } from "../../../lib/legacy-table"
 import { useCallback } from "react"
 import type { FieldValues } from "react-hook-form"
 
@@ -6,7 +7,7 @@ import { DataGridMatrix } from "../models"
 import { GridColumnOption } from "../types"
 
 export function useDataGridColumnVisibility<
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 >(grid: Table<TData>, matrix: DataGridMatrix<TData, TFieldValues>) {
   const columns = grid.getAllLeafColumns()
@@ -47,7 +48,7 @@ export function useDataGridColumnVisibility<
   }
 }
 
-function getColumnName<TData>(column: Column<TData, unknown>): string {
+function getColumnName<TData extends RowData>(column: Column<TData, unknown>): string {
   const id = column.columnDef.id
   const enableHiding = column.columnDef.enableHiding
   const meta = column?.columnDef.meta as { name?: string } | undefined

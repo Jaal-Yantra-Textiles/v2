@@ -68,7 +68,7 @@ export const CreateMediaFilesComponent: React.FC = () => {
             </Text>
             <div className="flex flex-wrap gap-2">
               {pendingFiles.slice(0, 12).map((f, idx) => (
-                <img key={idx} src={f.url} alt={f.file.name} className="h-16 w-16 object-cover rounded" />
+                <img key={idx} src={f.url} alt={f.file.name} className="h-16 w-16 object-cover rounded-sm" />
               ))}
             </div>
           </div>

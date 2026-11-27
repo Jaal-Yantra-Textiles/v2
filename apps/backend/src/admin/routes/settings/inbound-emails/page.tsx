@@ -12,11 +12,11 @@ import {
   createDataTableFilterHelper,
   toast,
   useDataTable,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { keepPreviousData } from "@tanstack/react-query"
 import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { EnvelopeSolid } from "@medusajs/icons"
-import { createColumnHelper } from "@tanstack/react-table"
 import debounce from "lodash/debounce"
 import { useCallback, useMemo, useState } from "react"
 import { Outlet, useNavigate } from "react-router-dom"
@@ -26,7 +26,7 @@ import {
   useSyncInboundEmails,
 } from "../../../hooks/api/inbound-emails"
 
-const columnHelper = createColumnHelper<AdminInboundEmail>()
+const columnHelper = createDataTableColumnHelper<AdminInboundEmail>()
 const PAGE_SIZE = 20
 
 const STATUS_COLORS: Record<string, "green" | "orange" | "blue" | "grey"> = {

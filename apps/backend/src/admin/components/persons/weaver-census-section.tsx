@@ -55,7 +55,7 @@ export const WeaverCensusSection = ({ weaver }: { weaver: AdminWeaver }) => {
           <Text size="small" leading="compact" weight="plus">
             {k.replace(/_/g, " ")}
           </Text>
-          <pre className="text-ui-fg-subtle mt-2 whitespace-pre-wrap break-all rounded border border-ui-border-base p-2 text-xs">
+          <pre className="text-ui-fg-subtle mt-2 whitespace-pre-wrap break-all rounded-sm border border-ui-border-base p-2 text-xs">
             {JSON.stringify(v, null, 2)}
           </pre>
         </div>

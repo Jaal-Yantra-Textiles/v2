@@ -14,6 +14,7 @@ import {
   TooltipProvider,
   Tooltip,
   Button,
+  createDataTableColumnHelper,
 } from "@medusajs/ui";
 import { Outlet, useNavigate } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -21,7 +22,6 @@ import { defineRouteConfig } from "@medusajs/admin-sdk";
 import { ReceiptPercent, XCircle, CheckCircleSolid } from "@medusajs/icons";
 import { useCallback, useMemo, useState } from "react";
 import { EntityActions } from "../../components/persons/personsActions";
-import { createColumnHelper } from "@tanstack/react-table";
 import debounce from "lodash/debounce";
 import {
   DesignOrderItem,
@@ -195,7 +195,7 @@ const DesignOrderActions = ({ row }: { row: DesignOrderItem }) => {
 
 // ─── Columns ─────────────────────────────────────────────────────────────────
 
-const columnHelper = createColumnHelper<DesignOrderItem>();
+const columnHelper = createDataTableColumnHelper<DesignOrderItem>();
 
 const useColumns = () =>
   useMemo(

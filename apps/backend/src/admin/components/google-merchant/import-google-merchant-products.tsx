@@ -324,7 +324,7 @@ export const ImportGoogleMerchantProducts = () => {
                   <summary className="cursor-pointer text-ui-fg-subtle text-xs">
                     Raw error
                   </summary>
-                  <pre className="mt-2 whitespace-pre-wrap break-words text-xs text-ui-fg-muted">
+                  <pre className="mt-2 whitespace-pre-wrap wrap-break-word text-xs text-ui-fg-muted">
                     {previewError}
                   </pre>
                 </details>

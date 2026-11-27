@@ -65,6 +65,12 @@ module.exports = {
   // resolve "<rootDir>/test-shims/..." into a non-existent path.
   moduleNameMapper: {
     "^tokenx$": path.resolve(__dirname, "test-shims/tokenx.cjs"),
+    // Medusa 2.23: react-table v9 is ESM-only and @medusajs/ui's CJS build
+    // require()s it. Stubbed — see the shim for why a stub is enough.
+    "^@tanstack/react-table(/.*)?$": path.resolve(
+      __dirname,
+      "test-shims/tanstack-react-table.cjs"
+    ),
   },
   testEnvironment: "node",
   moduleFileExtensions: ["js", "mjs", "ts", "tsx", "jsx", "json"],

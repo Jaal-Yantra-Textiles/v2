@@ -201,7 +201,7 @@ export const EditOrderLines = ({ inventoryOrder }: EditOrderLinesProps) => {
             </div>
             
             {/* Display calculated totals - sticky at the bottom */}
-            <div className="flex-shrink-0 border-t border-dashed p-8 bg-ui-bg-base">
+            <div className="shrink-0 border-t border-dashed p-8 bg-ui-bg-base">
               <div className="flex justify-between items-center mb-2">
                 <Text weight="plus">Total Order Quantity:</Text>
                 <Text weight="plus">{displayTotals.totalQuantity}</Text>

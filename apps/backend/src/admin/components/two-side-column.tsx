@@ -32,7 +32,7 @@ export const TwoColumnLayout = ({
         {firstCol}
       </div>
       <div
-        className={`flex w-full max-w-[100%] flex-col gap-y-3 xl:mt-0 xl:max-w-[440px] ${
+        className={`flex w-full max-w-full flex-col gap-y-3 xl:mt-0 xl:max-w-[440px] ${
           stickySecondCol ? "xl:sticky xl:top-6" : ""
         } ${secondColClassName || ""}`}
       >

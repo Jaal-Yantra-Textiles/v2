@@ -121,7 +121,7 @@ export const ComplianceSection = ({
         {fields.map(([label, value]) => (
           <div key={label}>
             <Text size="small" className="text-ui-fg-subtle">{label}</Text>
-            <Text weight="plus" className="mt-1 break-words">{value}</Text>
+            <Text weight="plus" className="mt-1 wrap-break-word">{value}</Text>
           </div>
         ))}
       </div>

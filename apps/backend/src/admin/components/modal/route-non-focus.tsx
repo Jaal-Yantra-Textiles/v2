@@ -113,7 +113,7 @@ const Content = ({ stackedModalOpen, children }: ContentProps) => {
       onPointerDownOutside={(e) => e.preventDefault()}
       onInteractOutside={(e) => e.preventDefault()}
       className={clx(
-        "bg-ui-bg-base flex flex-col focus:outline-none",
+        "bg-ui-bg-base flex flex-col focus:outline-hidden",
         
         "border-ui-border-base border shadow-xl",
         {

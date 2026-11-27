@@ -9,7 +9,8 @@ export const KeyboundForm = React.forwardRef<
 >(({ onSubmit, onKeyDown, ...rest }, ref) => {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    onSubmit?.(event);
+    // React 19 types `onSubmit` as a SubmitEvent; the handler only reads the form.
+    onSubmit?.(event as React.SubmitEvent<HTMLFormElement>);
   };
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLFormElement>) => {

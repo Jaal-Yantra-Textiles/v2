@@ -69,7 +69,7 @@ export function GalleryBlockEditor({ content, onContentChange }: BlockEditorProp
                 <div className="flex-1 space-y-2">
                   {/* Preview */}
                   {image.url && (
-                    <div className="w-full h-20 rounded overflow-hidden bg-ui-bg-base">
+                    <div className="w-full h-20 rounded-sm overflow-hidden bg-ui-bg-base">
                       <img
                         src={image.url}
                         alt={image.alt || "Preview"}

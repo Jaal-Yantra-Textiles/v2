@@ -142,7 +142,7 @@ export const CreateMediaFolderComponent = () => {
                         type="checkbox"
                         checked={field.value ?? false}
                         onChange={(e) => field.onChange(e.target.checked)}
-                        className="h-4 w-4 rounded border-ui-border-base bg-ui-bg-base text-ui-fg-interactive focus:ring-ui-fg-interactive focus:ring-offset-ui-bg-base"
+                        className="h-4 w-4 rounded-sm border-ui-border-base bg-ui-bg-base text-ui-fg-interactive focus:ring-ui-fg-interactive focus:ring-offset-ui-bg-base"
                       />
                       <Text size="small">Make this folder public</Text>
                     </div>

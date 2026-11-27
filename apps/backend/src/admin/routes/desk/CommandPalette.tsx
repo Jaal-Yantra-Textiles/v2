@@ -111,7 +111,7 @@ export const DeskCommandPalette = ({
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-start justify-center bg-ui-bg-overlay pt-[12vh] px-4"
+      className="fixed inset-0 z-1000 flex items-start justify-center bg-ui-bg-overlay pt-[12vh] px-4"
       onMouseDown={() => setOpen(false)}
       role="dialog"
       aria-modal="true"
@@ -157,7 +157,7 @@ export const DeskCommandPalette = ({
                   onMouseEnter={() => setActive(idx)}
                   onClick={() => select(item)}
                   className={clx(
-                    "flex w-full items-center gap-x-3 rounded-lg px-3 py-2 text-left outline-none",
+                    "flex w-full items-center gap-x-3 rounded-lg px-3 py-2 text-left outline-hidden",
                     idx === active && "bg-ui-bg-base-hover"
                   )}
                 >

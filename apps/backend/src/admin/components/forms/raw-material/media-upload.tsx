@@ -53,7 +53,7 @@ const MediaThumbnail = ({ file, isSelected, onSelect }: MediaThumbnailProps) => 
       <div
         ref={imgRef}
         onClick={onSelect}
-        className="relative h-20 w-20 cursor-pointer overflow-hidden rounded border bg-ui-bg-subtle shadow-sm"
+        className="relative h-20 w-20 cursor-pointer overflow-hidden rounded-sm border bg-ui-bg-subtle shadow-xs"
       >
         {isSelected && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/50">
@@ -71,7 +71,7 @@ const MediaThumbnail = ({ file, isSelected, onSelect }: MediaThumbnailProps) => 
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-ui-bg-subtle">
-            <div className="h-4 w-4 animate-pulse rounded bg-ui-bg-subtle-hover" />
+            <div className="h-4 w-4 animate-pulse rounded-sm bg-ui-bg-subtle-hover" />
           </div>
         )}
       </div>
@@ -322,7 +322,7 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
       <div className="relative min-h-[400px]">
         {/* Loading Overlay */}
         {isLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-ui-bg-base/80 backdrop-blur-sm">
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-ui-bg-base/80 backdrop-blur-xs">
             <div className="flex flex-col items-center gap-2">
               <RoundSpinner />
               <Text size="small" className="text-ui-fg-subtle">Loading files...</Text>
@@ -336,7 +336,7 @@ const MediaUpload = ({ selectedUrls, handleSelect }: MediaUploadProps) => {
           <Tooltip content={`Folder: ${folder.name}`} key={folder.id}>
             <div
               onClick={() => navigateToFolder(folder.id)}
-              className="relative flex h-20 w-20 cursor-pointer flex-col items-center justify-center overflow-hidden rounded border border-dashed bg-ui-bg-subtle shadow-sm hover:bg-ui-bg-subtle-hover"
+              className="relative flex h-20 w-20 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-sm border border-dashed bg-ui-bg-subtle shadow-xs hover:bg-ui-bg-subtle-hover"
             >
               <FolderOpen className="text-ui-fg-muted mb-1" />
               <Text size="xsmall" className="truncate px-1 text-center">{folder.name}</Text>

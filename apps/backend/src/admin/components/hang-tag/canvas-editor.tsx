@@ -131,7 +131,7 @@ function ColorInput({ value, onChange }: { value: string; onChange: (v: string) 
         type="color"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-7 w-7 cursor-pointer rounded border border-ui-border-base p-0.5"
+        className="h-7 w-7 cursor-pointer rounded-sm border border-ui-border-base p-0.5"
       />
       <Input
         value={value}
@@ -212,13 +212,13 @@ function PropertiesPanel({
           <div className="flex gap-x-2">
             <button
               onClick={() => onUpdate({ bold: !el.bold })}
-              className={`px-2 py-0.5 rounded border text-xs font-bold transition-colors ${el.bold ? "bg-ui-bg-interactive text-ui-fg-on-inverted border-ui-border-interactive" : "bg-ui-bg-base border-ui-border-base hover:bg-ui-bg-hover"}`}
+              className={`px-2 py-0.5 rounded-sm border text-xs font-bold transition-colors ${el.bold ? "bg-ui-bg-interactive text-ui-fg-on-inverted border-ui-border-interactive" : "bg-ui-bg-base border-ui-border-base hover:bg-ui-bg-hover"}`}
             >
               B
             </button>
             <button
               onClick={() => onUpdate({ italic: !el.italic })}
-              className={`px-2 py-0.5 rounded border text-xs italic transition-colors ${el.italic ? "bg-ui-bg-interactive text-ui-fg-on-inverted border-ui-border-interactive" : "bg-ui-bg-base border-ui-border-base hover:bg-ui-bg-hover"}`}
+              className={`px-2 py-0.5 rounded-sm border text-xs italic transition-colors ${el.italic ? "bg-ui-bg-interactive text-ui-fg-on-inverted border-ui-border-interactive" : "bg-ui-bg-base border-ui-border-base hover:bg-ui-bg-hover"}`}
             >
               I
             </button>
@@ -255,7 +255,7 @@ function PropertiesPanel({
             </Button>
           </PropRow>
           {el.url && (
-            <img src={el.url} alt="" className="h-16 w-full object-contain rounded border border-ui-border-base" />
+            <img src={el.url} alt="" className="h-16 w-full object-contain rounded-sm border border-ui-border-base" />
           )}
           <ProductMediaModal
             open={mediaOpen}
@@ -506,7 +506,7 @@ function TemplatePropertiesPanel({
       {el.configKeys.includes("logo_url") && (
         <>
           {cfg.logo_url && (
-            <img src={cfg.logo_url} alt="" className="h-12 w-full object-contain rounded border border-ui-border-base" />
+            <img src={cfg.logo_url} alt="" className="h-12 w-full object-contain rounded-sm border border-ui-border-base" />
           )}
           <ProductMediaModal
             open={mediaOpen}
@@ -900,7 +900,7 @@ export function HangTagCanvasEditor({
 
   return (
     <div
-      className="flex flex-col gap-y-2 outline-none"
+      className="flex flex-col gap-y-2 outline-hidden"
       tabIndex={0}
       onKeyDown={onKeyDown}
     >
@@ -945,7 +945,7 @@ export function HangTagCanvasEditor({
       )}
 
       {/* Canvas SVG */}
-      <div className="relative rounded border border-ui-border-base overflow-hidden"
+      <div className="relative rounded-sm border border-ui-border-base overflow-hidden"
            style={{ cursor: tool !== "select" && tool !== "image" ? "crosshair" : "default" }}>
         <svg
           ref={svgRef}

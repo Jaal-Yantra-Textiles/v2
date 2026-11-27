@@ -1,6 +1,6 @@
 import { TriangleRightMini } from "@medusajs/icons"
 import { Badge, IconButton, Text, clx } from "@medusajs/ui"
-import { ColumnDef, createColumnHelper } from "@tanstack/react-table"
+import { ColumnDef, createColumnHelper } from "../../lib/legacy-table"
 import { useEffect, useMemo } from "react"
 
 import { useDesignWorkOrders } from "../../hooks/api/design-work-orders"

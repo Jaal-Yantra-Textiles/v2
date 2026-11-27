@@ -124,7 +124,13 @@ type CreateSocialPlatformForm = z.infer<typeof CreateSocialPlatformSchema>
 
 export const CreateSocialPlatformComponent = () => {
   const { handleSuccess } = useRouteModal();
-  const form = useForm<CreateSocialPlatformForm>({
+  // zod 4.6 types a `z.coerce` field's INPUT as `unknown`, so the form holds the
+  // schema's input shape and hands the parsed output to the submit handler.
+  const form = useForm<
+    z.input<typeof CreateSocialPlatformSchema>,
+    any,
+    CreateSocialPlatformForm
+  >({
     resolver: zodResolver(CreateSocialPlatformSchema),
     defaultValues: {
       name: "",

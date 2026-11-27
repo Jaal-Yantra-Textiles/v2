@@ -222,11 +222,11 @@ test.describe("Inventory order location pickers are searchable", () => {
     )
     await expect(duplicateError).toBeVisible()
 
-    // From is optional — clearing it must clear it in the FORM too. (The
+    // From is optional — clearing it must clear it in the FORM too. The
     // clear button is the combobox's X, rendered when `allowClear` is on and
-    // a value is held; it is the only button in the widget offset from the
-    // disclosure chevron.)
-    await from.locator('button[class*="end-[28px]"]').click()
+    // a value is held. Found by its accessible name: the old class selector
+    // (`end-[28px]`) broke silently when Tailwind 4 renamed it `inset-e-[28px]`.
+    await from.getByRole("button", { name: "Clear selection" }).click()
     // The X unmounts mid-clear and focus hops to the input, which re-opens the
     // popover — tab out so the next Continue click has no open list to fight.
     await from.getByRole("combobox").press("Tab")

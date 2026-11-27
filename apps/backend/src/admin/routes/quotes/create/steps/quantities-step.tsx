@@ -1,5 +1,5 @@
 import { Button, Input, Label, Text } from "@medusajs/ui"
-import { ColumnDef } from "@tanstack/react-table"
+import { ColumnDef } from "../../../../lib/legacy-table"
 import { useMemo, useState } from "react"
 import { UseFormReturn, useWatch } from "react-hook-form"
 

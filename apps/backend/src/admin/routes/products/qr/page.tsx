@@ -273,9 +273,9 @@ const QRGeneratorPage = () => {
           const src = row.original.thumbnail as string | undefined
           return src ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={src} alt="thumb" className="h-8 w-8 rounded object-cover" />
+            <img src={src} alt="thumb" className="h-8 w-8 rounded-sm object-cover" />
           ) : (
-            <div className="h-8 w-8 rounded bg-ui-bg-subtle" />
+            <div className="h-8 w-8 rounded-sm bg-ui-bg-subtle" />
           )
         },
       },

@@ -20,7 +20,7 @@ export function useFolderUploads(
   options?: { onAllCompleted?: () => void }
 ): UseFolderUploadsReturn {
   const queryClient = useQueryClient()
-  const managerRef = useRef<UploadManager>()
+  const managerRef = useRef<UploadManager>(undefined)
   if (!managerRef.current) {
     managerRef.current = new UploadManager()
   }

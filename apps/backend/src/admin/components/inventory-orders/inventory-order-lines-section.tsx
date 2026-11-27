@@ -139,7 +139,7 @@ export const InventoryOrderLinesSection = ({ inventoryOrder }: { inventoryOrder:
               <Link
                 to={link}
                 key={inventoryItem.id || idx}
-                className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
+                className="outline-hidden focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
               >
                 {Inner}
               </Link>

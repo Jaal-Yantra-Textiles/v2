@@ -168,7 +168,7 @@ export function PanelEditorDrawer({ dashboardId, panel, open, onOpenChange }: Pa
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <Drawer.Content className="flex flex-col !max-w-[720px]">
+      <Drawer.Content className="flex flex-col max-w-[720px]!">
         <Drawer.Header>
           <Drawer.Title>{isEdit ? "Edit Panel" : "New Panel"}</Drawer.Title>
         </Drawer.Header>

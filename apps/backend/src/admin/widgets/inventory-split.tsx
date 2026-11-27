@@ -251,7 +251,7 @@ const InventorySplitWidget = ({ data }: DetailWidgetProps<AdminInventory>) => {
                     <select
                       id="location_id"
                       {...form.register("location_id")}
-                      className="flex h-8 w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1 text-sm text-ui-fg-base shadow-buttons-neutral outline-none transition-all focus:border-ui-border-interactive focus:shadow-borders-focus disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex h-8 w-full rounded-md border border-ui-border-base bg-ui-bg-field px-3 py-1 text-sm text-ui-fg-base shadow-buttons-neutral outline-hidden transition-all focus:border-ui-border-interactive focus:shadow-borders-focus disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {stockedLevels.map((lvl) => (
                         <option key={lvl.location_id} value={lvl.location_id}>

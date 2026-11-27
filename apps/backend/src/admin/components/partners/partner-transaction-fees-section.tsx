@@ -55,9 +55,9 @@ export const PartnerTransactionFeesSection = ({
 
       {isPending ? (
         <div className="px-6 py-4">
-          <div className="bg-ui-bg-subtle h-5 w-40 animate-pulse rounded" />
-          <div className="bg-ui-bg-subtle mt-3 h-4 w-full animate-pulse rounded" />
-          <div className="bg-ui-bg-subtle mt-2 h-4 w-2/3 animate-pulse rounded" />
+          <div className="bg-ui-bg-subtle h-5 w-40 animate-pulse rounded-sm" />
+          <div className="bg-ui-bg-subtle mt-3 h-4 w-full animate-pulse rounded-sm" />
+          <div className="bg-ui-bg-subtle mt-2 h-4 w-2/3 animate-pulse rounded-sm" />
         </div>
       ) : !summary || summary.count === 0 ? (
         <div className="px-6 py-6">

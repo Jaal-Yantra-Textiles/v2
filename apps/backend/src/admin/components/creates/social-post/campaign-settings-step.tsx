@@ -101,7 +101,7 @@ export const CampaignSettingsStep = ({
               </Text>
             </div>
             
-            <div className="bg-ui-bg-subtle p-3 rounded text-xs font-mono">
+            <div className="bg-ui-bg-subtle p-3 rounded-sm text-xs font-mono">
               <Text size="xsmall" className="text-ui-fg-subtle mb-2 block">
                 Available variables:
               </Text>
@@ -305,7 +305,7 @@ export const CampaignSettingsStep = ({
                   <img 
                     src={item.thumbnail} 
                     alt={item.productTitle}
-                    className="w-12 h-12 rounded object-cover"
+                    className="w-12 h-12 rounded-sm object-cover"
                   />
                 )}
                 <div className="flex-1 min-w-0">

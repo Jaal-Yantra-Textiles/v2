@@ -507,7 +507,7 @@ export function FabricPreviewTab({
             </button>
             <button
               onClick={() => sourceInputRef.current?.click()}
-              className="w-full py-2 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors"
+              className="w-full py-2 text-xs font-medium rounded-sm border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors"
             >
               Or upload from device
             </button>
@@ -690,7 +690,7 @@ export function FabricPreviewTab({
             <button
               onClick={handleAddCutoutToCanvas}
               disabled={addingToCanvas}
-              className="flex-1 py-1.5 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors disabled:opacity-50"
+              className="flex-1 py-1.5 text-xs font-medium rounded-sm border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors disabled:opacity-50"
             >
               {addingToCanvas ? "Adding..." : "+ Cutout"}
             </button>
@@ -698,7 +698,7 @@ export function FabricPreviewTab({
               <button
                 onClick={handleAddMaskToCanvas}
                 disabled={addingToCanvas}
-                className="flex-1 py-1.5 text-xs font-medium rounded border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors disabled:opacity-50"
+                className="flex-1 py-1.5 text-xs font-medium rounded-sm border border-ui-border-base text-ui-fg-subtle hover:bg-ui-bg-subtle transition-colors disabled:opacity-50"
               >
                 {addingToCanvas ? "Adding..." : "+ Mask"}
               </button>
@@ -767,7 +767,7 @@ export function FabricPreviewTab({
           <button
             onClick={handleAddCompositeToCanvas}
             disabled={addingToCanvas}
-            className="w-full mt-2 py-2 text-sm font-medium rounded bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90 transition-colors disabled:opacity-50"
+            className="w-full mt-2 py-2 text-sm font-medium rounded-sm bg-ui-bg-interactive text-ui-fg-on-inverted hover:opacity-90 transition-colors disabled:opacity-50"
           >
             {addingToCanvas ? "Adding..." : "Add to Moodboard"}
           </button>

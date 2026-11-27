@@ -57,7 +57,7 @@ export const PersonTable = ({
   const layout = "fit";
 
   return (
-    <div className="flex h-full flex-col overflow-hidden !border-t-0">
+    <div className="flex h-full flex-col overflow-hidden border-t-0!">
       {data.length === 0 ? (
         <NoRecords
           className={clx({

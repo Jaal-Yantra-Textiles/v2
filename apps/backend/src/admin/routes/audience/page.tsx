@@ -14,7 +14,7 @@ const QuickLinkCard = ({
 }) => (
   <Link
     to={to}
-    className="block h-full outline-none focus:shadow-borders-interactive-with-focus rounded-lg"
+    className="block h-full outline-hidden focus:shadow-borders-interactive-with-focus rounded-lg"
   >
     <div className="shadow-elevation-card-rest bg-ui-bg-component hover:bg-ui-bg-component-hover rounded-lg p-5 transition-colors h-full flex flex-col min-h-[110px]">
       <Text size="base" leading="compact" weight="plus">

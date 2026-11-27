@@ -168,12 +168,12 @@ export const MessageInput = ({
             <img
               src={attachment.preview_url}
               alt=""
-              className="h-10 w-10 rounded object-cover shrink-0"
+              className="h-10 w-10 rounded-sm object-cover shrink-0"
             />
           ) : attachment.preview_url && attachment.media_mime_type?.startsWith("video/") ? (
             <video
               src={attachment.preview_url}
-              className="h-10 w-10 rounded object-cover shrink-0"
+              className="h-10 w-10 rounded-sm object-cover shrink-0"
             />
           ) : (
             <PaperClip className="h-4 w-4 text-ui-fg-muted shrink-0" />
@@ -236,7 +236,7 @@ export const MessageInput = ({
           onKeyDown={handleKeyDown}
           placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
           rows={1}
-          className="flex-1 resize-none rounded-lg border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm text-ui-fg-base placeholder:text-ui-fg-muted focus:outline-none focus:border-ui-border-interactive min-h-[40px] max-h-[120px]"
+          className="flex-1 resize-none rounded-lg border border-ui-border-base bg-ui-bg-field px-3 py-2 text-sm text-ui-fg-base placeholder:text-ui-fg-muted focus:outline-hidden focus:border-ui-border-interactive min-h-[40px] max-h-[120px]"
           style={{
             height: "auto",
             overflow: text.split("\n").length > 3 ? "auto" : "hidden",

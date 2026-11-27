@@ -213,7 +213,7 @@ export const DesignPartnerSection = ({ design }: DesignPartnerSectionProps) => {
               <Link
                 to={link}
                 key={partner.id}
-                className="outline-none focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
+                className="outline-hidden focus-within:shadow-borders-interactive-with-focus rounded-md [&:hover>div]:bg-ui-bg-component-hover"
               >
                 {Inner}
               </Link>

@@ -51,7 +51,7 @@ export const ThumbnailPreview = ({
     <button
       type="button"
       className={clx(
-        "rounded outline-none transition-shadow",
+        "rounded-sm outline-hidden transition-shadow",
         "focus-visible:shadow-borders-focus hover:opacity-80"
       )}
       aria-label={alt ? `Preview image: ${alt}` : "Preview image"}

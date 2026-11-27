@@ -227,7 +227,7 @@ function SettingsEditor({ settings, onChange }: SettingsEditorProps) {
             type="color"
             value={(settings.backgroundColor as string) || "#ffffff"}
             onChange={(e) => handleFieldChange("backgroundColor", e.target.value)}
-            className="w-10 h-10 rounded border border-ui-border-base cursor-pointer"
+            className="w-10 h-10 rounded-sm border border-ui-border-base cursor-pointer"
           />
         </div>
       </div>
@@ -245,7 +245,7 @@ function SettingsEditor({ settings, onChange }: SettingsEditorProps) {
             type="color"
             value={(settings.textColor as string) || "#000000"}
             onChange={(e) => handleFieldChange("textColor", e.target.value)}
-            className="w-10 h-10 rounded border border-ui-border-base cursor-pointer"
+            className="w-10 h-10 rounded-sm border border-ui-border-base cursor-pointer"
           />
         </div>
       </div>

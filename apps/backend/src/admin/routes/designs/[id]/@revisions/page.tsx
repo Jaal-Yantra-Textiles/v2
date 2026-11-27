@@ -55,7 +55,7 @@ export default function RevisionHistoryPage() {
                   return (
                     <div key={entry.id} className="relative flex gap-x-4">
                       {/* Timeline dot */}
-                      <div className="relative z-10 flex-shrink-0 mt-1.5">
+                      <div className="relative z-10 shrink-0 mt-1.5">
                         <div
                           className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                             isCurrent

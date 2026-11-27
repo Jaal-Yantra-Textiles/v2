@@ -374,7 +374,7 @@ const SegmentsPage = () => {
               {/* Existing Rules */}
               <div className="flex flex-col gap-2 mb-4">
                 {formData.criteria.rules.map((rule, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-ui-bg-subtle rounded">
+                  <div key={index} className="flex items-center gap-2 p-2 bg-ui-bg-subtle rounded-sm">
                     <Badge color="grey" size="xsmall">{rule.field}</Badge>
                     <Text size="small">{operators.find(o => o.value === rule.operator)?.label}</Text>
                     <Badge color="blue" size="xsmall">{rule.value}</Badge>

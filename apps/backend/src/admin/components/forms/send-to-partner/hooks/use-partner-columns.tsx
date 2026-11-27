@@ -1,9 +1,8 @@
-import { Checkbox } from "@medusajs/ui"
-import { createColumnHelper } from "@tanstack/react-table"
+import { Checkbox, createDataTableColumnHelper } from "@medusajs/ui"
 import { useMemo } from "react"
 import { AdminPartner } from "../../../../hooks/api/partners"
 
-const columnHelper = createColumnHelper<AdminPartner>()
+const columnHelper = createDataTableColumnHelper<AdminPartner>()
 
 export const usePartnerColumns = (
   selectedRows: Record<string, boolean>,
@@ -17,6 +16,9 @@ export const usePartnerColumns = (
           return (
             <Checkbox
               checked={
+                // TanStack Table v9: getIsSomePageRowsSelected() is also true
+                // when every row is selected, so rule out "all" first.
+                !table.getIsAllPageRowsSelected() &&
                 table.getIsSomePageRowsSelected()
                   ? "indeterminate"
                   : table.getIsAllPageRowsSelected()

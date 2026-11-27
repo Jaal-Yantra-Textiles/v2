@@ -186,7 +186,7 @@ const TextileAnalysesPage = () => {
                   <Link
                     key={row.id}
                     to={`/textile-analyses/${row.id}`}
-                    className="group relative block aspect-square overflow-hidden rounded-md outline-none focus-visible:shadow-borders-interactive-with-focus"
+                    className="group relative block aspect-square overflow-hidden rounded-md outline-hidden focus-visible:shadow-borders-interactive-with-focus"
                     aria-label={name}
                     title={name}
                     data-testid="textile-card"

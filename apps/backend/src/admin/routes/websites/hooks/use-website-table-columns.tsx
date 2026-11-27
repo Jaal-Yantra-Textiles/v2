@@ -1,12 +1,11 @@
-import { createColumnHelper, CellContext } from "@tanstack/react-table"
-import { StatusBadge } from "@medusajs/ui"
+import { StatusBadge, createDataTableColumnHelper, DataTableCellContext } from "@medusajs/ui"
 import { PencilSquare, Trash } from "@medusajs/icons"
 import { useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { AdminWebsite } from "../../../hooks/api/websites"
 import { ActionMenu } from "../../../components/common/action-menu"
 
-const columnHelper = createColumnHelper<AdminWebsite>()
+const columnHelper = createDataTableColumnHelper<AdminWebsite>()
 
 const STATUS_COLOR: Record<string, "green" | "red" | "orange" | "blue" | "grey"> = {
   Active: "green",
@@ -62,7 +61,7 @@ export const useWebsiteTableColumns = () => {
       }),
       columnHelper.display({
         id: "actions",
-        cell: ({ row }: CellContext<AdminWebsite, unknown>) => (
+        cell: ({ row }: DataTableCellContext<AdminWebsite, unknown>) => (
           <ActionMenu
             groups={[
               {

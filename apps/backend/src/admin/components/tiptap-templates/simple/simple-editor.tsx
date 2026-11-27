@@ -201,7 +201,7 @@ export function SimpleEditor({
     "main" | "highlighter" | "link"
   >("main")
   const toolbarRef = React.useRef<HTMLDivElement>(null)
-  const debounceTimeoutRef = React.useRef<NodeJS.Timeout>()
+  const debounceTimeoutRef = React.useRef<NodeJS.Timeout>(undefined)
 
   // Handle content changes with debouncing
   const handleContentChange = React.useCallback(() => {
@@ -227,7 +227,7 @@ export function SimpleEditor({
         autocorrect: "off",
         autocapitalize: "off",
         "aria-label": "Main content area, start typing to enter text.",
-        class: "prose prose-sm max-w-none focus:outline-none",
+        class: "prose prose-sm max-w-none focus:outline-hidden",
       },
       handleDOMEvents: {
         keydown: () => false, // Allow all keydown events

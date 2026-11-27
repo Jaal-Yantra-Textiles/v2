@@ -21,7 +21,6 @@
     "@radix-ui/react-slot",
     "@radix-ui/react-switch",
     "@radix-ui/react-tooltip",
-    "@tanstack/react-table",
     "@tanstack/react-virtual",
     "@tiptap/core",
     "@uiw/react-json-view",
@@ -30,15 +29,12 @@
     "cmdk",
     "cors",
     "form-data",
-    "i18next",
     "ioredis",
     "jsonwebtoken",
     "match-sorter",
     "multer",
     "radix-ui",
     "react-currency-input-field",
-    "react-i18next",
-    "scrypt-kdf",
     "tailwind-merge"
   ]
 }

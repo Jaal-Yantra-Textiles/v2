@@ -271,7 +271,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
   const CustomTaskNode = ({ data }: { data: TaskNodeData }) => {
     return (
       <div
-        className="relative inline-flex items-center rounded-full border bg-black text-white shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+        className="relative inline-flex items-center rounded-full border bg-black text-white shadow-xs cursor-pointer hover:shadow-md transition-shadow"
         style={{
           borderColor: '#2d2d2d',
           padding: '4px 10px',
@@ -287,8 +287,8 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
         <span className="truncate text-xs font-medium" title={data.label} style={{ maxWidth: 240 }}>
           {data.label}
         </span>
-        <Handle type="target" position={Position.Left} className="!bg-gray-400" style={{ opacity: 0.7 }} />
-        <Handle type="source" position={Position.Right} className="!bg-gray-400" style={{ opacity: 0.7 }} />
+        <Handle type="target" position={Position.Left} className="bg-gray-400!" style={{ opacity: 0.7 }} />
+        <Handle type="source" position={Position.Right} className="bg-gray-400!" style={{ opacity: 0.7 }} />
       </div>
     );
   };
@@ -466,7 +466,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
               variant={filterStatus === "all" ? "primary" : "secondary"}
               size="small"
               onClick={() => setFilterStatus("all")}
-              className="flex-shrink-0"
+              className="shrink-0"
             >
               All ({tasks.length})
             </Button>
@@ -474,7 +474,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
               variant={filterStatus === "pending" ? "primary" : "secondary"}
               size="small"
               onClick={() => setFilterStatus("pending")}
-              className="flex-shrink-0"
+              className="shrink-0"
             >
               Pending ({tasks.filter(t => t.status === "pending").length})
             </Button>
@@ -482,7 +482,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
               variant={filterStatus === "in_progress" ? "primary" : "secondary"}
               size="small"
               onClick={() => setFilterStatus("in_progress")}
-              className="flex-shrink-0"
+              className="shrink-0"
             >
               In Progress ({tasks.filter(t => t.status === "in_progress").length})
             </Button>
@@ -490,7 +490,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
               variant={filterStatus === "completed" ? "primary" : "secondary"}
               size="small"
               onClick={() => setFilterStatus("completed")}
-              className="flex-shrink-0"
+              className="shrink-0"
             >
               Completed ({tasks.filter(t => t.status === "completed").length})
             </Button>
@@ -500,7 +500,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
             variant="secondary"
             size="small"
             onClick={() => navigate(`/partners/${partner.id}/tasks/new`)}
-            className="w-full flex-shrink-0 sm:w-auto"
+            className="w-full shrink-0 sm:w-auto"
           >
             Create New Task
           </Button>
@@ -542,7 +542,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
                         task.status === "in_progress" ? "blue" :
                         task.status === "pending" ? "orange" : "grey"
                       }
-                      className="flex-shrink-0"
+                      className="shrink-0"
                     >
                       {task.status.replace("_", " ")}
                     </Badge>
@@ -638,7 +638,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
                         className="flex items-start gap-2 p-3 rounded-md bg-ui-bg-subtle border border-ui-border-base cursor-pointer hover:bg-ui-bg-subtle-hover"
                         onClick={() => setSelectedTask(subtask)}
                       >
-                        <div className="flex-shrink-0 mt-1">
+                        <div className="shrink-0 mt-1">
                           {subtask.status === "completed" ? (
                             <CheckCircleSolid className="w-4 h-4 text-green-600" />
                           ) : (
@@ -827,7 +827,7 @@ export function PartnerTaskCanvasSection({ partner }: PartnerTaskCanvasSectionPr
                     className="flex items-start gap-2 p-3 rounded-md bg-ui-bg-subtle border border-ui-border-base cursor-pointer hover:bg-ui-bg-subtle-hover"
                     onClick={() => setSelectedTask(subtask)}
                   >
-                    <div className="flex-shrink-0 mt-1">
+                    <div className="shrink-0 mt-1">
                       {subtask.status === "completed" ? (
                         <CheckCircleSolid className="w-4 h-4 text-green-600" />
                       ) : (

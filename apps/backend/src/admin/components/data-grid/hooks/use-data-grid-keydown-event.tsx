@@ -1,3 +1,4 @@
+import type { RowData } from "../../../lib/legacy-table"
 import React, { useCallback } from "react"
 import type {
   FieldValues,
@@ -35,8 +36,8 @@ const isForeignEditableTarget = (target: EventTarget | null): boolean => {
   return role === "combobox" || role === "textbox" || role === "listbox"
 }
 
-type UseDataGridKeydownEventOptions<TData, TFieldValues extends FieldValues> = {
-  containerRef: React.RefObject<HTMLDivElement>
+type UseDataGridKeydownEventOptions<TData extends RowData, TFieldValues extends FieldValues> = {
+  containerRef: React.RefObject<HTMLDivElement | null>
   matrix: DataGridMatrix<TData, TFieldValues>
   anchor: DataGridCoordinates | null
   rangeEnd: DataGridCoordinates | null
@@ -68,7 +69,7 @@ const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]
 const VERTICAL_KEYS = ["ArrowUp", "ArrowDown"]
 
 export const useDataGridKeydownEvent = <
-  TData,
+  TData extends RowData,
   TFieldValues extends FieldValues
 >({
   containerRef,
@@ -699,7 +700,7 @@ export const useDataGridKeydownEvent = <
   }
 }
 
-function getFocusableElements(ref: React.RefObject<HTMLDivElement>) {
+function getFocusableElements(ref: React.RefObject<HTMLDivElement | null>) {
   const focusableElements = Array.from(
     document.querySelectorAll<HTMLElement>(
       "[tabindex], a, button, input, select, textarea"

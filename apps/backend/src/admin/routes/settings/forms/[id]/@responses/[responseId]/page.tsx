@@ -5,11 +5,11 @@ import {
   DataTable,
   useDataTable,
   DataTablePaginationState,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { useTranslation } from "react-i18next"
 import { useParams } from "react-router-dom"
 import { useMemo, useState } from "react"
-import { createColumnHelper } from "@tanstack/react-table"
 import { RouteDrawer } from "../../../../../../components/modal/route-drawer/route-drawer"
 import { useFormResponse } from "../../../../../../hooks/api/forms"
 
@@ -19,7 +19,7 @@ type KVRow = {
   value: string
 }
 
-const columnHelper = createColumnHelper<KVRow>()
+const columnHelper = createDataTableColumnHelper<KVRow>()
 
 const formatValue = (value: any) => {
   if (value === null) {
@@ -113,7 +113,7 @@ export default function FormResponseDetailPage() {
         cell: ({ getValue }) => (
           <Text
             size="small"
-            className="whitespace-pre-wrap break-words font-mono"
+            className="whitespace-pre-wrap wrap-break-word font-mono"
           >
             {getValue() || "-"}
           </Text>

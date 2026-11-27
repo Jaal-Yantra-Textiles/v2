@@ -79,7 +79,7 @@ export const OperationNode = memo(({ data, selected }: NodeProps) => {
   return (
     <div
       className={`
-        px-4 py-3 rounded-lg border-2 shadow-sm min-w-[180px]
+        px-4 py-3 rounded-lg border-2 shadow-xs min-w-[180px]
         bg-ui-bg-base dark:bg-ui-bg-base
         ${selected ? "border-ui-border-interactive shadow-md" : "border-ui-border-base"}
       `}
@@ -92,7 +92,7 @@ export const OperationNode = memo(({ data, selected }: NodeProps) => {
       />
 
       <div className="flex items-center gap-2 mb-2">
-        <div className={`p-1.5 rounded ${bgColor}`}>
+        <div className={`p-1.5 rounded-sm ${bgColor}`}>
           <Icon className="w-4 h-4 text-white" />
         </div>
         <div className="flex-1 min-w-0">

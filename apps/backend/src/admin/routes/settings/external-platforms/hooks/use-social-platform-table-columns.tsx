@@ -1,5 +1,4 @@
-import { CellContext } from "@tanstack/react-table"
-import { createDataTableColumnHelper } from "@medusajs/ui"
+import { createDataTableColumnHelper, DataTableCellContext } from "@medusajs/ui"
 import { useMemo } from "react"
 import { AdminSocialPlatform } from "../../../../hooks/api/social-platforms"
 import { PlatformActions } from "./platform-actions"
@@ -46,7 +45,7 @@ export const useSocialPlatformTableColumns = () => {
       }),
       columnHelper.display({
         id: "actions",
-        cell: ({ row }: CellContext<AdminSocialPlatform, unknown>) => {
+        cell: ({ row }: DataTableCellContext<AdminSocialPlatform, unknown>) => {
           if (row.original.id === GOOGLE_MERCHANT_VIRTUAL_ID) return null
           return <PlatformActions platform={row.original} />
         },

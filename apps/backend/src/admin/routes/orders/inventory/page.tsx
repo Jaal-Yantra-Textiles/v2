@@ -13,6 +13,7 @@ import {
   StatusBadge,
   Tooltip,
   TooltipProvider,
+  createDataTableColumnHelper,
 } from "@medusajs/ui";
 import { Outlet, useNavigate, useSearchParams } from "react-router-dom";
 import { keepPreviousData } from "@tanstack/react-query";
@@ -21,7 +22,6 @@ import { ToolsSolid, PencilSquare, InformationCircleSolid } from "@medusajs/icon
 import CreateButton from "../../../components/creates/create-button";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { EntityActions } from "../../../components/persons/personsActions";
-import { createColumnHelper } from "@tanstack/react-table";
 import { AdminInventoryOrder, AdminInventoryOrdersQuery, useInventoryOrders } from "../../../hooks/api/inventory-orders";
 import debounce from "lodash/debounce";
 import isEqual from "lodash/isEqual";
@@ -36,7 +36,7 @@ import {
   getStatusBadgeColor,
 } from "../../../lib/work-status";
 
-const columnHelper = createColumnHelper<AdminInventoryOrder>();
+const columnHelper = createDataTableColumnHelper<AdminInventoryOrder>();
 export const useColumns = () => {
   const columns = useMemo(() => [
     columnHelper.display({

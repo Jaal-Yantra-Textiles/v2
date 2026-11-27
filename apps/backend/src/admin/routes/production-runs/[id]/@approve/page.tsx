@@ -424,7 +424,7 @@ const AssignmentsModal = ({
                                 type="number"
                                 min={0}
                                 step="0.01"
-                                className="max-w-[10rem]"
+                                className="max-w-40"
                                 placeholder={
                                   item?.planned_quantity != null
                                     ? `Design plans ${item.planned_quantity}`

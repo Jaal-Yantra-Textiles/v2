@@ -4,8 +4,9 @@ import { NoRecords, NoResultsProps } from "../empty-table";
 import { TableSkeleton } from "./skeleton";
 import { DataTableQuery, DataTableQueryProps } from "./data-table-query";
 import { DataTableRoot, DataTableRootProps } from "./data-table-root";
+import type { RowData } from "../../lib/legacy-table";
 
-interface DataTableProps<TData>
+interface DataTableProps<TData extends RowData>
   extends Omit<DataTableRootProps<TData>, "noResults">,
     DataTableQueryProps<TData> {
   isLoading?: boolean;
@@ -18,7 +19,7 @@ interface DataTableProps<TData>
 // const MemoizedDataTableRoot = memo(DataTableRoot) as typeof DataTableRoot
 const MemoizedDataTableQuery = memo(DataTableQuery) as typeof DataTableQuery;
 
-export const DataTable = <TData,>({
+export const DataTable = <TData extends RowData>({
   table,
   columns,
   pagination,

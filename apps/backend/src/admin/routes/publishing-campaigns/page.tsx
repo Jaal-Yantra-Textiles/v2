@@ -9,6 +9,7 @@ import {
   StatusBadge,
   createDataTableFilterHelper,
   DataTableFilteringState,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { useCampaigns, Campaign } from "../../hooks/api/publishing-campaigns"
 import { useNavigate, useSearchParams } from "react-router-dom"
@@ -16,7 +17,6 @@ import { defineRouteConfig } from "@medusajs/admin-sdk"
 import { Calendar } from "@medusajs/icons"
 import { useCallback, useMemo } from "react"
 import debounce from "lodash/debounce"
-import { createColumnHelper } from "@tanstack/react-table"
 
 const PAGE_SIZE = 10
 
@@ -50,7 +50,7 @@ const buildParamsFromFilters = (
   return params
 }
 
-const columnHelper = createColumnHelper<Campaign>()
+const columnHelper = createDataTableColumnHelper<Campaign>()
 
 const getStatusBadgeColor = (status: Campaign["status"]): "green" | "orange" | "blue" | "red" | "grey" | "purple" => {
   switch (status) {

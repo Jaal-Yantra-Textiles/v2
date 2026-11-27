@@ -1,3 +1,4 @@
+import type { RowData } from "../../../lib/legacy-table"
 import CurrencyInput, {
   CurrencyInputProps,
   formatValue,
@@ -12,12 +13,12 @@ import { DataGridCellContainer } from "./data-grid-cell-container"
 import { useCombinedRefs } from "../hooks/use-combined-refs"
 import { currencies, CurrencyInfo } from "../../../lib/data/currencies"
 
-interface DataGridCurrencyCellProps<TData, TValue = any>
+interface DataGridCurrencyCellProps<TData extends RowData, TValue = any>
   extends DataGridCellProps<TData, TValue> {
   code: string
 }
 
-export const DataGridCurrencyCell = <TData, TValue = any>({
+export const DataGridCurrencyCell = <TData extends RowData, TValue = any>({
   context,
   code,
 }: DataGridCurrencyCellProps<TData, TValue>) => {
@@ -120,7 +121,7 @@ const Inner = ({
         {...rest}
         {...attributes}
         ref={combinedRed}
-        className="txt-compact-small w-full flex-1 cursor-default appearance-none bg-transparent pl-8 text-right outline-none"
+        className="txt-compact-small w-full flex-1 cursor-default appearance-none bg-transparent pl-8 text-right outline-hidden"
         value={localValue || undefined}
         onValueChange={handleValueChange}
         formatValueOnBlur

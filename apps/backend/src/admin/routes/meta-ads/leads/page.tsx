@@ -11,6 +11,7 @@ import {
   DataTableFilteringState,
   toast,
   Select,
+  createDataTableColumnHelper,
 } from "@medusajs/ui"
 import { useLeads, Lead, LeadStatus, useSyncLeads } from "../../../hooks/api/meta-ads"
 import { useSocialPlatforms } from "../../../hooks/api/social-platforms"
@@ -18,7 +19,6 @@ import { useNavigate, useSearchParams, LoaderFunctionArgs } from "react-router-d
 import { ArrowPath } from "@medusajs/icons"
 import { useCallback, useMemo, useState } from "react"
 import debounce from "lodash/debounce"
-import { createColumnHelper } from "@tanstack/react-table"
 
 const PAGE_SIZE = 10
 
@@ -50,7 +50,7 @@ const buildParamsFromFilters = (
   return params
 }
 
-const columnHelper = createColumnHelper<Lead>()
+const columnHelper = createDataTableColumnHelper<Lead>()
 
 const getStatusBadgeColor = (status: LeadStatus): "green" | "orange" | "blue" | "red" | "grey" | "purple" => {
   switch (status) {

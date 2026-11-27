@@ -578,7 +578,7 @@ export const CreatePartnerTaskComponent = () => {
                     className="relative rounded-lg border border-ui-border-base bg-ui-bg-subtle p-4"
                   >
                     <div className="flex items-start gap-4">
-                      <div className="flex-shrink-0 mt-2">
+                      <div className="shrink-0 mt-2">
                         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-ui-bg-base border border-ui-border-base">
                           <Text size="small" weight="plus">{index + 1}</Text>
                         </div>
@@ -679,7 +679,7 @@ export const CreatePartnerTaskComponent = () => {
                         variant="transparent"
                         onClick={() => remove(index)}
                         type="button"
-                        className="flex-shrink-0"
+                        className="shrink-0"
                       >
                         <Minus className="text-ui-fg-subtle" />
                       </IconButton>

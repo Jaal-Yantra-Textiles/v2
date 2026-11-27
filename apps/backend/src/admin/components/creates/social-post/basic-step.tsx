@@ -208,7 +208,7 @@ export const SocialPostBasicStep = ({
                                     <img 
                                       src={product.thumbnail} 
                                       alt={product.title}
-                                      className="w-10 h-10 rounded object-cover"
+                                      className="w-10 h-10 rounded-sm object-cover"
                                     />
                                   )}
                                   <div className="flex-1 min-w-0">

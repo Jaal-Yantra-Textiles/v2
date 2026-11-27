@@ -430,7 +430,7 @@ export function SimpleEditor({
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-ui-border-base">
                   <div className="flex items-center gap-2">
                     <Button
-                      className="flex items-center gap-1 text-ui-fg-subtle hover:text-ui-fg-base hover:bg-ui-bg-subtle-hover px-2 py-1 rounded text-sm transition-colors"
+                      className="flex items-center gap-1 text-ui-fg-subtle hover:text-ui-fg-base hover:bg-ui-bg-subtle-hover px-2 py-1 rounded-sm text-sm transition-colors"
                       onClick={() => {
                         setSelectionPopover(prev => ({
                           ...prev,
@@ -443,7 +443,7 @@ export function SimpleEditor({
                     </Button>
                   </div>
                   <Button
-                    className="flex items-center justify-center w-6 h-6 text-ui-fg-muted hover:text-ui-fg-base hover:bg-ui-bg-subtle-hover rounded transition-colors"
+                    className="flex items-center justify-center w-6 h-6 text-ui-fg-muted hover:text-ui-fg-base hover:bg-ui-bg-subtle-hover rounded-sm transition-colors"
                     onClick={() => {
                       setSelectionPopover({
                         isVisible: false,
@@ -509,7 +509,7 @@ export function SimpleEditor({
                     <span>Add Link</span>
                   </Button>
                   <Button
-                    className="flex items-center justify-center w-8 h-8 text-ui-fg-muted hover:text-ui-fg-base hover:bg-ui-bg-subtle-hover rounded transition-colors"
+                    className="flex items-center justify-center w-8 h-8 text-ui-fg-muted hover:text-ui-fg-base hover:bg-ui-bg-subtle-hover rounded-sm transition-colors"
                     onClick={() => {
                       setSelectionPopover({
                         isVisible: false,
