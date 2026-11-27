@@ -47,11 +47,8 @@ module.exports = {
   // Module" failure) reach the .mjs transform above. Add other ESM-only
   // transitives by extending the negative lookahead — keep tight; broad
   // patterns slow every test run because more files get transformed.
-  // @tanstack/react-table v9 (+ table-core) is ESM-only and @medusajs/ui
-  // 4.x's CJS build require()s it, so any admin component spec that imports
-  // @medusajs/ui fails to load without transforming it (Medusa 2.23).
   transformIgnorePatterns: [
-    "node_modules/(?!.*(tokenx|@tanstack[+/]react-table|@tanstack[+/]table-core))",
+    "node_modules/(?!.*tokenx)",
     "\\.pnp\\.[^\\/]+$",
   ],
   // Jest 29's `Runtime.requireModule` short-circuits with
@@ -68,6 +65,12 @@ module.exports = {
   // resolve "<rootDir>/test-shims/..." into a non-existent path.
   moduleNameMapper: {
     "^tokenx$": path.resolve(__dirname, "test-shims/tokenx.cjs"),
+    // Medusa 2.23: react-table v9 is ESM-only and @medusajs/ui's CJS build
+    // require()s it. Stubbed — see the shim for why a stub is enough.
+    "^@tanstack/react-table(/.*)?$": path.resolve(
+      __dirname,
+      "test-shims/tanstack-react-table.cjs"
+    ),
   },
   testEnvironment: "node",
   moduleFileExtensions: ["js", "mjs", "ts", "tsx", "jsx", "json"],
