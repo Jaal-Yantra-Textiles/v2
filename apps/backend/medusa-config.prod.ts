@@ -408,6 +408,25 @@ module.exports = defineConfig({
                 },
               ]
             : []),
+         // Bitcoin via BTCPay Server — pp_btcpay_btcpay. All four vars or nothing.
+         ...(process.env.BTCPAY_SERVER_URL &&
+         process.env.BTCPAY_SERVER_KEY &&
+         process.env.BTCPAY_SERVER_ID &&
+         process.env.BTCPAY_WEBHOOK_SECRET
+           ? [
+               {
+                 resolve: "./src/modules/btcpay-payment",
+                 id: "btcpay",
+                 options: {
+                   server_url: process.env.BTCPAY_SERVER_URL,
+                   api_key: process.env.BTCPAY_SERVER_KEY,
+                   store_id: process.env.BTCPAY_SERVER_ID,
+                   webhook_secret: process.env.BTCPAY_WEBHOOK_SECRET,
+                   default_return_url: process.env.BTCPAY_DEFAULT_RETURN_URL,
+                 },
+               },
+             ]
+           : []),
          ...(process.env.PAYU_MERCHANT_KEY
             ? [
                 {

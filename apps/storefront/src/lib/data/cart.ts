@@ -687,3 +687,47 @@ export async function listCartOptions() {
     cache: "force-cache",
   })
 }
+
+/**
+ * Bitcoin (BTCPay): has this cart's payment confirmed yet?
+ *
+ * Tries to complete the cart. The backend's provider re-reads the BTCPay
+ * invoice and only authorizes a Settled one for THIS session, so calling this
+ * repeatedly is safe: until then it stays a cart. BTCPay's webhook may complete
+ * the cart first; completing an already-completed cart returns that order.
+ */
+export async function checkBitcoinPayment(
+  cartId: string
+): Promise<
+  | { status: "order"; url: string }
+  | { status: "waiting" }
+  | { status: "failed"; error: string }
+> {
+  const headers = { ...(await getAuthHeaders()) }
+  const res = await sdk.store.cart.complete(cartId, {}, headers).catch((e: any) => ({ type: "error", error: e?.message }) as any)
+
+  if (res?.type === "order") {
+    const cc = res.order.shipping_address?.country_code?.toLowerCase() || "in"
+    revalidateTag(await getCacheTag("orders"))
+    revalidateTag(await getCacheTag("carts"))
+    await removeCartId()
+    return { status: "order", url: `/${cc}/order/${res.order.id}/confirmed` }
+  }
+
+  // Still a cart: waiting, unless BTCPay said the invoice expired / is invalid.
+  const { cart } = await sdk.client
+    .fetch<HttpTypes.StoreCartResponse>(`/store/carts/${cartId}`, {
+      method: "GET",
+      query: { fields: "id,*payment_collection.payment_sessions" },
+      headers,
+      cache: "no-store",
+    })
+    .catch(() => ({ cart: null as any }))
+  const session = cart?.payment_collection?.payment_sessions?.find((s: any) =>
+    String(s.provider_id || "").startsWith("pp_btcpay")
+  )
+  if (session?.status === "error" || session?.status === "canceled") {
+    return { status: "failed", error: "The Bitcoin invoice expired or was not paid. Please try again." }
+  }
+  return { status: "waiting" }
+}

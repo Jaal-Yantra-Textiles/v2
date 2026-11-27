@@ -482,7 +482,7 @@ module.exports = defineConfig({
     // Payment module: register providers only when their creds are present, so
     // dev/test stay clean without keys (mirrors medusa-config.prod.ts). The
     // built-in system provider (pp_system_default) is always available.
-    ...(process.env.STRIPE_API_KEY || process.env.PAYU_MERCHANT_KEY
+    ...(process.env.STRIPE_API_KEY || process.env.PAYU_MERCHANT_KEY || process.env.BTCPAY_SERVER_KEY
       ? [
           {
             resolve: "@medusajs/medusa/payment",
@@ -566,6 +566,25 @@ module.exports = defineConfig({
                           refundApplicationFee: true,
                           allowPlatformFallback:
                             process.env.STRIPE_CONNECT_PLATFORM_FALLBACK === "true",
+                        },
+                      },
+                    ]
+                  : []),
+                // Bitcoin via BTCPay Server — pp_btcpay_btcpay. All four vars or nothing.
+                ...(process.env.BTCPAY_SERVER_URL &&
+                process.env.BTCPAY_SERVER_KEY &&
+                process.env.BTCPAY_SERVER_ID &&
+                process.env.BTCPAY_WEBHOOK_SECRET
+                  ? [
+                      {
+                        resolve: "./src/modules/btcpay-payment",
+                        id: "btcpay",
+                        options: {
+                          server_url: process.env.BTCPAY_SERVER_URL,
+                          api_key: process.env.BTCPAY_SERVER_KEY,
+                          store_id: process.env.BTCPAY_SERVER_ID,
+                          webhook_secret: process.env.BTCPAY_WEBHOOK_SECRET,
+                          default_return_url: process.env.BTCPAY_DEFAULT_RETURN_URL,
                         },
                       },
                     ]

@@ -13,6 +13,10 @@ import {
   resolvePartnerConnect,
   connectContext,
 } from "../../../../../modules/stripe-connect-payment/lib/resolve-connect"
+import {
+  resolvePartnerBtcpayStore,
+  btcpayContext,
+} from "../../../../../modules/btcpay-payment/lib/resolve-partner-store"
 import { resolveCollectionPaymentContext } from "../../../../../lib/payments/resolve-collection-customer"
 import { saveCardSessionData } from "../../../../../lib/payments/save-card-intent"
 import { stripReservedPayuSessionKeys } from "../../../../../lib/payments/payu-session-reserved-keys"
@@ -66,6 +70,18 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
       salesChannelId
     ).catch(() => null)
     const ctx = payuContext(creds)
+    if (Object.keys(ctx).length) {
+      context = ctx
+    }
+  } else if (pid.includes("btcpay")) {
+    // Bitcoin: route a partner storefront's invoice to the partner's BTCPay
+    // store (their wallet). None configured → our store.
+    const salesChannelId = await resolveSalesChannelForCollection(
+      req.scope,
+      collectionId
+    ).catch(() => undefined)
+    const store = await resolvePartnerBtcpayStore(req.scope, salesChannelId).catch(() => null)
+    const ctx = btcpayContext(store)
     if (Object.keys(ctx).length) {
       context = ctx
     }
