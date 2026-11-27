@@ -87,6 +87,18 @@ export default async function Home(props: {
   // cookie/localStorage gate.
   const [leadCollection, ...remainingCollections] = orderedCollections
 
+  // "Genesis in Dharamshala" sits between the rails, right after the
+  // handloom rail when there is one, else halfway through the rest.
+  const handloomIndex = remainingCollections.findIndex((c) =>
+    /handloom/i.test(`${c.handle} ${c.title}`)
+  )
+  const genesisAfter =
+    handloomIndex >= 0
+      ? handloomIndex + 1
+      : Math.ceil(remainingCollections.length / 2)
+  const railsBeforeGenesis = remainingCollections.slice(0, genesisAfter)
+  const railsAfterGenesis = remainingCollections.slice(genesisAfter)
+
   // One draw from the public media API: the first image is the hero, the
   // next four fill the media grid. Sharing the batch is what keeps the two
   // from ever showing the same painting twice on a page.
@@ -114,15 +126,23 @@ export default async function Home(props: {
           <li>
             <HomeMediaStrip images={gridImages} />
           </li>
-          {remainingCollections.length > 0 && (
+          {railsBeforeGenesis.length > 0 && (
             <FeaturedProducts
-              collections={remainingCollections}
+              collections={railsBeforeGenesis}
+              region={region}
+            />
+          )}
+          <li>
+            <Genesis />
+          </li>
+          {railsAfterGenesis.length > 0 && (
+            <FeaturedProducts
+              collections={railsAfterGenesis}
               region={region}
             />
           )}
         </ul>
       </div>
-      <Genesis />
       <Provenance />
     </>
   )
