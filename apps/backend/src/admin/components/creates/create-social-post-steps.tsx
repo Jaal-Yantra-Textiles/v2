@@ -21,6 +21,23 @@ enum Tab {
   CAMPAIGN = "campaign",
 }
 
+/** Does this post go to Instagram (Instagram alone, or FB+IG not set to Facebook only)? */
+const sendsToInstagram = (data: CreateSocialPostForm) => {
+  const name = (data.platform_name || "").toLowerCase()
+  if (name === "instagram") return true
+  const both = name === "fbinsta" || name === "facebook & instagram"
+  return both && data.publish_target !== "facebook"
+}
+
+/** metadata.reel — only what was set; Instagram defaults the rest. */
+const reelOptions = (data: CreateSocialPostForm) => ({
+  share_to_feed: data.reel_share_to_feed !== false,
+  ...(data.reel_cover_url ? { cover_url: data.reel_cover_url } : {}),
+  ...(typeof data.reel_thumb_offset_s === "number" && !data.reel_cover_url
+    ? { thumb_offset: Math.round(data.reel_thumb_offset_s * 1000) }
+    : {}),
+})
+
 export const CreateSocialPostSteps = () => {
   const [searchParams] = useSearchParams()
   const startInCampaignMode = searchParams.get("campaign") === "true"
@@ -200,6 +217,7 @@ export const CreateSocialPostSteps = () => {
         ...(data.ig_user_id ? { ig_user_id: data.ig_user_id } : {}),
         ...(data.publish_target ? { publish_target: data.publish_target } : {}),
         ...(typeof data.auto_publish === "boolean" ? { auto_publish: data.auto_publish } : {}),
+        ...(data.post_type === "reel" && sendsToInstagram(data) ? { reel: reelOptions(data) } : {}),
       },
     }
 

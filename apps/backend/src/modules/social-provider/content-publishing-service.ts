@@ -4,6 +4,16 @@ import InstagramService from "./instagram-service"
 import { transformForInstagram, transformForFacebook } from "./image-transformer"
 
 export type ContentType = "photo" | "video" | "text" | "reel" | "carousel"
+
+/** Instagram Reels options, from a post's `metadata.reel`. */
+export interface ReelOptions {
+  /** Also show the Reel on the profile grid. Instagram's default is true. */
+  share_to_feed?: boolean
+  /** Public image URL for the cover. */
+  cover_url?: string
+  /** Cover frame, in milliseconds from the start, when no cover_url. */
+  thumb_offset?: number
+}
 export type Platform = "facebook" | "instagram" | "both"
 
 export interface PublishContentInput {
@@ -17,6 +27,8 @@ export interface PublishContentInput {
     image_url?: string // Single image (for backward compatibility)
     image_urls?: string[] // Multiple images for carousel/album
     video_url?: string
+    /** Reels options (Instagram). */
+    reel?: ReelOptions
     link?: string // For Facebook text posts
   }
   userAccessToken: string
@@ -28,6 +40,14 @@ export interface PublishResult {
   postId?: string
   permalink?: string
   error?: string
+  /**
+   * Instagram Reels only: the container was created but Instagram is still
+   * processing the video. Not a failure — the finish-instagram-reels job
+   * publishes it once FINISHED.
+   */
+  pending?: boolean
+  containerId?: string
+  igUserId?: string
 }
 
 export interface PublishResponse {
@@ -47,6 +67,12 @@ export interface PublishResponse {
  * 3. Return unified results
  */
 export default class ContentPublishingService {
+  /**
+   * How long a Reel may process inside the publish request before it is
+   * handed to the finish-instagram-reels job: 12 × 5 s = 60 s.
+   */
+  reelWait = { attempts: 12, delayMs: 5000 }
+
   private facebookService: FacebookService
   private instagramService: InstagramService
 
@@ -237,19 +263,53 @@ export default class ContentPublishingService {
           break
 
         case "video":
-        case "reel":
+        case "reel": {
           if (!input.content.video_url) {
             throw new Error("video_url is required for video/reel posts")
           }
-          response = await this.instagramService.publishVideoAsReel(
+          // Reels: create the container, give Instagram up to ~60 s to process
+          // the video inside this request, then hand off. The publish request
+          // goes through Cloudflare (≈100 s cap), and Reels often take minutes,
+          // so a still-processing Reel is returned as PENDING (not failed) and
+          // the finish-instagram-reels job publishes it.
+          const reel = input.content.reel || {}
+          const container = await this.instagramService.startReel(
             input.igUserId,
             {
               video_url: input.content.video_url,
               caption,
+              share_to_feed: reel.share_to_feed,
+              cover_url: reel.cover_url,
+              thumb_offset: reel.thumb_offset,
             },
             pageAccessToken
           )
+          const status = await this.instagramService.pollContainer(
+            container.id,
+            pageAccessToken,
+            this.reelWait
+          )
+          if (status.status_code === "IN_PROGRESS") {
+            return {
+              platform: "instagram",
+              success: false,
+              pending: true,
+              containerId: container.id,
+              igUserId: input.igUserId,
+            }
+          }
+          if (status.status_code !== "FINISHED") {
+            throw new Error(
+              `Instagram could not process the Reel video (${status.status_code}${status.status ? `: ${status.status}` : ""})`
+            )
+          }
+          response = await this.instagramService.publishReadyContainer(
+            input.igUserId,
+            container.id,
+            pageAccessToken
+          )
           break
+        }
 
         case "text":
           throw new Error("Instagram does not support text-only posts")

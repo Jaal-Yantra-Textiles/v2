@@ -1,4 +1,5 @@
 import { createStep, StepResponse } from "@medusajs/workflows-sdk"
+import { isVideoUrl } from "../../../modules/social-provider/reel"
 
 /**
  * Step 7: Determine Content Type
@@ -8,12 +9,17 @@ import { createStep, StepResponse } from "@medusajs/workflows-sdk"
  * - photo: Single image
  * - reel/video: Video attachment
  * - text: No media (caption only)
+ *
+ * A URL ending .mp4/.mov/.m4v counts as video whatever its `type` says — a
+ * post created with an .mp4 in media_urls but no post_type "reel" is stored
+ * as type "image" and was sent to Instagram as a photo.
  */
 export const determineContentTypeStep = createStep(
   "determine-content-type",
   async (input: { media_attachments: Array<{ type: string; url: string }>; caption: string }) => {
-    const imageAttachments = input.media_attachments.filter((a) => a.type === "image")
-    const videoAttachment = input.media_attachments.find((a) => a.type === "video")
+    const isVideo = (a: { type: string; url: string }) => a.type === "video" || isVideoUrl(a.url)
+    const imageAttachments = input.media_attachments.filter((a) => a.type === "image" && !isVideo(a))
+    const videoAttachment = input.media_attachments.find(isVideo)
 
     let contentType: "photo" | "video" | "text" | "reel" | "carousel" = "text"
     let imageUrl: string | undefined

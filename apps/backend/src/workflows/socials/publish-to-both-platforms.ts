@@ -22,6 +22,7 @@ interface PublishToBothPlatformsInput {
     image_url?: string
     image_urls?: string[]
     video_url?: string
+    reel?: import("../../modules/social-provider/types").ReelOptions
     link?: string
   }
 }

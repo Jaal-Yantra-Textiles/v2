@@ -3003,7 +3003,8 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         media_urls: {
           type: "array",
           items: { type: "string" },
-          description: "Media URLs for photo/reel posts (1-10 images or 1 video).",
+          description:
+            "Media URLs for photo/reel posts (1-10 images or 1 video). An Instagram Reel is ONE public video URL (.mp4/.mov/.m4v — detected as video even without post_type) plus the caption; Instagram has no text-only posts.",
         },
         post_type: STR("'photo' | 'feed' | 'reel'. Required for Facebook/Instagram."),
         status: STR("'draft' (default) | 'scheduled' | 'posted' | 'failed' | 'archived'."),
@@ -3012,7 +3013,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
         metadata: {
           type: "object",
           description:
-            "Platform-specific fields: { page_id, ig_user_id, publish_target ('facebook'|'instagram'|'both'), auto_publish (boolean) }. The workflow reads these to route the post.",
+            "Platform-specific fields: { page_id, ig_user_id, publish_target ('facebook'|'instagram'|'both'), auto_publish (boolean), reel?: { share_to_feed (boolean, default true: also show on the profile grid), cover_url (public image URL for the cover), thumb_offset (cover frame in ms when no cover_url) } }. The workflow reads these to route the post. Instagram captions: at most 2,200 characters and 30 hashtags.",
         },
       },
       ["name", "platform_id"]
@@ -3041,7 +3042,7 @@ export const ADMIN_MCP_TOOLS: AdminMcpToolDef[] = [
       ["id"]
     ),
     sideEffects:
-      "Calls the live social platform API and creates a public post. Failed publishes are recorded on the post for retry; partial successes (e.g. Facebook ok, Instagram failed) are reported per-platform.",
+      "Calls the live social platform API and creates a public post. Failed publishes are recorded on the post for retry; partial successes (e.g. Facebook ok, Instagram failed) are reported per-platform. An Instagram Reel that Instagram is still processing after ~60 s returns pending:true and the post stays 'scheduled' — NOT a failure: a job publishes it within minutes (get_social_post shows status 'posted' + insights.instagram_permalink). Do NOT publish it again while pending — that is refused.",
     nextSteps: ["get_social_post", "list_social_posts"],
   },
 

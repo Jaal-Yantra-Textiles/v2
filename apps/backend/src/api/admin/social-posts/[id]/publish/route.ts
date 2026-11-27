@@ -183,6 +183,8 @@ export const POST = async (
     // Return the result
     return res.status(200).json({
       success: result.success,
+      // Instagram Reel still processing: not a failure, it publishes itself.
+      pending: (result as any).pending ?? false,
       post: result.post,
       results: result.results,
       retry_info: result.retry_info,

@@ -31,6 +31,7 @@ export const updatePostWithResultsStep = createStep(
       console.log(`[Update Post] ✓ Using post updated by Twitter workflow`)
       
       return new StepResponse({
+        pending: false,
         updated_post: input.updated_post_from_workflow,
         success: (input.updated_post_from_workflow as any).status === "posted",
         results: {
@@ -48,8 +49,12 @@ export const updatePostWithResultsStep = createStep(
     // For Facebook/Instagram, update the post ourselves
     const socials = container.resolve(SOCIALS_MODULE) as SocialsService
 
+    // An Instagram Reel still processing is PENDING, not failed: the
+    // finish-instagram-reels job publishes it and settles the post.
+    const isPending = (r: any) => r.platform === "instagram" && r.pending === true
+    const pendingReel = input.merged_results.find(isPending)
     const allSucceeded = input.merged_results.every((r: any) => r.success)
-    const anyFailed = input.merged_results.some((r: any) => !r.success)
+    const anyFailed = input.merged_results.some((r: any) => !r.success && !isPending(r))
 
     const facebookResult = input.merged_results.find((r: any) => r.platform === "facebook")
     const instagramResult = input.merged_results.find((r: any) => r.platform === "instagram")
@@ -61,6 +66,16 @@ export const updatePostWithResultsStep = createStep(
       publish_results: input.merged_results,
       published_at: new Date().toISOString(),
       last_retry_at: input.is_retry ? new Date().toISOString() : undefined,
+    }
+
+    if (pendingReel && !anyFailed) {
+      insights.instagram_reel_pending = {
+        container_id: pendingReel.containerId,
+        ig_user_id: pendingReel.igUserId,
+        started_at: new Date().toISOString(),
+      }
+    } else {
+      delete insights.instagram_reel_pending
     }
 
     // Set Facebook post URL and ID
@@ -82,7 +97,7 @@ export const updatePostWithResultsStep = createStep(
       {
         selector: { id: input.post.id },
         data: {
-          status: allSucceeded ? "posted" : "failed",
+          status: allSucceeded ? "posted" : pendingReel && !anyFailed ? "scheduled" : "failed",
           posted_at: allSucceeded ? new Date() : null,
           post_url: postUrl,
           insights,
@@ -96,9 +111,12 @@ export const updatePostWithResultsStep = createStep(
       },
     ])
 
-    console.log(`[Update Post] ✓ Post updated with status: ${allSucceeded ? 'posted' : 'failed'}`)
+    console.log(
+      `[Update Post] ✓ Post updated with status: ${allSucceeded ? "posted" : pendingReel && !anyFailed ? "scheduled (Instagram Reel processing)" : "failed"}`
+    )
 
     return new StepResponse({
+      pending: Boolean(pendingReel && !anyFailed),
       updated_post: updatedPost,
       success: allSucceeded,
       results: {

@@ -57,6 +57,11 @@ export const SocialPostGeneralSection = ({
     })
   }
 
+  // Instagram Reel handed off to the finish-instagram-reels job.
+  const reelPending = ((post.insights || {}) as Record<string, any>).instagram_reel_pending as
+    | { container_id: string; started_at: string }
+    | undefined
+
   const actionGroups = [
     {
       actions: [
@@ -75,7 +80,8 @@ export const SocialPostGeneralSection = ({
           onClick: () => {
             publishPost({ post_id: post.id })
           },
-          disabled: post.status === "posted" || isPending,
+          // A Reel still processing must not be published again (refused server-side).
+          disabled: post.status === "posted" || isPending || Boolean(reelPending),
         },
       ],
     },
@@ -122,7 +128,9 @@ export const SocialPostGeneralSection = ({
     },
     {
       label: t("fields.status", "Status"),
-      value: post.status,
+      value: reelPending
+        ? `Instagram Reel processing (since ${dayjs(reelPending.started_at).format("HH:mm")}) — publishes on its own`
+        : post.status,
     },
     {
       label: t("fields.scheduled_at", "Scheduled At"),

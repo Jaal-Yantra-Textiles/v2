@@ -79,7 +79,18 @@ export default class InstagramService {
 
   async createContainer(
     igUserId: string,
-    payload: { image_url?: string; video_url?: string; caption?: string; media_type?: "REELS" | "CAROUSEL" },
+    payload: {
+      image_url?: string
+      video_url?: string
+      caption?: string
+      media_type?: "REELS" | "CAROUSEL"
+      /** Reels only: also show the Reel on the profile grid (Instagram's default is true). */
+      share_to_feed?: boolean
+      /** Reels only: a public image URL to use as the cover. */
+      cover_url?: string
+      /** Reels only: the frame (milliseconds in) to use as the cover when no cover_url. */
+      thumb_offset?: number
+    },
     accessToken: string
   ): Promise<{ id: string }> {
     if (!igUserId || !accessToken) {
@@ -91,6 +102,9 @@ export default class InstagramService {
     if (payload.video_url) body.set("video_url", payload.video_url)
     if (payload.caption) body.set("caption", payload.caption)
     if (payload.media_type) body.set("media_type", payload.media_type)
+    if (payload.share_to_feed !== undefined) body.set("share_to_feed", String(payload.share_to_feed))
+    if (payload.cover_url) body.set("cover_url", payload.cover_url)
+    if (payload.thumb_offset !== undefined) body.set("thumb_offset", String(Math.max(0, Math.round(payload.thumb_offset))))
     body.set("access_token", accessToken)
     const resp = await fetch(url, { method: "POST", body })
     if (!resp.ok) {
@@ -189,6 +203,64 @@ export default class InstagramService {
    */
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  /**
+   * Poll a container until it settles or the budget runs out — WITHOUT
+   * throwing on timeout. Returns the last status_code seen: FINISHED, ERROR,
+   * EXPIRED, or IN_PROGRESS when it is still processing after the budget.
+   * Reels can take minutes; the caller decides what "still processing" means.
+   */
+  async pollContainer(
+    containerId: string,
+    accessToken: string,
+    opts: { attempts: number; delayMs: number }
+  ): Promise<{ status_code: string; status?: string }> {
+    let last: { status_code: string; status?: string } = { status_code: "IN_PROGRESS" }
+    for (let attempt = 1; attempt <= opts.attempts; attempt++) {
+      last = await this.checkContainerStatus(containerId, accessToken)
+      if (last.status_code !== "IN_PROGRESS") return last
+      if (attempt < opts.attempts) await this.delay(opts.delayMs)
+    }
+    return last
+  }
+
+  /** media_publish for a container already known to be FINISHED. */
+  async publishReadyContainer(igUserId: string, creationId: string, accessToken: string): Promise<{ id: string }> {
+    const url = `https://graph.facebook.com/v24.0/${encodeURIComponent(igUserId)}/media_publish`
+    const body = new URLSearchParams()
+    body.set("creation_id", creationId)
+    body.set("access_token", accessToken)
+    const resp = await fetch(url, { method: "POST", body })
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}))
+      throw new MedusaError(MedusaError.Types.INVALID_DATA, `IG publish failed: ${resp.status} - ${JSON.stringify(err)}`)
+    }
+    return (await resp.json()) as { id: string }
+  }
+
+  /**
+   * Create a Reels container and return its id WITHOUT waiting for Instagram
+   * to process the video (that can take minutes). Pair with pollContainer +
+   * publishReadyContainer.
+   */
+  async startReel(
+    igUserId: string,
+    args: { video_url: string; caption?: string; share_to_feed?: boolean; cover_url?: string; thumb_offset?: number },
+    accessToken: string
+  ): Promise<{ id: string }> {
+    return this.createContainer(
+      igUserId,
+      {
+        video_url: args.video_url,
+        caption: args.caption,
+        media_type: "REELS",
+        share_to_feed: args.share_to_feed,
+        cover_url: args.cover_url,
+        thumb_offset: args.thumb_offset,
+      },
+      accessToken
+    )
   }
 
   async publishContainer(igUserId: string, creationId: string, accessToken: string): Promise<{ id: string }> {

@@ -51,6 +51,16 @@ export interface TwitterUserToken {
 
 // Content Publishing Types
 export type ContentType = "photo" | "video" | "text" | "reel" | "carousel"
+
+/** Instagram Reels options, from a post's `metadata.reel`. */
+export interface ReelOptions {
+  /** Also show the Reel on the profile grid. Instagram's default is true. */
+  share_to_feed?: boolean
+  /** Public image URL for the cover. */
+  cover_url?: string
+  /** Cover frame, in milliseconds from the start, when no cover_url. */
+  thumb_offset?: number
+}
 export type Platform = "facebook" | "instagram" | "both"
 
 export interface PublishContentInput {
@@ -64,6 +74,8 @@ export interface PublishContentInput {
     image_url?: string
     image_urls?: string[]
     video_url?: string
+    /** Reels options (Instagram). */
+    reel?: ReelOptions
     link?: string
   }
   userAccessToken: string
@@ -75,6 +87,14 @@ export interface PublishResult {
   postId?: string
   permalink?: string
   error?: string
+  /**
+   * Instagram Reels only: the container was created but Instagram is still
+   * processing the video. Not a failure — the finish-instagram-reels job
+   * publishes it once FINISHED.
+   */
+  pending?: boolean
+  containerId?: string
+  igUserId?: string
 }
 
 export interface PublishResponse {

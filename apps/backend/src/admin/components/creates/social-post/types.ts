@@ -1,4 +1,5 @@
 import { z } from "@medusajs/framework/zod"
+import { instagramCaptionProblem } from "../../../../modules/social-provider/reel"
 
 // Content rule schema for campaign mode - all fields optional for form flexibility
 export const ContentRuleSchema = z.object({
@@ -34,6 +35,10 @@ export const BaseSchema = z.object({
   publish_target: z.enum(["facebook", "instagram", "both"]).optional(),
   // Automation
   auto_publish: z.boolean().optional(),
+  // Instagram Reels options → metadata.reel on submit
+  reel_share_to_feed: z.boolean().optional(),
+  reel_cover_url: z.union([z.string().url("Enter a full image URL"), z.literal("")]).optional(),
+  reel_thumb_offset_s: z.number().min(0, "Must be 0 or more").optional(),
   
   // Campaign mode fields
   is_campaign: z.boolean().optional(),
@@ -109,6 +114,13 @@ export const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
       }
     }
     
+    if (data.publish_target === "instagram" || data.publish_target === "both") {
+      const captionProblem = instagramCaptionProblem(data.message || "")
+      if (captionProblem) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["message"], message: captionProblem })
+      }
+    }
+
     const urls = data.media_urls ?? []
     if (data.post_type === "photo") {
       if (urls.length < 1) {
@@ -124,6 +136,9 @@ export const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
           message: "Maximum 10 images allowed for carousel",
         })
       }
+    }
+    if (data.post_type === "reel" && urls.length !== 1) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["media_urls"], message: "Select exactly one video" })
     }
     return
   }
@@ -165,6 +180,10 @@ export const CreateSocialPostSchema = BaseSchema.superRefine((data, ctx) => {
     }
     if (!data.ig_user_id) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["ig_user_id"], message: "Select an Instagram account" })
+    }
+    const captionProblem = instagramCaptionProblem(data.message || "")
+    if (captionProblem) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["message"], message: captionProblem })
     }
     const urls = data.media_urls ?? []
     if (data.post_type === "photo") {

@@ -12,6 +12,7 @@ import {
   mergePublishResultsStep,
   updatePostWithResultsStep,
 } from "./steps"
+import { guardPendingReelStep } from "./steps/guard-pending-reel"
 
 /**
  * Unified Social Post Publishing Workflow
@@ -43,6 +44,9 @@ export const publishSocialPostUnifiedWorkflow = createWorkflow(
   (input: PublishSocialPostUnifiedInput) => {
     // Step 1: Load post with platform
     const postData = loadPostWithPlatformStep({ post_id: input.post_id })
+
+    // A Reel still processing must not be published again (double post).
+    guardPendingReelStep({ post: postData.post })
 
     // Step 2: Validate platform
     const platformData = validatePlatformStep({ platform: postData.platform })
@@ -99,6 +103,7 @@ export const publishSocialPostUnifiedWorkflow = createWorkflow(
       image_url: contentTypeData.image_url,
       image_urls: contentTypeData.image_urls,
       video_url: contentTypeData.video_url,
+      reel: contentData.reel,
     })
 
     // Step 10: Merge publish results
@@ -118,6 +123,8 @@ export const publishSocialPostUnifiedWorkflow = createWorkflow(
 
     return new WorkflowResponse({
       success: finalData.success,
+      /** True when the Instagram Reel is still processing; the job finishes it. */
+      pending: finalData.pending,
       post: finalData.updated_post,
       results: finalData.results,
       retry_info: finalData.retry_info,

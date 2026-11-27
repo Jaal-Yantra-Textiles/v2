@@ -145,10 +145,12 @@ export const useCreateSocialPost = (): UseMutationResult<
 export const usePublishSocialPost = (): UseMutationResult<
   {
     success: boolean
+    /** Instagram Reel still processing — not a failure; a job publishes it. */
+    pending?: boolean
     post: AdminSocialPost
     results: {
       facebook?: { platform: string; success: boolean; postId?: string; error?: string }
-      instagram?: { platform: string; success: boolean; postId?: string; permalink?: string; error?: string }
+      instagram?: { platform: string; success: boolean; postId?: string; permalink?: string; error?: string; pending?: boolean }
     }
   },
   Error,
@@ -164,6 +166,10 @@ export const usePublishSocialPost = (): UseMutationResult<
     onSuccess: (data) => {
       if (data.success) {
         toast.success("Post published successfully!")
+      } else if (data.pending) {
+        toast.info("Instagram is processing the Reel", {
+          description: "It publishes on its own within a few minutes. Refresh this page to see it go live.",
+        })
       } else {
         toast.warning("Published with some errors. Check post details.")
       }

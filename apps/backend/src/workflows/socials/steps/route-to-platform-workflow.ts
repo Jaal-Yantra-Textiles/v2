@@ -1,6 +1,7 @@
 import { createStep, StepResponse } from "@medusajs/workflows-sdk"
 import { publishSocialPostWorkflow } from "../publish-post"
 import { publishToBothPlatformsUnifiedWorkflow } from "../publish-to-both-platforms"
+import type { ReelOptions } from "../../../modules/social-provider/types"
 
 /**
  * Step 9: Route to Platform Workflow
@@ -26,6 +27,7 @@ export const routeToPlatformWorkflowStep = createStep(
       image_url?: string
       image_urls?: string[]
       video_url?: string
+      reel?: ReelOptions
     },
     { container }
   ) => {
@@ -59,6 +61,7 @@ export const routeToPlatformWorkflowStep = createStep(
           image_url: input.image_url,
           image_urls: input.image_urls,
           video_url: input.video_url,
+          reel: input.reel,
         },
       },
     })
