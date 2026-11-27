@@ -1,13 +1,15 @@
-import { Button, Container, Heading, Text, toast, usePrompt } from "@medusajs/ui"
+import { Button, Container, Heading, Input, Text, toast, usePrompt } from "@medusajs/ui"
 import { CheckCircleSolid, ExclamationCircleSolid, XCircleSolid } from "@medusajs/icons"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 
 import { AdminInventoryOrder } from "../../hooks/api/inventory-orders"
 import {
   useApproveInventoryOrderChange,
   useInventoryOrderChanges,
   useRejectInventoryOrderChange,
+  useReviseProposedNewLine,
   type AdminInventoryOrderChange,
+  type InventoryOrderChangeLine,
 } from "../../hooks/api/inventory-orders"
 
 type InventoryOrderChangeBannerProps = {
@@ -61,14 +63,19 @@ export const InventoryOrderChangeBanner = ({
     ? pending.proposed_charges
     : []
 
-  const removed = proposedLines.filter((l) => l.remove)
-  const edited = proposedLines.filter((l) => !l.remove)
+  const removed = proposedLines.filter((l) => l.remove && l.id)
+  const edited = proposedLines.filter((l) => !l.remove && l.id)
+  // #2659 — cloth the partner added that the order did not list.
+  const added = proposedLines.filter(
+    (l) => !l.id && !l.remove && l.new_material?.name
+  )
   const taxTotal = proposedCharges.reduce(
     (sum, c) => sum + (Number(c?.amount) || 0),
     0
   )
 
-  const labelFor = (id: string) => {
+  const labelFor = (id?: string) => {
+    if (!id) return "—"
     const line = lineById.get(id)
     return (
       line?.material_name ||
@@ -135,9 +142,10 @@ export const InventoryOrderChangeBanner = ({
               Line changes
             </Text>
             {edited.map((l) => {
-              const original = lineById.get(l.id)
+              const original = lineById.get(l.id!)
               return (
-                <div key={l.id} className="flex items-center gap-x-3 text-sm">
+                <div key={l.id} className="flex flex-col gap-y-1 text-sm">
+                  <div className="flex items-center gap-x-3">
                   <span className="flex-1 truncate">{labelFor(l.id)}</span>
                   {original ? (
                     <span className="text-ui-fg-muted">
@@ -148,9 +156,27 @@ export const InventoryOrderChangeBanner = ({
                       {money(l.price)} × {l.quantity}
                     </span>
                   )}
+                  </div>
+                  <PhotoStrip photos={l.photos} />
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {added.length > 0 && (
+          <div className="flex flex-col gap-y-3 px-6 py-4">
+            <Text size="small" className="text-ui-fg-subtle font-medium">
+              New items from the partner ({added.length}) — approving creates these as inventory items
+            </Text>
+            {added.map((l) => (
+              <ProposedNewItemRow
+                key={l.key ?? l.new_material!.name}
+                orderId={inventoryOrder.id}
+                changeId={pending.id}
+                line={l}
+              />
+            ))}
           </div>
         )}
 
@@ -197,6 +223,119 @@ export const InventoryOrderChangeBanner = ({
           </Button>
         </div>
       </Container>
+    </div>
+  )
+}
+
+/** #2659 — thumbnails of the photos a partner attached; each opens full size. */
+const PhotoStrip = ({ photos }: { photos?: string[] }) => {
+  if (!photos?.length) return null
+  return (
+    <div className="flex flex-wrap gap-2">
+      {photos.map((url) => (
+        <a key={url} href={url} target="_blank" rel="noreferrer">
+          <img
+            src={url}
+            alt=""
+            className="h-16 w-16 rounded-md border object-cover"
+            loading="lazy"
+          />
+        </a>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * #2659 — one partner-proposed new item: its photos, quantity × price, and the
+ * two ways to sort it before approval — rename (name/colour) or drop.
+ */
+const ProposedNewItemRow = ({
+  orderId,
+  changeId,
+  line,
+}: {
+  orderId: string
+  changeId: string
+  line: InventoryOrderChangeLine
+}) => {
+  const prompt = usePrompt()
+  const { mutateAsync: revise, isPending } = useReviseProposedNewLine(orderId)
+  const [editing, setEditing] = useState(false)
+  const [name, setName] = useState(line.new_material?.name ?? "")
+  const [color, setColor] = useState(line.new_material?.color ?? "")
+
+  const material = line.new_material!
+  const title = material.color ? `${material.name} — ${material.color}` : material.name
+
+  const onSave = async () => {
+    if (!line.key || !name.trim()) return
+    try {
+      await revise({
+        changeId,
+        key: line.key,
+        new_material: {
+          name: name.trim(),
+          ...(color.trim() ? { color: color.trim() } : {}),
+        },
+      })
+      setEditing(false)
+      toast.success("Item renamed")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to rename item")
+    }
+  }
+
+  const onDrop = async () => {
+    if (!line.key) return
+    const confirmed = await prompt({
+      title: `Drop "${title}"?`,
+      description:
+        "It is taken out of the partner's proposal, so approving will not create it. The rest of the proposal is unchanged.",
+      confirmText: "Drop",
+      cancelText: "Cancel",
+    })
+    if (!confirmed) return
+    try {
+      await revise({ changeId, key: line.key, drop: true })
+      toast.success("Item dropped from the proposal")
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to drop item")
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-y-2 rounded-lg border p-3 text-sm">
+      {editing ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Input size="small" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" />
+          <Input size="small" value={color} onChange={(e) => setColor(e.target.value)} placeholder="Colour" />
+          <Button size="small" variant="primary" onClick={onSave} isLoading={isPending} disabled={!name.trim()}>
+            Save
+          </Button>
+          <Button size="small" variant="transparent" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-x-3">
+          <span className="flex-1 truncate font-medium">{title}</span>
+          <span className="text-ui-fg-muted">
+            {money(line.price)} × {line.quantity}
+            {material.unit_of_measure ? ` ${material.unit_of_measure}` : ""}
+          </span>
+          <Button size="small" variant="secondary" onClick={() => setEditing(true)} disabled={!line.key}>
+            Rename
+          </Button>
+          <Button size="small" variant="secondary" onClick={onDrop} disabled={!line.key || isPending}>
+            Drop
+          </Button>
+        </div>
+      )}
+      {material.composition ? (
+        <Text size="xsmall" className="text-ui-fg-subtle">{material.composition}</Text>
+      ) : null}
+      <PhotoStrip photos={line.photos} />
     </div>
   )
 }

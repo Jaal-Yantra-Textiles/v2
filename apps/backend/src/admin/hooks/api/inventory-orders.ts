@@ -563,11 +563,23 @@ export const useInventoryOrderPayments = (
 // admin approval. Mirrors Medusa's order-change surface: a pending proposal is a
 // request, not a fact, until the operator approves or rejects it.
 export type InventoryOrderChangeLine = {
-  id: string
+  /** Absent on a partner-proposed NEW item (#2659). */
+  id?: string
   quantity?: number
   price?: number
   extra_cost?: number | null
   remove?: boolean
+  /** #2659 — cloth the order did not list, named by the partner. */
+  new_material?: {
+    name: string
+    color?: string
+    composition?: string
+    unit_of_measure?: string
+  }
+  /** #2659 — photo urls the partner attached to this line. */
+  photos?: string[]
+  /** #2659 — server handle for a proposed new item (rename/drop by key). */
+  key?: string
 }
 
 export type InventoryOrderChangeCharge = {
@@ -650,6 +662,40 @@ export const useRejectInventoryOrderChange = (
     onSuccess: (...args) => {
       queryClient.invalidateQueries({ queryKey: [INVENTORY_ORDER_QUERY_KEY, id, "changes"] });
       queryClient.invalidateQueries({ queryKey: inventoryOrderQueryKeys.detail(id) });
+      options?.onSuccess?.(...args);
+    },
+  });
+};
+
+/**
+ * #2659 — sort ONE partner-proposed new item before approving: rename it
+ * (`new_material`) or `drop` it so approval never creates it.
+ */
+export type ReviseProposedNewLineInput = {
+  changeId: string
+  key: string
+  drop?: true
+  new_material?: Partial<NonNullable<InventoryOrderChangeLine["new_material"]>>
+}
+
+export const useReviseProposedNewLine = (
+  id: string,
+  options?: UseMutationOptions<
+    { change: AdminInventoryOrderChange },
+    FetchError,
+    ReviseProposedNewLineInput
+  >,
+) => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ changeId, key, ...body }: ReviseProposedNewLineInput) =>
+      sdk.client.fetch<{ change: AdminInventoryOrderChange }>(
+        `/admin/inventory-orders/${id}/changes/${changeId}/new-lines/${key}`,
+        { method: "POST", body },
+      ),
+    ...options,
+    onSuccess: (...args) => {
+      queryClient.invalidateQueries({ queryKey: [INVENTORY_ORDER_QUERY_KEY, id, "changes"] });
       options?.onSuccess?.(...args);
     },
   });
