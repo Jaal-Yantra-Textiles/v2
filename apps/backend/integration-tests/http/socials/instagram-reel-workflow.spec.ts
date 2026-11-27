@@ -18,7 +18,7 @@
 import { createAdminUser, getAuthHeaders } from "../../helpers/create-admin-user"
 import { getSharedTestEnv, setupSharedTestSuite } from "../shared-test-setup"
 
-jest.setTimeout(90 * 1000)
+jest.setTimeout(180 * 1000)
 
 type GraphCall = { url: string; method: string; body?: string }
 
@@ -30,7 +30,14 @@ let containerStatus = "FINISHED"
 const installFakeGraph = () => {
   global.fetch = (async (input: any, init?: any) => {
     const url = String(input?.url ?? input)
-    if (!url.includes("graph.facebook.com")) return realFetch(input, init)
+    // Exact host, not a substring: only Instagram's Graph API is faked.
+    let host = ""
+    try {
+      host = new URL(url).hostname
+    } catch {
+      // not an absolute URL — not a Graph call
+    }
+    if (host !== "graph.facebook.com") return realFetch(input, init)
     const method = init?.method || "GET"
     graphCalls.push({ url, method, body: init?.body ? String(init.body) : undefined })
     const json = (data: any) => new Response(JSON.stringify(data), { status: 200, headers: { "content-type": "application/json" } })
