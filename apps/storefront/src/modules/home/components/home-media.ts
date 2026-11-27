@@ -15,8 +15,16 @@ export type HomeMediaImage = {
   credit: string | null
 }
 
-/** One hero image + four grid images from the same draw. */
-const HOME_MEDIA_COUNT = 5
+/** The media-library folder the homepage grid draws from (not the art album). */
+export const HOME_GRID_FOLDER_ID =
+  process.env.NEXT_PUBLIC_HOME_GRID_FOLDER_ID || "01M63K22VHDZC68PA6RK71ZZ4B"
+
+const GRID_COUNT = 4
+
+const toImages = (medias: PublicMedia[] | undefined) =>
+  (medias || [])
+    .map(toHomeMediaImage)
+    .filter((image): image is HomeMediaImage => !!image)
 
 function toHomeMediaImage(media: PublicMedia): HomeMediaImage | null {
   const url = buildPublicMediaUrl(media.file_path)
@@ -35,58 +43,37 @@ function toHomeMediaImage(media: PublicMedia): HomeMediaImage | null {
 }
 
 /**
- * One draw, two consumers: the first image backs the hero, the next four
- * fill the homepage media grid. Fetching a single batch through the shared
- * media API (`/web/media`) guarantees the grid never repeats the hero —
- * and never repeats itself — while `random: true` keeps the draw fresh on
- * each visit.
+ * Two sources: the hero is one random painting from the curated open-archive
+ * album (same source as `/gallery`); the grid is four random photos from the
+ * homepage grid FOLDER — cloth, hands and places, not the paintings. Both use
+ * the shared public media API (`/web/media`, which accepts a folder id as
+ * `album_id`); `random: true` keeps each visit fresh.
  *
- * The batch comes from the curated open-archive album (same source as the
- * hero, `/gallery` and the footer). If the album is short we top it up from
- * the general public pool and de-dupe by id, so the grid still fills before
- * an editor has curated the album.
+ * Empty sources degrade quietly: no hero image → the gradient hero; an empty
+ * folder → the strip renders nothing. The grid never falls back to the art
+ * pool, so a painting can't show up where photos belong.
  */
 export async function getHomeMedia(): Promise<{
   hero: HomeMediaImage | null
   grid: HomeMediaImage[]
 }> {
-  const album = await listPublicMedia({
-    limit: HOME_MEDIA_COUNT,
-    type: "image",
-    random: true,
-    albumId: GALLERY_ALBUM_ID,
-  }).catch(() => ({ medias: [] as PublicMedia[] }))
-
-  const images = (album.medias || [])
-    .map(toHomeMediaImage)
-    .filter((image): image is HomeMediaImage => !!image)
-
-  if (images.length < HOME_MEDIA_COUNT) {
-    const pool = await listPublicMedia({
-      limit: HOME_MEDIA_COUNT * 2,
+  const [heroDraw, gridDraw] = await Promise.all([
+    listPublicMedia({
+      limit: 1,
       type: "image",
       random: true,
-    }).catch(() => ({ medias: [] as PublicMedia[] }))
+      albumId: GALLERY_ALBUM_ID,
+    }).catch(() => ({ medias: [] as PublicMedia[] })),
+    listPublicMedia({
+      limit: GRID_COUNT,
+      type: "image",
+      random: true,
+      albumId: HOME_GRID_FOLDER_ID,
+    }).catch(() => ({ medias: [] as PublicMedia[] })),
+  ])
 
-    const seen = new Set(images.map((image) => image.id))
-
-    for (const media of pool.medias || []) {
-      const image = toHomeMediaImage(media)
-
-      if (!image || seen.has(image.id)) {
-        continue
-      }
-
-      seen.add(image.id)
-      images.push(image)
-
-      if (images.length >= HOME_MEDIA_COUNT) {
-        break
-      }
-    }
-  }
-
-  const [hero, ...grid] = images
+  const [hero] = toImages(heroDraw.medias)
+  const grid = toImages(gridDraw.medias).slice(0, GRID_COUNT)
 
   return { hero: hero ?? null, grid }
 }
