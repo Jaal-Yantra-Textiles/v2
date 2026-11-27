@@ -1,10 +1,10 @@
 import { Metadata } from "next"
-import { cookies } from "next/headers"
 
 import FeaturedProducts from "@modules/home/components/featured-products"
+import Hero from "@modules/home/components/hero"
 import HolidaySection from "@modules/home/components/holidays"
-import HeroSeenMarker, { HERO_SEEN_COOKIE } from "@modules/home/components/home-stage"
-import PartnerShowcase from "@modules/home/components/partner-showcase"
+import { getHomeMedia } from "@modules/home/components/home-media"
+import HomeMediaStrip from "@modules/home/components/media-strip"
 import { listCollections } from "@lib/data/collections"
 import { getRegion } from "@lib/data/regions"
 import {
@@ -12,7 +12,6 @@ import {
   getFirstProductImageFor,
 } from "@lib/util/seo"
 import { getBaseURL } from "@lib/util/env"
-import { Suspense } from "react"
 
 const LATEST_COLLECTION_HANDLE = "latest"
 
@@ -80,26 +79,47 @@ export default async function Home(props: {
     ...collections.filter((c) => c.handle !== LATEST_COLLECTION_HANDLE),
   ]
 
-  // Cookie-gated hero: first-time visitors see neither the hero nor the
-  // holiday section — they land directly on the featured products below.
-  // Returning visitors (cookie set) see the holiday section above products.
-  // HeroSeenMarker sets the cookie on every client render so the gate
-  // activates after the first page view.
-  const cookieStore = await cookies()
-  const heroSeen = cookieStore.has(HERO_SEEN_COOKIE)
+  // The holiday section sits between the collection rails rather than under
+  // the painting hero, so the first rail stays above the fold. The media
+  // strip follows it, then the remaining rails. Always rendered — no
+  // cookie/localStorage gate.
+  const [leadCollection, ...remainingCollections] = orderedCollections
+
+  // One draw from the public media API: the first image is the hero, the
+  // next four fill the media grid. Sharing the batch is what keeps the two
+  // from ever showing the same painting twice on a page.
+  const { hero: heroImage, grid: gridImages } = await getHomeMedia()
 
   return (
     <>
-      {heroSeen && <HolidaySection countryCode={countryCode} />}
-      <HeroSeenMarker />
-      <div id="shop" className="py-12">
+      <Hero image={heroImage} />
+      <section className="w-full bg-[#f7f4ef] px-6 pt-20 pb-4 small:pt-28">
+        <h2 className="mx-auto max-w-5xl text-center font-serif text-balance text-3xl tracking-tight text-neutral-900 small:text-5xl">
+          Elevate Your Wardrobe with Unmatched Comfort &amp; Style
+        </h2>
+      </section>
+      <div id="shop" className="py-12 bg-[#f7f4ef]">
         <ul className="flex flex-col gap-x-6">
-          <FeaturedProducts collections={orderedCollections} region={region} />
+          {leadCollection && (
+            <FeaturedProducts
+              collections={[leadCollection]}
+              region={region}
+            />
+          )}
+          <li>
+            <HolidaySection countryCode={countryCode} />
+          </li>
+          <li>
+            <HomeMediaStrip images={gridImages} />
+          </li>
+          {remainingCollections.length > 0 && (
+            <FeaturedProducts
+              collections={remainingCollections}
+              region={region}
+            />
+          )}
         </ul>
       </div>
-      <Suspense fallback={null}>
-        <PartnerShowcase />
-      </Suspense>
     </>
   )
 }
