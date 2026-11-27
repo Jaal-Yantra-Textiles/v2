@@ -166,15 +166,15 @@ object PushManager {
 
     /** Sign-out unregisters the last known token so a signed-out device
      *  stops receiving this partner's pushes. */
-    fun unregisterCurrentDevice(context: Context) {
+    suspend fun unregisterCurrentDevice(context: Context) {
         if (!JytPartnerApp.pushConfigured) return
         val token = TokenStore.lastPushToken(context) ?: return
-        scope.launch {
-            try {
-                PartnerApi.get(context).unregisterDeviceToken(token)
-            } catch (e: Exception) {
-                Log.w(TAG, "token unregistration failed: ${e.message}")
-            }
+        try {
+            // Awaited by the caller, which clears the session only after:
+            // the DELETE must carry the still-valid token.
+            PartnerApi.get(context).unregisterDeviceToken(token)
+        } catch (e: Exception) {
+            Log.w(TAG, "token unregistration failed: ${e.message}")
         }
     }
 }

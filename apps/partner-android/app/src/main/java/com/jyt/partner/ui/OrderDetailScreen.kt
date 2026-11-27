@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.jyt.partner.api.PartnerApi
+import com.jyt.partner.models.UploadFile
 import com.jyt.partner.models.RunMaterials
 import com.jyt.partner.models.ApiDate
 import com.jyt.partner.models.formatDate
@@ -234,17 +235,12 @@ fun OrderDetailScreen(
         uploading = true
         try {
             val api = PartnerApi.get(context)
-            val resolver = context.contentResolver
-            val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return
-            val mime = resolver.getType(uri) ?: "image/jpeg"
-            val name = resolver.query(uri, null, null, null, null)?.use { c ->
-                c.moveToFirst()
-                c.getString(c.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
-            } ?: "upload.jpg"
-            val files = api.uploadRunMedia(
-                targetRun.id,
-                listOf(PartnerApi.MediaPart(name, mime, bytes)),
-            )
+            // Straight to storage through presigned URLs (photos shrunk first):
+            // through our API a long video passed Cloudflare's 100 MB cap and
+            // came back as a bare 403.
+            val input = storageUploadInput(context, uri) ?: return
+            val url = api.uploadToStorage(input)
+            val files = listOf(UploadFile(url = url))
             api.attachRunMedia(targetRun.id, files)
             // Refresh the design the photo went to.
             targetRun.designId?.let { id ->

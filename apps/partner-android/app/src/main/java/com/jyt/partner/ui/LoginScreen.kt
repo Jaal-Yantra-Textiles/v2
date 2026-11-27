@@ -23,6 +23,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +59,7 @@ fun LoginScreen(auth: AuthViewModel) {
     var phone by rememberSaveable { mutableStateOf("") }
     var pin by rememberSaveable { mutableStateOf("") }
     val error by auth.loginError.collectAsState()
+    val signingIn by auth.signingIn.collectAsState()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     Column(
@@ -177,9 +180,20 @@ fun LoginScreen(auth: AuthViewModel) {
                             auth.login(context = context, email = email, password = password)
                         }
                     },
+                    enabled = !signingIn,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(text = "Sign in", fontWeight = FontWeight.SemiBold)
+                    if (signingIn) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(18.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(text = "Signing in…", fontWeight = FontWeight.SemiBold)
+                    } else {
+                        Text(text = "Sign in", fontWeight = FontWeight.SemiBold)
+                    }
                 }
                 if (usePhone) {
                     Text(

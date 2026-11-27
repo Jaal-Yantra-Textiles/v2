@@ -1,14 +1,9 @@
 package com.jyt.partner.ui
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
 import com.jyt.partner.models.PartnerException
 import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -350,60 +345,3 @@ private fun Thumb(model: Any) {
         modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
     )
 }
-
-/** Longest side of an uploaded photo. Plenty to judge cloth by, and a few
- *  hundred KB instead of a 5-10 MB camera original. */
-private const val MAX_PHOTO_SIDE = 2000
-
-private fun readPart(context: Context, uri: Uri): PartnerApi.MediaPart? {
-    val resolver = context.contentResolver
-    val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
-    val mime = resolver.getType(uri) ?: "image/jpeg"
-    val name = runCatching {
-        resolver.query(uri, null, null, null, null)?.use { c ->
-            c.moveToFirst()
-            c.getString(c.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME))
-        }
-    }.getOrNull() ?: "photo-${System.currentTimeMillis()}.jpg"
-    if (!mime.startsWith("image/")) {
-        return PartnerApi.MediaPart(filename = name, mimeType = mime, bytes = bytes)
-    }
-    val shrunk = shrinkPhoto(bytes) ?: return PartnerApi.MediaPart(filename = name, mimeType = mime, bytes = bytes)
-    return PartnerApi.MediaPart(
-        filename = name.substringBeforeLast('.', name) + ".jpg",
-        mimeType = "image/jpeg",
-        bytes = shrunk,
-    )
-}
-
-/** Downscale to [MAX_PHOTO_SIDE], keep the camera's rotation, re-encode as
- *  JPEG. Null when the bytes don't decode — the caller sends them as they are. */
-private fun shrinkPhoto(bytes: ByteArray): ByteArray? = runCatching {
-    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-    val longest = maxOf(bounds.outWidth, bounds.outHeight)
-    if (longest <= 0) return null
-    var sample = 1
-    while (longest / (sample * 2) >= MAX_PHOTO_SIDE) sample *= 2
-    val decoded = BitmapFactory.decodeByteArray(
-        bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample },
-    ) ?: return null
-
-    val scale = MAX_PHOTO_SIDE.toFloat() / maxOf(decoded.width, decoded.height)
-    val matrix = Matrix()
-    if (scale < 1f) matrix.postScale(scale, scale)
-    val orientation = ExifInterface(ByteArrayInputStream(bytes))
-        .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-    when (orientation) {
-        ExifInterface.ORIENTATION_ROTATE_90 -> matrix.postRotate(90f)
-        ExifInterface.ORIENTATION_ROTATE_180 -> matrix.postRotate(180f)
-        ExifInterface.ORIENTATION_ROTATE_270 -> matrix.postRotate(270f)
-    }
-    val out = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
-    ByteArrayOutputStream().use { stream ->
-        out.compress(Bitmap.CompressFormat.JPEG, 82, stream)
-        if (out !== decoded) out.recycle()
-        decoded.recycle()
-        stream.toByteArray()
-    }
-}.getOrNull()

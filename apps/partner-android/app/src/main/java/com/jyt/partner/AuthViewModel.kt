@@ -10,6 +10,7 @@ import com.jyt.partner.models.PartnerMe
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Holds the partner session — the AuthStore counterpart: restores on cold
@@ -39,6 +40,10 @@ class AuthViewModel : ViewModel() {
 
     /** The last error a login attempt produced — surfaced by the login form. */
     val loginError = MutableStateFlow<String?>(null)
+
+    /** A sign-in request is in flight — the form shows a spinner and
+     *  ignores further taps so a slow network can't fire it twice. */
+    val signingIn = MutableStateFlow(false)
 
     init {
         viewModelScope.launch {
@@ -108,6 +113,8 @@ class AuthViewModel : ViewModel() {
     }
 
     fun login(context: Context, email: String, password: String) {
+        if (signingIn.value) return
+        signingIn.value = true
         viewModelScope.launch {
             loginError.value = null
             val api = PartnerApi.get(context)
@@ -121,12 +128,16 @@ class AuthViewModel : ViewModel() {
                 _state.value = State.SignedIn(api.me())
             } catch (e: Exception) {
                 loginError.value = e.message ?: "Sign in failed."
+            } finally {
+                signingIn.value = false
             }
         }
     }
 
     /** Phone number + PIN (#2320). */
     fun loginWithPhone(context: Context, phone: String, pin: String) {
+        if (signingIn.value) return
+        signingIn.value = true
         viewModelScope.launch {
             loginError.value = null
             val api = PartnerApi.get(context)
@@ -142,20 +153,32 @@ class AuthViewModel : ViewModel() {
                 }
             } catch (e: Exception) {
                 loginError.value = e.message ?: "Sign in failed."
+            } finally {
+                signingIn.value = false
             }
         }
     }
 
     fun logout(context: Context) {
-        // Sign-out also unregisters the device so a signed-out phone stops
-        // receiving this partner's pushes.
-        PushManager.unregisterCurrentDevice(context)
-        PartnerApi.get(context).logout()
+        // The screen leaves at once; the session is cleared only AFTER the
+        // device is unregistered. Clearing it first sent the DELETE with no
+        // token — a 401 — so a signed-out phone kept getting this partner's
+        // pushes (seen in prod logs, 2026-11-27). Capped so a dead network
+        // can't hold sign-out open.
         _state.value = State.SignedOut
+        val app = context.applicationContext
+        val signedOutToken = TokenStore.loadToken(app)
+        viewModelScope.launch {
+            withTimeoutOrNull(UNREGISTER_TIMEOUT_MS) { PushManager.unregisterCurrentDevice(app) }
+            // Signed straight back in meanwhile? Then the stored token is the
+            // NEW session's — leave it.
+            if (TokenStore.loadToken(app) == signedOutToken) PartnerApi.get(app).logout()
+        }
     }
 
     private companion object {
         const val SESSION_EXPIRED_MESSAGE = "Your session expired, please sign in again."
+        const val UNREGISTER_TIMEOUT_MS = 5_000L
     }
 
     private val appContext: Context
