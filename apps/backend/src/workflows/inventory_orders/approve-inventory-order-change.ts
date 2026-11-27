@@ -18,6 +18,7 @@ import {
   type ProposedLine,
 } from "../../modules/inventory_orders/lib/order-changes"
 import { notifyPartnerOfChangeDecisionStep } from "./lib/notify-partner-of-change-decision"
+import { attachApprovedNewItemsStep } from "./lib/attach-approved-new-items"
 import { updateInventoryOrderWorkflow } from "./update-inventory-orders"
 
 /**
@@ -286,6 +287,12 @@ export const approveInventoryOrderChangeWorkflow = createWorkflow(
           },
           order_lines: (ctx as any).lines,
         })),
+      })
+      // #2659 — put each newly created item where the admin chose (colour
+      // group / product variant). After the line write, so the items exist.
+      attachApprovedNewItemsStep({
+        orderId: input.orderId,
+        lines: transform({ ctx }, ({ ctx }) => (ctx as any).lines),
       })
     })
 

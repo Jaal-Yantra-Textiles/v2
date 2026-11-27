@@ -5,9 +5,11 @@ import {
   transform,
   WorkflowResponse,
 } from "@medusajs/framework/workflows-sdk"
+import { randomUUID } from "crypto"
 import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import {
+  isProposedNewLine,
   missingLineIds,
   ORDER_EDITABLE_STATUSES,
   removesEveryLine,
@@ -159,7 +161,12 @@ const writeStageStep = createStep(
 
     const data: Record<string, any> = { submitted_at: new Date().toISOString() }
     if (input.lines) {
-      data.proposed_lines = input.lines
+      // #2659 — each proposed NEW line gets a handle of its own, so an admin
+      // can rename or drop that one item without touching the rest. Assigned
+      // here, never accepted from the partner: the schema refuses `key`.
+      data.proposed_lines = input.lines.map((l) =>
+        isProposedNewLine(l) ? { ...l, key: `npl_${randomUUID()}` } : l
+      )
     }
     if (input.charges) {
       // 🔴 REPLACE BY TYPE, not append (#1752). Appending meant a partner who
@@ -202,7 +209,9 @@ export const stageInventoryOrderChangeWorkflow = createWorkflow(
   "stage-inventory-order-change",
   (input: StageInventoryOrderChangeInput) => {
     const lineIds = transform({ input }, ({ input }) =>
-      (input.lines ?? []).map((l) => l.id)
+      (input.lines ?? [])
+        .map((l) => l.id)
+        .filter((id): id is string => !!id)
     )
     const lineOps = transform({ input }, ({ input }) => input.lines ?? [])
     const ctx = ensureOpenChangeStep({

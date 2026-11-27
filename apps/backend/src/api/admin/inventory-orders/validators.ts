@@ -437,6 +437,49 @@ export type RejectInventoryOrderChange = z.infer<
 >
 
 /**
+ * #2659 — an admin sorting the NEW items a partner proposed, one at a time,
+ * before approving the change: rename/recolour one (`new_material`), or `drop`
+ * it so approval never creates it. Exactly one of the two.
+ */
+export const reviseProposedNewLineSchema = z
+  .object({
+    drop: z.literal(true).optional(),
+    new_material: z
+      .object({
+        name: z.string().trim().min(1).max(200).optional(),
+        color: z.string().trim().max(100).optional(),
+        composition: z.string().trim().max(200).optional(),
+        unit_of_measure: z.string().trim().max(30).optional(),
+      })
+      .strict()
+      .optional(),
+    /**
+     * Where the item lands on approval — a colour group (existing id, or a
+     * new one by name) and/or a product variant. `null` clears it.
+     */
+    attach: z
+      .object({
+        raw_material_group_id: z.string().min(1).optional(),
+        new_group_name: z.string().trim().min(1).max(200).optional(),
+        variant_id: z.string().min(1).optional(),
+        required_quantity: z.number().positive().optional(),
+      })
+      .strict()
+      .refine((a) => !(a.raw_material_group_id && a.new_group_name), {
+        message: "Pick an existing colour group OR name a new one, not both",
+      })
+      .nullable()
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (v) => (v.drop ? v.new_material === undefined && v.attach === undefined : v.new_material !== undefined || v.attach !== undefined),
+    { message: "Send drop: true alone, or new_material and/or attach" }
+  )
+
+export type ReviseProposedNewLine = z.infer<typeof reviseProposedNewLineSchema>
+
+/**
  * Which partner an inventory order belongs to (#1737).
  *
  * ⚠️ Assignment only — `send-to-partner` is what COMMISSIONS work and tells the

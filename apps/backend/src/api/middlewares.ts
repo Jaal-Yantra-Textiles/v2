@@ -211,7 +211,7 @@ import { registerDeviceTokenSchema, unregisterDeviceTokenSchema } from "./partne
 import { partnerReceiveIncomingSchema } from "./partners/incoming-deliveries/validators";
 import { setLayoutConfigurationSchema } from "./partners/layouts/validators";
 import { AdminGetPartnersParamsSchema } from "./admin/persons/partner/validators";
-import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, updateInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema, rejectInventoryOrderChangeSchema } from "./admin/inventory-orders/validators";
+import { createInventoryOrdersSchema, listInventoryOrdersQuerySchema, ReadSingleInventoryOrderQuerySchema, updateInventoryOrdersSchema, updateInventoryOrderLinesSchema, createInventoryOrderChargeSchema, updateInventoryOrderChargeSchema, assignInventoryOrderPartnerSchema, rejectInventoryOrderChangeSchema, reviseProposedNewLineSchema } from "./admin/inventory-orders/validators";
 import { createRawMaterialGroupSchema, updateRawMaterialGroupSchema, listRawMaterialGroupsQuerySchema, addGroupColorSchema, addGroupColorFullSchema, linkGroupColorsSchema, createGroupOrderSchema, readGroupQuerySchema } from "./admin/raw-material-groups/validators";
 import { pinDesignGroupSchema, updateDesignGroupSchema } from "./admin/designs/[id]/material-groups/validators";
 // Import already defined above
@@ -4977,6 +4977,14 @@ export default defineMiddlewares({
       method: "POST",
       middlewares: [
         validateAndTransformBody(wrapSchema(rejectInventoryOrderChangeSchema)),
+      ],
+    },
+    {
+      // #2659 — rename or drop ONE partner-proposed new item before approval.
+      matcher: "/admin/inventory-orders/:id/changes/:changeId/new-lines/:key",
+      method: "POST",
+      middlewares: [
+        validateAndTransformBody(wrapSchema(reviseProposedNewLineSchema)),
       ],
     },
     {
