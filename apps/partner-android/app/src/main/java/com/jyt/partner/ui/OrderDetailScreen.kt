@@ -814,7 +814,12 @@ private fun DesignRunCard(
 // ── Shared section helpers ─────────────────────────────────────────────
 
 @Composable
-fun SectionCard(title: String, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+fun SectionCard(
+    title: String,
+    /** Optional control on the right of the heading (e.g. an overflow menu). */
+    action: (@Composable () -> Unit)? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
     Card(
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -823,7 +828,17 @@ fun SectionCard(title: String, content: @Composable androidx.compose.foundation.
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            if (action == null) {
+                Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(title, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                    action()
+                }
+            }
             content()
         }
     }

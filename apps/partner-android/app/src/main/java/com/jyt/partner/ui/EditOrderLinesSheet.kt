@@ -16,11 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,13 +33,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -52,12 +47,17 @@ import com.jyt.partner.api.PartnerApi
 import com.jyt.partner.models.PartnerInventoryOrder
 import com.jyt.partner.models.ProposeOrderLinesBody
 import com.jyt.partner.models.ProposedNewMaterial
-import kotlinx.coroutines.launch
 
-/** One editable row of the proposal — an existing line ([lineId] set) or a
- *  new item the partner adds. Photos are already uploaded ([photoUrls]) or
- *  freshly picked ([newPhotos], uploaded on send). */
-private class EditableLine(
+/**
+ * #1752/#2659 — the partner's line edits on an inventory order, collected
+ * per line on the order screen and sent together as ONE proposal (the full
+ * desired line set; an admin approves before anything changes).
+ *
+ * One row per existing line ([lineId] set) plus any new items the partner
+ * adds. Rows start from the partner's PENDING proposal when there is one, so
+ * sending again keeps what they already proposed instead of dropping it.
+ */
+internal class EditableLine(
     val lineId: String?,
     val title: String,
     quantity: String,
@@ -69,6 +69,8 @@ private class EditableLine(
     composition: String = "",
     unit: String = "Meter",
     photoUrls: List<String> = emptyList(),
+    /** From the pending proposal — shown as "waiting for approval". */
+    val staged: Boolean = false,
 ) {
     val key = java.util.UUID.randomUUID().toString()
     var quantity by mutableStateOf(quantity)
@@ -78,100 +80,144 @@ private class EditableLine(
     var color by mutableStateOf(color)
     var composition by mutableStateOf(composition)
     var unit by mutableStateOf(unit)
+    /** Changed on this phone and not sent yet. */
+    var edited by mutableStateOf(false)
     val photoUrls = mutableStateListOf<String>().apply { addAll(photoUrls) }
     val newPhotos = mutableStateListOf<Uri>()
     val isNew: Boolean get() = lineId == null
     val label: String get() = if (isNew) name.ifBlank { "New item" } else title
+
+    fun copy(): EditableLine = EditableLine(
+        lineId, title, quantity, price, extraCost, remove, name, color, composition, unit,
+        photoUrls.toList(), staged,
+    ).also { it.newPhotos.addAll(newPhotos); it.edited = edited }
+
+    fun takeFrom(draft: EditableLine) {
+        quantity = draft.quantity; price = draft.price; remove = draft.remove
+        name = draft.name; color = draft.color; composition = draft.composition; unit = draft.unit
+        photoUrls.clear(); photoUrls.addAll(draft.photoUrls)
+        newPhotos.clear(); newPhotos.addAll(draft.newPhotos)
+        edited = true
+    }
 }
 
-private fun formatNumber(v: Double): String =
+internal fun formatEditNumber(v: Double): String =
     if (v == Math.floor(v)) v.toLong().toString() else v.toString()
 
-private fun parseNumber(text: String): Double? =
+internal fun parseEditNumber(text: String): Double? =
     text.replace(',', '.').trim().toDoubleOrNull()
 
-/** The mobile counterpart of the partner-ui inventory-order edit form, plus
- *  #2659: add cloth the order doesn't list and attach photos. Sends the FULL
- *  desired line set; the admin approves before anything changes. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun EditOrderLinesSheet(
-    order: PartnerInventoryOrder,
-    onDismiss: () -> Unit,
-    onSent: () -> Unit,
-) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val rows = remember { mutableStateListOf<EditableLine>().apply { addAll(prefill(order)) } }
-    var sending by remember { mutableStateOf(false) }
-    var sendError by remember { mutableStateOf<String?>(null) }
-    var photoTarget by remember { mutableStateOf<String?>(null) }
-    var showMediaSource by remember { mutableStateOf(false) }
+/** All of an order's line edits. Recreated when the order is re-read after
+ *  a change on the server; kept across a plain refresh. */
+internal class OrderEdits(order: PartnerInventoryOrder) {
+    private val staged = order.pendingChange?.proposedLines.orEmpty()
+    val rows: Map<String, EditableLine>
+    val added = mutableStateListOf<EditableLine>()
+    /** A pending new item was taken out — that alone is an edit. */
+    var removedStaged by mutableStateOf(false)
 
-    val capture = rememberMediaCapture(
-        onMedia = { uri -> rows.firstOrNull { it.key == photoTarget }?.newPhotos?.add(uri) },
-        onError = { sendError = it },
-        onMultiple = { uris -> rows.firstOrNull { it.key == photoTarget }?.newPhotos?.addAll(uris) },
-    )
-
-    fun submit() {
-        sendError = null
-        for (row in rows) {
-            if (row.remove) continue
-            if (row.isNew && row.name.isBlank()) {
-                sendError = "Every new item needs a name."; return
-            }
-            val qty = parseNumber(row.quantity)
-            if (qty == null || qty <= 0) {
-                sendError = "Quantity must be more than 0 for ${row.label}. To drop a line, switch on \"Take off the order\"."
-                return
-            }
-            val price = parseNumber(row.price)
-            if (price == null || price < 0) {
-                sendError = "Enter a price (0 or more) for ${row.label}."; return
-            }
+    init {
+        val stagedById = staged.filter { it.id != null }.associateBy { it.id!! }
+        rows = order.orderLines.orEmpty().associate { line ->
+            val s = stagedById[line.id]
+            line.id to EditableLine(
+                lineId = line.id,
+                title = line.displayName,
+                quantity = formatEditNumber(s?.quantity ?: line.quantity),
+                price = formatEditNumber(s?.price ?: line.price),
+                extraCost = s?.extraCost ?: line.extraCost,
+                remove = s?.remove ?: false,
+                photoUrls = s?.photos.orEmpty(),
+                staged = s != null,
+            )
         }
-        scope.launch {
-            sending = true
-            try {
-                val api = PartnerApi.get(context)
-                val lines = rows.map { row ->
-                    if (row.remove && row.lineId != null) {
-                        ProposeOrderLinesBody.Line(id = row.lineId, remove = true)
-                    } else {
-                        val photos = row.photoUrls.toMutableList()
-                        if (row.newPhotos.isNotEmpty()) {
-                            val parts = row.newPhotos.mapNotNull { readPart(context, it) }
-                            photos += api.uploadPartnerFiles(parts).map { it.url }
-                        }
-                        ProposeOrderLinesBody.Line(
-                            id = row.lineId,
-                            quantity = parseNumber(row.quantity),
-                            price = parseNumber(row.price),
-                            // Sent back as it was: the server writes null over an omitted one.
-                            extraCost = row.extraCost,
-                            newMaterial = if (row.isNew) ProposedNewMaterial(
-                                name = row.name.trim(),
-                                color = row.color.trim().ifBlank { null },
-                                composition = row.composition.trim().ifBlank { null },
-                                unitOfMeasure = row.unit.trim().ifBlank { null },
-                            ) else null,
-                            photos = photos.ifEmpty { null },
-                        )
-                    }
-                }
-                api.proposeInventoryOrderLines(order.id, ProposeOrderLinesBody(lines))
-                onSent()
-            } catch (e: Exception) {
-                sendError = e.message ?: "Couldn't send your changes."
-            } finally {
-                sending = false
-            }
+        staged.filter { it.id == null && it.remove != true && it.newMaterial != null }.forEach { l ->
+            added += EditableLine(
+                lineId = null,
+                title = "",
+                quantity = formatEditNumber(l.quantity ?: 0.0),
+                price = formatEditNumber(l.price ?: 0.0),
+                extraCost = null,
+                name = l.newMaterial!!.name,
+                color = l.newMaterial.color.orEmpty(),
+                composition = l.newMaterial.composition.orEmpty(),
+                unit = l.newMaterial.unitOfMeasure ?: "Meter",
+                photoUrls = l.photos.orEmpty(),
+                staged = true,
+            )
         }
     }
 
+    val editedCount: Int
+        get() = rows.values.count { it.edited } + added.count { it.edited } + if (removedStaged) 1 else 0
+
+    val hasEdits: Boolean get() = editedCount > 0
+
+    /** The first problem that would make the server refuse, in plain words. */
+    fun problem(): String? {
+        for (row in rows.values + added) {
+            if (row.remove) continue
+            if (row.isNew && row.name.isBlank()) return "Every new item needs a name."
+            val qty = parseEditNumber(row.quantity)
+            if (qty == null || qty <= 0) return "Quantity must be more than 0 for ${row.label}. To drop a line, switch on \"Take off the order\"."
+            val price = parseEditNumber(row.price)
+            if (price == null || price < 0) return "Enter a price (0 or more) for ${row.label}."
+        }
+        return null
+    }
+
+    /** Upload new photos, then send the FULL desired line set. */
+    suspend fun send(context: Context, orderId: String) {
+        val api = PartnerApi.get(context)
+        val lines = (rows.values + added).map { row ->
+            if (row.remove && row.lineId != null) {
+                ProposeOrderLinesBody.Line(id = row.lineId, remove = true)
+            } else {
+                val photos = row.photoUrls.toMutableList()
+                if (row.newPhotos.isNotEmpty()) {
+                    val parts = row.newPhotos.mapNotNull { readPart(context, it) }
+                    photos += api.uploadPartnerFiles(parts).map { it.url }
+                }
+                ProposeOrderLinesBody.Line(
+                    id = row.lineId,
+                    quantity = parseEditNumber(row.quantity),
+                    price = parseEditNumber(row.price),
+                    // Sent back as it was: the server writes null over an omitted one.
+                    extraCost = row.extraCost,
+                    newMaterial = if (row.isNew) ProposedNewMaterial(
+                        name = row.name.trim(),
+                        color = row.color.trim().ifBlank { null },
+                        composition = row.composition.trim().ifBlank { null },
+                        unitOfMeasure = row.unit.trim().ifBlank { null },
+                    ) else null,
+                    photos = photos.ifEmpty { null },
+                )
+            }
+        }
+        api.proposeInventoryOrderLines(orderId, ProposeOrderLinesBody(lines))
+    }
+}
+
+/** Edit ONE line (or a new item) — saved on the phone, sent later. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun LineEditSheet(
+    row: EditableLine,
+    onSave: (EditableLine) -> Unit,
+    onRemoveNew: (() -> Unit)?,
+    onDismiss: () -> Unit,
+) {
+    val draft = remember(row.key) { row.copy() }
+    var error by remember { mutableStateOf<String?>(null) }
+    var showMediaSource by remember { mutableStateOf(false) }
+    val capture = rememberMediaCapture(
+        onMedia = { draft.newPhotos.add(it) },
+        onError = { error = it },
+        onMultiple = { draft.newPhotos.addAll(it) },
+    )
+
     ModalBottomSheet(
-        onDismissRequest = { if (!sending) onDismiss() },
+        onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
     ) {
         Column(
@@ -180,99 +226,88 @@ internal fun EditOrderLinesSheet(
                 .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Text("Update order", fontWeight = FontWeight.SemiBold, fontSize = 18.sp)
             Text(
-                "Enter what you actually have. The team approves your changes before they apply.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                if (draft.isNew) "Item not on the order" else draft.title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
             )
-            rows.forEach { row ->
-                LineEditor(
-                    row = row,
-                    onAddPhoto = { photoTarget = row.key; showMediaSource = true },
-                    onRemoveNew = { rows.remove(row) },
-                )
+            if (draft.isNew) {
+                OutlinedTextField(draft.name, { draft.name = it }, label = { Text("Name (e.g. Matty Cotton)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.color, { draft.color = it }, label = { Text("Colour") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.composition, { draft.composition = it }, label = { Text("Composition (optional)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(draft.unit, { draft.unit = it }, label = { Text("Unit") }, modifier = Modifier.fillMaxWidth())
             }
-            OutlinedButton(
-                onClick = {
-                    rows.add(EditableLine(lineId = null, title = "", quantity = "", price = "", extraCost = null))
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Text("Add an item not on the order", modifier = Modifier.padding(start = 6.dp))
-            }
-            sendError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onDismiss, enabled = !sending) { Text("Cancel") }
-                Button(onClick = { submit() }, enabled = !sending, modifier = Modifier.weight(1f)) {
-                    if (sending) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                    else Text("Send for approval")
-                }
-            }
-        }
-    }
-
-    if (showMediaSource) {
-        MediaSourceSheet(capture = capture, onDismiss = { showMediaSource = false }, multiple = true)
-    }
-}
-
-@Composable
-private fun LineEditor(row: EditableLine, onAddPhoto: () -> Unit, onRemoveNew: () -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (row.isNew) "New item" else row.title, fontWeight = FontWeight.Medium)
-            if (row.isNew) {
-                OutlinedTextField(row.name, { row.name = it }, label = { Text("Name (e.g. Matty Cotton)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(row.color, { row.color = it }, label = { Text("Colour") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(row.composition, { row.composition = it }, label = { Text("Composition (optional)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(row.unit, { row.unit = it }, label = { Text("Unit") }, modifier = Modifier.fillMaxWidth())
-            }
-            if (!row.remove) {
+            if (!draft.remove) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
-                        row.quantity, { row.quantity = it },
+                        draft.quantity, { draft.quantity = it },
                         label = { Text("Quantity") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f),
                     )
                     OutlinedTextField(
-                        row.price, { row.price = it },
+                        draft.price, { draft.price = it },
                         label = { Text("Price / unit") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.weight(1f),
                     )
                 }
-                if (row.photoUrls.isNotEmpty() || row.newPhotos.isNotEmpty()) {
+                if (draft.photoUrls.isNotEmpty() || draft.newPhotos.isNotEmpty()) {
                     Row(
                         Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        row.photoUrls.forEach { url -> Thumb(url) }
-                        row.newPhotos.forEach { uri -> Thumb(uri) }
+                        draft.photoUrls.forEach { Thumb(it) }
+                        draft.newPhotos.forEach { Thumb(it) }
                     }
                 }
-                OutlinedButton(onClick = onAddPhoto) {
+                OutlinedButton(onClick = { showMediaSource = true }) {
                     Icon(Icons.Filled.PhotoCamera, contentDescription = null)
                     Text("Add photo", modifier = Modifier.padding(start = 6.dp))
                 }
             }
-            if (row.isNew) {
-                TextButton(onClick = onRemoveNew) {
-                    Text("Remove this item", color = MaterialTheme.colorScheme.error)
-                }
-            } else {
+            if (!draft.isNew) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Take off the order", modifier = Modifier.weight(1f))
-                    Switch(checked = row.remove, onCheckedChange = { row.remove = it })
+                    Switch(checked = draft.remove, onCheckedChange = { draft.remove = it })
                 }
             }
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, fontSize = 13.sp) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (onRemoveNew != null) {
+                    TextButton(onClick = onRemoveNew) {
+                        Text("Remove item", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+                Button(
+                    onClick = {
+                        val qty = parseEditNumber(draft.quantity)
+                        val price = parseEditNumber(draft.price)
+                        error = when {
+                            draft.isNew && draft.name.isBlank() -> "Give the item a name."
+                            draft.remove -> null
+                            qty == null || qty <= 0 -> "Quantity must be more than 0. To drop the line, switch on \"Take off the order\"."
+                            price == null || price < 0 -> "Enter a price (0 or more)."
+                            else -> null
+                        }
+                        if (error == null) onSave(draft)
+                    },
+                    modifier = Modifier.weight(1f),
+                ) { Text("Save") }
+            }
+            Text(
+                "Saved on your phone. Tap \"Send changes for approval\" to send them.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
+    }
+
+    if (showMediaSource) {
+        MediaSourceSheet(capture = capture, onDismiss = { showMediaSource = false }, multiple = true)
     }
 }
 
@@ -284,40 +319,6 @@ private fun Thumb(model: Any) {
         contentScale = ContentScale.Crop,
         modifier = Modifier.size(56.dp).clip(RoundedCornerShape(6.dp)),
     )
-}
-
-/** Start from the partner's pending proposal when there is one, so a second
- *  visit edits what they already sent instead of starting over. */
-private fun prefill(order: PartnerInventoryOrder): List<EditableLine> {
-    val staged = order.pendingChange?.proposedLines.orEmpty()
-    val stagedById = staged.filter { it.id != null }.associateBy { it.id!! }
-    val existing = order.orderLines.orEmpty().map { line ->
-        val s = stagedById[line.id]
-        EditableLine(
-            lineId = line.id,
-            title = line.displayName,
-            quantity = formatNumber(s?.quantity ?: line.quantity),
-            price = formatNumber(s?.price ?: line.price),
-            extraCost = s?.extraCost ?: line.extraCost,
-            remove = s?.remove ?: false,
-            photoUrls = s?.photos.orEmpty(),
-        )
-    }
-    val added = staged.filter { it.id == null && it.remove != true && it.newMaterial != null }.map { l ->
-        EditableLine(
-            lineId = null,
-            title = "",
-            quantity = formatNumber(l.quantity ?: 0.0),
-            price = formatNumber(l.price ?: 0.0),
-            extraCost = null,
-            name = l.newMaterial!!.name,
-            color = l.newMaterial.color.orEmpty(),
-            composition = l.newMaterial.composition.orEmpty(),
-            unit = l.newMaterial.unitOfMeasure ?: "Meter",
-            photoUrls = l.photos.orEmpty(),
-        )
-    }
-    return existing + added
 }
 
 private fun readPart(context: Context, uri: Uri): PartnerApi.MediaPart? {
