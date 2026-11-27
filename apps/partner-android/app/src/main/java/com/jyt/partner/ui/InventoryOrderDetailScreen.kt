@@ -110,6 +110,7 @@ fun InventoryOrderDetailScreen(
     var showReadyConfirm by remember { mutableStateOf(false) }
     var showReceipt by remember { mutableStateOf(false) }
     var showShipment by remember { mutableStateOf(false) }
+    var showEditLines by remember { mutableStateOf(false) }
 
     suspend fun load() = coroutineScope {
         loading = detail == null
@@ -253,6 +254,28 @@ fun InventoryOrderDetailScreen(
                                     )
                                 }
                                 GoodsLineCard(line = line, currencyCode = current.currencyCode)
+                            }
+                            current.pendingChange?.let { pending ->
+                                val added = pending.proposedLines.orEmpty()
+                                    .count { it.id == null && it.remove != true }
+                                Text(
+                                    if (added == 0) "Your changes are waiting for approval"
+                                    else "Your changes (incl. $added new item${if (added == 1) "" else "s"}) are waiting for approval",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.padding(top = 8.dp),
+                                )
+                            }
+                            // #1752 — proposals only before the goods ship.
+                            if (current.statusEnum == InventoryOrderStatus.PENDING ||
+                                current.statusEnum == InventoryOrderStatus.PROCESSING
+                            ) {
+                                OutlinedButton(
+                                    onClick = { showEditLines = true },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                ) {
+                                    Text("Update quantities & items")
+                                }
                             }
                         }
                     }
@@ -412,6 +435,17 @@ fun InventoryOrderDetailScreen(
             onDismiss = { showReceipt = false },
             onRecorded = {
                 showReceipt = false
+                scope.launch { reload() }
+            },
+        )
+    }
+
+    if (showEditLines && detail != null) {
+        EditOrderLinesSheet(
+            order = detail!!,
+            onDismiss = { showEditLines = false },
+            onSent = {
+                showEditLines = false
                 scope.launch { reload() }
             },
         )
