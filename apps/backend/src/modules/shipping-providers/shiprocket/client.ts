@@ -966,6 +966,8 @@ export class ShiprocketClient implements ShippingProviderClient {
         ? Number(c.estimated_delivery_days)
         : undefined,
       cod_charges: c.cod_charges ? Number(c.cod_charges) : undefined,
+      cod_available:
+        c.cod === undefined || c.cod === null ? undefined : Number(c.cod) === 1,
       is_recommended: c.courier_company_id === recommended,
     }))
   }

@@ -198,6 +198,12 @@ export type RateOption = {
   currency_code: string
   estimated_days?: number
   cod_charges?: number
+  /**
+   * The courier accepts cash on delivery on this lane. Only set when the
+   * carrier says so per courier (Shiprocket domestic `cod: 1|0`); absent means
+   * unknown, never "no".
+   */
+  cod_available?: boolean
   is_recommended?: boolean
 }
 

@@ -217,6 +217,18 @@ export function createShiprocketStubFetch(): FetchLike {
     }
 
     if (url.includes("/courier/serviceability/")) {
+      const dest = new URL(url, "https://stub.local").searchParams.get(
+        "delivery_postcode"
+      )
+      // 799999: no courier on the lane — Shiprocket answers 200 with an empty
+      // list (or a 404 "no couriers"), never a clean "false".
+      if (dest === "799999") {
+        return json({
+          status: 404,
+          message: "No courier serviceable for the given pincode",
+          data: { available_courier_companies: [] },
+        })
+      }
       return json({
         data: {
           recommended_courier_company_id: 51,
@@ -227,6 +239,7 @@ export function createShiprocketStubFetch(): FetchLike {
               rate: 78,
               estimated_delivery_days: "4",
               cod_charges: 35,
+              cod: 1,
             },
             {
               courier_company_id: 12,
@@ -234,6 +247,7 @@ export function createShiprocketStubFetch(): FetchLike {
               rate: 121,
               estimated_delivery_days: "2",
               cod_charges: 40,
+              cod: 0,
             },
           ],
         },

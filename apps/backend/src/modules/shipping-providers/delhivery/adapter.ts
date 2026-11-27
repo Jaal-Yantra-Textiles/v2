@@ -86,6 +86,37 @@ export const delhiveryDeclaredValue = (input: CreateShipmentInput): number | und
   return value > 0 ? Math.round(value * 100) / 100 : undefined
 }
 
+export type DelhiveryPinCodeResult = {
+  /** Delhivery delivers to this pin at all (prepaid or COD), and it is not embargoed. */
+  serviceable: boolean
+  /** Cash on delivery is accepted at this pin. */
+  cod: boolean
+  prepaid: boolean
+}
+
+/**
+ * Read `/c/api/pin-codes/json/?filter_codes=` into three answers.
+ *
+ * The response is `{ delivery_codes: [{ postal_code: { pin, pre_paid, cash,
+ * cod, remarks, ... } }] }` with "Y"/"N" flags. An unknown pin comes back as an
+ * EMPTY list with HTTP 200, so "no row" means "we don't go there", not an error.
+ * `remarks: "Embargo"` is Delhivery saying the pin is temporarily closed.
+ * `cod` is the COD flag; older payloads only carry `cash`, so it is the fallback.
+ */
+export function parseDelhiveryPinCodes(json: any): DelhiveryPinCodeResult {
+  const row = json?.delivery_codes?.[0]?.postal_code
+  if (!row) return { serviceable: false, cod: false, prepaid: false }
+  const yes = (v: any) => String(v ?? "").trim().toUpperCase() === "Y"
+  const embargoed = /embargo/i.test(String(row.remarks ?? ""))
+  const prepaid = yes(row.pre_paid)
+  const cod = yes(row.cod ?? row.cash)
+  return {
+    serviceable: !embargoed && (prepaid || cod),
+    cod: !embargoed && cod,
+    prepaid: !embargoed && prepaid,
+  }
+}
+
 export class DelhiveryProviderAdapter implements ShippingProviderClient {
   readonly carrier = "delhivery"
   private client: DelhiveryClient
@@ -97,6 +128,12 @@ export class DelhiveryProviderAdapter implements ShippingProviderClient {
   async checkServiceability(destinationPincode: string): Promise<boolean> {
     const result = await this.client.checkServiceability(destinationPincode)
     return Boolean(result?.delivery_codes?.length)
+  }
+
+  /** Serviceable + COD + prepaid for one Indian pin (read-only lookup). */
+  async checkPinCode(destinationPincode: string): Promise<DelhiveryPinCodeResult> {
+    const result = await this.client.checkServiceability(destinationPincode)
+    return parseDelhiveryPinCodes(result)
   }
 
   async getRates(query: RateQuery): Promise<RateOption[]> {
