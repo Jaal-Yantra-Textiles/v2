@@ -552,9 +552,10 @@ struct InventoryOrderDetailView: View {
           continue
         }
         var photos = row.photoURLs
-        // ONE photo per request, shrunk first. A whole row of camera photos in
-        // one request went over Cloudflare's 100 MB body cap and came back as
-        // a bare 403 before reaching the server.
+        // ONE photo at a time, shrunk first, straight to storage through
+        // presigned URLs. Through our API a whole row of camera photos in one
+        // request went over Cloudflare's 100 MB body cap and came back as a
+        // bare 403 before reaching the server.
         for photo in row.newPhotos {
           let key = "\(photo.filename)|\(photo.data.count)|\(photo.data.hashValue)"
           if let url = uploadedPhotos[key] {
@@ -563,13 +564,13 @@ struct InventoryOrderDetailView: View {
           }
           let part = PhotoShrinker.part(for: photo)
           do {
-            let uploaded = try await PartnerAPI.shared.uploadPartnerFiles(parts: [part])
-            if let url = uploaded.first?.url {
-              uploadedPhotos[key] = url
-              photos.append(url)
-            }
-          } catch PartnerError.http(let status, _) where status == 403 || status == 413 {
-            actionError = "A photo for \(row.label) is too large to upload. Remove it, or take it again with the camera."
+            let url = try await PartnerAPI.shared.uploadToStorage(
+              filename: part.filename, mimeType: part.mimeType, data: part.data
+            )
+            uploadedPhotos[key] = url
+            photos.append(url)
+          } catch PartnerError.http {
+            actionError = "A photo for \(row.label) could not be uploaded. Try again, or remove that photo."
             return
           }
         }
