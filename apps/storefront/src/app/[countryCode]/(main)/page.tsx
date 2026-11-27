@@ -99,9 +99,8 @@ export default async function Home(props: {
   const railsBeforeGenesis = remainingCollections.slice(0, genesisAfter)
   const railsAfterGenesis = remainingCollections.slice(genesisAfter)
 
-  // One draw from the public media API: the first image is the hero, the
-  // next four fill the media grid. Sharing the batch is what keeps the two
-  // from ever showing the same painting twice on a page.
+  // Hero: one painting from the art album. Grid: four photos from the
+  // homepage grid folder. Different sources, so they never repeat.
   const { hero: heroImage, grid: gridImages } = await getHomeMedia()
 
   return (

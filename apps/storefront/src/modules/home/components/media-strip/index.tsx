@@ -4,9 +4,8 @@ import type { HomeMediaImage } from "../home-media"
 
 type HomeMediaStripProps = {
   /**
-   * The four images after the hero's pick, already de-duped and resolved by
-   * `getHomeMedia()` on the page — no second media fetch, so nothing here
-   * can repeat the hero.
+   * Four random photos from the homepage grid folder, resolved once by
+   * `getHomeMedia()` on the page. Empty → the strip renders nothing.
    */
   images: HomeMediaImage[]
 }
