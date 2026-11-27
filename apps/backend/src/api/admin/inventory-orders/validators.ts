@@ -453,11 +453,29 @@ export const reviseProposedNewLineSchema = z
       })
       .strict()
       .optional(),
+    /**
+     * Where the item lands on approval — a colour group (existing id, or a
+     * new one by name) and/or a product variant. `null` clears it.
+     */
+    attach: z
+      .object({
+        raw_material_group_id: z.string().min(1).optional(),
+        new_group_name: z.string().trim().min(1).max(200).optional(),
+        variant_id: z.string().min(1).optional(),
+        required_quantity: z.number().positive().optional(),
+      })
+      .strict()
+      .refine((a) => !(a.raw_material_group_id && a.new_group_name), {
+        message: "Pick an existing colour group OR name a new one, not both",
+      })
+      .nullable()
+      .optional(),
   })
   .strict()
-  .refine((v) => !!v.drop !== !!v.new_material, {
-    message: "Send either drop: true or new_material, not both and not neither",
-  })
+  .refine(
+    (v) => (v.drop ? v.new_material === undefined && v.attach === undefined : v.new_material !== undefined || v.attach !== undefined),
+    { message: "Send drop: true alone, or new_material and/or attach" }
+  )
 
 export type ReviseProposedNewLine = z.infer<typeof reviseProposedNewLineSchema>
 

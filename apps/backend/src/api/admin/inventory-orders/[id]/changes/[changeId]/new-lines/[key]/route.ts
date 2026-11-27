@@ -19,12 +19,13 @@
  * @throws 400 - Change is no longer pending
  */
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
-import { MedusaError } from "@medusajs/framework/utils"
+import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/utils"
 import { ORDER_INVENTORY_MODULE } from "../../../../../../../../modules/inventory_orders"
 import {
   reviseProposedNewLine,
   serializeChange,
 } from "../../../../../../../../modules/inventory_orders/lib/order-changes"
+import { RAW_MATERIAL_MODULE } from "../../../../../../../../modules/raw_material"
 import type { ReviseProposedNewLine } from "../../../../../validators"
 
 export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse) => {
@@ -44,6 +45,35 @@ export const POST = async (req: AuthenticatedMedusaRequest, res: MedusaResponse)
       MedusaError.Types.INVALID_DATA,
       `Inventory order change ${changeId} is ${change.status}; only a pending change can be sorted`
     )
+  }
+
+  // Refuse a target that does not exist NOW, while the admin is looking at the
+  // picker — not at approval, when the item is already being created.
+  if (body.attach?.raw_material_group_id) {
+    const rm: any = req.scope.resolve(RAW_MATERIAL_MODULE)
+    const group = await rm
+      .retrieveRawMaterialGroup(body.attach.raw_material_group_id)
+      .catch(() => null)
+    if (!group) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Colour group ${body.attach.raw_material_group_id} not found`
+      )
+    }
+  }
+  if (body.attach?.variant_id) {
+    const query: any = req.scope.resolve(ContainerRegistrationKeys.QUERY)
+    const { data } = await query.graph({
+      entity: "product_variant",
+      fields: ["id"],
+      filters: { id: body.attach.variant_id },
+    })
+    if (!data?.length) {
+      throw new MedusaError(
+        MedusaError.Types.NOT_FOUND,
+        `Product variant ${body.attach.variant_id} not found`
+      )
+    }
   }
 
   const next = reviseProposedNewLine(change.proposed_lines, key, body)

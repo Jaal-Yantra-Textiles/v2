@@ -289,6 +289,130 @@ setupSharedTestSuite(() => {
       expect(badPhoto.status).toBe(400)
     })
 
+    it("admin attaches new items to a colour group (existing or new) and a product variant; approval writes the links", async () => {
+      const unique = orderId.slice(-6)
+      const query: any = getContainer().resolve(ContainerRegistrationKeys.QUERY)
+
+      // An existing colour group and a product variant to attach to.
+      const explain = (e: any) => {
+        throw new Error(`${e?.response?.status} ${JSON.stringify(e?.response?.data)}`)
+      }
+      const groupRes = await api
+        .post("/admin/raw-material-groups", { name: `Kala Cotton ${unique}` }, adminHeaders)
+        .catch(explain)
+      const groupId = groupRes.data.raw_material_group.id
+      const productRes = await api.post(
+        "/admin/products",
+        {
+          title: `Robe ${unique}`,
+          handle: `robe-${unique.toLowerCase()}`,
+          options: [{ title: "Default", values: ["Default"] }],
+          variants: [
+            {
+              title: "Default",
+              options: { Default: "Default" },
+              manage_inventory: false,
+              prices: [{ amount: 1000, currency_code: "inr" }],
+            },
+          ],
+        },
+        adminHeaders
+      ).catch(explain)
+      expect(productRes.status).toBe(200)
+      const variantId = productRes.data.product.variants[0].id
+
+      const stage = await api.put(
+        `/partners/inventory-orders/${orderId}/order-lines`,
+        {
+          order_lines: [
+            { id: lineA.id, quantity: 1, price: 0 },
+            { new_material: { name: `Grouped ${unique}`, color: "Indigo" }, quantity: 4, price: 120 },
+            { new_material: { name: `Fresh ${unique}`, unit_of_measure: "Meter" }, quantity: 2, price: 90 },
+            { new_material: { name: `Plain ${unique}` }, quantity: 1, price: 50 },
+          ],
+        },
+        { headers: ownerHeaders }
+      ).catch(explain)
+      expect(stage.status).toBe(200)
+      const change = stage.data.change
+      const keyOf = (name: string) =>
+        change.proposed_lines.find((l: any) => l.new_material?.name === name).key
+
+      // Existing group + variant (×2.5) on the first; a NEW group on the second.
+      const a1 = await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${change.id}/new-lines/${keyOf(`Grouped ${unique}`)}`,
+        { attach: { raw_material_group_id: groupId, variant_id: variantId, required_quantity: 2.5 } },
+        adminHeaders
+      ).catch(explain)
+      expect(a1.status).toBe(200)
+      const a2 = await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${change.id}/new-lines/${keyOf(`Fresh ${unique}`)}`,
+        { attach: { new_group_name: `Fresh Group ${unique}` } },
+        adminHeaders
+      ).catch(explain)
+      expect(a2.status).toBe(200)
+
+      // A target that does not exist is refused while the admin is looking.
+      const bad = await api
+        .post(
+          `/admin/inventory-orders/${orderId}/changes/${change.id}/new-lines/${keyOf(`Plain ${unique}`)}`,
+          { attach: { variant_id: "variant_does_not_exist" } },
+          adminHeaders
+        )
+        .catch((e: any) => e.response)
+      expect(bad.status).toBe(404)
+
+      const approve = await api.post(
+        `/admin/inventory-orders/${orderId}/changes/${change.id}/approve`,
+        {},
+        adminHeaders
+      ).catch(explain)
+      expect(approve.status).toBe(200)
+
+      // Read the rows back.
+      const after = await readOrder(orderId)
+      const itemByTitle = (t: string) =>
+        after.orderlines.map((l: any) => l.inventory_items?.[0]).find((i: any) => i?.title === t)
+      const grouped = itemByTitle(`Grouped ${unique} — Indigo`)
+      const fresh = itemByTitle(`Fresh ${unique}`)
+      const plain = itemByTitle(`Plain ${unique}`)
+      expect(grouped && fresh && plain).toBeTruthy()
+
+      const { data: items } = await query.graph({
+        entity: "inventory_item",
+        filters: { id: [grouped.id, fresh.id, plain.id] },
+        fields: ["id", "raw_materials.id", "raw_materials.group_id"],
+      })
+      const groupOf = (id: string) => {
+        const rms = items.find((i: any) => i.id === id)?.raw_materials
+        const rm = Array.isArray(rms) ? rms[0] : rms
+        return rm?.group_id ?? null
+      }
+      expect(groupOf(grouped.id)).toBe(groupId)
+      const freshGroupId = groupOf(fresh.id)
+      expect(freshGroupId).toBeTruthy()
+      expect(freshGroupId).not.toBe(groupId)
+      const { data: freshGroups } = await query.graph({
+        entity: "raw_material_group",
+        filters: { id: freshGroupId },
+        fields: ["id", "name"],
+      })
+      expect(freshGroups[0].name).toBe(`Fresh Group ${unique}`)
+      // No attach asked → none made.
+      expect(groupOf(plain.id)).toBeNull()
+
+      // The variant → inventory item link row, with its required quantity.
+      const { data: variants } = await query.graph({
+        entity: "product_variant",
+        filters: { id: variantId },
+        fields: ["id", "inventory_items.inventory_item_id", "inventory_items.required_quantity"],
+      })
+      const links = variants[0].inventory_items ?? []
+      expect(links).toHaveLength(1)
+      expect(links[0].inventory_item_id).toBe(grouped.id)
+      expect(Number(links[0].required_quantity)).toBe(2.5)
+    })
+
     it("lets a partner replace the only listed cloth with new ones (not an emptying)", async () => {
       const stage = await api.put(
         `/partners/inventory-orders/${orderId}/order-lines`,

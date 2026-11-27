@@ -36,7 +36,27 @@ export type ProposedLine = {
    * rename or drop that one item before approving. Never a column.
    */
   key?: string
+  /**
+   * #2659 — ADMIN-only: where the item lands once approval creates it. Set via
+   * the admin new-lines route; the partner schema refuses it. Both optional.
+   */
+  attach?: ProposedAttach
 }
+
+export type ProposedAttach = {
+  /** Put the new item's raw material into this existing colour group. */
+  raw_material_group_id?: string
+  /** …or create a colour group by this name and put it there. */
+  new_group_name?: string
+  /** Link the new item to this product variant (variant → inventory item). */
+  variant_id?: string
+  /** Units of this item one variant consumes; defaults to 1. */
+  required_quantity?: number
+}
+
+/** Does this attach ask for anything at all? */
+export const hasAttach = (a: ProposedAttach | null | undefined): boolean =>
+  !!a && !!(a.raw_material_group_id || a.new_group_name?.trim() || a.variant_id)
 
 /** Is this staged entry a proposed NEW line rather than an edit/removal? */
 export const isProposedNewLine = (line: ProposedLine | null | undefined): boolean =>
@@ -266,6 +286,8 @@ export const reviseProposedNewLine = (
   revision: {
     drop?: boolean
     new_material?: Partial<NonNullable<ProposedLine["new_material"]>>
+    /** Replace the item's attach; `null` clears it. */
+    attach?: ProposedAttach | null
   }
 ): ProposedLine[] | null => {
   const list = Array.isArray(lines) ? lines : []
@@ -279,9 +301,15 @@ export const reviseProposedNewLine = (
     Object.entries(revision.new_material ?? {}).filter(([, v]) => v !== undefined)
   )
   const next = [...list]
-  next[index] = {
+  const updated: ProposedLine = {
     ...current,
     new_material: { ...current.new_material!, ...patch },
   }
+  if (revision.attach === null || (revision.attach && !hasAttach(revision.attach))) {
+    delete updated.attach
+  } else if (revision.attach) {
+    updated.attach = revision.attach
+  }
+  next[index] = updated
   return next
 }

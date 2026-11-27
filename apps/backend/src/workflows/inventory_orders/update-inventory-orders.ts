@@ -65,6 +65,9 @@ export type UpdateInventoryOrderLineInput = {
    * names a `new_material`, they also become the created item's thumbnail.
    */
   photos?: string[];
+  /** #2659 — the proposal key of a partner-proposed new line; recorded on the
+   *  created line as `metadata.proposal_key` so approval can find its item. */
+  key?: string;
 };
 
 export type UpdateInventoryOrderInput = {
@@ -499,9 +502,12 @@ export const updateOrderLinesStep = createStep(
           color: info?.color ?? null,
           material_name: info?.material_name ?? null,
           raw_material_id: info?.raw_material_id ?? null,
-          ...(cleanPhotoUrls(line.photos).length
-            ? { metadata: mergeLinePhotos(null, cleanPhotoUrls(line.photos)) }
-            : {}),
+          ...((): { metadata?: Record<string, unknown> } => {
+            const photos = cleanPhotoUrls(line.photos);
+            if (!photos.length && !line.key) return {};
+            const base = line.key ? { proposal_key: String(line.key) } : {};
+            return { metadata: photos.length ? mergeLinePhotos(base, photos) : base };
+          })(),
         });
         // Create link to inventory item
         if (line.inventory_item_id) {
