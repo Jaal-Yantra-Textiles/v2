@@ -22,7 +22,9 @@ const PHOTO_1 = "https://cdn.example.com/matty-1.jpg"
 const PHOTO_2 = "https://cdn.example.com/matty-2.jpg"
 const LINE_PHOTO = "https://cdn.example.com/beige-check.jpg"
 
-jest.setTimeout(60 * 1000)
+// 120 s: the app boot alone ran past 60 s on CI (#2665 run 45957448762);
+// the shared config default is 90 s and this spec must not lower it.
+jest.setTimeout(120 * 1000)
 
 async function registerPartner(api: any, email: string, handle: string) {
   await api.post("/auth/partner/emailpass/register", { email, password: PARTNER_PASSWORD })
