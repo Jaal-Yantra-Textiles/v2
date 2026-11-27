@@ -78,7 +78,7 @@
 import type { MedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 import { SOCIALS_MODULE } from "../../../../../modules/socials"
 import SocialsService from "../../../../../modules/socials/service"
-import { processCampaignItemWorkflow } from "../../../../../workflows/socials/scheduled-publishing"
+import { retryCampaignItem } from "../../../../../workflows/socials/scheduled-publishing/retry-campaign-item"
 import { CampaignItem } from "../../../../../modules/socials/types/publishing-automation"
 
 /**
@@ -134,16 +134,13 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     
     try {
       // Run the publish workflow
-      const { result } = await processCampaignItemWorkflow(req.scope).run({
-        input: {
-          product_id: item.product_id,
-          platform_id: campaign.platform_id,
-          platform_name: platformName,
-          campaign_name: campaign.name,
-          campaign_id: campaign.id,
-          item_index: itemIndex,
-          content_rule: campaign.content_rule,
-        },
+      // Retry the item's EXISTING post when it has one (#2684) — a new post
+      // would re-send platforms that already went out.
+      const result = await retryCampaignItem(req.scope, {
+        campaign,
+        item,
+        item_index: itemIndex,
+        platform_name: platformName,
       })
       
       // Update item with result
