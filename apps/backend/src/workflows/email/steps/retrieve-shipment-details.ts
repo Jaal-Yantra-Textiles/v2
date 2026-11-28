@@ -10,6 +10,7 @@ export const retrieveShipmentDetailsStep = createStep(
       entity: "fulfillment",
       fields: [
         "id",
+        "delivered_at",
         "labels.tracking_number",
         "labels.tracking_url",
         "labels.label_url",

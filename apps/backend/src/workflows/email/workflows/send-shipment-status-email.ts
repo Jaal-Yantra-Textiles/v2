@@ -50,6 +50,12 @@ export const sendShipmentStatusEmail = createWorkflow(
           status_copy: config.statusCopy,
           status_badge_class: config.badgeColor,
           order_id: shipmentData.order.display_id || shipmentData.order.id,
+          // "#176" — ready to print; order_id stays the bare number for old templates.
+          order_display: shipmentData.order.display_id
+            ? `#${shipmentData.order.display_id}`
+            : shipmentData.order.id,
+          // When the parcel actually arrived (order_date is when it was PLACED).
+          delivered_at: shipmentData.fulfillment.delivered_at || null,
           order_date: shipmentData.order.created_at,
           fulfillment_id: shipmentData.fulfillment.id,
           shipment_status: input.status,
