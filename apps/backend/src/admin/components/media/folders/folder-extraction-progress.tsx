@@ -1,6 +1,7 @@
 import { Button, Text, Tooltip, clx, toast } from "@medusajs/ui";
 import { CheckCircle, ExclamationCircle, Spinner, XCircle } from "@medusajs/icons";
 import {
+  folderExtractionRefetchInterval,
   useFolderExtractionStatus,
   useResumeFolderExtraction,
 } from "../../../hooks/api/textile-extraction";
@@ -35,10 +36,9 @@ export const FolderExtractionProgress = ({ folderId }: FolderExtractionProgressP
      * every 5 seconds forever is what the old condition did, and it never
      * changed its mind because nothing was left alive to change it.
      */
-    refetchInterval: (query) =>
-      query.state.data?.progress?.status === "running" && !query.state.data?.stalled
-        ? 5000
-        : false,
+    // Also polls for a minute after a confirm, until the run appears (the
+    // workflow writes "running" just after the confirm returns).
+    refetchInterval: folderExtractionRefetchInterval(folderId),
   });
 
   const { mutateAsync: resume, isPending: isResuming } = useResumeFolderExtraction();

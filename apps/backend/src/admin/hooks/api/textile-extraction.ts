@@ -326,9 +326,45 @@ export const useExtractFolderFeatures = () => {
 };
 
 /**
+ * When a folder run was just confirmed, per folder id. The workflow writes
+ * `folder_extraction.status = "running"` a moment AFTER the confirm returns, so
+ * a single refetch can land before it and read "no run" — and the progress
+ * strip only polls while it sees "running", so it would stop for good and the
+ * bar never appeared until a page reload. For a short warm-up window after a
+ * confirm, keep polling until the run shows up.
+ */
+const FOLDER_RUN_WARMUP_MS = 60_000;
+const folderRunStartedAt = new Map<string, number>();
+
+export const markFolderExtractionStarted = (folderId: string) => {
+  folderRunStartedAt.set(folderId, Date.now());
+};
+
+/** True for a minute after this tab confirmed a run on `folderId`. */
+export const isFolderExtractionWarmingUp = (folderId: string | undefined) => {
+  if (!folderId) return false;
+  const at = folderRunStartedAt.get(folderId);
+  return !!at && Date.now() - at < FOLDER_RUN_WARMUP_MS;
+};
+
+/**
+ * Polling rule for the folder status query: every 5 s while running (and not
+ * stalled), every 3 s during the warm-up after a confirm, otherwise not at all.
+ */
+export const folderExtractionRefetchInterval =
+  (folderId: string | undefined) =>
+  (query: any): number | false => {
+    const data = query?.state?.data as ExtractFolderFeaturesStatusResponse | undefined;
+    if (data?.progress?.status === "running" && !data?.stalled) return 5000;
+    if (isFolderExtractionWarmingUp(folderId)) return 3000;
+    return false;
+  };
+
+/**
  * Hook to confirm a pending folder extraction transaction
  */
 export const useConfirmFolderExtraction = () => {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
       folderId,
@@ -354,8 +390,13 @@ export const useConfirmFolderExtraction = () => {
 
       return response.json() as Promise<ConfirmFolderExtractionResponse>;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       toast.success(data.message || "Folder extraction confirmed and started");
+      // Start the warm-up BEFORE refetching, so the refetch's interval rule
+      // already sees it and keeps polling until the run is written.
+      markFolderExtractionStarted(variables.folderId);
+      queryClient.invalidateQueries({ queryKey: ["folder-extraction-status", variables.folderId] });
+      queryClient.invalidateQueries({ queryKey: mediaFolderDetailQueryKeys.all });
     },
     onError: (error: any) => {
       const message = error?.message || "Failed to confirm folder extraction";
@@ -424,8 +465,9 @@ export const useResumeFolderExtraction = () => {
         folder_total: number;
       }>;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, folderId) => {
       toast.success(data.message || "Resuming outstanding extractions");
+      markFolderExtractionStarted(folderId);
       queryClient.invalidateQueries({
         queryKey: mediaFolderDetailQueryKeys.all,
       });
