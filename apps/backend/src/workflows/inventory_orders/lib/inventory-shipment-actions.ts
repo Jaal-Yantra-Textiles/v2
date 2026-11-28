@@ -2,7 +2,9 @@ import { ContainerRegistrationKeys, MedusaError, Modules } from "@medusajs/frame
 import type { MedusaContainer } from "@medusajs/framework/types"
 
 import { FULLFILLED_ORDERS_MODULE } from "../../../modules/fullfilled_orders"
-import { resolveShippingProvider } from "../../../modules/shipping-providers/resolver"
+import { isSupportedCarrier, resolveShippingProvider } from "../../../modules/shipping-providers/resolver"
+import { isManualBookingCarrier } from "./manual-carriers"
+import { labelBase64, storeLabelPdf } from "./store-label-pdf"
 import { INVENTORY_SHIPMENT_STATUS_CHANGED_EVENT } from "../sync-inventory-shipment-tracking"
 
 /** Delhivery requires a pickup time; mid-afternoon suits most workshops. */
@@ -42,6 +44,22 @@ export async function freshShipmentLabel(
   if (shipment.status === "cancelled") {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "This shipment was cancelled; it has no label.")
   }
+  if (shipment.status === "booking_pending") {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "This shipment is waiting to be booked; its label appears once the team books it."
+    )
+  }
+  // Manual carriers (India Post) and anything without a carrier client have
+  // only what staff stored: never call a carrier API that does not exist.
+  if (isManualBookingCarrier(shipment.carrier) || !isSupportedCarrier(shipment.carrier)) {
+    return { label_url: shipment.label_url ?? null, format: shipment.label_url ? "pdf" : null, expires_in_hours: null }
+  }
+  // A label already stored (Shiprocket's lasting link, a saved DTDC PDF) is
+  // served as-is, except Delhivery's, whose signed link expires.
+  if (shipment.label_url && shipment.carrier !== "delhivery") {
+    return { label_url: shipment.label_url, format: "pdf", expires_in_hours: null }
+  }
   const provider: any = await resolveShippingProvider(container, shipment.carrier)
   if (provider?.getLabel && shipment.awb) {
     const label = await provider.getLabel({ awb: shipment.awb, provider_refs: shipment.provider_refs ?? undefined })
@@ -51,6 +69,18 @@ export async function freshShipmentLabel(
         format: label.format ?? "pdf",
         expires_in_hours: shipment.carrier === "delhivery" ? 24 : null,
       }
+    }
+    // DTDC returns the PDF bytes: store them once and keep the link.
+    const bytes = labelBase64(label)
+    if (bytes) {
+      const url = await storeLabelPdf(container, { awb: String(shipment.awb), base64: bytes })
+      try {
+        const fulfilled: any = container.resolve(FULLFILLED_ORDERS_MODULE)
+        await fulfilled.updateInventoryShipments({ id: shipment.id, label_url: url })
+      } catch {
+        /* the link is still returned */
+      }
+      return { label_url: url, format: "pdf", expires_in_hours: null }
     }
   }
   return { label_url: shipment.label_url ?? null, format: shipment.label_url ? "pdf" : null, expires_in_hours: null }
@@ -68,8 +98,17 @@ export async function bookShipmentPickup(
   if (shipment.status === "cancelled") {
     throw new MedusaError(MedusaError.Types.NOT_ALLOWED, "This shipment was cancelled; book a new one instead.")
   }
+  if (shipment.status === "booking_pending" || isManualBookingCarrier(shipment.carrier)) {
+    throw new MedusaError(
+      MedusaError.Types.NOT_ALLOWED,
+      "This carrier is booked by the team, pickup included; there is nothing to schedule here."
+    )
+  }
   if (!shipment.pickup_location_name) {
     throw new MedusaError(MedusaError.Types.INVALID_DATA, "This shipment has no pickup location recorded.")
+  }
+  if (!isSupportedCarrier(shipment.carrier)) {
+    throw new MedusaError(MedusaError.Types.NOT_ALLOWED, `${shipment.carrier} pickups are booked on the carrier's side.`)
   }
   const provider: any = await resolveShippingProvider(container, shipment.carrier)
   if (!provider?.schedulePickup) {
