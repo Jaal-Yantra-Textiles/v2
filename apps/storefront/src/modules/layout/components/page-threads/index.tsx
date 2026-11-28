@@ -152,6 +152,8 @@ type Motion = {
   delay: number
   /** Degrees, signed. */
   sway: number
+  /** Seconds before this bloom unfolds on first paint. */
+  open: number
 }
 
 type PetalSpec = {
@@ -217,8 +219,8 @@ const Petal = ({
     }
   })
 
-  const rays = Array.from({ length: 13 }, (_, i) => {
-    const t = i / 12
+  const rays = Array.from({ length: 9 }, (_, i) => {
+    const t = i / 8
     const a = (t - 0.5) * 1.12
     const inner = length * (0.1 + 0.12 * Math.abs(t - 0.5))
     const outer = length * (0.58 + 0.36 * Math.sin(t * Math.PI))
@@ -241,11 +243,22 @@ const Petal = ({
       </clipPath>
 
       <path d={outline} fill={wash} />
+      {/* The poppy's dark heart: pigment pooled where the petal meets the
+          centre, feathering out before the midpoint. */}
+      <ellipse
+        cx={0}
+        cy={-length * 0.16}
+        rx={width * 0.42}
+        ry={length * 0.2}
+        fill={`url(#poppy-heart-${c.key})`}
+        clipPath={`url(#${clipId})`}
+      />
       <path
         d={outline}
         fill="none"
         stroke={c.ink}
-        strokeWidth={2.8}
+        strokeWidth={1.6}
+        strokeOpacity={0.78}
         strokeLinejoin="round"
       />
       <path
@@ -253,8 +266,8 @@ const Petal = ({
         transform="translate(3 -2) rotate(1.6)"
         fill="none"
         stroke={c.inkDeep}
-        strokeWidth={1.4}
-        strokeOpacity={0.55}
+        strokeWidth={0.9}
+        strokeOpacity={0.24}
         strokeDasharray="34 6 14 5"
       />
 
@@ -265,16 +278,16 @@ const Petal = ({
         strokeLinecap="round"
       >
         {/* Pigment gathering at the rim. */}
-        <path d={outline} strokeWidth={8} strokeOpacity={0.13} />
+        <path d={outline} strokeWidth={7} strokeOpacity={0.1} />
         {streaks.map((streak, i) => (
           <path
             key={`s-${i}`}
             d={streak.d}
             strokeWidth={streak.width}
-            strokeOpacity={0.07}
+            strokeOpacity={0.06}
           />
         ))}
-        <g strokeWidth={1.3} strokeOpacity={0.48}>
+        <g strokeWidth={0.9} strokeOpacity={0.22}>
           {rays.map((d, i) => (
             <path key={i} d={d} />
           ))}
@@ -284,22 +297,22 @@ const Petal = ({
           d={`M ${-width * 0.56} ${-length * 0.18} Q 0 ${-length * 0.32} ${
             width * 0.6
           } ${-length * 0.11}`}
-          strokeWidth={1.6}
-          strokeOpacity={0.5}
+          strokeWidth={1.1}
+          strokeOpacity={0.3}
         />
         <path
           d={`M ${-width * 0.46} ${-length * 0.06} Q ${width * 0.12} ${
             -length * 0.2
           } ${width * 0.46} ${-length * 0.05}`}
-          strokeWidth={1.2}
-          strokeOpacity={0.36}
+          strokeWidth={0.9}
+          strokeOpacity={0.22}
         />
         <path
           d={`M ${-width * 0.3} ${-length * 0.3} Q ${width * 0.02} ${
             -length * 0.44
           } ${width * 0.3} ${-length * 0.32}`}
-          strokeWidth={1}
-          strokeOpacity={0.28}
+          strokeWidth={0.8}
+          strokeOpacity={0.16}
         />
       </g>
     </g>
@@ -357,28 +370,64 @@ const Bloom = ({
         }
       >
         <g transform={`rotate(${tilt}) scale(${scale})`}>
-          {/* Pigment pooled under the bloom, the watercolour halo. */}
-          <circle r={reach * 0.92} fill={`url(#poppy-pool-${c.key})`} />
-          {petals.map((petal, i) => (
-            <Petal key={`${id}-${i}`} id={`${id}-${i}`} {...petal} c={c} />
-          ))}
-          <circle r={reach * 0.055} fill={c.inkDeep} fillOpacity={0.6} />
           <g
-            stroke={c.inkDeep}
-            strokeWidth={1.2}
-            strokeOpacity={0.45}
-            strokeLinecap="round"
+            className="poppy-open"
+            style={{ "--open-delay": `${motion.open}s` } as CSSProperties}
           >
-            {[-2.6, -1.5, -0.5, 0.6, 1.7, 2.7].map((a, i) => (
-              <path
-                key={i}
-                d={`M ${Math.sin(a) * reach * 0.07} ${
-                  -Math.cos(a) * reach * 0.07
-                } L ${Math.sin(a) * reach * 0.16} ${
-                  -Math.cos(a) * reach * 0.16
-                }`}
-              />
+            {/* Pigment pooled under the bloom, the watercolour halo. */}
+            <circle r={reach * 0.92} fill={`url(#poppy-pool-${c.key})`} />
+            {petals.map((petal, i) => (
+              <Petal key={`${id}-${i}`} id={`${id}-${i}`} {...petal} c={c} />
             ))}
+            {/* Stamens: fine filaments ending in a dusted tip. */}
+            <g stroke={c.inkDeep} strokeLinecap="round">
+              {Array.from({ length: 14 }, (_, i) => {
+                const a = (i / 14) * Math.PI * 2 + 0.2
+                const r0 = reach * 0.07
+                const r1 = reach * (0.15 + (i % 3) * 0.02)
+                return (
+                  <g key={i}>
+                    <path
+                      d={`M ${Math.sin(a) * r0} ${-Math.cos(a) * r0} L ${
+                        Math.sin(a) * r1
+                      } ${-Math.cos(a) * r1}`}
+                      strokeWidth={0.8}
+                      strokeOpacity={0.4}
+                    />
+                    <circle
+                      cx={Math.sin(a) * r1}
+                      cy={-Math.cos(a) * r1}
+                      r={reach * 0.011}
+                      fill={c.inkDeep}
+                      fillOpacity={0.55}
+                      stroke="none"
+                    />
+                  </g>
+                )
+              })}
+            </g>
+            {/* Seed head: a dark crown with the ribbed cap on top. */}
+            <circle r={reach * 0.07} fill={c.inkDeep} fillOpacity={0.78} />
+            <circle
+              r={reach * 0.045}
+              fill="none"
+              stroke="#fffdf6"
+              strokeOpacity={0.35}
+              strokeWidth={0.8}
+            />
+            <g stroke="#fffdf6" strokeOpacity={0.28} strokeWidth={0.7}>
+              {[0, 1, 2, 3, 4, 5].map((i) => {
+                const a = (i / 6) * Math.PI * 2
+                return (
+                  <path
+                    key={i}
+                    d={`M 0 0 L ${Math.sin(a) * reach * 0.045} ${
+                      -Math.cos(a) * reach * 0.045
+                    }`}
+                  />
+                )
+              })}
+            </g>
           </g>
         </g>
       </g>
@@ -576,13 +625,25 @@ const PoppyMotionStyles = () => (
       0%, 100% { transform: scale(1); }
       50%      { transform: scale(1.012); }
     }
-    @keyframes poppy-drift {
+    @keyframes poppy-stem-drift {
       0%, 100% { transform: translateX(-7px); }
       50%      { transform: translateX(7px); }
     }
     @keyframes poppy-glow {
       0%, 100% { opacity: 0.04; }
       50%      { opacity: 0.16; }
+    }
+    @keyframes poppy-open {
+      0%   { opacity: 0; transform: scale(0.82) rotate(-6deg); }
+      60%  { opacity: 1; }
+      100% { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    @keyframes poppy-drift {
+      0%   { transform: translate(-80px, 0) rotate(0deg); opacity: 0; }
+      8%   { opacity: 0.85; }
+      50%  { transform: translate(800px, var(--drift-rise, -40px)) rotate(calc(var(--drift-spin, 240deg) / 2)); }
+      92%  { opacity: 0.85; }
+      100% { transform: translate(1700px, 20px) rotate(var(--drift-spin, 240deg)); opacity: 0; }
     }
 
     .poppy-sway {
@@ -597,7 +658,17 @@ const PoppyMotionStyles = () => (
       transform-origin: 50% 100%;
     }
     .poppy-stems {
-      animation: poppy-drift 18s ease-in-out infinite;
+      animation: poppy-stem-drift 18s ease-in-out infinite;
+    }
+    .poppy-open {
+      animation: poppy-open 1.6s cubic-bezier(0.22, 1, 0.36, 1) var(--open-delay, 0s) both;
+      transform-box: fill-box;
+      transform-origin: 50% 50%;
+    }
+    .poppy-drifter {
+      animation: poppy-drift var(--drift-dur, 32s) linear var(--drift-delay, 0s) infinite;
+      transform-box: fill-box;
+      transform-origin: 50% 50%;
     }
     .poppy-glow {
       animation: poppy-glow 16s ease-in-out infinite;
@@ -608,8 +679,13 @@ const PoppyMotionStyles = () => (
       .poppy-sway,
       .poppy-bed,
       .poppy-stems,
-      .poppy-glow {
+      .poppy-glow,
+      .poppy-open {
         animation: none;
+      }
+      .poppy-drifter {
+        animation: none;
+        display: none;
       }
     }
   `}</style>
@@ -623,7 +699,7 @@ const PoppyMotionStyles = () => (
 const PoppyBed = ({ palette, seed }: { palette: Palette; seed: number }) => {
   const rand = makeRandom(seed)
 
-  const blooms = BLOOMS.map((bloom) => {
+  const blooms = BLOOMS.map((bloom, i) => {
     const sway = (0.7 + rand() * 1.6) * (rand() > 0.5 ? 1 : -1)
 
     return {
@@ -632,9 +708,21 @@ const PoppyBed = ({ palette, seed }: { palette: Palette; seed: number }) => {
         dur: 8 + rand() * 9,
         delay: -rand() * 14,
         sway,
+        // Unfold left to right with a little jitter, like a breeze passing.
+        open: (bloom.x / 1600) * 0.9 + rand() * 0.25 + i * 0.02,
       } as Motion,
     }
   })
+
+  // A few loose petals drifting across the bed.
+  const drifters = [0, 1, 2, 3].map((i) => ({
+    y: 70 + rand() * 260,
+    size: 0.55 + rand() * 0.4,
+    dur: 26 + rand() * 18,
+    delay: -(rand() * 40) - i * 9,
+    spin: (rand() > 0.5 ? 1 : -1) * (160 + rand() * 200),
+    rise: -(30 + rand() * 60),
+  }))
 
   const stemTempo = 14 + rand() * 10
   const bedTempo = 20 + rand() * 10
@@ -674,6 +762,11 @@ const PoppyBed = ({ palette, seed }: { palette: Palette; seed: number }) => {
             <stop offset="0%" stopColor={palette.soft[0]} stopOpacity="0.5" />
             <stop offset="55%" stopColor={palette.soft[1]} stopOpacity="0.4" />
             <stop offset="100%" stopColor={palette.soft[2]} stopOpacity="0.3" />
+          </radialGradient>
+          <radialGradient id={`poppy-heart-${palette.key}`} cx="0.5" cy="0.85" r="0.6">
+            <stop offset="0%" stopColor={palette.inkDeep} stopOpacity="0.42" />
+            <stop offset="55%" stopColor={palette.inkDeep} stopOpacity="0.12" />
+            <stop offset="100%" stopColor={palette.inkDeep} stopOpacity="0" />
           </radialGradient>
           <radialGradient id={`poppy-pool-${palette.key}`} cx="0.5" cy="0.5" r="0.5">
             <stop offset="0%" stopColor={palette.pool} stopOpacity="0.32" />
@@ -735,6 +828,31 @@ const PoppyBed = ({ palette, seed }: { palette: Palette; seed: number }) => {
               c={palette}
               motion={bloom.motion}
             />
+          ))}
+
+          {drifters.map((petal, i) => (
+            <g key={`drift-${i}`} transform={`translate(0 ${petal.y.toFixed(1)})`}>
+              <g
+                className="poppy-drifter"
+                style={
+                  {
+                    "--drift-dur": `${petal.dur.toFixed(1)}s`,
+                    "--drift-delay": `${petal.delay.toFixed(1)}s`,
+                    "--drift-spin": `${petal.spin.toFixed(0)}deg`,
+                    "--drift-rise": `${petal.rise.toFixed(0)}px`,
+                  } as CSSProperties
+                }
+              >
+                <path
+                  transform={`scale(${petal.size.toFixed(2)})`}
+                  d="M 0 0 C -16 -6 -22 -26 -10 -38 C -4 -44 4 -44 10 -38 C 22 -26 16 -6 0 0 Z"
+                  fill={`url(#poppy-wash-${palette.key})`}
+                  stroke={palette.ink}
+                  strokeOpacity={0.5}
+                  strokeWidth={0.9}
+                />
+              </g>
+            </g>
           ))}
         </g>
       </svg>
@@ -825,7 +943,12 @@ export const PageHero = ({
   return (
     <section className="relative left-1/2 right-1/2 -mx-[50vw] mb-8 w-screen md:mb-12">
       <div className="relative flex min-h-[460px] w-full flex-col overflow-hidden small:min-h-[600px]">
-        <div aria-hidden className="absolute inset-0">
+        {/* Feathered top and bottom so the painting melts into the page
+            instead of stopping on a hard line. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 [mask-image:linear-gradient(to_bottom,transparent_0%,#000_9%,#000_80%,transparent_100%)]"
+        >
           <PoppyBed palette={palette} seed={hash} />
         </div>
 
@@ -833,7 +956,7 @@ export const PageHero = ({
             hold, clearing toward the crop so the blooms stay saturated. */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,253,246,0.78)_0%,rgba(255,253,246,0.46)_45%,rgba(255,253,246,0.10)_78%)]"
+          className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(255,253,246,0.88)_0%,rgba(255,253,246,0.55)_48%,rgba(255,253,246,0.08)_80%)] small:bg-[radial-gradient(ellipse_at_center,rgba(255,253,246,0.8)_0%,rgba(255,253,246,0.44)_45%,rgba(255,253,246,0.06)_78%)]"
         />
 
         {/* Top sheen, the way glass catches a window. */}
