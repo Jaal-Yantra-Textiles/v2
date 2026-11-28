@@ -4387,6 +4387,12 @@ export default defineMiddlewares({
       middlewares: [validateAndTransformBody(wrapSchema(CreateAdminPaymentSubmissionSchema))],
     },
 
+    // ── Manual-carrier booking (India Post): admin uploads the label PDF ────
+    {
+      matcher: "/admin/inventory-orders/:id/shipments/:shipmentId/manual-booking",
+      method: "POST",
+      middlewares: [maybeMulterArray("files")],
+    },
     // ── Payment Submissions (Partner) ───────────────────────────────────────
     {
       matcher: "/partners/payment-submissions/:submissionId/documents",

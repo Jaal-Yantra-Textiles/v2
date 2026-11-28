@@ -28,8 +28,11 @@ const InventoryShipment = model.define("inventory_shipment", {
   // out_for_delivery → delivered. `rto` (return-to-origin) can occur from any
   // in-flight state; `cancelled` is terminal. The post-pickup values are fed by
   // the carrier tracking webhook (#888) — never set at creation time.
+  // `booking_pending`: a manual-carrier request (India Post) waiting for staff
+  // to book it on the carrier's side; it has no AWB until they fill one in.
   status: model
     .enum([
+      "booking_pending",
       "created",
       "pickup_scheduled",
       "picked_up",

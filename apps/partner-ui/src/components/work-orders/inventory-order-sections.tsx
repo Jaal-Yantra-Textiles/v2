@@ -7,6 +7,7 @@ import {
   useBookInventoryShipmentPickup,
   useInventoryShipmentLabel,
 } from "../../hooks/api/partner-inventory-orders"
+import { carrierLabel, isBookingPending } from "../../lib/carrier-label"
 import { getStatusBadgeColor } from "../../lib/status-badge"
 import { getStylizedAmount } from "../../lib/money-amount-helpers"
 
@@ -147,8 +148,11 @@ export const InventoryUpcomingPickupCard = ({
   const { t } = useTranslation()
   const { getFullDate } = useDate()
 
+  // A booking_pending row (India Post, booked by our team) has no pickup and
+  // no AWB yet — it must never read as "a courier is coming".
   const upcoming = shipments.filter(
     (s) =>
+      !isBookingPending(s) &&
       String(s?.status || "").toLowerCase() === "pickup_scheduled" &&
       !!s?.pickup_scheduled_date
   )
@@ -269,7 +273,7 @@ const ShipmentActions = ({ orderId, shipment }: { orderId: string; shipment: Rec
   const [date, setDate] = useState(ymd(tomorrow))
   const [time, setTime] = useState("14:00")
   const status = String(shipment.status || "").toLowerCase()
-  if (!shipment.awb || status === "cancelled") return null
+  if (!shipment.awb || status === "cancelled" || status === "booking_pending") return null
   const canBook = status === "created" || !shipment.pickup_scheduled_date
 
   const openLabel = async () => {
@@ -353,6 +357,35 @@ export const InventoryShipmentsSection = ({
       ) : (
         shipments.map((s, idx) => {
           const awb = s.awb || s.tracking_number
+          if (isBookingPending(s)) {
+            const requestedAt =
+              s?.metadata?.manual_booking?.requested_at || s.created_at
+            const carrierName = carrierLabel(s.carrier) || carrierLabel("india_post")
+            return (
+              <div key={String(s.id ?? idx)} className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <Text size="small" weight="plus">
+                    {carrierName}
+                  </Text>
+                  {requestedAt && (
+                    <Text size="xsmall" className="text-ui-fg-subtle">
+                      {t("partner.workOrders.bookingRequestedOn", {
+                        date: getFullDate({ date: requestedAt, includeTime: true }),
+                      })}
+                    </Text>
+                  )}
+                  <Text size="xsmall" className="text-ui-fg-subtle mt-1">
+                    {t("partner.workOrders.bookingPendingNote", { carrier: carrierName })}
+                  </Text>
+                </div>
+                <div className="flex items-center gap-x-3">
+                  <StatusBadge color="orange" className="text-nowrap">
+                    {t("partner.workOrders.bookingRequested")}
+                  </StatusBadge>
+                </div>
+              </div>
+            )
+          }
           return (
             <div key={String(s.id ?? idx)} className="flex flex-col gap-y-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
@@ -373,8 +406,8 @@ export const InventoryShipmentsSection = ({
                       AWB {awb}
                     </Text>
                   ))}
-                <Text size="xsmall" className="text-ui-fg-subtle capitalize">
-                  {String(s.carrier || "")}
+                <Text size="xsmall" className="text-ui-fg-subtle">
+                  {carrierLabel(s.carrier)}
                   {s.pickup_location_name
                     ? ` · ${t("partner.workOrders.pickupFrom")}: ${s.pickup_location_name}`
                     : ""}

@@ -93,7 +93,10 @@ describe("inventory order shipment ship-from address", () => {
         phone: "9586757384",
       })
     )
-    // The pickup handle Shiprocket books against is unchanged.
-    expect(sent.pickup_location_name).toBe("warehouse-AATFMF00")
+    // DTDC takes the origin inline and has no pickup registry, so it no longer
+    // borrows the location's Shiprocket nickname (warehouse-AATFMF00): the
+    // record names the source location itself, and Shiprocket is not involved.
+    expect(sent.pickup_location_name).toBe(FROM.name)
+    expect(sent.pickup_location_name).not.toBe("warehouse-AATFMF00")
   })
 })

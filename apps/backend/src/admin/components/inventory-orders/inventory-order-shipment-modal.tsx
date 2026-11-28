@@ -87,6 +87,9 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
           }
         : undefined;
 
+    // DTDC has no pickup scheduling — never send a pickup date for it.
+    const sendPickupDate = carrier !== "dtdc" && pickupDate;
+
     await mutateAsync(
       {
         carrier,
@@ -94,7 +97,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(dims ? { dimensions_cm: dims } : {}),
         ...(courier ? { preferred_courier_id: courier } : {}),
-        ...(pickupDate ? { pickup_date: pickupDate } : {}),
+        ...(sendPickupDate ? { pickup_date: pickupDate } : {}),
       },
       {
         onSuccess: (data) => {
@@ -146,6 +149,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
               <Select.Content>
                 <Select.Item value="shiprocket">Shiprocket</Select.Item>
                 <Select.Item value="delhivery">Delhivery</Select.Item>
+                <Select.Item value="dtdc">DTDC</Select.Item>
               </Select.Content>
             </Select>
           </div>
@@ -206,6 +210,8 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
               )}
             </div>
           )}
+          {/* DTDC has no pickup scheduling (and no rates) — hide the date. */}
+          {carrier !== "dtdc" && (
           <div className="flex flex-col gap-1">
             <Label size="small" htmlFor="pickup_date">Pickup date</Label>
             <DatePicker
@@ -217,6 +223,7 @@ export const InventoryOrderShipmentModal = ({ inventoryOrder, open, onOpenChange
               Optional — leave blank to let the courier pick the earliest slot.
             </Text>
           </div>
+          )}
         </Drawer.Body>
         <Drawer.Footer>
           <Drawer.Close asChild>

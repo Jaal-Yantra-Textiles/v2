@@ -2,7 +2,8 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import type { MedusaContainer } from "@medusajs/framework/types"
 import { ORDER_INVENTORY_MODULE } from "../../modules/inventory_orders"
 import { FULLFILLED_ORDERS_MODULE } from "../../modules/fullfilled_orders"
-import { resolveShippingProvider } from "../../modules/shipping-providers/resolver"
+import { isSupportedCarrier, resolveShippingProvider } from "../../modules/shipping-providers/resolver"
+import { isManualBookingCarrier } from "./lib/manual-carriers"
 
 /**
  * Cancel one carrier shipment (AWB) on an inventory order.
@@ -24,7 +25,7 @@ import { resolveShippingProvider } from "../../modules/shipping-providers/resolv
  */
 
 /** Statuses where the parcel has not entered the carrier network yet. */
-const CANCELLABLE_STATUSES = new Set(["created", "pickup_scheduled"])
+const CANCELLABLE_STATUSES = new Set(["booking_pending", "created", "pickup_scheduled"])
 
 export type CancelInventoryOrderShipmentInput = {
   orderId: string
@@ -111,18 +112,26 @@ export async function cancelInventoryOrderShipment(
   assertInventoryShipmentCancellable(previousStatus, input.force === true)
 
   // 1) Carrier first. A refusal throws and leaves every row as it was.
-  const provider = await resolveShippingProvider(container, shipment.carrier)
-  let carrierResponse: any
-  try {
-    carrierResponse = await provider.cancelShipment({
-      awb: shipment.awb ?? undefined,
-      provider_refs: shipment.provider_refs ?? undefined,
-    })
-  } catch (e: any) {
-    throw new MedusaError(
-      MedusaError.Types.UNEXPECTED_STATE,
-      `The carrier refused to cancel AWB ${shipment.awb ?? "(none)"}: ${e?.message || e}. Nothing was changed here.`
-    )
+  // A pending request (nothing booked yet) and a manual carrier (booked by
+  // staff, no API) have no carrier-side order to cancel: only our row moves.
+  let carrierResponse: any = null
+  const carrierSide =
+    previousStatus !== "booking_pending" &&
+    !isManualBookingCarrier(shipment.carrier) &&
+    isSupportedCarrier(shipment.carrier)
+  if (carrierSide) {
+    const provider = await resolveShippingProvider(container, shipment.carrier)
+    try {
+      carrierResponse = await provider.cancelShipment({
+        awb: shipment.awb ?? undefined,
+        provider_refs: shipment.provider_refs ?? undefined,
+      })
+    } catch (e: any) {
+      throw new MedusaError(
+        MedusaError.Types.UNEXPECTED_STATE,
+        `The carrier refused to cancel AWB ${shipment.awb ?? "(none)"}: ${e?.message || e}. Nothing was changed here.`
+      )
+    }
   }
 
   const cancelledAt = new Date().toISOString()

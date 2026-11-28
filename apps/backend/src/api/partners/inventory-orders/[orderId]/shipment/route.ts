@@ -19,6 +19,8 @@ import { z } from "@medusajs/framework/zod";
 import { getPartnerFromAuthContext, assertPartnerOwnsInventoryOrder } from "../../../helpers";
 import { createInventoryOrderShipmentWorkflow } from "../../../../../workflows/inventory_orders/create-inventory-order-shipment";
 import { assertShipmentAllowed } from "../../../../../workflows/inventory_orders/lib/shipment-guard";
+import { isManualBookingCarrier } from "../../../../../workflows/inventory_orders/lib/manual-carriers";
+import { requestManualInventoryShipment } from "../../../../../workflows/inventory_orders/manual-inventory-shipment";
 
 const bodySchema = z.object({
   carrier: z.string().optional(),
@@ -36,6 +38,8 @@ const bodySchema = z.object({
   pickup_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   // "HH:mm". Delhivery will not book a pickup without one (default 14:00).
   pickup_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/).optional(),
+  // Manual carriers only: anything the team should know when booking.
+  notes: z.string().trim().max(500).optional(),
 });
 
 export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse) {
@@ -64,6 +68,30 @@ export async function POST(req: AuthenticatedMedusaRequest, res: MedusaResponse)
     filters: { id: orderId },
   });
   assertShipmentAllowed((data?.[0] as any)?.status);
+
+  // India Post (manual): no carrier API. The request waits as
+  // `booking_pending` until the team books it and fills in the AWB + label.
+  if (isManualBookingCarrier(parsed.data.carrier)) {
+    try {
+      const pending = await requestManualInventoryShipment(req.scope, {
+        orderId,
+        carrier: String(parsed.data.carrier),
+        pickupStockLocationId: parsed.data.pickup_stock_location_id,
+        weightGrams: parsed.data.weight_grams,
+        dimensionsCm: parsed.data.dimensions_cm as any,
+        pickupDate: parsed.data.pickup_date,
+        notes: parsed.data.notes,
+        actingEmail: (partner as any)?.admins?.[0]?.email || undefined,
+        partnerId: partner.id,
+      });
+      return res.status(200).json({ shipment: pending });
+    } catch (err: any) {
+      const type = err?.type;
+      if (type === MedusaError.Types.NOT_FOUND) return res.status(404).json({ message: err.message });
+      if (type === MedusaError.Types.NOT_ALLOWED) return res.status(409).json({ message: err.message });
+      return res.status(400).json({ message: err?.message || "Booking request failed" });
+    }
+  }
 
   const { result, errors } = await createInventoryOrderShipmentWorkflow(req.scope).run({
     input: {

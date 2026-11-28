@@ -19,6 +19,8 @@ import {
 import { resolvePlatformTaxIdForCountry } from "../../modules/shipping-providers/seller-tax-id"
 import { carrierPickupMetadataKey, ensureCarrierPickup } from "../../modules/shipping-providers/carrier-pickups"
 import { DEFAULT_SHIPMENT_PICKUP_TIME } from "./lib/inventory-shipment-actions"
+import { isInlineOriginCarrier } from "./lib/manual-carriers"
+import { labelBase64, storeLabelPdf } from "./lib/store-label-pdf"
 import {
   originAddressFromLocation,
   resolveOriginAddress,
@@ -158,7 +160,18 @@ export async function createInventoryOrderShipment(
   // warehouse Delhivery may never have heard of (it only worked where the two
   // registries happen to share a name).
   const usesShiprocketRegistry = !carrierPickupMetadataKey(carrier) || carrier === "shiprocket"
-  if (input.pickupStockLocationId) {
+  if (isInlineOriginCarrier(carrier)) {
+    // DTDC / Blue Dart take the ship-from address inline (resolved below), so
+    // there is no carrier-side pickup to register — and touching Shiprocket's
+    // shared registry for them was a needless call that could fail the booking
+    // and recorded a Shiprocket nickname on a DTDC shipment. The record keeps
+    // the source location's name for the audit trail.
+    const sourceId = input.pickupStockLocationId || fromLocation?.id
+    if (sourceId) {
+      pickupLocationName =
+        (sourceId === fromLocation?.id ? fromLocation?.name : undefined) || sourceId
+    }
+  } else if (input.pickupStockLocationId) {
     pickupLocationName = usesShiprocketRegistry
       ? (await registerShiprocketPickup(container, input.pickupStockLocationId, {
           email: input.actingEmail,
@@ -339,6 +352,13 @@ export async function createInventoryOrderShipment(
       const label = await provider.getLabel({ awb: result.awb, provider_refs: result.provider_refs } as any)
       if (label?.label_url && (label as any).format !== "tracking_page") {
         result.label_url = label.label_url
+      } else {
+        // DTDC hands the label back as base64 PDF bytes, not a link; it used
+        // to be dropped here, leaving the shipment with no label at all.
+        const bytes = labelBase64(label)
+        if (bytes) {
+          result.label_url = await storeLabelPdf(container, { awb: String(result.awb), base64: bytes })
+        }
       }
     } catch {
       // the label route can fetch it later
