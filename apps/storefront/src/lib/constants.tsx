@@ -48,6 +48,16 @@ export const paymentInfoMap: Record<
     title: "PayU",
     icon: <CreditCard />,
   },
+  // Bitcoin via BTCPay Server. The buyer pays on BTCPay's page; the order is
+  // placed once the payment confirms on-chain (10–60 min).
+  pp_bitcoin_btc: {
+    title: "Bitcoin",
+    icon: (
+      <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center font-semibold">
+        ₿
+      </span>
+    ),
+  },
 }
 
 // This checks if it is native stripe, medusa payments, or the Stripe Connect
@@ -71,12 +81,26 @@ export const isManual = (providerId?: string) => {
 export const isPayU = (providerId?: string) => {
   return providerId?.startsWith("pp_payu")
 }
+export const isBtcpay = (providerId?: string) => {
+  return providerId?.startsWith("pp_bitcoin")
+}
+
+/** Where BTCPay sends the buyer after paying (must be https in prod). */
+export const btcpayReturnUrl = (cartId: string) =>
+  `${window.location.origin}/api/btcpay/return?cart_id=${encodeURIComponent(cartId)}`
 
 const paymentSessionDataBuilders: Array<{
   test: (providerId?: string) => boolean | undefined
   isReady?: (cart: HttpTypes.StoreCart) => boolean
   build: (cart: HttpTypes.StoreCart) => Record<string, unknown>
-}> = []
+}> = [
+  // Bitcoin: BTCPay sends the buyer back here after paying. The URL carries
+  // only the cart id; payment is decided server-side from the invoice.
+  {
+    test: isBtcpay,
+    build: (cart) => ({ return_url: btcpayReturnUrl(cart.id) }),
+  },
+]
 
 export const buildPaymentSessionData = (
   providerId: string | undefined,

@@ -1,6 +1,6 @@
 "use client"
 
-import { isManual, isPayU, isStripeLike } from "@lib/constants"
+import { isBtcpay, isManual, isPayU, isStripeLike } from "@lib/constants"
 import { placeOrder } from "@lib/data/cart"
 import { HttpTypes } from "@medusajs/types"
 import { Button } from "@medusajs/ui"
@@ -70,6 +70,14 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({
         <PayUPaymentButton
           notReady={notReady}
           cart={cart}
+          data-testid={dataTestId}
+        />
+      )
+    case isBtcpay(activePaymentMethod):
+      return (
+        <BtcpayPaymentButton
+          cart={cart}
+          notReady={notReady}
           data-testid={dataTestId}
         />
       )
@@ -315,3 +323,55 @@ const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
 }
 
 export default PaymentButton
+
+/**
+ * Bitcoin: send the buyer to BTCPay's checkout page for this session's
+ * invoice. Payment is NOT trusted from the return — the order is placed when
+ * the server reads the invoice back as Settled (see /api/btcpay/return).
+ */
+const BtcpayPaymentButton = ({
+  cart,
+  notReady,
+  "data-testid": dataTestId,
+}: {
+  cart: HttpTypes.StoreCart
+  notReady: boolean
+  "data-testid"?: string
+}) => {
+  const [submitting, setSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const session = cart.payment_collection?.payment_sessions?.find(
+    (s) => s.status === "pending" && s.provider_id?.startsWith("pp_bitcoin")
+  )
+  const checkoutLink = (session?.data as Record<string, any> | undefined)?.checkout_link as string | undefined
+
+  const handlePayment = () => {
+    setErrorMessage(null)
+    if (!checkoutLink || !/^https:\/\//.test(checkoutLink)) {
+      setErrorMessage("Bitcoin payment is not ready. Please choose Bitcoin again.")
+      return
+    }
+    setSubmitting(true)
+    window.location.href = checkoutLink
+  }
+
+  return (
+    <>
+      <Button
+        disabled={notReady || !checkoutLink}
+        onClick={handlePayment}
+        size="large"
+        className={CTA_CLASS}
+        isLoading={submitting}
+        data-testid={dataTestId}
+      >
+        Pay with Bitcoin
+      </Button>
+      <ErrorMessage
+        error={errorMessage}
+        data-testid="btcpay-payment-error-message"
+      />
+    </>
+  )
+}

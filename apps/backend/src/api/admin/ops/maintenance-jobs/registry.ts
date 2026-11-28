@@ -124,6 +124,7 @@ import { backfillPartnerAdminPhoneLoginJob } from "./backfill-partner-admin-phon
 import { backfillPartnerHostingProviderJob } from "./backfill-partner-hosting-provider-job"
 import { repointPartnerStorefrontSharedJob } from "./repoint-partner-storefront-shared-job"
 import { enableStripeConnectEurRegionsJob } from "./enable-stripe-connect-eur-regions-job"
+import { enableBtcpayAllRegionsJob } from "./enable-btcpay-all-regions-job"
 import { suppressBouncedSubscribersJob } from "./suppress-bounced-subscribers-job"
 import { backfillAudienceEntriesJob } from "./backfill-audience-entries-job"
 import { importLeadsToCrmJob } from "./import-leads-to-crm-job"
@@ -6640,6 +6641,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillPartnerHostingProviderJob,
   repointPartnerStorefrontSharedJob,
   enableStripeConnectEurRegionsJob,
+  enableBtcpayAllRegionsJob,
   suppressBouncedSubscribersJob,
   backfillAudienceEntriesJob,
   importLeadsToCrmJob,

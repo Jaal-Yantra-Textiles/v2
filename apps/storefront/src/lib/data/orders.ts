@@ -3,6 +3,7 @@
 import { sdk } from "@lib/config"
 import medusaError from "@lib/util/medusa-error"
 import { updateTag } from "next/cache"
+import { redirect } from "next/navigation"
 
 import { getAuthHeaders, getCacheOptions, getCacheTag } from "./cookies"
 import { HttpTypes } from "@medusajs/types"
@@ -58,19 +59,16 @@ export const retrieveOrder = async (id: string) => {
  * Retrieve an order without authentication (for public order pages).
  * Uses the order ID only — no auth header needed for basic order info.
  */
+// The public order page is where buyers come for updates (shipped, tracking,
+// refunds), so it must never serve a cached copy of the order.
 export const retrievePublicOrder = async (id: string) => {
-  const next = {
-    ...(await getCacheOptions("orders")),
-  }
-
   return sdk.client
     .fetch<HttpTypes.StoreOrderResponse>(`/store/orders/${id}`, {
       method: "GET",
       query: {
         fields: ORDER_FIELDS,
       },
-      next,
-      cache: "force-cache",
+      cache: "no-store",
     })
     .then(({ order }) => order)
     .catch(() => null)
@@ -281,4 +279,35 @@ export const cancelOrder = async (
   const tag = await getCacheTag("orders")
   if (tag) updateTag(tag)
   return { ok: true }
+}
+
+/**
+ * "Track your order": order number + the email it was placed with → the
+ * public order page. The backend answers the same "not found" for a wrong
+ * number or a wrong email, and rate-limits tries.
+ */
+type LookupState = { error: string | null; order_number?: string; email?: string }
+
+export async function lookupOrder(_prev: LookupState, formData: FormData): Promise<LookupState> {
+  const order_number = String(formData.get("order_number") || "").trim()
+  const email = String(formData.get("email") || "").trim()
+  const countryCode = String(formData.get("country_code") || "in").toLowerCase()
+  // Echo the inputs back: React resets a form after its action runs.
+  const fail = (error: string): LookupState => ({ error, order_number, email })
+  if (!order_number || !email) return fail("Enter your order number and email.")
+
+  let orderId: string | null = null
+  try {
+    const res = await sdk.client.fetch<{ order_id: string }>(`/store/order-lookup`, {
+      method: "POST",
+      body: { order_number, email },
+      cache: "no-store",
+    })
+    orderId = res?.order_id ?? null
+  } catch (e: any) {
+    const msg = String(e?.message || "")
+    return fail(/too many/i.test(msg) ? msg : "We couldn't find an order with that number and email.")
+  }
+  if (!orderId) return fail("We couldn't find an order with that number and email.")
+  redirect(`/${countryCode}/order/${orderId}`)
 }

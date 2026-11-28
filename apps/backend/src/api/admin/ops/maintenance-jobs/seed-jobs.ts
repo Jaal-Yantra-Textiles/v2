@@ -23,6 +23,7 @@ import { designMaterialsDeliveredEmailTemplates } from "../../../../scripts/seed
 import { orderApprovalEmailTemplates } from "../../../../scripts/seed-order-approval-emails"
 import { customerLoginCodeEmailTemplates } from "../../../../scripts/seed-customer-login-code-email"
 import { designOrderFollowupEmailTemplates } from "../../../../scripts/seed-design-order-followup-emails"
+import { bitcoinEmailTemplates } from "../../../../scripts/seed-bitcoin-email-templates"
 
 /**
  * #457 Data Plumbing — SEED jobs.
@@ -145,6 +146,12 @@ export const EMAIL_TEMPLATE_SETS: Array<{
     key: "design-order-followup",
     label: "design-order follow-up templates",
     specs: designOrderFollowupEmailTemplates as EmailTemplateSpec[],
+  },
+  // Bitcoin checkout: "we've received your payment, confirming" (complete-paid-bitcoin-carts job).
+  {
+    key: "bitcoin",
+    label: "Bitcoin payment templates",
+    specs: bitcoinEmailTemplates as EmailTemplateSpec[],
   },
 ]
 
