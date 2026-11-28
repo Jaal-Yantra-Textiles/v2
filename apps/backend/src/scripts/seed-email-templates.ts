@@ -603,170 +603,89 @@ export const emailTemplatesData = [
     name: "Shipment Delivered",
     template_key: "order-shipment-delivered",
     from: "orders@jaalyantra.com",
-    subject: "Delivered: Order {{order_id}} 📦",
+    subject: "Delivered: order {{#if order_display}}{{order_display}}{{else}}#{{order_id}}{{/if}} 📦",
     html_content: `
-      <!doctype html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-          <style>
-            html, body { margin: 0; padding: 0; }
-            body { width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
-            * { box-sizing: border-box; }
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light only" />
+    <title>Your order has arrived</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#f4f2ee; -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%;">
+    <div style="display:none; max-height:0; overflow:hidden; opacity:0;">Order {{#if order_display}}{{order_display}}{{else}}#{{order_id}}{{/if}} has arrived. We hope you love it.</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f2ee;">
+      <tr>
+        <td align="center" style="padding:32px 16px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px; background-color:#ffffff; border-radius:12px; font-family:-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1c1b19;">
 
-            .font-sans { font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
-            .w-full { width: 100%; }
-            .max-w-2xl { max-width: 672px; }
-            .mx-auto { margin-left: auto; margin-right: auto; }
-
-            .bg-white { background-color: #ffffff; }
-            .bg-slate-50 { background-color: #f8fafc; }
-            .bg-slate-900 { background-color: #0f172a; }
-            .bg-emerald-50 { background-color: #ecfdf5; }
-            .bg-emerald-600 { background-color: #059669; }
-
-            .text-white { color: #ffffff; }
-            .text-slate-900 { color: #0f172a; }
-            .text-slate-700 { color: #334155; }
-            .text-slate-600 { color: #475569; }
-            .text-slate-500 { color: #64748b; }
-            .text-slate-400 { color: #94a3b8; }
-            .text-emerald-200 { color: #a7f3d0; }
-            .text-emerald-100 { color: #d1fae5; }
-            .text-emerald-600 { color: #059669; }
-
-            .text-xs { font-size: 12px; line-height: 16px; }
-            .text-sm { font-size: 14px; line-height: 20px; }
-            .text-lg { font-size: 18px; line-height: 28px; }
-            .text-4xl { font-size: 36px; line-height: 40px; }
-
-            .font-semibold { font-weight: 600; }
-
-            .uppercase { text-transform: uppercase; }
-            .tracking-widest { letter-spacing: 0.1em; }
-
-            .leading-relaxed { line-height: 1.625; }
-
-            .p-4 { padding: 16px; }
-            .p-6 { padding: 24px; }
-            .p-8 { padding: 32px; }
-            .p-10 { padding: 40px; }
-            .py-10 { padding-top: 40px; padding-bottom: 40px; }
-            .mt-2 { margin-top: 8px; }
-            .mt-5 { margin-top: 20px; }
-            .mt-10 { margin-top: 40px; }
-            .mt-12 { margin-top: 48px; }
-            .mb-2 { margin-bottom: 8px; }
-            .mb-3 { margin-bottom: 12px; }
-
-            .rounded-2xl { border-radius: 16px; }
-            .rounded-3xl { border-radius: 24px; }
-            .rounded-full { border-radius: 9999px; }
-
-            .border { border-width: 1px; border-style: solid; }
-            .border-slate-100 { border-color: #f1f5f9; }
-            .border-slate-200 { border-color: #e2e8f0; }
-            .border-emerald-100 { border-color: #d1fae5; }
-
-            .text-center { text-align: center; }
-            .flex { display: flex; }
-            .items-start { align-items: flex-start; }
-            .items-center { align-items: center; }
-            .justify-between { justify-content: space-between; }
-            .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
-          </style>
-        </head>
-        <body class="bg-emerald-50 font-sans" style="margin:0; padding:0;">
-      <div class="bg-emerald-50 py-10">
-        <div class="max-w-2xl mx-auto bg-white rounded-3xl shadow-2xl overflow-hidden font-sans">
-          <div class="bg-emerald-600 p-10 text-white">
-            <p class="uppercase tracking-widest text-emerald-200 text-xs">Delivery confirmation</p>
-            <h1 class="text-4xl font-semibold mt-2">It’s here!</h1>
-            <p class="text-emerald-100 mt-2">Order {{order_id}} • Delivered on {{formatDate order_date}}</p>
-          </div>
-
-          <div class="p-10">
-            <div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-6 flex items-start gap-4">
-              <span class="px-4 py-2 rounded-full text-xs font-semibold text-white {{status_badge_class}}">
-                {{capitalize shipment_status}}
-              </span>
-              <p class="text-slate-700 leading-relaxed">{{status_copy}}</p>
-            </div>
-
-            <div class="mt-10 space-y-4">
-              {{#each items}}
-              <div class="flex items-center justify-between p-4 border border-slate-100 rounded-2xl">
-                <div>
-                  <p class="text-slate-900 font-semibold">{{title}}</p>
-                  <p class="text-xs text-slate-500 mt-1">
-                    {{#if sku}}SKU: {{sku}} • {{/if}}Qty {{quantity}}
-                  </p>
-                </div>
-                <span class="text-emerald-600 text-sm font-semibold">Delivered</span>
-              </div>
-              {{/each}}
-            </div>
-
-            <div class="mt-12 grid gap-6 md:grid-cols-2">
-              <div class="border border-slate-100 rounded-2xl p-6">
-                <p class="text-xs uppercase tracking-[0.35em] text-slate-400 mb-3">Delivered to</p>
-                <p class="text-slate-900 font-semibold">{{shipping_address.first_name}} {{shipping_address.last_name}}</p>
-                <p class="text-slate-600 text-sm leading-relaxed mt-2">
-                  {{shipping_address.address_1}}<br/>
-                  {{#if shipping_address.address_2}}{{shipping_address.address_2}}<br/>{{/if}}
-                  {{shipping_address.city}}, {{shipping_address.postal_code}}<br/>
-                  {{shipping_address.country_code}}
+            <tr>
+              <td style="padding:36px 36px 8px 36px;">
+                <p style="margin:0; font-size:12px; line-height:16px; letter-spacing:0.12em; text-transform:uppercase; color:#2f6b4f; font-weight:600;">Delivered</p>
+                <h1 style="margin:10px 0 0 0; font-size:28px; line-height:34px; font-weight:600; color:#1c1b19;">Your order has arrived</h1>
+                <p style="margin:12px 0 0 0; font-size:15px; line-height:23px; color:#55524c;">
+                  Hi {{customer_name}}, order <strong style="color:#1c1b19;">{{#if order_display}}{{order_display}}{{else}}#{{order_id}}{{/if}}</strong> was delivered{{#if delivered_at}} on {{formatDate delivered_at dateStyle="long"}}{{/if}}. We hope you love it.
                 </p>
-                {{#if shipping_address.phone}}
-                  <p class="text-slate-500 text-sm mt-3">Phone: {{shipping_address.phone}}</p>
-                {{/if}}
-              </div>
+              </td>
+            </tr>
 
-              <div class="border border-slate-100 rounded-2xl p-6 bg-slate-50">
-                <p class="text-xs uppercase tracking-[0.35em] text-slate-400 mb-3">Order recap</p>
-                <p class="text-slate-600 text-sm leading-relaxed">Placed on {{formatDate order_date}}</p>
-                <dl class="mt-5 space-y-2 text-sm text-slate-600">
-                  <div class="flex justify-between">
-                    <dt>Subtotal</dt>
-                    <dd>{{formatMoney order_totals.currency_code order_totals.subtotal}}</dd>
-                  </div>
-                  <div class="flex justify-between">
-                    <dt>Shipping</dt>
-                    <dd>{{formatMoney order_totals.currency_code order_totals.shipping_total}}</dd>
-                  </div>
-                  <div class="flex justify-between">
-                    <dt>Tax</dt>
-                    <dd>{{formatMoney order_totals.currency_code order_totals.tax_total}}</dd>
-                  </div>
-                  <div class="flex justify-between text-base font-semibold text-slate-900 pt-3 border-t border-slate-200">
-                    <dt>Total</dt>
-                    <dd>{{formatMoney order_totals.currency_code order_totals.total}}</dd>
-                  </div>
-                </dl>
-              </div>
-            </div>
+            <tr>
+              <td style="padding:24px 36px 0 36px;">
+                <p style="margin:0 0 8px 0; font-size:12px; line-height:16px; letter-spacing:0.12em; text-transform:uppercase; color:#8a867e; font-weight:600;">In this delivery</p>
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  {{#each items}}
+                  <tr>
+                    <td style="padding:12px 0; border-top:1px solid #ece9e3; font-size:15px; line-height:21px; color:#1c1b19;">{{title}}</td>
+                    <td align="right" style="padding:12px 0 12px 16px; border-top:1px solid #ece9e3; font-size:14px; line-height:21px; color:#8a867e; white-space:nowrap;">&times; {{quantity}}</td>
+                  </tr>
+                  {{/each}}
+                </table>
+              </td>
+            </tr>
 
-            <div class="mt-12 bg-slate-900 rounded-2xl p-8 text-white">
-              <p class="text-lg font-semibold mb-2">How did we do?</p>
-              <p class="text-slate-200 text-sm leading-relaxed">
-                Your feedback helps us craft better experiences. If anything looks off, reply to this email and we’ll make it right.
-              </p>
-            </div>
+            {{#if shipping_address}}
+            <tr>
+              <td style="padding:24px 36px 0 36px;">
+                <p style="margin:0 0 8px 0; font-size:12px; line-height:16px; letter-spacing:0.12em; text-transform:uppercase; color:#8a867e; font-weight:600;">Delivered to</p>
+                <p style="margin:0; font-size:14px; line-height:21px; color:#55524c;">
+                  <span style="color:#1c1b19; font-weight:600;">{{shipping_address.first_name}} {{shipping_address.last_name}}</span><br />
+                  {{shipping_address.address_1}}<br />
+                  {{#if shipping_address.address_2}}{{shipping_address.address_2}}<br />{{/if}}
+                  {{shipping_address.city}} {{shipping_address.postal_code}}{{#if shipping_address.country_code}}, <span style="text-transform:uppercase;">{{shipping_address.country_code}}</span>{{/if}}
+                </p>
+              </td>
+            </tr>
+            {{/if}}
 
-            <p class="mt-10 text-xs text-center text-slate-400">
-              © {{formatYear order_date}} Jaal Yantra Textiles • Crafted with care for you.
-            </p>
-          </div>
-        </div>
-      </div>
-        </body>
-      </html>
+            <tr>
+              <td style="padding:28px 36px 36px 36px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f2ee; border-radius:10px;">
+                  <tr>
+                    <td style="padding:18px 20px; font-size:14px; line-height:21px; color:#55524c;">
+                      <strong style="color:#1c1b19;">Something not right?</strong> Just reply to this email and we will sort it out.
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+          <p style="margin:20px 0 0 0; font-family:-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size:12px; line-height:18px; color:#8a867e;">
+            Jaal Yantra Textiles &middot; Handmade with care
+          </p>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
     `,
     variables: {
       customer_name: "Customer name",
-      order_id: "Order display ID",
-      order_date: "ISO timestamp",
+      order_id: "Order display ID (bare number)",
+      order_display: "Order label ready to print, e.g. #176",
+      delivered_at: "ISO timestamp the parcel was delivered",
+      order_date: "ISO timestamp the order was placed",
       status_copy: "Status description",
       status_badge_class: "Tailwind class for badge background",
       shipment_status: "'shipped' or 'delivered'",

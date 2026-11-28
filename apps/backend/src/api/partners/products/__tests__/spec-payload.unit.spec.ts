@@ -80,7 +80,9 @@ describe("PartnerProductSpecReq", () => {
   })
 
   it("caps the palette and the custom fields", () => {
-    const colors = Array.from({ length: 61 }, (_, i) => ({ name: `c${i}` }))
+    const full = Array.from({ length: 80 }, (_, i) => ({ name: `c${i}` }))
+    expect(PartnerProductSpecReq.safeParse({ colors: full }).success).toBe(true)
+    const colors = Array.from({ length: 81 }, (_, i) => ({ name: `c${i}` }))
     expect(PartnerProductSpecReq.safeParse({ colors }).success).toBe(false)
 
     const fields = Array.from({ length: 41 }, (_, i) => ({ key: `k${i}` }))

@@ -85,7 +85,7 @@ export const productSpecSchemaProps = () => ({
   colors: {
     type: "array",
     description:
-      "The colour palette. REPLACES the stored palette wholesale when passed — omit the key to leave it alone, pass [] to delete every colour. Max 60.",
+      "The colour palette. REPLACES the stored palette wholesale when passed — omit the key to leave it alone, pass [] to delete every colour. Max 80.",
     items: {
       type: "object",
       properties: {

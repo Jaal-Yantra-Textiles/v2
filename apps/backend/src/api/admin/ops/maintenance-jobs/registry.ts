@@ -187,6 +187,7 @@ import { backfillFulfilledRetailRunsJob } from "./backfill-fulfilled-retail-runs
 import { backfillParentRunProducedQuantityJob } from "./backfill-parent-run-produced-quantity-job"
 import { backfillDesignOrderItemLinksJob } from "./backfill-design-order-item-links-job"
 import { redactLoginCodeNotificationsJob } from "./redact-login-code-notifications-job"
+import { sendPostDeliveryFeedbackJob } from "./send-post-delivery-feedback-job"
 import { refreshStaleDraftPayoutsJob } from "./refresh-stale-draft-payouts-job"
 import { settleOverstatedPaymentCollectionsJob } from "./settle-overstated-payment-collections-job"
 import {
@@ -6688,6 +6689,7 @@ export const MAINTENANCE_JOBS: MaintenanceJob[] = [
   backfillParentRunProducedQuantityJob,
   backfillDesignOrderItemLinksJob,
   redactLoginCodeNotificationsJob,
+  sendPostDeliveryFeedbackJob,
   seedInvestorPanelsJob,
   seedPlatformStatsPanelJob,
   seedGoodsTransferTaskTemplateJob,
