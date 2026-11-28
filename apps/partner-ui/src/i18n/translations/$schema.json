@@ -13242,6 +13242,15 @@
             "trackingHistory": {
               "type": "string"
             },
+            "bookingRequested": {
+              "type": "string"
+            },
+            "bookingRequestedOn": {
+              "type": "string"
+            },
+            "bookingPendingNote": {
+              "type": "string"
+            },
             "payments": {
               "type": "string"
             },
@@ -13484,6 +13493,9 @@
             "pickupNotBooked",
             "labelUnavailable",
             "trackingHistory",
+            "bookingRequested",
+            "bookingRequestedOn",
+            "bookingPendingNote",
             "payments",
             "noPayments",
             "delivered",

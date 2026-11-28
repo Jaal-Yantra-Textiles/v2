@@ -303,6 +303,55 @@ export type PartnerCreateShipmentPayload = {
   pickup_date?: string
   /** "HH:mm" — Delhivery will not book a pickup without one (server default 14:00). */
   pickup_time?: string
+  /** Free-text notes for a manually booked carrier (India Post). Max 500. */
+  notes?: string
+}
+
+/**
+ * A carrier the partner may ship this order with. `booking: "manual"` means
+ * nothing is booked by the API — our team books it (India Post) and the AWB
+ * and label land on the shipment row later.
+ */
+export type PartnerShipmentCarrier = {
+  id: string
+  label: string
+  booking: "api" | "manual"
+  rates: boolean
+  pickup: boolean
+}
+
+export type PartnerShipmentCarriersResponse = {
+  carriers: PartnerShipmentCarrier[]
+}
+
+export const usePartnerInventoryOrderShipmentCarriers = (
+  orderId: string,
+  options?: Omit<
+    UseQueryOptions<
+      PartnerShipmentCarriersResponse,
+      FetchError,
+      PartnerShipmentCarriersResponse,
+      QueryKey
+    >,
+    "queryFn" | "queryKey"
+  >
+) => {
+  const { data, ...rest } = useQuery({
+    queryKey: [...partnerInventoryOrdersQueryKeys.detail(orderId), "shipment-carriers"],
+    queryFn: async () => {
+      return await sdk.client.fetch<PartnerShipmentCarriersResponse>(
+        `/partners/inventory-orders/${orderId}/shipment-carriers`,
+        { method: "GET" }
+      )
+    },
+    enabled: !!orderId,
+    ...options,
+  })
+
+  return {
+    carriers: data?.carriers,
+    ...rest,
+  }
 }
 
 /**

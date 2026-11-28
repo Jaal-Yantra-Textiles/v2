@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Button, DatePicker, Heading, Input, Label, Select, Text, toast } from "@medusajs/ui"
+import { Button, DatePicker, Heading, Input, Label, Select, Text, Textarea, toast } from "@medusajs/ui"
 
 import { useQueryClient } from "@tanstack/react-query"
 
@@ -7,7 +7,9 @@ import { RouteDrawer, useRouteModal } from "../../../components/modals"
 import { ordersQueryKeys } from "../../../hooks/api/orders"
 import {
   useCreatePartnerInventoryOrderShipment,
+  usePartnerInventoryOrderShipmentCarriers,
   usePartnerInventoryOrderShiprocketRates,
+  type PartnerShipmentCarrier,
   type PartnerShiprocketRateOption,
 } from "../../../hooks/api/partner-inventory-orders"
 import { useInventoryActionTarget } from "../../../hooks/use-inventory-action-target"
@@ -17,6 +19,17 @@ const toYMD = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`
+
+/**
+ * Used while the carrier list loads, or if it fails — the two carriers this
+ * screen offered before the list came from the server.
+ */
+const FALLBACK_CARRIERS: PartnerShipmentCarrier[] = [
+  { id: "shiprocket", label: "Shiprocket", booking: "api", rates: true, pickup: true },
+  { id: "delhivery", label: "Delhivery", booking: "api", rates: false, pickup: true },
+]
+
+const NOTES_MAX = 500
 
 export const InventoryOrderCreateShipment = () => {
   return (
@@ -47,6 +60,21 @@ const InventoryOrderCreateShipmentContent = () => {
   const [pickupDate, setPickupDate] = useState("")
   const [pickupTime, setPickupTime] = useState("14:00")
   const [rates, setRates] = useState<PartnerShiprocketRateOption[] | null>(null)
+  const [notes, setNotes] = useState("")
+
+  const { carriers: serverCarriers } = usePartnerInventoryOrderShipmentCarriers(id || "")
+  const carriers =
+    serverCarriers && serverCarriers.length > 0 ? serverCarriers : FALLBACK_CARRIERS
+  const selected: PartnerShipmentCarrier =
+    carriers.find((c) => c.id === carrier) ||
+    FALLBACK_CARRIERS.find((c) => c.id === carrier) || {
+      id: carrier,
+      label: carrier,
+      booking: "api",
+      rates: false,
+      pickup: false,
+    }
+  const isManual = selected.booking === "manual"
 
   const { mutateAsync, isPending } =
     useCreatePartnerInventoryOrderShipment(id || "")
@@ -84,9 +112,44 @@ const InventoryOrderCreateShipmentContent = () => {
     }
   }
 
+  const invalidateOrder = () => {
+    if (unifiedOrderId) {
+      queryClient.invalidateQueries({
+        queryKey: ordersQueryKeys.detail(unifiedOrderId),
+      })
+    }
+  }
+
+  const handleRequestBooking = async () => {
+    if (!id) return
+    const trimmed = notes.trim()
+    await mutateAsync(
+      {
+        carrier,
+        ...(weight ? { weight_grams: Number(weight) } : {}),
+        ...(dims() ? { dimensions_cm: dims() } : {}),
+        ...(trimmed ? { notes: trimmed.slice(0, NOTES_MAX) } : {}),
+      },
+      {
+        onSuccess: () => {
+          // Nothing is booked yet, so there is no label to open.
+          toast.success("Booking requested — we'll add the AWB here")
+          invalidateOrder()
+          handleSuccess()
+        },
+        onError: (e) => {
+          toast.error(e.message)
+        },
+      }
+    )
+  }
+
   const handleConfirm = async () => {
     if (!id) {
       return
+    }
+    if (isManual) {
+      return handleRequestBooking()
     }
 
     await mutateAsync(
@@ -94,8 +157,10 @@ const InventoryOrderCreateShipmentContent = () => {
         carrier,
         ...(weight ? { weight_grams: Number(weight) } : {}),
         ...(dims() ? { dimensions_cm: dims() } : {}),
-        ...(courier ? { preferred_courier_id: courier } : {}),
-        ...(pickupDate ? { pickup_date: pickupDate, pickup_time: pickupTime || "14:00" } : {}),
+        ...(courier && selected.rates ? { preferred_courier_id: courier } : {}),
+        ...(pickupDate && selected.pickup
+          ? { pickup_date: pickupDate, pickup_time: pickupTime || "14:00" }
+          : {}),
       },
       {
         onSuccess: (data) => {
@@ -109,11 +174,7 @@ const InventoryOrderCreateShipmentContent = () => {
             toast.warning(`Pickup not booked: ${sh.pickup_error}. Book it from the shipment below.`)
           }
           if (sh.label_url) window.open(sh.label_url, "_blank", "noopener")
-          if (unifiedOrderId) {
-            queryClient.invalidateQueries({
-              queryKey: ordersQueryKeys.detail(unifiedOrderId),
-            })
-          }
+          invalidateOrder()
           handleSuccess()
         },
         onError: (e) => {
@@ -135,16 +196,36 @@ const InventoryOrderCreateShipmentContent = () => {
           <Label size="small" htmlFor="carrier">
             Carrier
           </Label>
-          <Select value={carrier} onValueChange={(v) => { setCarrier(v); setRates(null); setCourier(""); }}>
+          <Select
+            value={carrier}
+            onValueChange={(v) => {
+              setCarrier(v)
+              setRates(null)
+              setCourier("")
+              setPickupDate("")
+            }}
+          >
             <Select.Trigger id="carrier">
               <Select.Value placeholder="Select carrier" />
             </Select.Trigger>
             <Select.Content>
-              <Select.Item value="shiprocket">Shiprocket</Select.Item>
-              <Select.Item value="delhivery">Delhivery</Select.Item>
+              {carriers.map((c) => (
+                <Select.Item key={c.id} value={c.id}>
+                  {c.label}
+                </Select.Item>
+              ))}
             </Select.Content>
           </Select>
         </div>
+        {isManual && (
+          <div className="rounded-md border border-ui-border-base bg-ui-bg-subtle px-3 py-2">
+            <Text size="small" className="text-ui-fg-subtle">
+              {selected.label} is booked by our team. Send the details and
+              we'll book it; the AWB and label will appear on this order,
+              usually within a day.
+            </Text>
+          </div>
+        )}
         <div className="flex flex-col gap-y-1">
           <Label size="small" htmlFor="weight">
             Weight (grams)
@@ -192,7 +273,7 @@ const InventoryOrderCreateShipmentContent = () => {
             />
           </div>
         </div>
-        {carrier === "shiprocket" && (
+        {selected.rates && (
           <div className="flex flex-col gap-y-1">
             <div className="flex items-center justify-between">
               <Label size="small" htmlFor="courier">
@@ -235,20 +316,22 @@ const InventoryOrderCreateShipmentContent = () => {
             )}
           </div>
         )}
-        <div className="flex flex-col gap-y-1">
-          <Label size="small" htmlFor="pickup_date">
-            Pickup date
-          </Label>
-          <DatePicker
-            id="pickup_date"
-            value={pickupDate ? new Date(`${pickupDate}T00:00:00`) : null}
-            onChange={(d) => setPickupDate(d ? toYMD(d) : "")}
-          />
-          <Text size="xsmall" className="text-ui-fg-subtle">
-            Optional — leave blank to book the pickup later from the shipment.
-          </Text>
-        </div>
-        {pickupDate && (
+        {selected.pickup && (
+          <div className="flex flex-col gap-y-1">
+            <Label size="small" htmlFor="pickup_date">
+              Pickup date
+            </Label>
+            <DatePicker
+              id="pickup_date"
+              value={pickupDate ? new Date(`${pickupDate}T00:00:00`) : null}
+              onChange={(d) => setPickupDate(d ? toYMD(d) : "")}
+            />
+            <Text size="xsmall" className="text-ui-fg-subtle">
+              Optional — leave blank to book the pickup later from the shipment.
+            </Text>
+          </div>
+        )}
+        {selected.pickup && pickupDate && (
           <div className="flex flex-col gap-y-1">
             <Label size="small" htmlFor="pickup_time">
               Pickup time
@@ -262,6 +345,20 @@ const InventoryOrderCreateShipmentContent = () => {
             <Text size="xsmall" className="text-ui-fg-subtle">
               When the courier should come. Delhivery needs a time.
             </Text>
+          </div>
+        )}
+        {isManual && (
+          <div className="flex flex-col gap-y-1">
+            <Label size="small" htmlFor="notes">
+              Notes
+            </Label>
+            <Textarea
+              id="notes"
+              value={notes}
+              maxLength={NOTES_MAX}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Optional — anything our team should know (parcel contents, timing…)"
+            />
           </div>
         )}
         {!id && (
@@ -283,7 +380,7 @@ const InventoryOrderCreateShipmentContent = () => {
             onClick={handleConfirm}
             disabled={!id}
           >
-            Create shipment
+            {isManual ? "Request booking" : "Create shipment"}
           </Button>
         </div>
       </RouteDrawer.Footer>
