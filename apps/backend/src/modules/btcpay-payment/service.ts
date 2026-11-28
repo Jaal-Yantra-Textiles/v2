@@ -25,6 +25,7 @@ import {
   type BtcpayConfig,
   createInvoice,
   getInvoice,
+  invalidateInvoice,
   refundInvoice,
 } from "./lib/btcpay-client"
 import { btcpaySignatureValid, invoiceVerdict, storeWebhookSecret, toBtcpayAmount } from "./lib/verdict"
@@ -145,6 +146,7 @@ class BtcpayPaymentProviderService extends AbstractPaymentProvider<BtcpayOptions
     const sameCurrency = String(data.currency || "") === String(currency_code || "").toUpperCase()
     if (data.invoice_id && sameAmount && sameCurrency) return { data }
     const next = await this.newInvoice(amount, currency_code, data, context, data.btcpay_store_id as string)
+    await this.retireInvoice(data, "cart total changed")
     return { data: { ...data, ...next } }
   }
 
@@ -205,11 +207,43 @@ class BtcpayPaymentProviderService extends AbstractPaymentProvider<BtcpayOptions
   }
 
   async cancelPayment(input: CancelPaymentInput): Promise<CancelPaymentOutput> {
+    await this.retireInvoice(input.data, "payment canceled")
     return { data: { ...input.data, status: "canceled" } }
   }
 
+  /**
+   * Medusa deletes a session whenever the buyer re-picks a payment method or
+   * the checkout re-initiates. Its invoice must not stay payable: money sent
+   * to it would land with no session to place an order from.
+   */
   async deletePayment(input: DeletePaymentInput): Promise<DeletePaymentOutput> {
+    await this.retireInvoice(input.data, "checkout session replaced")
     return { data: { ...input.data, status: "deleted" } }
+  }
+
+  /**
+   * Invalidate an invoice ONLY while nothing has been paid into it (status New,
+   * no additional status). Anything else (Processing, Settled, PaidPartial…)
+   * means money is moving and a human must look, so it is left alone.
+   * Never throws: failing to retire must not block the buyer's checkout.
+   */
+  private async retireInvoice(data: Record<string, unknown> | undefined, why: string): Promise<void> {
+    const invoiceId = String(data?.invoice_id || "")
+    if (!invoiceId) return
+    const store = String(data?.btcpay_store_id || "") || this.options_.store_id
+    try {
+      const inv = await getInvoice(this.cfg(), store, invoiceId)
+      if (inv.status !== "New" || (inv.additionalStatus || "None") !== "None") {
+        if (inv.status !== "Invalid" && inv.status !== "Expired") {
+          this.logger_.warn(`[BTCPay] kept invoice ${invoiceId} (${inv.status}/${inv.additionalStatus}) — ${why}; it has payment activity`)
+        }
+        return
+      }
+      await invalidateInvoice(this.cfg(), store, invoiceId)
+      this.logger_.info(`[BTCPay] retired invoice ${invoiceId} — ${why}`)
+    } catch (e: any) {
+      this.logger_.warn(`[BTCPay] could not retire invoice ${invoiceId} (${why}): ${e.message}`)
+    }
   }
 
   async retrievePayment(input: RetrievePaymentInput): Promise<RetrievePaymentOutput> {

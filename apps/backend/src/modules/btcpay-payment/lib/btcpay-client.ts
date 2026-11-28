@@ -12,6 +12,7 @@
  *   btcpay.store.cancreateinvoice           POST   …/invoices
  *   btcpay.store.canviewinvoices            GET    …/invoices/{id}
  *   btcpay.store.cancreatepullpayments      POST   …/invoices/{id}/refund
+ *   btcpay.store.canmodifyinvoices          POST   …/invoices/{id}/status (retire a replaced invoice)
  *   btcpay.store.webhooks.canmodifywebhooks GET/POST …/webhooks
  * Nothing here moves money: a refund only creates a pull payment the buyer
  * claims with their own address.
@@ -92,6 +93,14 @@ export function createInvoice(cfg: BtcpayConfig, storeId: string, input: CreateI
 
 export function getInvoice(cfg: BtcpayConfig, storeId: string, invoiceId: string): Promise<BtcpayInvoice> {
   return callInvoice<BtcpayInvoice>(cfg, "GET", storeId, encodeURIComponent(invoiceId))
+}
+
+/**
+ * Mark an invoice Invalid so it can no longer be paid. Used only on an invoice
+ * nothing was paid into (see the provider's `retireInvoice`).
+ */
+export function invalidateInvoice(cfg: BtcpayConfig, storeId: string, invoiceId: string): Promise<BtcpayInvoice> {
+  return callInvoice<BtcpayInvoice>(cfg, "POST", storeId, `${encodeURIComponent(invoiceId)}/status`, { status: "Invalid" })
 }
 
 export type BtcpayPullPayment = { id: string; viewLink?: string }

@@ -87,6 +87,7 @@ describe("BtcpayPaymentProviderService against a faked BTCPay", () => {
       const json = (d: any) => new Response(JSON.stringify(d), { status: 200 })
       if (method === "POST" && /\/invoices$/.test(u)) return json(inv({ status: "New", metadata: JSON.parse(init.body).metadata }))
       if (method === "GET" && /\/invoices\/INV1$/.test(u)) return json(invoice)
+      if (method === "POST" && /\/invoices\/INV1\/status$/.test(u)) return json({ ...invoice, status: "Invalid" })
       return new Response("nope", { status: 404 })
     }) as any
   })
@@ -136,6 +137,35 @@ describe("BtcpayPaymentProviderService against a faked BTCPay", () => {
     global.fetch = (async () => new Response("down", { status: 503 })) as any
     const r = await make().authorizePayment({ data: sessionData } as any)
     expect(r.status).toBe("pending")
+  })
+
+  it("deleting a session retires its still-unpaid invoice (no orphan payable invoice)", async () => {
+    invoice = inv({ status: "New" })
+    await make().deletePayment({ data: sessionData } as any)
+    const retire = calls.find((c) => c.method === "POST" && c.url.endsWith("/invoices/INV1/status"))
+    expect(retire?.body).toEqual({ status: "Invalid" })
+  })
+
+  it("an invoice with payment activity is NEVER retired", async () => {
+    for (const over of [{ status: "Processing" }, { status: "Settled" }, { status: "New", additionalStatus: "PaidPartial" }]) {
+      calls = []
+      invoice = inv(over)
+      await make().deletePayment({ data: sessionData } as any)
+      expect(calls.some((c) => c.method === "POST")).toBe(false)
+    }
+  })
+
+  it("a total change makes a new invoice and retires the old one", async () => {
+    invoice = inv({ status: "New" })
+    const r = await make().updatePayment({ data: sessionData, amount: 2000, currency_code: "inr", context: {} } as any)
+    expect(calls.some((c) => c.method === "POST" && /\/invoices$/.test(c.url))).toBe(true)
+    expect(calls.some((c) => c.url.endsWith("/invoices/INV1/status"))).toBe(true)
+    expect((r.data as any).amount).toBe("2000.00")
+  })
+
+  it("BTCPay down while retiring never blocks the checkout", async () => {
+    global.fetch = (async () => new Response("down", { status: 503 })) as any
+    await expect(make().deletePayment({ data: sessionData } as any)).resolves.toBeTruthy()
   })
 
   it("webhook: signed InvoiceSettled → captured for the session in the INVOICE's metadata", async () => {

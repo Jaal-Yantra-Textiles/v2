@@ -20,11 +20,12 @@ export default async function BitcoinPendingPage(props: Props) {
         <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-amber-50 text-3xl font-semibold text-amber-600" aria-hidden>
           ₿
         </div>
-        <h1 className="mb-3 text-2xl font-semibold text-ui-fg-base">Payment received, waiting for confirmation</h1>
+        <h1 className="mb-3 text-2xl font-semibold text-ui-fg-base">Waiting for your Bitcoin payment</h1>
         <p className="mb-6 text-ui-fg-subtle">
-          Bitcoin payments are final once the network confirms them, which usually takes 10 to 60 minutes.
-          Your order is placed automatically at that point. You can keep this page open or close it; we will
-          email your order confirmation either way.
+          If you have paid, the Bitcoin network needs to confirm it, which usually takes 10 to 60 minutes.
+          Your order is placed automatically once it does. You can keep this page open or close it; we will
+          email your order confirmation either way. If you have not paid yet, go back to checkout to get the
+          payment page again.
         </p>
         {cartId ? <BitcoinPendingPoller cartId={cartId} /> : null}
       </div>
