@@ -148,7 +148,8 @@ export const PartnerProductSpecReq = z
       .max(3650)
       .nullable()
       .optional(),
-    colors: z.array(PartnerProductSpecColorReq).max(60).optional(),
+    // 80: a natural-dye maker's swatch card runs ~70 numbered shades (GOF).
+    colors: z.array(PartnerProductSpecColorReq).max(80).optional(),
     fields: z.array(PartnerProductSpecFieldReq).max(40).optional(),
     // Replaces wholesale when present, exactly like colors/fields.
     options: z.array(PartnerProductSpecOptionReq).max(12).optional(),
