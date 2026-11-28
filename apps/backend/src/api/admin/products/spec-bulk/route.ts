@@ -1,6 +1,7 @@
 import { AuthenticatedMedusaRequest, MedusaResponse } from "@medusajs/framework/http"
 
 import { bulkUpsertProductSpecs } from "../../../../workflows/products/bulk-upsert-product-specs"
+import { revalidateProductStorefronts } from "../../../../workflows/products/lib/revalidate-product-storefronts"
 import type { BulkProductSpecReqType } from "./validators"
 
 /**
@@ -26,6 +27,14 @@ export const POST = async (
   const body = (req as any).validatedBody as BulkProductSpecReqType
 
   const result = await bulkUpsertProductSpecs(req.scope, body)
+
+  // Refresh the storefront(s) for every row that actually saved.
+  if (!result.dry_run) {
+    void revalidateProductStorefronts(
+      req.scope,
+      result.results.filter((r) => r.ok && r.action !== "skipped").map((r) => r.product_id)
+    )
+  }
 
   res.status(200).json(result)
 }
