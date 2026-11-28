@@ -3,6 +3,7 @@ import { assertProductOwnership } from "../../lib/assert-product-ownership"
 import { upsertProductSpecWorkflow } from "../../../../../workflows/products/upsert-product-spec"
 import { PRODUCT_SPEC_MODULE } from "../../../../../modules/product-spec"
 import type { PartnerProductSpecReqType } from "../../validators"
+import { revalidateProductStorefronts } from "../../../../../workflows/products/lib/revalidate-product-storefronts"
 
 /**
  * Read the production spec for one of the partner's own products (#1342).
@@ -44,6 +45,10 @@ export const POST = async (
   const { result } = await upsertProductSpecWorkflow(req.scope).run({
     input: { product_id: productId, data: req.validatedBody },
   })
+
+  // Show the new spec on the storefront now, not at the next cache expiry.
+  // Never blocks or fails the save.
+  void revalidateProductStorefronts(req.scope, [productId])
 
   return res.json({ spec: result })
 }

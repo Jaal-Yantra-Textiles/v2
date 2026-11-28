@@ -3,6 +3,7 @@ import { ContainerRegistrationKeys, MedusaError } from "@medusajs/framework/util
 import { upsertProductSpecWorkflow } from "../../../../../workflows/products/upsert-product-spec"
 import { PRODUCT_SPEC_MODULE } from "../../../../../modules/product-spec"
 import type { PartnerProductSpecReqType } from "../../../../partners/products/validators"
+import { revalidateProductStorefronts } from "../../../../../workflows/products/lib/revalidate-product-storefronts"
 
 /**
  * The admin mirror of the partner production-spec routes (#1342 / #1346).
@@ -64,6 +65,10 @@ export const POST = async (
   const { result } = await upsertProductSpecWorkflow(req.scope).run({
     input: { product_id: productId, data: req.validatedBody },
   })
+
+  // Show the new spec on the storefront now, not at the next cache expiry.
+  // Never blocks or fails the save.
+  void revalidateProductStorefronts(req.scope, [productId])
 
   return res.json({ spec: result })
 }
