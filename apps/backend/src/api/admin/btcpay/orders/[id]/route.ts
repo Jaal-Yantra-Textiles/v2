@@ -41,7 +41,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
 
   const payments = (order.payment_collections || [])
     .flatMap((pc: any) => pc?.payments || [])
-    .filter((p: any) => String(p?.provider_id || "").startsWith("pp_btcpay"))
+    .filter((p: any) => String(p?.provider_id || "").startsWith("pp_bitcoin"))
 
   if (!payments.length) return res.json({ btcpay: false, payments: [] })
   const configured = !!(server_url && api_key && ourStore)

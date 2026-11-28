@@ -1,10 +1,10 @@
 import { ContainerRegistrationKeys } from "@medusajs/framework/utils"
 
-export const BTCPAY_CONFIG_PROVIDER_ID = "pp_btcpay_btcpay"
+export const BTCPAY_CONFIG_PROVIDER_ID = "pp_bitcoin_btc"
 
 /**
  * A partner storefront's BTCPay store id, from its active
- * partner_payment_config row (`provider_id = pp_btcpay_btcpay`,
+ * partner_payment_config row (`provider_id = pp_bitcoin_btc`,
  * `credentials.store_id`). The store id is NOT a secret: one API key on our
  * BTCPay account covers every store, and webhook secrets are derived.
  *

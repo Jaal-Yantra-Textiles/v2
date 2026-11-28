@@ -5,7 +5,7 @@ import { computeRegionLinkChanges, type RegionRow } from "./enable-stripe-connec
 import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./registry"
 
 /**
- * Bitcoin (BTCPay) — make `pp_btcpay_btcpay` selectable at checkout in EVERY
+ * Bitcoin (BTCPay) — make `pp_bitcoin_btc` selectable at checkout in EVERY
  * region: the main store's and every partner storefront's (all currencies;
  * BTCPay converts the cart currency at the store's rate source).
  *
@@ -16,7 +16,7 @@ import type { MaintenanceChange, MaintenanceJob, MaintenanceJobResult } from "./
  * Dry-run lists the regions it would link and whether the provider is loaded
  * (it only loads when all four BTCPAY_* env vars are set). Idempotent.
  */
-export const BTCPAY_PROVIDER_ID = "pp_btcpay_btcpay"
+export const BTCPAY_PROVIDER_ID = "pp_bitcoin_btc"
 
 const paramsSchema = z.object({
   region_id: z.string().min(1).optional(),

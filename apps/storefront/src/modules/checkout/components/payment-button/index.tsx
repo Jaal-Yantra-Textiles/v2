@@ -342,7 +342,7 @@ const BtcpayPaymentButton = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const session = cart.payment_collection?.payment_sessions?.find(
-    (s) => s.status === "pending" && s.provider_id?.startsWith("pp_btcpay")
+    (s) => s.status === "pending" && s.provider_id?.startsWith("pp_bitcoin")
   )
   const checkoutLink = (session?.data as Record<string, any> | undefined)?.checkout_link as string | undefined
 

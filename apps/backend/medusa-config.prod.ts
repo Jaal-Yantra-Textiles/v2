@@ -408,7 +408,7 @@ module.exports = defineConfig({
                 },
               ]
             : []),
-         // Bitcoin via BTCPay Server — pp_btcpay_btcpay. All four vars or nothing.
+         // Bitcoin via BTCPay Server — pp_bitcoin_btc. All four vars or nothing.
          ...(process.env.BTCPAY_SERVER_URL &&
          process.env.BTCPAY_SERVER_KEY &&
          process.env.BTCPAY_SERVER_ID &&
@@ -416,7 +416,7 @@ module.exports = defineConfig({
            ? [
                {
                  resolve: "./src/modules/btcpay-payment",
-                 id: "btcpay",
+                 id: "btc",
                  options: {
                    server_url: process.env.BTCPAY_SERVER_URL,
                    api_key: process.env.BTCPAY_SERVER_KEY,

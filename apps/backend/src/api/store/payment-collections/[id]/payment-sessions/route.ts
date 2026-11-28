@@ -73,7 +73,7 @@ export const POST = async (req: MedusaRequest, res: MedusaResponse) => {
     if (Object.keys(ctx).length) {
       context = ctx
     }
-  } else if (pid.includes("btcpay")) {
+  } else if (pid.includes("pp_bitcoin")) {
     // Bitcoin: route a partner storefront's invoice to the partner's BTCPay
     // store (their wallet). None configured → our store.
     const salesChannelId = await resolveSalesChannelForCollection(

@@ -46,7 +46,7 @@ export type BtcpayOptions = {
 type Deps = { logger: Logger }
 
 /**
- * Bitcoin via BTCPay Server (#BTC). Provider id `pp_btcpay_btcpay`.
+ * Bitcoin via BTCPay Server (#BTC). Provider id `pp_bitcoin_btc`.
  *
  * Flow: initiate → a BTCPay invoice in the CART's currency (BTCPay converts at
  * the store's rate source) → the buyer pays on BTCPay's checkout page →
@@ -61,7 +61,7 @@ type Deps = { logger: Logger }
  * store on our account, and webhook secrets are derived per store.
  */
 class BtcpayPaymentProviderService extends AbstractPaymentProvider<BtcpayOptions> {
-  static identifier = "btcpay"
+  static identifier = "bitcoin"
 
   protected logger_: Logger
   protected options_: BtcpayOptions
@@ -284,7 +284,7 @@ class BtcpayPaymentProviderService extends AbstractPaymentProvider<BtcpayOptions
   }
 
   /**
-   * BTCPay → /hooks/payment/btcpay_btcpay. A valid signature only proves the
+   * BTCPay → /hooks/payment/bitcoin_btc. A valid signature only proves the
    * call came from BTCPay; whether the checkout is PAID is decided by
    * authorizePayment re-fetching the invoice, which Medusa runs next.
    */

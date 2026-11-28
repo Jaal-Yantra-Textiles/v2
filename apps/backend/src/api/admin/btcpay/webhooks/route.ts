@@ -9,7 +9,7 @@ import { BTCPAY_CONFIG_PROVIDER_ID } from "../../../../modules/btcpay-payment/li
  * POST /admin/btcpay/webhooks — create the missing ones, each with its
  *      DERIVED secret (no secret is stored; the provider re-derives it).
  *
- * Webhook URL: {MEDUSA_BACKEND_URL}/hooks/payment/btcpay_btcpay (Medusa core).
+ * Webhook URL: {MEDUSA_BACKEND_URL}/hooks/payment/bitcoin_btc (Medusa core).
  * Needs btcpay.store.webhooks.canmodifywebhooks on the key.
  */
 const env = () => {
@@ -19,7 +19,7 @@ const env = () => {
   const secret = process.env.BTCPAY_WEBHOOK_SECRET
   const backend = (process.env.MEDUSA_BACKEND_URL || "").replace(/\/+$/, "")
   if (!server_url || !api_key || !store_id || !secret || !backend) return null
-  return { cfg: { server_url, api_key }, store_id, secret, url: `${backend}/hooks/payment/btcpay_btcpay` }
+  return { cfg: { server_url, api_key }, store_id, secret, url: `${backend}/hooks/payment/bitcoin_btc` }
 }
 
 async function storesToWire(req: MedusaRequest, ourStore: string) {

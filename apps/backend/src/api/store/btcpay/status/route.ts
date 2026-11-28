@@ -34,7 +34,7 @@ export const GET = async (req: MedusaRequest, res: MedusaResponse) => {
   if (cart.completed_at) return res.json({ state: "paid" })
 
   const session = (cart.payment_collection?.payment_sessions || []).find((s: any) =>
-    String(s?.provider_id || "").startsWith("pp_btcpay")
+    String(s?.provider_id || "").startsWith("pp_bitcoin")
   )
   const data = (session?.data || {}) as Record<string, any>
   if (!session || !data.invoice_id) return res.json({ state: "none" })

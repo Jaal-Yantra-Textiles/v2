@@ -50,7 +50,7 @@ export const paymentInfoMap: Record<
   },
   // Bitcoin via BTCPay Server. The buyer pays on BTCPay's page; the order is
   // placed once the payment confirms on-chain (10–60 min).
-  pp_btcpay_btcpay: {
+  pp_bitcoin_btc: {
     title: "Bitcoin",
     icon: (
       <span aria-hidden className="inline-flex h-5 w-5 items-center justify-center font-semibold">
@@ -82,7 +82,7 @@ export const isPayU = (providerId?: string) => {
   return providerId?.startsWith("pp_payu")
 }
 export const isBtcpay = (providerId?: string) => {
-  return providerId?.startsWith("pp_btcpay")
+  return providerId?.startsWith("pp_bitcoin")
 }
 
 /** Where BTCPay sends the buyer after paying (must be https in prod). */
