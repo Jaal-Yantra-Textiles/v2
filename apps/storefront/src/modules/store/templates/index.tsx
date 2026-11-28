@@ -1,6 +1,7 @@
 import { Suspense } from "react"
 import SkeletonProductGrid from "@modules/skeletons/templates/skeleton-product-grid"
 import RefinementList from "@modules/store/components/refinement-list"
+import MobileFilterTrigger from "@modules/store/components/refinement-list/mobile-filter-trigger"
 import { SortOptions } from "@modules/store/components/refinement-list/sort-products"
 import StoreAiSearch from "@modules/store/components/ai-search"
 import PaginatedProducts from "./paginated-products"
@@ -45,7 +46,12 @@ const StoreTemplate = async ({
       className="flex flex-col small:flex-row small:items-start py-6 content-container"
       data-testid="category-container"
     >
-      <RefinementList sortBy={sort} collections={collections} tags={tags} />
+      <RefinementList
+        sortBy={sort}
+        collections={collections}
+        tags={tags}
+        hideMobileTrigger
+      />
       <div className="flex-1 w-full relative">
         <div className="mb-6 text-2xl-semi">
           <h1 data-testid="store-page-title">All products</h1>
@@ -53,7 +59,7 @@ const StoreTemplate = async ({
         {/* Floating AI search — a sticky pill centred over the catalogue.
             It stays centred while the customer scrolls and the results
             panel drops beneath it (see ai-search/index.tsx). */}
-        <StoreAiSearch />
+        <StoreAiSearch filterTrigger={<MobileFilterTrigger />} />
         <Suspense fallback={<SkeletonProductGrid />}>
           <PaginatedProducts
             sortBy={sort}

@@ -2,7 +2,7 @@
 
 import LocalizedClientLink from "@modules/common/components/localized-client-link"
 import { searchAiProducts, type AiSearchProduct } from "@lib/data/ai-search"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useRef, useState, type ReactNode } from "react"
 
 /**
  * Inline AI search for the /store route.
@@ -35,7 +35,15 @@ type State =
     }
   | { kind: "error"; query: string }
 
-export default function StoreAiSearch() {
+export default function StoreAiSearch({
+  filterTrigger,
+}: {
+  /**
+   * Optional node rendered inside the pill, before the submit button —
+   * /store passes the icon-only mobile filters trigger here.
+   */
+  filterTrigger?: ReactNode
+} = {}) {
   const [input, setInput] = useState("")
   const [state, setState] = useState<State>({ kind: "idle" })
   // Token check so a stale response can't overwrite a fresher one when
@@ -111,6 +119,13 @@ export default function StoreAiSearch() {
             ✕
           </button>
         )}
+        {filterTrigger && (
+          <span
+            aria-hidden
+            className="h-6 w-px shrink-0 bg-neutral-200 small:hidden"
+          />
+        )}
+        {filterTrigger}
         <button
           type="submit"
           disabled={
