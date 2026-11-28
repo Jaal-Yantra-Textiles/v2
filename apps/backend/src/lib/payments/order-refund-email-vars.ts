@@ -43,6 +43,12 @@ export type RefundEmailVars = {
   net_paid: string | null
   /** How the money came in, in buyer words ("UPI via PayU"). */
   payment_method: string | null
+  /**
+   * Bitcoin only: the BTCPay claim link. A Bitcoin refund sends nothing until
+   * the buyer opens it and gives an address, so the email must say "claim",
+   * not "we've sent". Null for every other payment method.
+   */
+  bitcoin_claim_link: string | null
   /** Still owed on a deposit order. Null when nothing is owed. */
   balance_due: string | null
   /** "when your order ships" … — set only with balance_due. */
@@ -156,6 +162,7 @@ export function buildRefundEmailVars(input: {
   note?: string | null
   partner_name?: string | null
   business_url?: string
+  bitcoin_claim_link?: string | null
   now?: Date
 }): RefundEmailVars {
   const { order } = input
@@ -180,6 +187,7 @@ export function buildRefundEmailVars(input: {
     refunded_total: refunded > 0 ? money(refunded) : null,
     net_paid: captured > 0 ? money(Math.max(netPaid, 0)) : null,
     payment_method: paymentMethodWords(firstPayment),
+    bitcoin_claim_link: /^https:\/\//i.test(String(input.bitcoin_claim_link || "")) ? String(input.bitcoin_claim_link) : null,
     balance_due: balance.amount !== null ? money(balance.amount) : null,
     balance_when: balance.when,
     balance_due_now: balance.due_now,
@@ -216,4 +224,22 @@ export const stampRefundEmail = (
   if (wasRefundEmailed(base, stamp.refund_id)) return base
   base[REFUND_EMAILS_METADATA_KEY] = [...refundEmailStamps(base), stamp]
   return base
+}
+
+/**
+ * The BTCPay claim link for a Bitcoin refund of `amount`: the newest entry in
+ * the payment's `btcpay_refunds` with that amount (the provider appends one per
+ * refund), else the newest entry. Null when the order has no Bitcoin payment.
+ */
+export function bitcoinClaimLinkFor(order: any, amount: number): string | null {
+  const payments = (order?.payment_collections ?? [])
+    .flatMap((c: any) => c?.payments ?? [])
+    .filter((p: any) => String(p?.provider_id || "").startsWith("pp_bitcoin"))
+  const entries: any[] = payments.flatMap((p: any) =>
+    Array.isArray(p?.data?.btcpay_refunds) ? p.data.btcpay_refunds : []
+  )
+  if (!entries.length) return null
+  const newestFirst = [...entries].sort((a, b) => String(b?.created_at || "").localeCompare(String(a?.created_at || "")))
+  const match = newestFirst.find((e) => Math.abs(Number(e?.amount) - Number(amount)) < 0.005) ?? newestFirst[0]
+  return match?.link ? String(match.link) : null
 }

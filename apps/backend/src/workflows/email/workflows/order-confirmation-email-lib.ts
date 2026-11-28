@@ -98,6 +98,7 @@ export const paymentMethodWords = (payment: any): string | null => {
     return METHOD_WORDS[mode] ? `${METHOD_WORDS[mode]} via PayU` : "PayU"
   }
   if (provider.includes("stripe")) return "card via Stripe"
+  if (provider.startsWith("pp_bitcoin")) return "Bitcoin"
   if (provider.includes("system_default") || provider.includes("manual")) return "bank transfer"
   return null
 }

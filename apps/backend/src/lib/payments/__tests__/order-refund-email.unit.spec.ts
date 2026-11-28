@@ -2,6 +2,7 @@ import { readFileSync } from "fs"
 import * as path from "path"
 
 import {
+  bitcoinClaimLinkFor,
   buildRefundEmailVars,
   orderRefunds,
   stampRefundEmail,
@@ -191,6 +192,49 @@ describe("rendered template", () => {
     )
     expect(without.html).not.toContain("WHY YOU'RE GETTING THIS")
     expect(without.html).toContain("Nothing more to pay")
+  })
+
+  it("Bitcoin refund: says 'ready to claim' with the BTCPay link, never 'we've sent'", () => {
+    const order = {
+      ...paidInFullOrder(),
+      payment_collections: [
+        {
+          payments: [
+            {
+              provider_id: "pp_bitcoin_btc",
+              data: {
+                btcpay_refunds: [
+                  { pull_payment_id: "PP1", link: "https://btcpay.example.com/pull-payments/PP1", amount: "200.00", created_at: "2026-11-28T01:00:00Z" },
+                  { pull_payment_id: "PP2", link: "https://btcpay.example.com/pull-payments/PP2", amount: "500.00", created_at: "2026-11-28T02:00:00Z" },
+                ],
+              },
+              captures: [{ amount: 1625 }],
+              refunds: [{ id: "ref_1", amount: 200 }, { id: "ref_2", amount: 500 }],
+            },
+          ],
+        },
+      ],
+    }
+    // The link for THIS refund's amount, not just the newest.
+    expect(bitcoinClaimLinkFor(order, 200)).toBe("https://btcpay.example.com/pull-payments/PP1")
+    const vars = buildRefundEmailVars({ order, refund_amount: 500, bitcoin_claim_link: bitcoinClaimLinkFor(order, 500) })
+    expect(vars.payment_method).toBe("Bitcoin")
+    const out = renderRefundEmail({ subject: ORDER_REFUNDED_SUBJECT, html: ORDER_REFUNDED_HTML }, vars)
+    expect(out.subject).toMatch(/Bitcoin refund of .*500\.00 is ready to claim/)
+    expect(out.html).toContain("https://btcpay.example.com/pull-payments/PP2")
+    expect(out.html).toContain("CLAIM YOUR REFUND")
+    expect(out.html).not.toContain("we've sent")
+    expect(out.html).not.toContain("5–10 business days")
+  })
+
+  it("non-Bitcoin refunds have no claim link and keep the old wording", () => {
+    expect(bitcoinClaimLinkFor(paidInFullOrder(), 1000)).toBeNull()
+    const out = renderRefundEmail(
+      { subject: ORDER_REFUNDED_SUBJECT, html: ORDER_REFUNDED_HTML },
+      buildRefundEmailVars({ order: paidInFullOrder(), refund_amount: 1000 })
+    )
+    expect(out.html).toContain("we've sent")
+    expect(out.html).not.toContain("CLAIM YOUR REFUND")
   })
 
   it("the operator's .html copy is identical to the code constant", () => {

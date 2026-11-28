@@ -4,6 +4,8 @@ import { completeCartWorkflow } from "@medusajs/medusa/core-flows"
 
 import { getInvoice } from "../modules/btcpay-payment/lib/btcpay-client"
 import { invoiceVerdict } from "../modules/btcpay-payment/lib/verdict"
+import { BITCOIN_PAYMENT_RECEIVED_TEMPLATE } from "../scripts/seed-bitcoin-email-templates"
+import { sendNotificationEmailWorkflow } from "../workflows/email/workflows/send-notification-email"
 
 /**
  * Bitcoin safety net: place the order for any checkout whose BTCPay invoice is
@@ -21,6 +23,11 @@ import { invoiceVerdict } from "../modules/btcpay-payment/lib/verdict"
  * invoice again. A cart the webhook completed meanwhile is skipped by the
  * query, or returns its existing order.
  *
+ * It also sends the buyer "we've received your Bitcoin payment" once, the
+ * first run that sees the invoice Processing (paid, not yet confirmed),
+ * stamped on cart.metadata.bitcoin_payment_received_email so it never repeats.
+ * A missing template throws inside the send → not stamped → retried next run.
+ *
  * Window: sessions from the last BITCOIN_SWEEP_DAYS days (default 3). An
  * invoice expires after 15 min unpaid, but one paid in time can take hours to
  * confirm on a slow chain.
@@ -28,7 +35,40 @@ import { invoiceVerdict } from "../modules/btcpay-payment/lib/verdict"
 const MAX_BATCH = Number(process.env.BITCOIN_SWEEP_MAX_BATCH || 50)
 const DAYS = Number(process.env.BITCOIN_SWEEP_DAYS || 3)
 
-export type OpenBitcoinSession = { session_id: string; cart_id: string; data: Record<string, any> }
+export type OpenBitcoinSession = {
+  session_id: string
+  cart_id: string
+  data: Record<string, any>
+  email?: string | null
+  first_name?: string | null
+  currency_code?: string | null
+  metadata?: Record<string, any> | null
+}
+
+export const RECEIVED_EMAIL_KEY = "bitcoin_payment_received_email"
+
+/** Pure: email "we've received your payment" now? Once per invoice, only while Processing. */
+export function shouldSendReceivedEmail(inv: { id: string; status: string }, s: OpenBitcoinSession): boolean {
+  if (inv.status !== "Processing") return false
+  if (!String(s.email || "").trim()) return false
+  const stamp = (s.metadata || {})[RECEIVED_EMAIL_KEY]
+  return !(stamp && stamp.invoice_id === inv.id)
+}
+
+/** https-only link to the waiting page (the storefront's own return URL). */
+export function statusUrlFor(s: OpenBitcoinSession): string {
+  const u = String(s.data?.return_url || "")
+  return /^https:\/\//i.test(u) ? u : ""
+}
+
+const formatMoney = (amount: unknown, currency: string) => {
+  const n = Number(amount)
+  try {
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: currency.toUpperCase() }).format(n)
+  } catch {
+    return `${n.toFixed(2)} ${currency.toUpperCase()}`
+  }
+}
 
 /** Pure: should this open session's cart be completed, given BTCPay's invoice? */
 export function sweepDecision(
@@ -58,11 +98,13 @@ export default async function completePaidBitcoinCarts(container: MedusaContaine
   let rows: OpenBitcoinSession[] = []
   try {
     const result = await pg.raw(
-      `select ps.id as session_id, cpc.cart_id, ps.data
+      `select ps.id as session_id, cpc.cart_id, ps.data,
+              c.email, c.currency_code, c.metadata, sa.first_name
          from payment_session ps
          join cart_payment_collection cpc
            on cpc.payment_collection_id = ps.payment_collection_id and cpc.deleted_at is null
          join cart c on c.id = cpc.cart_id
+         left join cart_address sa on sa.id = c.shipping_address_id
         where ps.provider_id like 'pp_bitcoin%'
           and ps.deleted_at is null
           and ps.status = 'pending'
@@ -93,6 +135,32 @@ export default async function completePaidBitcoinCarts(container: MedusaContaine
       continue
     }
     const d = sweepDecision(inv, s, ourStore)
+    // Only for an invoice that is genuinely this session's (verdict pending,
+    // not failed: metadata/store/currency all matched).
+    if (d.verdict === "pending" && shouldSendReceivedEmail(inv, s)) {
+      try {
+        await sendNotificationEmailWorkflow(container).run({
+          input: {
+            to: String(s.email),
+            template: BITCOIN_PAYMENT_RECEIVED_TEMPLATE,
+            data: {
+              customer_first_name: String(s.first_name || "").trim() || "there",
+              amount: formatMoney(s.data?.amount, String(s.data?.currency || s.currency_code || "INR")),
+              status_url: statusUrlFor(s),
+              current_year: String(new Date().getFullYear()),
+            },
+          },
+        })
+        const stamp = { [RECEIVED_EMAIL_KEY]: { invoice_id: inv.id, sent_at: new Date().toISOString() } }
+        await pg.raw(`update cart set metadata = coalesce(metadata, '{}'::jsonb) || ?::jsonb where id = ?`, [
+          JSON.stringify(stamp),
+          s.cart_id,
+        ])
+        logger.info(`[bitcoin-sweep] emailed "payment received" for cart ${s.cart_id} (invoice ${inv.id})`)
+      } catch (e: any) {
+        logger.warn(`[bitcoin-sweep] "payment received" email for cart ${s.cart_id} not sent: ${e?.message ?? e}`)
+      }
+    }
     if (!d.complete) {
       if (d.verdict === "review") {
         logger.error(`[bitcoin-sweep] NEEDS REVIEW cart ${s.cart_id} invoice ${invoiceId}: ${d.reason} — not placing the order`)

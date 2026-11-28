@@ -16,6 +16,7 @@ import {
 } from "./order-refunded-template"
 import {
   ORDER_REFUNDED_TEMPLATE,
+  bitcoinClaimLinkFor,
   buildRefundEmailVars,
   orderRefunds,
   stampRefundEmail,
@@ -197,6 +198,7 @@ export async function sendOrderRefundEmail(
     refund_amount: amount,
     note: input.note ?? null,
     partner_name: await partnerNameFor(container, order.sales_channel_id ?? null),
+    bitcoin_claim_link: bitcoinClaimLinkFor(order, amount),
   })
   const to = String(order.email ?? "").trim() || null
 

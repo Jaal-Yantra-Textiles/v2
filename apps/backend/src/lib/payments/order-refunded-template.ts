@@ -14,9 +14,10 @@
 export const ORDER_REFUNDED_FROM = "orders@jaalyantra.com"
 
 export const ORDER_REFUNDED_SUBJECT =
-  "We've refunded {{refund_amount}} on order {{order_display_id}}"
+  "{{#if bitcoin_claim_link}}Your Bitcoin refund of {{refund_amount}} is ready to claim{{else}}We've refunded {{refund_amount}} on order {{order_display_id}}{{/if}}"
 
 export const ORDER_REFUNDED_VARIABLES: Record<string, string> = {
+  bitcoin_claim_link: "Bitcoin only: BTCPay link the buyer opens to claim the refund (null otherwise)",
   customer_first_name: "Buyer first name (customer, else shipping address)",
   order_display_id: "Order number, already prefixed with # — do NOT add another #",
   order_email: "Buyer email",
@@ -73,7 +74,7 @@ export const ORDER_REFUNDED_HTML = `<!DOCTYPE html>
 </tr>
 </table>
 <div style="height:42px;"></div>
-<div style="font-size:38px;line-height:1.02;letter-spacing:-1.5px;font-weight:700;color:#F8F5EE;">We've refunded<br>{{refund_amount}}.</div>
+<div style="font-size:38px;line-height:1.02;letter-spacing:-1.5px;font-weight:700;color:#F8F5EE;">{{#if bitcoin_claim_link}}Your refund<br>is ready.{{else}}We've refunded<br>{{refund_amount}}.{{/if}}</div>
 <div style="height:20px;"></div>
 <table role="presentation" cellpadding="0" cellspacing="0" border="0">
 <tr>
@@ -91,8 +92,11 @@ export const ORDER_REFUNDED_HTML = `<!DOCTYPE html>
 <tr>
 <td style="padding:34px 34px 10px;">
 <div style="font-size:14px;line-height:1.75;color:#56534D;">
-Hi <strong style="color:#181818;">{{customer_first_name}}</strong>, we've sent <strong style="color:#181818;">{{refund_amount}}</strong> back to you for order {{order_display_id}}{{#if payment_method}}, to the same {{payment_method}} payment you made{{/if}}.
+{{#if bitcoin_claim_link}}Hi <strong style="color:#181818;">{{customer_first_name}}</strong>, your refund of <strong style="color:#181818;">{{refund_amount}}</strong> for order {{order_display_id}} is ready, in Bitcoin. To receive it, open the link below and enter the bitcoin address you want it sent to. We send it once you have claimed it; the amount in BTC is set at the rate when you claim.
 </div>
+<div style="margin:22px 0 4px;"><a href="{{bitcoin_claim_link}}" style="display:inline-block;background:#181818;color:#F8F5EE;text-decoration:none;padding:13px 22px;font-size:13px;font-weight:bold;letter-spacing:1px;">CLAIM YOUR REFUND</a></div>
+<div style="font-size:12px;line-height:1.6;color:#77736B;margin-top:10px;">If the button does not work, copy this link: <a href="{{bitcoin_claim_link}}" style="color:#315B61;">{{bitcoin_claim_link}}</a></div>{{else}}Hi <strong style="color:#181818;">{{customer_first_name}}</strong>, we've sent <strong style="color:#181818;">{{refund_amount}}</strong> back to you for order {{order_display_id}}{{#if payment_method}}, to the same {{payment_method}} payment you made{{/if}}.
+</div>{{/if}}
 </td>
 </tr>
 
@@ -158,7 +162,7 @@ Hi <strong style="color:#181818;">{{customer_first_name}}</strong>, we've sent <
 <tr>
 <td style="padding:22px 34px 6px;">
 <div style="font-size:10px;font-weight:bold;letter-spacing:2px;text-transform:uppercase;color:#181818;margin-bottom:8px;">WHEN YOU'LL SEE IT</div>
-<div style="font-size:13px;line-height:1.7;color:#56534D;">Refunds can take 5–10 business days to show in your account, depending on your bank or card provider. If it hasn't arrived after that, reply to this email and we'll chase it for you.</div>
+<div style="font-size:13px;line-height:1.7;color:#56534D;">{{#if bitcoin_claim_link}}Once you claim it, we send the bitcoin to your address, usually within one business day; the network then takes 10 to 60 minutes to confirm it. If it hasn't arrived after that, reply to this email and we'll chase it for you.{{else}}Refunds can take 5–10 business days to show in your account, depending on your bank or card provider. If it hasn't arrived after that, reply to this email and we'll chase it for you.{{/if}}</div>
 </td>
 </tr>
 
