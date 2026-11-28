@@ -193,6 +193,20 @@ describe("BtcpayPaymentProviderService against a faked BTCPay", () => {
     expect(r).toEqual({ action: "captured", data: { session_id: "payses_1", amount: 1950 } })
   })
 
+  it("webhook: OUR store's hand-made webhook signs with the master secret itself → accepted", async () => {
+    const raw = JSON.stringify({ type: "InvoiceSettled", storeId: "STORE_OURS", invoiceId: "INV1" })
+    const sig = "sha256=" + crypto.createHmac("sha256", "master").update(raw).digest("hex")
+    const r = await make().getWebhookActionAndData({ data: JSON.parse(raw), rawData: raw, headers: { "btcpay-sig": sig } })
+    expect(r.action).toBe("captured")
+  })
+
+  it("webhook: a PARTNER store signed with the master secret is rejected (partners use derived secrets)", async () => {
+    const raw = JSON.stringify({ type: "InvoiceSettled", storeId: "STORE_PARTNER", invoiceId: "INV1" })
+    const sig = "sha256=" + crypto.createHmac("sha256", "master").update(raw).digest("hex")
+    const r = await make().getWebhookActionAndData({ data: JSON.parse(raw), rawData: raw, headers: { "btcpay-sig": sig } })
+    expect(r.action).toBe("not_supported")
+  })
+
   it("webhook: unsigned or wrongly signed → not_supported, invoice never fetched", async () => {
     const raw = JSON.stringify({ type: "InvoiceSettled", storeId: "STORE_OURS", invoiceId: "INV1" })
     const r = await make().getWebhookActionAndData({ data: JSON.parse(raw), rawData: raw, headers: { "btcpay-sig": "sha256=00" } })

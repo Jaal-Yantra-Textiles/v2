@@ -300,7 +300,14 @@ class BtcpayPaymentProviderService extends AbstractPaymentProvider<BtcpayOptions
     const sig = headers?.["btcpay-sig"] ?? headers?.["BTCPay-Sig"]
 
     if (!storeId || !invoiceId || !rawData) return { action: "not_supported" }
-    if (!btcpaySignatureValid(rawData, sig, storeWebhookSecret(this.options_.webhook_secret, storeId))) {
+    // Partner stores: we create their webhook with a secret derived per store.
+    // OUR store: its webhook may be made by hand in BTCPay, whose secret is
+    // then BTCPAY_WEBHOOK_SECRET itself — accept that, for our store only.
+    const master = this.options_.webhook_secret
+    const signedOk =
+      btcpaySignatureValid(rawData, sig, storeWebhookSecret(master, storeId)) ||
+      (storeId === this.options_.store_id && btcpaySignatureValid(rawData, sig, master))
+    if (!signedOk) {
       this.logger_.warn(`[BTCPay] webhook rejected (bad signature): ${type} invoice=${invoiceId} store=${storeId}`)
       return { action: "not_supported" }
     }
