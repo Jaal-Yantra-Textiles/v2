@@ -1,29 +1,49 @@
 "use client"
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useCallback } from "react"
+import { useCallback, useEffect } from "react"
 
 import SortProducts, { SortOptions } from "./sort-products"
 import FilterRadioGroup from "./filter-radio-group"
 import FilterCheckboxGroup from "./filter-checkbox-group"
 import { HttpTypes } from "@medusajs/types"
 import { Button, toast } from "@medusajs/ui"
-import { useState } from "react"
 import ActionSheet from "@modules/common/components/action-sheet"
+import {
+  closeFilterSheet,
+  openFilterSheet,
+  useFilterSheetOpen,
+} from "./filter-sheet-store"
 
 type RefinementListProps = {
   sortBy: SortOptions
   search?: boolean
   collections?: HttpTypes.StoreCollection[]
   tags?: HttpTypes.StoreProductTag[]
+  /**
+   * Drop the built-in full-width "Filters" button on mobile. Used by /store,
+   * where the trigger lives in the search pill instead (see
+   * `mobile-filter-trigger.tsx`); the ActionSheet itself stays here.
+   */
+  hideMobileTrigger?: boolean
   'data-testid'?: string
 }
 
-const RefinementList = ({ sortBy, collections, tags, 'data-testid': dataTestId }: RefinementListProps) => {
+const RefinementList = ({ sortBy, collections, tags, hideMobileTrigger = false, 'data-testid': dataTestId }: RefinementListProps) => {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
-  const [filterOpen, setFilterOpen] = useState(false)
+  const filterOpen = useFilterSheetOpen()
+
+  // The sheet flag is shared with the search-pill trigger, so reset it when
+  // this component goes away — otherwise navigating back would re-open the
+  // sheet and leave the page scroll-locked.
+  useEffect(() => {
+    return () => {
+      closeFilterSheet()
+      document.body.style.overflow = ""
+    }
+  }, [])
 
 
   const createQueryString = useCallback(
@@ -104,27 +124,30 @@ const RefinementList = ({ sortBy, collections, tags, 'data-testid': dataTestId }
         <FilterContent />
       </div>
 
-      <div className="small:hidden mb-6 w-full px-6">
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => setFilterOpen(true)}
-        >
-          Filters
-        </Button>
-        <ActionSheet
-          open={filterOpen}
-          onClose={() => setFilterOpen(false)}
-          title="Filters"
-          footer={
-            <Button className="w-full" onClick={() => setFilterOpen(false)}>
-              Close
-            </Button>
-          }
-        >
-          <FilterContent />
-        </ActionSheet>
-      </div>
+      {!hideMobileTrigger && (
+        <div className="small:hidden mb-6 w-full px-6">
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={openFilterSheet}
+          >
+            Filters
+          </Button>
+        </div>
+      )}
+
+      <ActionSheet
+        open={filterOpen}
+        onClose={closeFilterSheet}
+        title="Filters"
+        footer={
+          <Button className="w-full" onClick={closeFilterSheet}>
+            Close
+          </Button>
+        }
+      >
+        <FilterContent />
+      </ActionSheet>
     </>
   )
 }

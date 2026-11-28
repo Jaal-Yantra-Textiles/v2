@@ -5,6 +5,7 @@ import LocalizedClientLink from "@modules/common/components/localized-client-lin
 import { generateHTML } from "@tiptap/html"
 import StarterKit from "@tiptap/starter-kit"
 import ContactUsForm from "@modules/layout/components/contact-us-form"
+import { PageHero } from "@modules/layout/components/page-threads"
 
 const DOMAIN = "shop.cicilabel.com"
 
@@ -32,28 +33,11 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     notFound()
   }
 
-  // Full-bleed hero with gradient background and responsive typography
+  // The hero and the poppy painting are one section: the painting is the
+  // ground, the title sits on top of it. The slug seeds the palette and the
+  // motion, so each CMS page gets its own colours and its own sway.
   const renderHero = (title?: string, subtitle?: string, align: "left" | "center" = "center") => (
-    <section className="relative mb-8 md:mb-12">
-      <div className="w-screen relative left-1/2 right-1/2 -mx-[50vw] bg-gradient-to-b from-ui-bg-base to-transparent">
-        <div className={
-          `content-container py-10 md:py-16 ${align === 'left' ? 'text-left' : 'text-center'}`
-        }>
-          {title && (
-            <h1 className={`mb-3 text-2xl md:text-4xl font-semibold tracking-tight ${align === 'left' ? '' : ''}`}>
-              {title}
-            </h1>
-          )}
-          {subtitle && (
-            <p className={
-              `${align === 'left' ? 'max-w-xl' : 'max-w-xl mx-auto'} text-ui-fg-subtle text-sm md:text-base`
-            }>
-              {subtitle}
-            </p>
-          )}
-        </div>
-      </div>
-    </section>
+    <PageHero title={title} subtitle={subtitle} align={align} seed={slug} />
   )
 
   // Note: For TipTap JSON, render via official static renderer (server-side).
@@ -185,12 +169,16 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
     return raw || ""
   }
 
+  // The painted hero is the page's own section now, so this index only says
+  // whether the CMS supplied one or the title needs the fallback below.
+  const firstHeroIndex = blocks.findIndex(
+    (b: any) => normalizeType(b.type) === "Hero"
+  )
+
   return (
     <article className="content-container py-6 md:py-10">
-      {/* If no hero block is present, show page title as fallback */}
-      {blocks.some((b) => b.type === "Hero") ? null : (
-        <h1 className="mb-6 text-2xl md:text-3xl font-semibold">{page.title}</h1>
-      )}
+      {/* If no hero block is present, the page title gets the painted hero */}
+      {firstHeroIndex === -1 && <PageHero title={page.title} seed={slug} />}
 
       {/* Breadcrumbs */}
       <nav aria-label="Breadcrumb" className="mb-6">
@@ -218,7 +206,9 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
             if (type === "Hero") {
               const content = rawContent as { title?: string; subtitle?: string; align?: "left" | "center" }
               return (
-                <div key={`hero-${idx}`}>{renderHero(content?.title ?? page.title, content?.subtitle, content?.align || 'center')}</div>
+                <div key={`hero-${idx}`}>
+                  {renderHero(content?.title ?? page.title, content?.subtitle, content?.align || 'center')}
+                </div>
               )
             }
             if (type === "Main") {
