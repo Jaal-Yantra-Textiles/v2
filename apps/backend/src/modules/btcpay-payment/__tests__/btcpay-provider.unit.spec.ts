@@ -168,6 +168,24 @@ describe("BtcpayPaymentProviderService against a faked BTCPay", () => {
     await expect(make().deletePayment({ data: sessionData } as any)).resolves.toBeTruthy()
   })
 
+  it("refund: Medusa's raw amount becomes a BTCPay pull payment, and every refund keeps its own claim link", async () => {
+    const realFetch2 = global.fetch
+    let n = 0
+    global.fetch = (async (url: any, init?: any) => {
+      calls.push({ method: init?.method || "GET", url: String(url), body: init?.body ? JSON.parse(init.body) : undefined })
+      n += 1
+      return new Response(JSON.stringify({ id: `PP${n}`, viewLink: `https://btcpay.example.com/pull-payments/PP${n}` }), { status: 200 })
+    }) as any
+    const first = await make().refundPayment({ data: sessionData, amount: { value: "500", precision: 20 } } as any)
+    const second = await make().refundPayment({ data: first.data, amount: { value: "125.5", precision: 20 } } as any)
+    global.fetch = realFetch2
+    expect(calls[0].url).toBe("https://btcpay.example.com/api/v1/stores/STORE_OURS/invoices/INV1/refund")
+    expect(calls[0].body).toMatchObject({ refundVariant: "Custom", customAmount: "500.00", customCurrency: "INR" })
+    const refunds = (second.data as any).btcpay_refunds
+    expect(refunds.map((r: any) => [r.pull_payment_id, r.amount])).toEqual([["PP1", "500.00"], ["PP2", "125.50"]])
+    expect(refunds[1].link).toBe("https://btcpay.example.com/pull-payments/PP2")
+  })
+
   it("webhook: signed InvoiceSettled → captured for the session in the INVOICE's metadata", async () => {
     const raw = JSON.stringify({ type: "InvoiceSettled", storeId: "STORE_OURS", invoiceId: "INV1" })
     const sig = "sha256=" + crypto.createHmac("sha256", storeWebhookSecret("master", "STORE_OURS")).update(raw).digest("hex")

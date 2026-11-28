@@ -13,6 +13,7 @@
  *   btcpay.store.canviewinvoices            GET    …/invoices/{id}
  *   btcpay.store.cancreatepullpayments      POST   …/invoices/{id}/refund
  *   btcpay.store.canmodifyinvoices          POST   …/invoices/{id}/status (retire a replaced invoice)
+ *   btcpay.store.canviewpullpayments        GET    …/pull-payments/{id}/payouts (admin refund status)
  *   btcpay.store.webhooks.canmodifywebhooks GET/POST …/webhooks
  * Nothing here moves money: a refund only creates a pull payment the buyer
  * claims with their own address.
@@ -122,6 +123,26 @@ export function refundInvoice(
     customCurrency: currency,
     name: `Refund for invoice ${invoiceId}`,
   })
+}
+
+export type BtcpayPayout = {
+  id: string
+  state: string // AwaitingApproval | AwaitingPayment | InProgress | Completed | Cancelled
+  pullPaymentId?: string
+  destination?: string
+  originalAmount?: string
+  originalCurrency?: string
+  payoutAmount?: string | null
+  payoutCurrency?: string
+}
+
+/**
+ * Payouts the buyer created by claiming a refund. BTCPay serves these on the
+ * pull payment's own path (`/api/v1/pull-payments/{id}/payouts`); there is no
+ * store-scoped variant of it (that returned 404 on the testnet server).
+ */
+export function listPullPaymentPayouts(cfg: BtcpayConfig, _storeId: string, pullPaymentId: string): Promise<BtcpayPayout[]> {
+  return call<BtcpayPayout[]>(cfg, "GET", `/api/v1/pull-payments/${encodeURIComponent(pullPaymentId)}/payouts?includeCancelled=true`)
 }
 
 export type BtcpayWebhook = { id: string; url: string; enabled?: boolean }

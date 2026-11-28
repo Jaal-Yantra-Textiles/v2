@@ -203,7 +203,25 @@ class BtcpayPaymentProviderService extends AbstractPaymentProvider<BtcpayOptions
     const amount = toBtcpayAmount(input.amount)
     const pp = await refundInvoice(this.cfg(), store, invoiceId, amount, String(data.currency || ""))
     this.logger_.info(`[BTCPay] refund pull payment ${pp.id} for invoice ${invoiceId}: ${amount} ${data.currency}`)
-    return { data: { ...data, refund_pull_payment_id: pp.id, refund_link: pp.viewLink, refund_amount: amount } }
+    // One entry per refund: an order can be refunded more than once, and each
+    // has its own claim link the buyer must open.
+    const prior = Array.isArray(data.btcpay_refunds) ? (data.btcpay_refunds as any[]) : []
+    const entry = {
+      pull_payment_id: pp.id,
+      link: pp.viewLink,
+      amount,
+      currency: String(data.currency || ""),
+      created_at: new Date().toISOString(),
+    }
+    return {
+      data: {
+        ...data,
+        btcpay_refunds: [...prior, entry],
+        refund_pull_payment_id: pp.id,
+        refund_link: pp.viewLink,
+        refund_amount: amount,
+      },
+    }
   }
 
   async cancelPayment(input: CancelPaymentInput): Promise<CancelPaymentOutput> {

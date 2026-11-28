@@ -77,9 +77,18 @@ export function btcpaySignatureValid(rawBody: string | Buffer, header: unknown, 
   return crypto.timingSafeEqual(Buffer.from(got), Buffer.from(expected))
 }
 
-/** Major-unit decimal string for BTCPay's `amount`. */
+/**
+ * Major-unit decimal string for BTCPay's `amount`. Medusa passes a number, a
+ * BigNumber, or (on refunds) a raw `{ value, precision }` object.
+ */
 export function toBtcpayAmount(amount: unknown): string {
-  const n = typeof amount === "number" ? amount : Number(amount as any)
+  const a: any = amount
+  const n =
+    typeof a === "number"
+      ? a
+      : a && typeof a === "object" && "value" in a && !("numeric" in a)
+        ? Number(a.value)
+        : Number(a)
   if (!Number.isFinite(n) || n <= 0) throw new Error(`BTCPay: invalid amount ${String(amount)}`)
   return n.toFixed(2)
 }
